@@ -261,7 +261,17 @@ def explain_gryphon_raw(
 
 
 def _has_advanced_features(ast: GryphonAST) -> bool:
-    """True if the query uses NOT EXISTS, COUNT aggregation, or multi-hop patterns."""
+    """True if the query needs the advanced row/anti-join/multi-hop executor.
+
+    Namely: NOT EXISTS, COUNT aggregation, a multi-hop pattern, OR a row-
+    projection RETURN (field paths, not a bare graph envelope) over an
+    edge-bearing pattern. The last case is load-bearing: a single-hop traversal
+    with a field-projection RETURN (`MATCH (a)-[:E]->(b) RETURN a.data.x AS x`)
+    would otherwise fall through to the single-hop *envelope* path, which only
+    emits nodes/edges and SILENTLY IGNORES the projection (returning the wrong
+    shape with no rows). Routing it here sends it through `_compute_rows` so the
+    projection is actually honored — apply-or-reject, never accept-and-drop.
+    """
     if ast.not_exists_clauses:
         return True
     if ast.return_clause.items is not None:
@@ -272,6 +282,17 @@ def _has_advanced_features(ast: GryphonAST) -> bool:
         for pattern in mc.patterns:
             if len(pattern.edges) > 1:
                 return True
+    # Row-projection RETURN over an edge-bearing (single-hop) pattern. Excluded
+    # when it carries ORDER BY / LIMIT: a single-hop graph-traversal pattern
+    # rejects those (only type-scan projections and aggregation queries support
+    # them), and that rejection lives on the `_dispatch_pattern` single-hop path —
+    # so such a query is deliberately left to fall through to it rather than
+    # routed here, where `_compute_rows` would silently honor the ORDER BY.
+    if ast.order_by is None and ast.limit is None and not _is_graph_envelope_return(ast.return_clause):
+        for mc in ast.match_clauses:
+            for pattern in mc.patterns:
+                if pattern.edges:
+                    return True
     return False
 
 
@@ -1949,11 +1970,16 @@ def _collect_graph_envelope(
             orm_path = _orm_path_for_field(binding, "entity_id")
             edge_columns.append((var, orm_path))
 
-    # Omitted RETURN means "the whole matched subgraph" — collect every hop's
-    # edge, including anonymous ones. An anonymous edge carries no variable, so
-    # it never reaches `bindings` and the loop above misses it; without this,
-    # MATCH (a)-[:E]->(b)-[:E]->(c) returned nodes with no edges between them.
-    if return_clause.items is None:
+    # A graph-envelope RETURN — omitted ("the whole matched subgraph") OR bare
+    # variables naming only nodes — should carry the connecting edges so the
+    # subgraph is useful. Collect every hop's edge via the structural hop paths,
+    # which catches ANONYMOUS edges (`-[]->`, `-[:T]->`) that carry no variable
+    # and so never reach `bindings`. Collecting only bound (named) edges here
+    # silently dropped the connecting edge of `MATCH (a)-[]->(b) RETURN a, b`
+    # (and every anonymous hop of a bare-variable multi-hop RETURN) — the model
+    # oracle flagged the missing edge. The `seen_edge_paths` de-dup preserves any
+    # named edge already collected from the RETURN.
+    if return_clause.items is None or not edge_columns:
         seen_edge_paths = {path for _, path in edge_columns}
         for hop_idx, hop in enumerate(_compute_hop_paths(pattern)):
             edge_path = hop["edge_path"]
@@ -1961,13 +1987,6 @@ def _collect_graph_envelope(
             if orm_path not in seen_edge_paths:
                 edge_columns.append((f"_hop{hop_idx}_edge", orm_path))
                 seen_edge_paths.add(orm_path)
-    # When bare-variable RETURN names only nodes, still collect the connecting
-    # bound edges so the graph envelope is useful.
-    elif not edge_columns:
-        for var, binding in bindings.items():
-            if binding["role"] == "edge":
-                orm_path = _orm_path_for_field(binding, "entity_id")
-                edge_columns.append((var, orm_path))
 
     all_columns = node_columns + edge_columns
     if not all_columns:
@@ -2641,18 +2660,28 @@ def _comparison_to_q(
         return Q(**{f"{orm_path}__isnull": comp.kind == "unknown"})
 
     value = _resolve_value(comp.value, inputs)
+
+    # A null LITERAL operand short-circuits to a genuine FALSE for EVERY
+    # comparison operator — the two-valued "unobserved operand" rule
+    # (spec-grid-traversal-language.md § null semantics;
+    # req-grid-traversal-lang-type-strictness-3). This deliberately includes `=`
+    # and `!=`: without it Django lowers `field = null` to `IS NULL` and
+    # `field != null` to `IS NOT NULL` (a `field=None` artifact), silently
+    # returning the null-field / non-null-field rows the spec says a null-literal
+    # comparison NEVER matches — a silent-wrong-answer on the null boundary. The
+    # observational null axis is `IS NULL` / `IS UNKNOWN`, not `= null`. The
+    # tautologically-false `Q` drops the row without crashing the ORM ("Cannot
+    # use None as a query value" on an ordering/substring lookup).
+    if value is None:
+        return ~Q(pk__isnull=True) & Q(pk__isnull=True)
+
     if comp.op == "!=":
         return ~Q(**{orm_path: value})
     # The regex operator (req-grid-traversal-lang-regex) always lowers to
     # Django's `__regex` lookup (Postgres `~`). Inline flags `(?i)`, `(?s)`,
     # `(?m)`, `(?x)` are passed through verbatim — the executor does NOT
-    # detect, strip, or rewrite any flag. A NULL pattern short-circuits to a
-    # tautologically-false `Q` so the row is dropped (no crash, no surprise
-    # match). A NULL column value falls out of the `__regex` filter naturally
-    # because Postgres regex on a NULL operand is NULL (not truthy).
+    # detect, strip, or rewrite any flag.
     if comp.op == "regex":
-        if value is None:
-            return ~Q(pk__isnull=True) & Q(pk__isnull=True)
         return Q(**{f"{orm_path}__regex": value})
     # The scalar comparison operators plus the substring operators
     # (req-grid-traversal-lang-string-match) -- all positive, single-value
@@ -2667,14 +2696,6 @@ def _comparison_to_q(
         "ends_with": "__endswith",
         "contains": "__contains",
     }[comp.op]
-    # A NULL operand makes an ordering / substring comparison unknown under
-    # Gryphon's two-valued logic (null = unobserved): the row is dropped rather
-    # than crashing the ORM ("Cannot use None as a query value") or matching.
-    # Mirrors the `regex` null short-circuit above. The `=` lookup (empty suffix)
-    # is exempt — Django lowers `field=None` to `__isnull` without crashing, and
-    # the IS KNOWN / IS UNKNOWN operators are the deliberate null-axis surface.
-    if value is None and suffix:
-        return ~Q(pk__isnull=True) & Q(pk__isnull=True)
     return Q(**{f"{orm_path}{suffix}": value})
 
 

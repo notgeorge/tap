@@ -16,10 +16,25 @@ related_specs:
 
 # Plugin Refactor — Install / Pre-Boot / Snapshot Implementation Handoff
 
-> **Status: shovel-ready specs, not yet implemented (2026-06-30).** This note hands a fresh
-> session the design decisions reached in the `plugins` session so implementation does not
-> re-litigate them. All requirements below are `Proposed`. Read the specs first; this is the
-> orientation, not the contract.
+> **Status update — install MVP IMPLEMENTED + validated (2026-07-01).** The packaging spike
+> (below) ran green, and the install machinery is built and validated: `tap/preboot.py`
+> (settings-free pre-boot: install → discover → static coherence guard → snapshot → `TAP_PLUGINS`),
+> the profile `install` section (`tap_boot/schemas/boot.schema.json`), settings consumption of
+> `TAP_PLUGINS`, the `docker/entrypoint.sh` pre-boot stage, `git` added to the Dockerfile, and the
+> dev snapshot-disable in spawn. `genericom` is migrated to package-mode as the one real install
+> target; `boot/genericom-install.boot.json` is the validation profile; `tap/tests/test_preboot.py`
+> covers the units. The related boot/plugin-arch spec reqs are flipped to `Implemented`
+> (MVP) / `Partially Implemented`. **Transition state (UPDATED 2026-07-01):** the mechanical
+> follow-on is DONE — the entire samsite plugin set (`fedramp_20x_ksi`, `github_core`, `roscale`,
+> `computing_core`, `administrivia`, `aws_core`, `sigstore_core`, `lotr`, `samsite`) is migrated to
+> package-mode (`tap_plugin.<slug>`), out of hardcoded `INSTALLED_APPS`, and installed via the
+> `samsite` boot profile's `install` section; only `gryphon_playground` stays build-baked (held for
+> the in-flight gryphon-engine refactor). The pre-boot conformance + reconciliation gates verify all
+> 9 at boot; the full suite is green. See "Install MVP — as-built" near the end. The spike section +
+> decisions below remain the design record.
+>
+> **Original status (2026-06-30): shovel-ready specs.** All requirements were `Proposed`; this note
+> handed a fresh session the design decisions so implementation would not re-litigate them.
 
 ## What this is
 
@@ -53,6 +68,88 @@ package data (`tap-plugin.toml`, `grift/`, `static/`) still reachable. Do it thr
 worktree, no shared `uv.lock` churn), surface any landmines (namespace packages, package-data
 inclusion, Django app discovery from site-packages), and fold the proven recipe back into this doc.
 This retires the install MVP's biggest unknown before committing the build.
+
+## Package-mode recipe — PROVEN (spike run 2026-07-01)
+
+The spike ran both locked stages (toy `spiketoy`, then the real grift-only `genericom`) inside the
+session's web container, in throwaway `/tmp` (invisible to host git), with **zero `.venv`/`uv.lock`
+churn**. Both passed. The recipe below is proven end-to-end; the install MVP builds on it.
+
+**Isolation primitive (use this, not a fresh worktree stack):** `uv run --no-project --with <spec>`
+gives a bare ephemeral env for pure-mechanism proofs; `PYTHONPATH=/app uv run --with <spec>` overlays
+the wheel on the full TAP env (project deps + `tap`/`tap_web`/…) without mutating `.venv` or `uv.lock`.
+`<spec>` is a built wheel, a directory (`--with-editable <dir>`), or a git requirement
+(`<dist> @ git+…@<rev>`). All three install modes proved discovery + AppConfig load.
+
+**The packaging shape (per plugin):**
+
+1. **Layout = top-level `<slug>` package.** Transform `plugins/<slug>/*` → a `<slug>/` package dir
+   with a sibling top-level `pyproject.toml`. Everything the running plugin needs — `tap-plugin.toml`,
+   `grift/`, `static/`, `templates/`, `panels/` — lives **inside** the `<slug>/` package. Exclude
+   non-runtime dirs (`specs/`, `tests/`) from the wheel.
+2. **`pyproject.toml` (hatchling):**
+   ```toml
+   [project]
+   name = "tap-plugin-<slug>"          # dist name (hyphens); the wheel/PyPI/git identity
+   version = "0.1.0"
+   requires-python = ">=3.14"
+
+   [project.entry-points."tap.plugins"]
+   <slug> = "<slug>.apps:<Slug>Config"  # entry-point KEY == slug; value = AppConfig
+
+   [build-system]
+   requires = ["hatchling"]
+   build-backend = "hatchling.build"
+
+   [tool.hatch.build.targets.wheel]
+   packages = ["<slug>"]                # top-level import name == slug
+   ```
+   Hatchling ships **all** files under the package dir by default — `tap-plugin.toml`, `grift/*.json`,
+   `static/`, `templates/` are included with **no `MANIFEST.in` / `package_data`** stanza. (Confirmed
+   by inspecting the built wheel's namelist.) This is a hatchling advantage over setuptools; the
+   existing `plugins/<slug>/pyproject.toml` workspace members already use hatchling.
+3. **Discovery + load** (what the install MVP wires): `importlib.metadata.entry_points(group="tap.plugins")`
+   → each `ep.name` is the slug, `ep.value` (`module:attr`) → `INSTALLED_APPS` entry as `module.attr`.
+   Django loads the AppConfig from **site-packages** (no `plugins/<slug>` source layout); `ready()`
+   runs there, manifest validates, package data resolves via `Path(app_module.__file__).parent`, and
+   Django's app-dirs template/static finders see `templates/` + `static/` because `AppConfig.path`
+   points into site-packages.
+
+**Self-reference rewrite recipe** (`plugins.<slug>.` → `<slug>.`):
+
+- **Python imports** — intra-plugin `from plugins.<slug>.x import …` → `from <slug>.x import …`.
+  (`genericom`: only its two `apps.py` panel imports. Bigger plugins: any module cross-import, e.g.
+  `administrivia`'s `plugins.administrivia.tap_cares…`.)
+- **Manifest `[models]` / `[edges]` class paths** — `plugins.<slug>.models.X` → `<slug>.models.X`.
+  (`genericom` is grift-only and has none; the rewrite is mechanically identical to the import rewrite.
+  Models-bearing plugins — `aws_core`, `github_core`, `sigstore_core`, `computing_core`,
+  `fedramp_20x_ksi` — must do this and add nothing else structural.)
+- **`AppConfig.name` needs no edit** — `TapPluginConfig.__init_subclass__` auto-derives `name` from
+  the module path, so a top-level `<slug>.apps` module yields `name="<slug>"` for free.
+- **DO NOT rewrite grift `source` provenance strings** (`"batch_node": {"source": "plugins.<slug>"}`).
+  That field is a free-text `batch.source` label (like `"scanner:aws"`), **not** an import path — it
+  is not load-bearing. Optionally align it to `<slug>` for provenance consistency; not required to load.
+
+**Landmines surfaced (record these so the MVP doesn't rediscover them):**
+
+- **`git` is not in the web image.** Debian trixie `web` container has `apt` but no `git`; a git-source
+  install (`git+https`/`git+file`) fails with `git: command not found`. **Add `git` to the web
+  Dockerfile** — it is a runtime dependency of the install stage, not just a dev convenience.
+- **`ScopedRegistry` scope moves.** Panel/editor/etc. registration scope is inferred from
+  `value.__module__`, so it shifts `plugins.<slug>.*` → `<slug>.*`. Short-key lookups
+  (`registry.get("<slug>-open-alerts")`) are **scope-transparent** and keep working (proven); only a
+  hardcoded fully-qualified `plugins.<slug>:key` lookup or a persisted scope string would break. Grep
+  for `plugins.<slug>:` before extracting a plugin.
+- **`sys.path` split is expected and fine:** the plugin loads from site-packages; the app tree
+  (`tap`, `tap_web`, …) loads from source. In the container the entrypoint runs from `/app`, so `/app`
+  is on the path; a standalone script needs `PYTHONPATH=/app`.
+- **Editable installs resolve from the source dir** (not site-packages) — that is correct for
+  `--with-editable`/dev mode; only wheel and git-source installs land in site-packages.
+
+**Bottom line:** the existing `plugins/<slug>/pyproject.toml` workspace members are 80% there —
+they already use hatchling. Package-mode adds (a) the `tap.plugins` entry point, (b)
+`packages = ["<slug>"]` with the contents moved into a `<slug>/` subdir, and (c) the `plugins.<slug>.`
+→ `<slug>.` rewrite. No namespace-package machinery, no `MANIFEST.in`, no `package_data` needed.
 
 ## Coordination — the gryphon_playground rename (read before touching it)
 
@@ -129,6 +226,58 @@ Spec homes: `spec-tap-boot-v0.md` `req-boot-preboot` / `req-boot-install-section
   an empty reserved seam — samsite keeps config in collector secrets); plugin dependency resolution;
   updates/rollback/enable-disable/signing/grants (the `doc-plugin-system-refactor-framing.md`
   "ecosystem board").
+
+## Install MVP — as-built (2026-07-01)
+
+What shipped this session (machinery-first, minimal install set — George's call):
+
+- **`tap/preboot.py`** — the settings-free pre-boot module (`python -m tap.preboot --profile <id>`).
+  Order: resolve snapshot switch → install `install` plugins (idempotent `is_satisfied` skip) →
+  `discover_entry_points` (identity check: entry-point key must == slug) → `static_coherence_guard`
+  → `take_snapshot` (`pg_dump -Fc` + `pg_restore --list` verify). Emits `TAP_PLUGINS` (AppConfig
+  paths) on **stdout**; all logs to **stderr**. Any failure → `PrebootError` → exit 1 → entrypoint
+  aborts before `migrate` (DB untouched). Includes the boot-variable resolver (`resolve_var`,
+  env > profile > default, `TAP_BOOT_<SECTION>__<KEY>`, empty-env-as-absent) and the snapshot primitive.
+- **`tap_boot/schemas/boot.schema.json`** — new `install` section (`plugins[]` with `slug`/`enabled`/
+  `note`/`source`, where `source` is a `oneOf` git/editable/path; `snapshot_before_migrate` switch).
+- **`tap/settings.py`** — consumes `TAP_PLUGINS` env → splices AppConfigs into `INSTALLED_APPS`
+  before `tap_api`. `BUILD_BAKED_PLUGIN_SLUGS` (in `tap/preboot.py`) is the transition set; a test
+  keeps it equal to the hardcoded `INSTALLED_APPS` plugins.
+- **`docker/entrypoint.sh`** — pre-boot stage inserted after `uv sync`, before `createcachetable`/
+  `migrate` (snapshot precedes all schema changes): `TAP_PLUGINS="$(uv run python -m tap.preboot …)"`.
+  `manage.py boot` was **deliberately kept at spawn-time** (not moved into the entrypoint) so a
+  container restart does not re-fire collectors.
+- **`Dockerfile`** — `git` added (was missing; required for git-source plugin installs).
+- **`plugins/genericom/`** — migrated to package-mode (nested `genericom/` package + pyproject with
+  the `tap.plugins` entry point) as the one real install target. `boot/genericom-install.boot.json`
+  is the validation profile. `tap/tests/test_preboot.py` (23 tests) covers the units.
+- **Security edge — `tap/logging.py:discover_scan_roots`** (found + fixed this session): the authZ-
+  coverage AND log-site scanners discovered plugin roots by `plugins/<slug>/tap-plugin.toml`.
+  Package-mode nests it at `plugins/<slug>/<slug>/tap-plugin.toml`, so **migrating a plugin to
+  package-mode silently hid its code from both scanners** — a real security-posture gap. Fixed to
+  recognize both layouts. Any future in-repo package-mode migration stays scanned. (A fully extracted
+  plugin in its own repo carries its own scanning — out of the monorepo scanners' scope by construction.)
+
+**Validated:** editable/path/git install modes (spike); pre-boot install → discover → guard →
+snapshot → `TAP_PLUGINS`; idempotent reboot no-op; env snapshot-disable (loud WARNING); static
+coherence guard sad-path abort; settings load genericom package-mode into the real app registry;
+full container restart runs the entrypoint pre-boot stage; instance healthy. `tap_boot`+`tap`+
+`tap_plugins` suites green except one **pre-existing-red** test unrelated to this work
+(`test_json_filename_convention` on `plugins/gryphon_playground/scenarios/tck-coverage.json`, red on
+main `a40419e`).
+
+**Immediate follow-on — DONE (2026-07-01):** the samsite plugin set (`fedramp_20x_ksi`,
+`github_core`, `roscale`, `computing_core`, `administrivia`, `aws_core`, `sigstore_core`, `lotr`,
+`samsite`) is migrated to package-mode, moved out of hardcoded `INSTALLED_APPS` into the `samsite`
+profile `install` section, with `plugins.<slug>.` collector keys / manifest `[models]` paths /
+cross-plugin imports rewritten to `tap_plugin.<slug>`. `BUILD_BAKED_PLUGIN_SLUGS` is down to
+`{gryphon_playground}` (held for the in-flight gryphon-engine refactor). Each migration folded in the
+source-identity / versioning / Tier-0 dependency declarations at authoring time; the pre-boot
+conformance + reconciliation gates verify all 9 at boot; the full suite is green. The Done-test
+("samsite plugins uv-installed") passes. Still open: the registry/report inspection surface
+(`req-plugin-arch-install-registry` -3/-5), the plugin `depends_on` schema + consistency gate +
+resolver (deferred, declare-now — `samsite` is the first real cross-plugin dependency), and the
+plugin-creation skill bump below.
 
 ## Also bump
 

@@ -94,6 +94,34 @@ TAP_SECRETS_ROOT = os.environ.get("TAP_SECRETS_ROOT", "/run/tap-secrets")
 # =============================================================================
 # Application Definition
 # =============================================================================
+
+# Package-mode plugins (req-boot-install-section). The settings-free pre-boot stage
+# (tap/preboot.py, run in docker/entrypoint.sh BEFORE Django starts) installs the boot
+# profile's `install` plugins, verifies each entry-point key == slug (the conformance
+# gate), and emits their AppConfig dotted paths as the space-separated TAP_PLUGINS env
+# var. The runserver + steady_queue processes are children of the entrypoint, so they
+# inherit that env and CONSUME it directly (no discovery). They are spliced into
+# INSTALLED_APPS just before tap_api.
+#
+# But TAP_PLUGINS is process-env state: a `manage.py` command run via a SEPARATE
+# `docker exec` (spawn's `manage.py boot`, a manual `import_plugin_grift`, pytest) does
+# NOT inherit it and would otherwise load none of the package-mode plugins. So when the
+# env var is *unset* (as opposed to set-but-empty, which is a real "no package plugins"
+# signal from the entrypoint), fall back to the SAME entry-point discovery pre-boot ran.
+# Discovery reads installed distribution metadata, so it is self-consistent with the venv
+# (never stale the way a cached file would be) and yields exactly the plugins this
+# instance installed. This keeps every container process — server, boot, tests — agreeing
+# on the package-mode set without each exec site having to re-pass TAP_PLUGINS.
+_tap_plugins_env = os.environ.get("TAP_PLUGINS")
+if _tap_plugins_env is not None:
+    TAP_PLUGINS_APPS = _tap_plugins_env.split()
+else:
+    from tap.preboot import discover_entry_points
+
+    # sorted() for a deterministic load order among package-mode plugins; inter-plugin
+    # ordering (depends_on) is the deferred boot-consistency resolver's job.
+    TAP_PLUGINS_APPS = sorted(discover_entry_points().values())
+
 INSTALLED_APPS = [
     # Django built-in apps
     "django.contrib.admin",
@@ -132,52 +160,58 @@ INSTALLED_APPS = [
     # tap_cares — runtime plumbing for collectors/receivers/emitters/actions/schedules.
     # Loaded before plugins so collector_registry exists when plugin AppConfigs ready().
     "tap_cares.apps.TapCaresConfig",
-    # Administrivia plugin — TAP administrative pages and infrastructure
-    "plugins.administrivia.apps.AdministriviaConfig",
-    # LOTR plugin — Middle-earth entities for constraint testing.
-    # NOTE 2026-05-19: kept in INSTALLED_APPS deliberately — it is the
-    # load-bearing test-fixture vocabulary for core tap_grid/tap_api
-    # constraint/edge/validation suites (7 modules import plugins.lotr
-    # .models). De-registering it reds the promote-gate. Its Middle-earth
-    # *seed data* is the instance clutter; decouple that from spawn rather
-    # than de-registering the app. See the lotr-vs-genericom note.
-    "plugins.lotr.apps.LotrConfig",
-    # Computing Core plugin — vendor-neutral computing primitives
-    "plugins.computing_core.apps.ComputingCoreConfig",
-    # AWS Core plugin — resource-type models for AWS cloud infrastructure
-    "plugins.aws_core.apps.AwsCoreConfig",
-    # GitHub Core plugin — GitHub Actions deployment plumbing for the Sam
-    # demo path (notgeorge/samsite). Models account/repo/workflow/run/job/
-    # runner; collector lands the REFERENCES_RESOURCE links against aws_core
-    # nodes during the enrichment phase.
-    "plugins.github_core.apps.GithubCoreConfig",
-    # Sigstore Core plugin — library plugin owning Sigstore-ecosystem models
-    # (rekor_log_entry, sigstore_ca) + the canonical verify/decompose helpers.
-    # No collector/panel of its own; samsite's compliance_collector consumes it
-    # to turn signed /.well-known/ artifacts into transparency-log graph data.
-    # Loads before samsite so its EntityTypes + edge constraints are registered
-    # when the samsite collector emits sigstore_core nodes/edges.
-    "plugins.sigstore_core.apps.SigstoreCoreConfig",
+    # Administrivia plugin — migrated to package-mode 2026-07-01
+    # (tap_plugin.administrivia); loads via TAP_PLUGINS_APPS from the profile
+    # `install` section.
+    # LOTR plugin — migrated to package-mode 2026-07-01 (tap_plugin.lotr).
+    # Still the load-bearing test-fixture vocabulary for the core tap_grid/
+    # tap_api constraint/edge/validation suites (~20 modules import
+    # tap_plugin.lotr.models), so it MUST be installed (editable) in any env
+    # that runs those suites. Loads via TAP_PLUGINS_APPS from a profile
+    # `install` section + the test-settings entry-point discovery-fallback;
+    # its Middle-earth *seed data* remains instance clutter decoupled from the
+    # app registration. See the lotr-vs-genericom note.
+    # Computing Core plugin — migrated to package-mode 2026-07-01
+    # (tap_plugin.computing_core); loads via TAP_PLUGINS_APPS.
+    # AWS Core plugin — migrated to package-mode 2026-07-01 (tap_plugin.aws_core);
+    # Tier-0 boto3 dep travels with the plugin. Loads via TAP_PLUGINS_APPS.
+    # GitHub Core plugin — migrated to package-mode 2026-07-01
+    # (tap_plugin.github_core). Loads via TAP_PLUGINS_APPS from the profile
+    # `install` section; its PyYAML Tier-0 dep rides with the plugin (removed
+    # from [tool.uv.workspace] members). Models account/repo/workflow/run/job/
+    # runner; collector lands REFERENCES_RESOURCE links against aws_core nodes.
+    # Sigstore Core plugin — migrated to package-mode 2026-07-01
+    # (tap_plugin.sigstore_core); Tier-0 sigstore dep travels with the plugin.
+    # Library plugin (rekor_log_entry/sigstore_ca models + verify/decompose
+    # helpers) consumed by samsite's compliance_collector. Loads via
+    # TAP_PLUGINS_APPS from the profile `install` section.
     # Genericom plugin — DEPRECATED 2026-05-19: 100% hand-built mock AWS
     # dataset (lotr-lineage scaffolding) built on aws_core. Code retained in
     # plugins/genericom/ but NOT loaded — real-account work (samsite)
     # supersedes it. Re-add this line to revive.
     # "plugins.genericom.apps.GenericomConfig",
-    # ROSCALE plugin — OSCAL Read/Edit presentation layer. Registers the
-    # roscale-oscal-workbench and roscale-oscal-poam-workbench panel types
-    # that samsite's compliance-pages GRIFT consumes. Loads before samsite
-    # so the panel-type registry is populated when samsite renders.
-    "plugins.roscale.apps.RoscaleConfig",
-    # Samsite plugin — projection of the live AWS cross-deployment of
-    # samaydlette.com (target of the Sam demo, 2026-06-01). Owns the
-    # landing page + first cytoscape graph panel against real boto3 data.
-    "plugins.samsite.apps.SamsiteConfig",
-    # FedRAMP 20x KSI plugin — Key Security Indicator catalog
-    "plugins.fedramp_20x_ksi.apps.Fedramp20xKsiConfig",
+    # ROSCALE plugin — migrated to package-mode 2026-07-01 (tap_plugin.roscale).
+    # Install-only (registers the roscale-oscal-workbench panel types samsite's
+    # compliance pages consume); loads via TAP_PLUGINS_APPS from the profile
+    # `install` section.
+    # Samsite plugin — migrated to package-mode 2026-07-01 (tap_plugin.samsite);
+    # the demo integration surface (projection of the live AWS cross-deployment
+    # of samaydlette.com). Loads via TAP_PLUGINS_APPS from the profile `install`
+    # section; depends on sigstore_core/github_core/roscale/aws_core at import
+    # time, installed before it (see boot/samsite.boot.json).
+    # FedRAMP 20x KSI plugin — migrated to package-mode 2026-07-01 (first namespaced
+    # plugin: tap_plugin.fedramp_20x_ksi). No longer build-baked here; it loads via
+    # TAP_PLUGINS_APPS below after the pre-boot stage uv-installs it from the profile
+    # `install` section. See docs/misc/doc-plugin-source-identity-deps-handoff.md.
     # Gryphon Playground plugin — pg_* playground vocabulary + the Gridkin
     # scenario corpus for testing the Gryphon query language. Load-bearing
     # test-fixture plugin (like lotr): de-registering it reds the Gridkin suite.
     "plugins.gryphon_playground.apps.GryphonPlaygroundConfig",
+    # Package-mode plugins installed by the pre-boot stage (TAP_PLUGINS). Spliced in
+    # here — after build-baked plugins, before tap_api — so tap_api's ready() still
+    # discovers their routers and their EntityTypes/edges register before the API/web
+    # layers. Empty list when TAP_PLUGINS is unset. See TAP_PLUGINS_APPS above.
+    *TAP_PLUGINS_APPS,
     # API layer — last so ready() discovers all plugin routers
     "tap_api",
     # Web interface

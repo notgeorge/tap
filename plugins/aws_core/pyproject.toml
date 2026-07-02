@@ -1,15 +1,33 @@
+# TAP AWS Core plugin — package-mode distribution (namespaced 2026-07-01).
+# Identity (conformance gate): slug "aws_core" == dist "tap-plugin-aws-core" ==
+# namespace "tap_plugin.aws_core" == entry-point key. Migrated OUT of
+# [tool.uv.workspace] members; its Tier-0 `boto3` dep travels with the plugin and
+# uv resolves it when the pre-boot stage installs it (req-plugin-arch-dependencies-1).
 [project]
 name = "tap-plugin-aws-core"
-version = "0.1.0"
 description = "TAP AWS Core plugin — AWS resource-type models and the boto3 collection engine."
 requires-python = ">=3.14"
+dynamic = ["version"]
+
+# Tier-0: the boto3 collection engine is plugin-specific (not core-provided).
 dependencies = [
     "boto3>=1.43.9",
 ]
 
+[project.entry-points."tap.plugins"]
+aws_core = "tap_plugin.aws_core.apps:AwsCoreConfig"
+
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+# MONOREPO-TRANSITION ARTIFACT — remove on extraction (see fedramp_20x_ksi pyproject).
+root = "../.."
+fallback_version = "0.0.0"
+
 [tool.hatch.build.targets.wheel]
-packages = ["."]
+only-include = ["tap_plugin/aws_core"]

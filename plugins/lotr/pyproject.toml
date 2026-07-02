@@ -1,0 +1,40 @@
+# TAP LOTR plugin — package-mode distribution (namespaced 2026-07-01).
+#
+# Identity chain (req-plugin-arch-identity — all four MUST agree, gate-enforced):
+#   slug             = "lotr"                        (tap-plugin.toml slug)
+#   distribution     = "tap-plugin-lotr"             (PEP 503: slug `_`->`-`, `tap-plugin-` prefix)
+#   import namespace = "tap_plugin.lotr"             (PEP 420 native namespace; NO tap_plugin/__init__.py)
+#   entry-point key  = "lotr"                        (== slug)
+#
+# LOTR is the load-bearing test-fixture vocabulary for the core tap_grid/tap_api
+# constraint/edge/validation suites (~20 modules import tap_plugin.lotr.models). It
+# migrates OUT of INSTALLED_APPS to package-mode like every other plugin; the
+# pre-boot stage installs it (editable) from a boot profile's `install` section, and
+# the test settings' entry-point discovery-fallback makes it importable to pytest.
+[project]
+name = "tap-plugin-lotr"
+description = "TAP LOTR plugin — Middle-earth entities (characters, locations, artifacts, races, factions) for constraint testing."
+requires-python = ">=3.14"
+dynamic = ["version"]
+
+# Tier-0 dependencies (req-plugin-arch-dependencies-1): NONE. LOTR imports only the
+# core TAP runtime (tap_grid, tap_plugins.base) the host always provides.
+dependencies = []
+
+[project.entry-points."tap.plugins"]
+lotr = "tap_plugin.lotr.apps:LotrConfig"
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+# MONOREPO-TRANSITION ARTIFACT — remove on extraction (see fedramp_20x_ksi pyproject).
+root = "../.."
+fallback_version = "0.0.0"
+
+[tool.hatch.build.targets.wheel]
+only-include = ["tap_plugin/lotr"]

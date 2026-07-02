@@ -43,7 +43,7 @@ def test_no_orphan_open_findings() -> None:
     for name in ("dimension", "findings-genericom"):
         _import(KSI_GRIFT_DIR / f"{name}.grift.json")
 
-    from plugins.fedramp_20x_ksi.models.finding import Finding
+    from tap_plugin.fedramp_20x_ksi.models.finding import Finding
     from tap_grid.models import Edge
 
     open_findings = list(Finding.objects.filter(status="open"))

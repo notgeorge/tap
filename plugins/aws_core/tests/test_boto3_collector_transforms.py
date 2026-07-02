@@ -10,10 +10,10 @@ from __future__ import annotations
 
 import pytest
 
-from plugins.aws_core.collectors.boto3_collector.customfns import (
+from tap_plugin.aws_core.collectors.boto3_collector.customfns import (
     build_custom_fn_registry,
 )
-from plugins.aws_core.collectors.boto3_collector.transforms import (
+from tap_plugin.aws_core.collectors.boto3_collector.transforms import (
     build_transform_registry,
     s3_bucket_name_from_origin_domain,
 )

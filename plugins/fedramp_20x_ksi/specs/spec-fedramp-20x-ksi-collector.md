@@ -70,7 +70,7 @@ The runtime collector is a `CollectorBase` subclass, `KSICollector`, that lives 
 ```python
 def ready(self) -> None:
     from tap_cares.registry import register_collector
-    from plugins.fedramp_20x_ksi.collectors.ksi_catalog import KSICollector
+    from tap_plugin.fedramp_20x_ksi.collectors.ksi_catalog import KSICollector
 
     register_collector(
         key="ksi-catalog",
@@ -80,8 +80,8 @@ def ready(self) -> None:
     )
 ```
 
-- The registered key is `ksi-catalog`; with `__module__`-based scope inference, the full registry key persisted on the on-grid `Collector` node is `plugins.fedramp_20x_ksi.collectors.ksi_catalog:ksi-catalog`.
-- The on-grid `Collector` node is created by `reconcile_collector_nodes()` (run by the boot orchestrator under a bound actor after `ready()`), **not** by `register_collector` itself and **not** seeded via GRIFT. `register_collector` at `ready()` only records the runner and its descriptor. Since `Collector` is `INTERNAL_ONLY` (see `req-tap-cares-collector-model-9`), GRIFT import would reject the seed. Identity is deterministic: `entity_id = uuid5(NAMESPACE_COLLECTOR, "plugins.fedramp_20x_ksi.collectors.ksi_catalog:ksi-catalog")`. The first reconcile creates the row; subsequent reconciles converge it.
+- The registered key is `ksi-catalog`; with `__module__`-based scope inference, the full registry key persisted on the on-grid `Collector` node is `tap_plugin.fedramp_20x_ksi.collectors.ksi_catalog:ksi-catalog`.
+- The on-grid `Collector` node is created by `reconcile_collector_nodes()` (run by the boot orchestrator under a bound actor after `ready()`), **not** by `register_collector` itself and **not** seeded via GRIFT. `register_collector` at `ready()` only records the runner and its descriptor. Since `Collector` is `INTERNAL_ONLY` (see `req-tap-cares-collector-model-9`), GRIFT import would reject the seed. Identity is deterministic: `entity_id = uuid5(NAMESPACE_COLLECTOR, "tap_plugin.fedramp_20x_ksi.collectors.ksi_catalog:ksi-catalog")`. The first reconcile creates the row; subsequent reconciles converge it.
 
 #### Acceptance Criteria
 

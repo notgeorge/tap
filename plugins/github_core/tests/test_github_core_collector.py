@@ -8,7 +8,7 @@ from __future__ import annotations
 import jsonschema
 import pytest
 
-from plugins.github_core.collectors.github_collector.identity import (
+from tap_plugin.github_core.collectors.github_collector.identity import (
     account_id,
     edge_id,
     job_id,
@@ -17,12 +17,12 @@ from plugins.github_core.collectors.github_collector.identity import (
     runner_id,
     workflow_id,
 )
-from plugins.github_core.collectors.github_collector.manifest import (
+from tap_plugin.github_core.collectors.github_collector.manifest import (
     load_collection_manifest,
     load_link_manifest,
 )
-from plugins.github_core.collectors.github_collector.parser import parse_workflow_yaml
-from plugins.github_core.collectors.github_collector.secret import (
+from tap_plugin.github_core.collectors.github_collector.parser import parse_workflow_yaml
+from tap_plugin.github_core.collectors.github_collector.secret import (
     GITHUB_PAT_SCHEMA,
     api_base_url,
     initial_run_limit,
@@ -56,7 +56,7 @@ class TestManifests:
         """Schema must reject rules with both source_field_path and source_constant."""
         import jsonschema
 
-        from plugins.github_core.collectors.github_collector.manifest import (
+        from tap_plugin.github_core.collectors.github_collector.manifest import (
             LINK_MANIFEST_SCHEMA_PATH,
         )
 
@@ -266,7 +266,7 @@ class TestSelfTest:
     """
 
     def test_unconfigured_when_secret_missing(self, monkeypatch) -> None:
-        from plugins.github_core.collectors.github_collector import collector as mod
+        from tap_plugin.github_core.collectors.github_collector import collector as mod
         from tap_cares.exceptions import SecretNotFoundError
 
         def _raise(_ref):
@@ -279,7 +279,7 @@ class TestSelfTest:
         assert any(c.is_failure and c.code == "GITHUB_SECRET_PRESENT" for c in result.checks)
 
     def test_misconfigured_when_secret_schema_fails(self, monkeypatch) -> None:
-        from plugins.github_core.collectors.github_collector import collector as mod
+        from tap_plugin.github_core.collectors.github_collector import collector as mod
         from tap_cares.exceptions import SecretValidationError
 
         def _raise(_ref):
@@ -294,8 +294,8 @@ class TestSelfTest:
         """A 404 on one repo records that repo's failure by name; healthy
         repos still get their per-repo PASS row so the operator sees the
         whole picture, not just the first broken thing."""
-        from plugins.github_core.collectors.github_collector import collector as mod
-        from plugins.github_core.collectors.github_collector.api_client import GithubAPIError
+        from tap_plugin.github_core.collectors.github_collector import collector as mod
+        from tap_plugin.github_core.collectors.github_collector.api_client import GithubAPIError
         from tap_cares.secrets.models import Secret, SecretRef
 
         def _good_secret(_ref):

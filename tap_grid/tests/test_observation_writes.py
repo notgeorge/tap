@@ -9,7 +9,7 @@ import uuid
 
 import pytest
 
-from plugins.computing_core.models.network_interface import NetworkInterface
+from tap_plugin.computing_core.models.network_interface import NetworkInterface
 from tap_grid.caller_context import CallerContext
 from tap_grid.services import create_node, patch_node
 

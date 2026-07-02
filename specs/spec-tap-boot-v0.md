@@ -37,7 +37,7 @@ Deliberately **deferred until a real consumer drives the shape** (skepticism-of-
 - **App-registered section handlers + registry + per-section schema composition (`req-boot-sections`) and two-layer validate-before-apply (`req-boot-validate`)** — kept `Proposed` as the planned shape, but **not built in v0**. Their first consumer is the authN **Google OIDC provider configuration** (`req-tap-auth-providers`): that config will define the section + schema shape concretely, so it is built when authN lands, not guessed ahead of it. v0 implements the phases directly in the boot command; the structure is chosen so a phase's op-call becomes a handler body later — an additive refactor, not a rewrite.
 - **Instance keystone generation (`req-boot-identity`)** — backlog, not critical path. In v0 the instance keystone comes from plugin GRIFT (the samsite bundle already lays down the "Samsite" keystone).
 - **`--dry-run`/`plan`, the formal idempotency convergence contract (`req-boot-idempotent`), and a durable boot report (`req-boot-report`)** — deferred; v0 relies on the underlying ops being idempotent and on action logging.
-- **Pre-boot stage, install section, pre-migrate snapshot, and boot-variable resolution (`req-boot-preboot`, `req-boot-install-section`, `req-boot-snapshot`, `req-boot-variable-resolution`)** — the installable-plugin path. Kept `Proposed`; lands with the **plugin refactor** (`step-rampart-first-paying-customer`), paired with `req-plugin-arch-install-registry`. v0 hardcodes plugins in the build and runs `migrate` directly in the entrypoint; these turn that into a declared, profile-driven, recoverable install stage.
+- **Pre-boot stage, install section, pre-migrate snapshot, and boot-variable resolution (`req-boot-preboot`, `req-boot-install-section`, `req-boot-snapshot`, `req-boot-variable-resolution`)** — the installable-plugin path. **Implemented as the plugin-refactor MVP** (`tap/preboot.py`, 2026-07-01; `step-rampart-first-paying-customer`), paired with `req-plugin-arch-install-registry`. The entrypoint now runs a settings-free pre-boot stage (install declared plugins → snapshot) before `migrate`, turning the old hardcoded-build/`migrate`-directly standup into a declared, profile-driven, recoverable install stage. Transition state: build-baked plugins still coexist in `INSTALLED_APPS`; the MVP is validated with the one migrated package-mode plugin (`genericom`), and the full samsite plugin-set migration to package-mode is the mechanical follow-on.
 
 ## Roadmap Alignment
 
@@ -75,10 +75,10 @@ For the plugin-refactor additions (pre-boot stage, install section, snapshot, va
 | --- | --- | :---: | --- |
 | req-boot-app | [Bootloader Ownership](#bootloader-ownership) | Implemented | **v0.** One `manage.py boot`; all boot logic lives in `tap_boot`, which calls capability-app ops |
 | req-boot-profile | [Multi-Section Profile](#multi-section-profile) | Implemented | **v0 (minimal).** One profile drives standup (plugins to seed + collectors to fire) via the `population` section; app-owned multi-section composition deferred |
-| req-boot-preboot | [Pre-Boot Stage](#pre-boot-stage) | Proposed | **Plugin-refactor.** Settings-free entrypoint stage (install plugins → snapshot) before `migrate`/`manage.py boot`; `tap_boot` owns the contract, a `tap/` wrapper executes it |
-| req-boot-install-section | [Install Section](#install-section) | Proposed | **Plugin-refactor.** Profile `install` section (desired plugin set), separate from `population`; two-layer drift guard (static pre-boot + runtime pre-population) |
-| req-boot-snapshot | [Pre-Migrate Snapshot](#pre-migrate-snapshot) | Proposed | **Plugin-refactor.** Full schema+data snapshot before `migrate`, switch defaults true; serial @ quiescent standup; verify-before-proceed; restore is a human action; `pg_dump` now / volume-snapshot upgrade path |
-| req-boot-variable-resolution | [Boot Variable Resolution](#boot-variable-resolution) | Proposed | **Plugin-refactor.** Override ladder (flag > env > profile > default); `TAP_BOOT_…__…` env mapping; resolve-once + effective-value-in-report |
+| req-boot-preboot | [Pre-Boot Stage](#pre-boot-stage) | Implemented | **Plugin-refactor MVP (`tap/preboot.py`).** Settings-free entrypoint stage (install plugins → snapshot) before `migrate`; `tap_boot` owns the contract, the `tap/` wrapper executes it. Validated with the one package-mode plugin (`genericom`); `manage.py boot` stays at spawn-time (not relocated into the entrypoint) — deliberate, to avoid collector re-fire on every restart |
+| req-boot-install-section | [Install Section](#install-section) | Implemented | **Plugin-refactor MVP.** Profile `install` section (desired plugin set), separate from `population`; static coherence guard in pre-boot. During the transition, build-baked plugins coexist (a `BUILD_BAKED_PLUGIN_SLUGS` transition set, kept honest against `INSTALLED_APPS` by test); the runtime availability half already exists via `resolve_tap_plugin` (`req-boot-population-4`). Full samsite package-mode migration is the follow-on |
+| req-boot-snapshot | [Pre-Migrate Snapshot](#pre-migrate-snapshot) | Implemented | **Plugin-refactor MVP.** `pg_dump -Fc` full snapshot before `migrate`, switch defaults true, verify via `pg_restore --list`; restore is a human action; callable `tap/` primitive; dev disables via env (spawn writes it into `.env.local`). Volume-snapshot upgrade path still deferred |
+| req-boot-variable-resolution | [Boot Variable Resolution](#boot-variable-resolution) | Implemented | **Plugin-refactor MVP.** Ladder env > profile > default (flag layer reserved); `TAP_BOOT_<SECTION>__<KEY>` env mapping; resolve-once + provenance. Empty-env-as-absent guard (compose materializes unset `${VAR:-}` as `""`) |
 | req-boot-sections | [App-Registered Section Handlers](#app-registered-section-handlers) | Proposed | **Deferred** to first consumer (authN Google OIDC config); handlers/registry live in `tap_boot` |
 | req-boot-validate | [Validate Before Apply](#validate-before-apply) | Proposed | **Deferred** with `req-boot-sections`. v0 keeps only: schema shape + unknown plugin/collector key fails loud |
 | req-boot-phases | [Fixed Phase Order](#fixed-phase-order) | Implemented | **v0: auth → population** (bootloader resolved in auth, bound for population); fuller order is future |
@@ -172,17 +172,17 @@ Plugin installation and the pre-migrate snapshot run in a **pre-boot stage** in 
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-boot-preboot-1 | Settings-Free Entrypoint Stage | Proposed | Pre-boot runs in the entrypoint before `migrate`/`boot`; its logic is a settings-free `tap/` module, not a Django app or `manage.py` command. | |
-| req-boot-preboot-2 | Contract In tap_boot, Execution In tap/ | Proposed | The boot profile declares the install set + snapshot switch; the `tap/` wrapper executes them. The boot phase order is unchanged. | |
-| req-boot-preboot-3 | Reboot Is A No-Op | Proposed | An already-installed plugin set re-runs as a fast no-op; the install registry is the idempotency oracle. | |
-| req-boot-preboot-4 | Failure Aborts Before Migrate | Proposed | Install/identity/uv/snapshot failure aborts pre-boot loud, before `migrate`, leaving the DB untouched. | |
+| req-boot-preboot-1 | Settings-Free Entrypoint Stage | Implemented | `tap/preboot.py` (`python -m tap.preboot`) runs in `docker/entrypoint.sh` before `migrate`; a settings-free, django-free module, not a Django app or `manage.py` command. | |
+| req-boot-preboot-2 | Contract In tap_boot, Execution In tap/ | Implemented | The profile declares the install set + snapshot switch (`tap_boot` schema); `tap/preboot.py` executes them. Boot phase order unchanged. | |
+| req-boot-preboot-3 | Reboot Is A No-Op | Implemented | `is_satisfied()` skips an already-installed plugin (git: matching pinned rev; editable/path: present). Validated: a re-run logs "already satisfied — no-op". | |
+| req-boot-preboot-4 | Failure Aborts Before Migrate | Implemented | Install/identity/guard/snapshot failure raises `PrebootError` → non-zero exit; the entrypoint aborts before `migrate` (DB untouched). Validated via an incoherent profile. | |
 
 ---
 
 ### Install Section
 ----
 RID: `req-boot-install-section`  
-Status: `Proposed`
+Status: `Implemented`
 
 The boot profile gains an `install` section — the desired plugin set — kept **separate** from `population`.
 
@@ -197,15 +197,17 @@ The boot profile gains an `install` section — the desired plugin set — kept 
   1. **Static profile-coherence (pre-boot, pre-migrate):** every plugin slug referenced in `population` also appears in `install`. Document-level — no DB, no registries — so it runs *before* `migrate` and catches the common authoring drift ("named it in population, forgot to add it to install") before any schema change, so the migrate-then-fail-in-population path never triggers for it. Because it is about the profile *document*, it survives a future `population` refactor untouched.
   2. **Runtime availability (boot, pre-population):** every plugin a `population` step names is actually installed, registered, and migration-applied — extends `req-boot-population-4`'s in-memory pre-resolution ("abort before any grid mutation"). This is the runtime readiness check; it lives with `population` (and moves with it when `population` is refactored).
 - These are genuinely *different* checks (document coherence vs runtime readiness), so two homes is correct, not a smell. NetBox's own failure mode — a slug in `PLUGINS` that was never installed crashes the instance — is exactly what layer 1 prevents, earlier and louder.
+- **Declared-vs-actual reconciliation (pre-boot, a third axis).** The two guards above reconcile the profile's *own* sections (`install` ↔ `population`). A separate axis reconciles the `install` section (declared desired set) against what is *actually installed on disk* (the `tap.plugins` entry points in the venv). The *missing* direction — declared+enabled but not installed — is already fatal in the entry-point identity check (`req-boot-preboot`). The reconciliation guard closes the *other* direction: a package-mode distribution installed but named by **no** enabled `install` entry — a stale install left from a prior profile, a plugin the profile `enabled: false`-d but never uninstalled, or an undeclared/manually-installed plugin. Loading undeclared code at standup is exactly the supply-chain surface the declared-vs-actual security posture guards, so it **fails closed** (`spec-security-posture.md` `req-sec-cheap-edges`: over-restriction relaxes cheaply, omission retrofits expensively). It is scoped to package-mode plugins by construction (build-baked plugins carry no `tap.plugins` entry point). In the normal entrypoint flow `uv sync --all-packages` prunes package-mode dists before pre-boot reinstalls the enabled set, so extras are normally zero; a non-empty set is real venv/profile drift. This is the load-path guard; the richer human-facing declared-vs-installed-vs-loaded view is the deferred registry/report (`req-plugin-arch-install-registry-3/-5`), not this abort-path check.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-boot-install-section-1 | Install Separate From Population | Proposed | `install` declares the (reproducible, shared) plugin set; `population` declares (per-deployment) ordering/seeding/firing. They are distinct sections. | |
-| req-boot-install-section-2 | Pre-Boot Reads Install | Proposed | The `install` section is consumed by the pre-boot wrapper as plain JSON, not by a `req-boot-sections` handler. | |
-| req-boot-install-section-3 | Static Coherence Guard | Proposed | Pre-boot fails loud (pre-migrate) if a `population` slug is absent from `install`. | |
-| req-boot-install-section-4 | Runtime Availability Guard | Proposed | Boot pre-population fails loud if a `population` plugin is not installed/registered/migrated, extending `req-boot-population-4`. | |
+| req-boot-install-section-1 | Install Separate From Population | Implemented | `install` (plugins[] + snapshot switch) is a distinct profile section from `population`; both in `tap_boot/schemas/boot.schema.json`. | |
+| req-boot-install-section-2 | Pre-Boot Reads Install | Implemented | `tap/preboot.py:read_profile` reads `install` as plain JSON before Django; not a `req-boot-sections` handler. | |
+| req-boot-install-section-3 | Static Coherence Guard | Implemented | `static_coherence_guard` fails loud pre-migrate if a `population` seed-plugin slug is neither in `install` nor build-baked. | |
+| req-boot-install-section-4 | Runtime Availability Guard | Implemented | The registered-check half is `resolve_tap_plugin` in boot pre-resolution (`req-boot-population-4`); a package-mode `population` slug not installed → not in TAP_PLUGINS → not registered → fails loud. Migration-applied depth remains a thin future extension. | |
+| req-boot-install-section-5 | Install Reconciliation Guard | Implemented | `reconciliation_guard` fails closed if a package-mode plugin is installed (exposes a `tap.plugins` entry point) but is not a declared+enabled `install` entry — undeclared code must not load at standup (declared-vs-actual, `req-sec-cheap-edges`). The inverse (declared but not installed) is already fatal in the entry-point identity check. | |
 
 ---
 
@@ -233,12 +235,12 @@ As the last act of pre-boot — *before* `migrate` — the instance takes a full
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-boot-snapshot-1 | Snapshot Before Migrate | Proposed | A full schema+data snapshot runs as the last pre-boot act, before `migrate`, while the DB is quiescent. | |
-| req-boot-snapshot-2 | Switch Defaults True | Proposed | The snapshot switch is a boot-variable defaulting to true on absence; dev disables it via the env override; a skip logs loud. | |
-| req-boot-snapshot-3 | Serial + Verify Before Proceed | Proposed | The snapshot completes and is verified before `migrate`; failure with the switch on aborts loud. | |
-| req-boot-snapshot-4 | Restore Is A Human Action | Proposed | The switch guarantees a restore point + records its provenance; restore is deliberate, never auto. | |
-| req-boot-snapshot-5 | pg_dump Now / Volume Upgrade Path | Proposed | v0 uses `pg_dump`; copy-on-write volume snapshot is the documented scale upgrade path. | |
-| req-boot-snapshot-6 | Callable Primitive | Proposed | The snapshot is a settings-free `tap/` primitive, reusable by a future periodic snapshot system. | Periodic system itself is backlog |
+| req-boot-snapshot-1 | Snapshot Before Migrate | Implemented | `take_snapshot()` runs as the last pre-boot act, before `createcachetable`/`migrate`, while the app is not started (DB quiescent). | |
+| req-boot-snapshot-2 | Switch Defaults True | Implemented | `snapshot_before_migrate` boot-variable, default true on absence; dev disables via `TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE=false`; a skip logs WARNING. | |
+| req-boot-snapshot-3 | Serial + Verify Before Proceed | Implemented | `pg_dump -Fc` then `pg_restore --list` verification (non-empty + restorable) before the entrypoint proceeds; failure with switch on raises. | |
+| req-boot-snapshot-4 | Restore Is A Human Action | Implemented | The dump is written + its path logged; nothing auto-restores. | |
+| req-boot-snapshot-5 | pg_dump Now / Volume Upgrade Path | Implemented | Uses `pg_dump -Fc`; copy-on-write volume snapshot remains the documented scale upgrade path. | |
+| req-boot-snapshot-6 | Callable Primitive | Implemented | `take_snapshot()` is a settings-free `tap/` primitive reusable by a future periodic system. | Periodic system itself is backlog |
 
 ---
 
@@ -263,10 +265,10 @@ A boot-profile value may be overridden at runtime through a standard precedence 
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-boot-variable-resolution-1 | Precedence Ladder | Proposed | Effective value = flag > env > profile > default. | |
-| req-boot-variable-resolution-2 | Systematic Env Mapping | Proposed | Env names map from profile keys via `TAP_BOOT_` prefix + `__` nesting; no bespoke per-setting names. | |
-| req-boot-variable-resolution-3 | Resolve-Once + Provenance | Proposed | One effective value per key; effective value + source recorded in the report; no silent profile divergence. | |
-| req-boot-variable-resolution-4 | Settings-Free Resolver | Proposed | The resolver is a `tap/` helper usable pre-Django (pre-boot wrapper) and post-Django (`manage.py boot`). | |
+| req-boot-variable-resolution-1 | Precedence Ladder | Implemented | `resolve_var()`: env > profile > default (flag layer reserved for the CLI-override backlog). | |
+| req-boot-variable-resolution-2 | Systematic Env Mapping | Implemented | `env_var_name()` maps `TAP_BOOT_<SECTION>__<KEY>`; no bespoke per-setting names. Empty-env-as-absent guarded. | |
+| req-boot-variable-resolution-3 | Resolve-Once + Provenance | Implemented | `ResolvedVar(value, source)` returns one effective value + its provenance; logged at pre-boot. Full boot-report surface is `req-boot-report` (deferred). | |
+| req-boot-variable-resolution-4 | Settings-Free Resolver | Implemented | `resolve_var()` is a settings-free `tap/` helper usable pre-Django; post-Django reuse lands when more variables need it. | |
 
 ---
 
@@ -391,7 +393,7 @@ The population phase brings plugins online and populates them, as an ordered lis
 | req-boot-population-4 | Unknown Key Fails | Implemented | An unknown plugin slug, collector key, or `bundle` name aborts in pre-resolution — before any grid mutation, including the collector-node reconcile. | |
 | req-boot-population-5 | Collector Semantics Absorbed | Proposed | `fire-collector` preserves `run_collection`, `on_failure`, and ordered-firing semantics. | |
 | req-boot-population-6 | GRIFT Convergence Explicit | Proposed | `seed-plugin` convergence is bounded by GRIFT batch identity: version-bumped batches converge; a DEBUG-only force/reimport serves dev; production never blind-force-reimports; edited-but-not-bumped must not silently skip-as-success. | |
-| req-boot-population-7 | Runtime Plugin Availability | Proposed | Pre-resolution fails loud if a `population` step names a plugin not installed/registered/migrated (runtime half of the `req-boot-install-section` drift guard). | Plugin refactor |
+| req-boot-population-7 | Runtime Plugin Availability | Implemented | The registered dimension holds via `resolve_tap_plugin` pre-resolution: a package-mode `population` plugin not installed is absent from TAP_PLUGINS → not in INSTALLED_APPS → not registered → fails loud. Explicit migration-applied assertion is a thin future extension. | Plugin refactor |
 
 ---
 
@@ -494,7 +496,7 @@ Re-applying a profile converges the instance to the declared state without dupli
 | --- | --- | :---: | --- | --- |
 | req-boot-idempotent-1 | Declared State Converges | Proposed | Re-applying converges declared domain state (no duplicated domain objects, no error); operational/audit records (logs, boot events, jobs, history, FLIP) may append. | |
 | req-boot-idempotent-2 | Section-Owned | Proposed | Each handler owns its own declared-state convergence semantics. | |
-| req-boot-idempotent-3 | Roll-Forward Recovery | Proposed | Abort leaves a valid waypoint (incomplete ≠ inconsistent); recovery is fix-and-re-run, never reverse-migrate; destructive-migration recovery is snapshot restore; no transaction spans `migrate` + `population`. | |
+| req-boot-idempotent-3 | Roll-Forward Recovery | Implemented | Realized by the entrypoint order: pre-boot → `migrate` → (spawn-time) `boot`; no transaction spans them, `migrate` is forward-idempotent, and nothing reverse-migrates or auto-restores. Destructive-migration recovery is the human snapshot restore. | |
 
 ---
 

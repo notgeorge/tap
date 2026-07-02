@@ -12,9 +12,9 @@ import json
 import jsonschema
 import pytest
 
-from plugins.aws_core.collectors.boto3_collector import manifest as manifest_mod
-from plugins.aws_core.collectors.boto3_collector.manifest import manifest_entries
-from plugins.aws_core.collectors.boto3_collector.tags import (
+from tap_plugin.aws_core.collectors.boto3_collector import manifest as manifest_mod
+from tap_plugin.aws_core.collectors.boto3_collector.manifest import manifest_entries
+from tap_plugin.aws_core.collectors.boto3_collector.tags import (
     TagShapeError,
     normalize_tags,
     rgta_join_arn,

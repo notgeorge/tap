@@ -19,7 +19,7 @@ import uuid
 
 import pytest
 
-from plugins.lotr.models import Character
+from tap_plugin.lotr.models import Character
 from tap_grid.exceptions import ServiceVersionConflictError
 from tap_grid.models import Edge, Entity
 from tap_grid.service_types import WriteOperation

@@ -12,7 +12,7 @@ import pytest
 from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.db import models
 
-from plugins.lotr.models import Character
+from tap_plugin.lotr.models import Character
 from tap_grid.models import BaseModel, dangerously_ignore_validator
 
 # ---------------------------------------------------------------------------

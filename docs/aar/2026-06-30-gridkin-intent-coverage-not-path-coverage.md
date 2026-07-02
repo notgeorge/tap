@@ -37,7 +37,13 @@
 > whole executor test corpus — the branch-level complement to the stage gate,
 > honestly tracked in the `spec-dev-validation.md` Validation Map as a script (not
 > per-commit CI) until the dev-validation gate absorbs it. Every §7 corrective
-> action is now realized.
+> action is now realized. **And one next-tier seed is built:** TLP
+> (`req-gridkin-metamorphic-tlp`) — a metamorphic partition (TRUE/FALSE/UNKNOWN
+> reconstructs the unfiltered scan) that probes the 2VL/3VL null boundary as
+> executor *self*-consistency, catching common-mode bugs the oracle could share.
+> Its sibling NoREC was considered and deferred (single-hop projections degrade to
+> envelopes, so it yields no distinct check). Still open: the property fuzzer
+> (random graph + query → executor vs oracle).
 
 ---
 

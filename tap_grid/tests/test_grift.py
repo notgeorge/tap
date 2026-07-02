@@ -386,7 +386,7 @@ class TestGriftUpsertReplace:
         assert result2.success
         assert result2.counts.nodes_imported == 1
 
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
 
         char_obj = Character.objects.get(entity_id=uuid.UUID(nid))
         assert char_obj.name == "Frodo Updated"
@@ -742,7 +742,7 @@ class TestGriftForceReimport:
         assert result2.counts.batches_force_reimported == 1
 
         # Payload updated in place.
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
 
         c = Character.objects.get(entity_id=uuid.UUID(nid))
         assert c.name == "Renamed"
@@ -917,7 +917,7 @@ class TestGriftForceReimport:
         assert any(e.code == "sweep_strict_aborted" for e in result.errors)
 
         # Name change on nid_keep was rolled back.
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
 
         unchanged = Character.objects.get(entity_id=uuid.UUID(nid_keep))
         assert unchanged.name == "char-0"  # original
@@ -1340,7 +1340,7 @@ class TestGriftRemovalExecution:
         # Tombstoned — Entity row still exists with deleted_at set.
         assert Entity.objects.filter(pk=uuid.UUID(nid), deleted_at__isnull=False).exists()
         # Typed-model live manager (LiveManager) filters it out.
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
 
         assert not Character.objects.filter(entity_id=uuid.UUID(nid)).exists()
 

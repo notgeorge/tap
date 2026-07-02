@@ -90,7 +90,7 @@ dev = [
 # req-plugin-arch-python-deps.
 
 [tool.uv.workspace]
-members = ["plugins/aws_core", "plugins/github_core", "plugins/sigstore_core"]
+members = []
 
 # -----------------------------------------------------------------------------
 # Tool Configuration
@@ -158,13 +158,23 @@ django_settings_module = "tap.settings"
 # ImmediateBackend regardless of what the dev/prod tap/settings.py sets it
 # to. See spec-tap-cares-task-backend.md req-tap-cares-task-backend-test-settings.
 DJANGO_SETTINGS_MODULE = "tap.test_settings"
-testpaths = ["tap", "tap_grid", "tap_plugins", "tap_api", "tap_web", "tap_viz", "tap_auth", "tap_health", "plugins"]
+# NO `testpaths`. pytest discovers every test file from the repo root, minus
+# `norecursedirs` (.venv, node_modules, build, dist, dot-dirs) and the explicit
+# `--ignore`s below. This is deliberately an IGNORE-list, not an ALLOW-list.
+# An allow-list (`testpaths = [app, app, ...]`) is fail-OPEN over a scattered
+# per-app layout: a new app's tests are silently uncollected until someone
+# remembers to add its dir — which is exactly how the 2026-07-01 login
+# regression shipped green (tap_auth / tap_boot / tap_cares tests existed but
+# were never in the gate). Discovery fails SAFE: a new test dir is collected
+# automatically; dropping coverage requires an active `--ignore`, and every drop
+# is enforced-visible by the collection-completeness guard
+# (tap/tests/test_collection_completeness.py, req-dev-validation-collection-complete).
 python_files = ["test_*.py", "*_test.py"]
-# Skip live-fetch tests by default; opt in with `-m live_fetch`.
-# genericom DEPRECATED 2026-05-19 (out of INSTALLED_APPS — see
-# tap/settings.py); its test dir is not collected so the suite/gate stays
-# green without the app loaded. Code retained; remove this --ignore if it
-# is revived. (lotr stays registered — load-bearing core-test fixtures.)
+# Intentional, justified coverage exclusions — MIRROR each in the completeness
+# guard's `_IGNORED_DIRS`, or the guard fails. `-m 'not live_fetch'` defers the
+# opt-in network tests; genericom is DEPRECATED 2026-05-19 (out of INSTALLED_APPS,
+# tap/settings.py) so its tests would fail without the app loaded. (lotr stays
+# registered — load-bearing core-test fixtures.)
 addopts = "-v --tb=short -m 'not live_fetch' --ignore=plugins/genericom"
 markers = [
     "no_registry_isolation: opt out of search runner registry isolation between tests",

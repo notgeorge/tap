@@ -18,7 +18,7 @@ This test suite exercises all constraint patterns:
 import pytest
 
 # Import models to trigger constraint registration via __init_subclass__
-import plugins.lotr.models  # noqa: F401
+import tap_plugin.lotr.models  # noqa: F401
 from tap_grid.exceptions import EdgePropertyValidationError, InvalidEdgeError
 from tap_grid.services import create_edge, create_entity, update_edge_properties
 

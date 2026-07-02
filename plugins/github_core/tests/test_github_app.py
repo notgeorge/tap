@@ -5,9 +5,9 @@ Spec: plugins/github_core/specs/spec-github-core-v0.md (req-github-core-app)
 
 import pytest
 
-import plugins.github_core.models as github  # noqa: F401 — trigger model registration
-from plugins.github_core.collectors.github_collector.collector import _SYNTHETIC_APP_BY_PATH_PREFIX
-from plugins.github_core.collectors.github_collector.identity import github_app_id, workflow_id
+import tap_plugin.github_core.models as github  # noqa: F401 — trigger model registration
+from tap_plugin.github_core.collectors.github_collector.collector import _SYNTHETIC_APP_BY_PATH_PREFIX
+from tap_plugin.github_core.collectors.github_collector.identity import github_app_id, workflow_id
 from tap_grid.models import Entity
 from tap_grid.registry import get_model_class
 from tap_grid.services import create_edge, create_node
