@@ -104,4 +104,59 @@ Second such data point. Use as the scope-setter for "what the gate must exercise
      (package-mode + in a profile's `install`, editable-installed in the test venv);
      `gryphon_playground`'s move off build-baked is gated on the held gryphon-engine
      refactor.
+
+## Session kickoff prompt
+
+Copy-paste to prime the fresh session. This is the discussion agenda above, tightened
+into a kickoff; the doc body is the authoritative context.
+
+```
+Make TAP's development-validation system real — move spec-dev-validation.md from mostly-Proposed to built,
+scoped deliberately (don't overbuild; server-side CI is post-July).
+
+READ FIRST (in this exact order — per "Ground in canon before building"):
+1. CLAUDE.md — esp. the multi-session promote workflow, the dev-validation promote gate
+   (req-dev-multisession-promote-gate ↔ req-dev-validation-promote-hook), and the security/roadmap filters.
+2. docs/misc/doc-dev-validation-make-real-handoff.md — THE priming note for this task. It has the
+   ground-first reading order, the real-vs-to-build inventory, prior art already gathered (do NOT
+   re-research NetBox/Nautobot), decisions to carry forward, the motivating data point, and the
+   discussion agenda. Follow it.
+3. specs/spec-dev-validation.md — the authoritative spec + the Validation Map. Read every requirement.
+   Status today: collection-complete = Implemented; ALL others Proposed.
+4. tap_cares/management/commands/dev_validation_spike.py — the Phase-0 spike. It ALREADY proves the
+   load-bearing mechanism (a collector driven through the REAL SteadyQueueBackend via in-process drain,
+   with teeth). Phase 1 wraps this into the ordered cold-boot cycle.
+5. docs/misc/doc-dev-validation-enterprise-ci-strategy.md — longer-horizon sibling (server CI, PR-gated
+   promote). Trigger-gated, NOT this scope — read for framing only.
+
+WHAT'S ALREADY REAL (don't rebuild): Validation Map + collection-completeness guard; the ratchet family
+(log-site, authz, direct-write, json-files, gryphon stage+branch); pytest-xdist lanes (scripts/test
+full / --fast); the `smoke` marker; the Phase-0 real-backend spike; the read-only-search-write Flaw.
+
+THE WORK (discuss scope with me first, then build): the cold-boot smoke gate (Phase 1, built on the
+Phase-0 mechanism), known-broken manifest (house ratcheting-baseline convention), promote-hook
+enforcement wired into scripts/promote-to-main.sh (between pre-push merge and atomic push),
+ratchet-harness extraction (tap/ratchet.py — already past its 3rd caller), per-profile cold-boot
+validation, and fold `makemigrations --check` into the cold-boot cycle (the #1 Django gap both
+exemplars close and TAP doesn't).
+
+LOAD-BEARING FRAMING:
+  - ONE gate, MANY invokers: build the gate as a SINGLE artifact (manage.py command or scripts/gate)
+    that local + promote + future CI invoke identically. Not "CI reimplements what I run locally."
+  - The gate MUST run inside the compose image, never a reimplemented env (the container Python is
+    non-stock). Fidelity > speed.
+  - Ratchets are the AI-specific guardrail (they mechanically block silent quality erosion). Frame new
+    honesty mechanisms this way.
+  - Honest-coverage rule: anything guarded only by "the suite passes" is labeled CI-unguarded by design.
+  - Adding ANY validation surface requires adding its Validation Map row in the same change
+    (spec-dev-validation.md is the center of gravity).
+
+MOTIVATING DATA POINT: the 2026-07-02 clean-path merge caught that main's `base` boot profile was
+briefly broken post-package-mode-migration (preboot coherence abort). A cold-boot gate running preboot
+in a rebuilt image would have caught it MECHANICALLY before a spawn. That's the scope-setter for "what
+the gate must exercise."
+
+Start by grounding in the reading list, then propose the gate-v0 MVP scope (agenda item 1 in the handoff
+note) before writing code — I want to agree on scope first.
+```
 </content>

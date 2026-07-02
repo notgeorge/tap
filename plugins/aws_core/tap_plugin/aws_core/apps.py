@@ -21,6 +21,10 @@ class AwsCoreConfig(TapPluginConfig):
 
         register_collector(
             key="boto3",
+            # Stable scope (plugin slug) so the derived entity id survives module
+            # renames — see the fuller note in fedramp_20x_ksi/apps.py and
+            # req-tap-cares-collector-model-10.
+            scope="aws_core",
             cls=Boto3Collector,
             name="AWS Core Collector (boto3)",
             description=(

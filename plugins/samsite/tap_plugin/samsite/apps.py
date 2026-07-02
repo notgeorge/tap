@@ -19,6 +19,10 @@ class SamsiteConfig(TapPluginConfig):
 
         register_collector(
             key="samsite-compliance",
+            # Stable scope (plugin slug) so the derived entity id survives module
+            # renames — see the fuller note in fedramp_20x_ksi/apps.py and
+            # req-tap-cares-collector-model-10.
+            scope="samsite",
             cls=SamsiteComplianceCollector,
             name="Samsite Compliance Collector",
             description=(

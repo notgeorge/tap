@@ -6,10 +6,14 @@ req-tap-cares-collector-registry, req-tap-cares-collector-registration
 Mirrors the search runner registry pattern in `tap_grid/registry.py`:
     - `collector_registry` is a ScopedRegistry[type[CollectorBase]] using the
       validator hooks added by req-grid-registry-scope-validators
-    - `register_collector(key, cls, *, name, description, scope=None)` is the
+    - `register_collector(key, cls, *, scope, name, description)` is the
       read-only half of dual-existence registration: it registers the runner
       class and records the on-grid node descriptor in memory, writing no grid
-      node (req-plugin-load-v0-ready-readonly).
+      node (req-plugin-load-v0-ready-readonly). `scope` is REQUIRED and must be
+      the plugin's stable slug — a collector's derived entity id is a durable,
+      cross-referenced grid key, so its identity input must be an explicit
+      declaration, never inferred from `cls.__module__` (which module renames
+      silently change — see req-tap-cares-collector-model-10).
     - `reconcile_collector_nodes()` is the deferred grid-side half: the sole path
       that materializes the on-grid Collector node (deterministic UUIDv5
       identity) under a caller-bound actor. See
@@ -78,16 +82,22 @@ def register_collector(
     key: str,
     cls: type[CollectorBase],
     *,
+    scope: str,
     name: str,
     description: str,
-    scope: str | None = None,
 ) -> None:
     """Register a collector capability — the read-only half of dual existence.
 
     Runs at app `ready()` and performs NO graph write (req-plugin-load-v0-ready-readonly):
 
-      1. Registers `cls` in `collector_registry` under `scope:key`. If `scope`
-         is omitted, it is inferred from `cls.__module__`.
+      1. Registers `cls` in `collector_registry` under `scope:key`. `scope` is
+         REQUIRED and must be the plugin's stable slug. It is deliberately NOT
+         inferred from `cls.__module__`: a collector's derived entity id is a
+         durable, cross-referenced grid key (the reconcile key for its on-grid
+         Collector node and a hardcoded edge target in schedule grift bundles),
+         so a module rename must never silently change it. Making scope an
+         explicit declaration is what keeps that identity stable across
+         package-layout refactors (req-tap-cares-collector-model-10).
       2. Records the on-grid node descriptor (`name`/`description`) in
          `_COLLECTOR_NODE_METADATA` for later materialization.
 
@@ -114,8 +124,7 @@ def register_collector(
     collector_registry.register(key, cls, scope=scope)
 
     # Record the node descriptor for the deferred grid-side materialization.
-    effective_scope = scope or cls.__module__
-    qualified_key = f"{effective_scope}:{key}"
+    qualified_key = f"{scope}:{key}"
     _COLLECTOR_NODE_METADATA[qualified_key] = {"name": name, "description": description}
 
 

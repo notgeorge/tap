@@ -18,6 +18,10 @@ class GithubCoreConfig(TapPluginConfig):
 
         register_collector(
             key="github_core",
+            # Stable scope (plugin slug) so the derived entity id survives module
+            # renames — see the fuller note in fedramp_20x_ksi/apps.py and
+            # req-tap-cares-collector-model-10.
+            scope="github_core",
             cls=GithubCollector,
             name="GitHub Core Collector",
             description=(
