@@ -16,6 +16,8 @@ import pytest
 
 from tap import preboot
 
+_SHIPPED_PROFILE_IDS = sorted(p.stem.replace(".boot", "") for p in preboot.boot_dir().glob("*.boot.json"))
+
 # --- Variable resolution (req-boot-variable-resolution) ----------------------
 
 
@@ -248,3 +250,32 @@ def test_build_baked_matches_installed_apps() -> None:
         app.split(".")[1] for app in settings.INSTALLED_APPS if app.startswith("plugins.") and app.endswith("Config")
     }
     assert preboot.BUILD_BAKED_PLUGIN_SLUGS == hardcoded
+
+
+# --- Every SHIPPED profile is coherent (guards profile↔migration drift) -------
+
+
+def test_shipped_profiles_exist() -> None:
+    """Sanity: the enumeration found the real boot/ profiles (not an empty glob)."""
+    assert "base" in _SHIPPED_PROFILE_IDS
+    assert "samsite" in _SHIPPED_PROFILE_IDS
+
+
+@pytest.mark.parametrize("profile_id", _SHIPPED_PROFILE_IDS)
+def test_shipped_profile_is_coherent(profile_id: str) -> None:
+    """Every real boot/<id>.boot.json passes the static coherence guard.
+
+    This is the test that would have caught the `base` regression: after the
+    package-mode migration, plugins the profile seeds are no longer build-baked,
+    so a profile that seeds them without an `install` entry fatally aborts
+    pre-boot at spawn time. The unit tests above exercise the guard with
+    synthetic profiles and `test_profile.py` load/parses the real ones, but
+    nothing crossed the two — so profile↔migration drift shipped and only
+    surfaced on a fresh spawn elsewhere. Mirror exactly what `run_preboot` feeds
+    the guard (parse the `install` section → slugs → guard), reading the real
+    shipped profile, without touching the venv.
+    """
+    profile = preboot.read_profile(profile_id)
+    install_slugs = {e["slug"] for e in preboot.install_plugin_specs(profile)}
+    # Raises PrebootError if a seeded plugin is neither installed nor build-baked.
+    preboot.static_coherence_guard(profile, install_slugs)
