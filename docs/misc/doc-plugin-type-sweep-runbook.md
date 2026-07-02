@@ -46,7 +46,7 @@ edit to tests/fixtures/GRIFT/queries.
 | `aws_core` | 41 | 23 | Sweep — uniform `aws_` prefix, clean. |
 | `github_core` | 9 | 10 | Sweep — uniform `github_` prefix. |
 | `computing_core` | 11 | 10 | Sweep — **bare `ENTITY_TYPE`s** (highest generic-collision risk). |
-| `lotr` | 9 | 12 | Sweep **after `plugin-untangle` wraps** — bare `ENTITY_TYPE`, prefixed table (diverged). |
+| `lotr` | 9 | 12 | Sweep — bare `ENTITY_TYPE`, prefixed table (diverged). **`plugin-untangle` landed** (`origin/main` `3ada9642`): core suites migrated off lotr onto `grid_fixtures`, lotr now install-only → ripple collapsed from ~20 core modules to lotr's own tests + **one** residual core ref (see below). |
 | `fedramp_20x_ksi` | 14 | 13 | Sweep — **messy** (multi-prefix + bare; strip is unsafe). |
 | `sigstore_core` | 2 | 5 | Sweep — two prefixes (`sigstore_`, `rekor_`). |
 | `administrivia`, `genericom`, `roscale`, `samsite` | 0 | 0 | No types. **But `samsite` *consumes* others' types by string** → update refs (see Ripple). |
@@ -81,11 +81,18 @@ Note `oidc_issuer` (no `github_` prefix) → `github_core__oidc_issuer`. Edges �
 `tcp_connection`, `public_key`, `private_key`, `web_host`, `web_document`) while `db_table` is
 `computing_*`. Both converge → `computing_core__user`, `computing_core__file`, … Edges → `<NAME>__computing_core`.
 
-### `lotr` — bare `ENTITY_TYPE`, `lotr_` table; converge to `lotr__` (SWEEP AFTER UNTANGLE)
+### `lotr` — bare `ENTITY_TYPE`, `lotr_` table; converge to `lotr__`
 `ENTITY_TYPE` bare (`character`, `realm`, `race`, `faction`, `location`, `citadel`, `artifact`,
 `sentinel`, `wanderer`), `db_table` `lotr_character`. Both → `lotr__character`, … Edges → `<NAME>__lotr`.
-Highest string-reference ripple (~20 core test modules) — do only once `plugin-untangle` has finished
-moving lotr's fixture role onto `grid_fixtures`.
+**Ripple now low.** `plugin-untangle` landed (`origin/main` `3ada9642`) and moved lotr's fixture role
+onto `grid_fixtures` — core suites no longer create lotr types (`_make_wanderer` now returns
+`grid_fixtures__unconstrained`, not a lotr wanderer). What remains for lotr's sweep is its **own**
+tests/fixtures/GRIFT plus exactly **one** residual core reference:
+`tap_web/tests/test_table_panel.py::TestTablePanelIconEnrichment` still seeds lotr `EntityType`s from
+the lotr manifest and asserts icon resolution for `character` (`/static/lotr/icons/character.svg`). The
+manifest-driven seeding auto-follows the rename; only the hardcoded `"character"` string and the icon
+path assertion need the `character → lotr__character` update (~2 lines). *(If `plugin-untangle`
+migrates that icon test off lotr in a follow-up, this residual disappears — confirm before sweeping.)*
 
 ### `fedramp_20x_ksi` — KEEP names, prepend `fedramp_20x_ksi__` (do NOT strip)
 Multi-prefix + bare, and stripping collides (`vdr_finding`→`finding` == bare `finding`). So prepend
@@ -125,7 +132,7 @@ and the `db_table` single→double-underscore is a *delimiter* change, not a slu
 
 ## Runbook (last session standing)
 
-1. **Confirm you're solo** — `plugin-untangle` and `validation-creation` sessions closed/promoted; `origin/main` fresh; this session synced.
+1. **Confirm you're solo** — `plugin-untangle` **already landed** (`origin/main` `3ada9642`); the remaining gate is `validation-creation` closed/promoted. Then merge fresh `origin/main` into this session and confirm it's synced.
 2. **Ratify the three decisions** above (strip-vs-keep, fedramp bare, sigstore strip).
 3. **Per producer plugin, in order** (leaves → `samsite`-consumed → `lotr` last): apply the map to model files (`ENTITY_TYPE` + `Meta.db_table` + edge JSON `slug`), then sweep every string reference (its tests, fixtures, GRIFT, expected JSON) **plus** every cross-plugin consumer's reference.
 4. **Regenerate migrations** (`makemigrations` → table renames) and **reset the dev DB**.
