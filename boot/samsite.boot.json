@@ -22,6 +22,18 @@
         "note": "Package-mode (tap_plugin.roscale), 2026-07-01. Install-only: registers the OSCAL workbench panel types samsite's compliance pages consume; no grift seed, no collector, so it is not a population step."
       },
       {
+        "slug": "aws_core",
+        "enabled": true,
+        "source": { "type": "editable", "path": "plugins/aws_core" },
+        "note": "Package-mode (tap_plugin.aws_core), 2026-07-01. Tier-0 boto3 dep (uv resolves at install). AWS dimension + the boto3 collector; seeded in population + its collector fired."
+      },
+      {
+        "slug": "sigstore_core",
+        "enabled": true,
+        "source": { "type": "editable", "path": "plugins/sigstore_core" },
+        "note": "Package-mode (tap_plugin.sigstore_core), 2026-07-01. Tier-0 sigstore dep. Install-only library plugin: samsite's compliance_collector consumes its verify/decompose helpers + models; no grift seed / no collector of its own."
+      },
+      {
         "slug": "github_core",
         "enabled": true,
         "source": { "type": "editable", "path": "plugins/github_core" },
@@ -82,7 +94,7 @@
       },
       {
         "type": "fire-collector",
-        "key": "plugins.aws_core.collectors.boto3_collector.collector:boto3",
+        "key": "tap_plugin.aws_core.collectors.boto3_collector.collector:boto3",
         "enabled": true,
         "timeout_seconds": 300,
         "note": "AWS resource graph (Route53/CloudFront/S3/Lambda/IAM/...) + the aws_account node the boundary membership depends on. A full multi-region pull can run well past the 90s default."

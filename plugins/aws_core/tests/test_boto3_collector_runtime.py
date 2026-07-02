@@ -14,9 +14,9 @@ from pathlib import Path
 import jsonschema
 import pytest
 
-from plugins.aws_core.collectors.boto3_collector import credentials as cred
-from plugins.aws_core.collectors.boto3_collector.collector import Boto3Collector
-from plugins.aws_core.collectors.boto3_collector.credentials import (
+from tap_plugin.aws_core.collectors.boto3_collector import credentials as cred
+from tap_plugin.aws_core.collectors.boto3_collector.collector import Boto3Collector
+from tap_plugin.aws_core.collectors.boto3_collector.credentials import (
     AWS_STATIC_SCHEMA,
     CredentialError,
     resolve_regions,
@@ -129,7 +129,7 @@ class TestSelfTest:
             cred, "resolve_secret", lambda _ref: _secret("aws_static_access_key", _GOOD_DATA)
         )
         monkeypatch.setattr(
-            "plugins.aws_core.collectors.boto3_collector.collector.caller_account_id",
+            "tap_plugin.aws_core.collectors.boto3_collector.collector.caller_account_id",
             lambda *a, **k: "123456789012",
         )
         result = Boto3Collector.self_test()
@@ -147,7 +147,7 @@ class TestSelfTest:
             raise NoCredentialsError()
 
         monkeypatch.setattr(
-            "plugins.aws_core.collectors.boto3_collector.collector.caller_account_id", _boom
+            "tap_plugin.aws_core.collectors.boto3_collector.collector.caller_account_id", _boom
         )
         result = Boto3Collector.self_test()
         assert result.status == CollectorReadinessStatus.ERROR

@@ -5,8 +5,8 @@ name = "TAP Sigstore Core"
 description = "Sigstore-ecosystem models and the canonical TAP-side helpers for verifying Sigstore signature bundles and decomposing them into graph data."
 
 [models]
-rekor_log_entry = "plugins.sigstore_core.models.rekor_log_entry.RekorLogEntry"
-sigstore_ca = "plugins.sigstore_core.models.sigstore_ca.SigstoreCa"
+rekor_log_entry = "tap_plugin.sigstore_core.models.rekor_log_entry.RekorLogEntry"
+sigstore_ca = "tap_plugin.sigstore_core.models.sigstore_ca.SigstoreCa"
 
 [edges]
 ATTESTED_BY = "edges/ATTESTED_BY.edge.json"

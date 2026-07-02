@@ -173,20 +173,18 @@ INSTALLED_APPS = [
     "plugins.lotr.apps.LotrConfig",
     # Computing Core plugin — migrated to package-mode 2026-07-01
     # (tap_plugin.computing_core); loads via TAP_PLUGINS_APPS.
-    # AWS Core plugin — resource-type models for AWS cloud infrastructure
-    "plugins.aws_core.apps.AwsCoreConfig",
+    # AWS Core plugin — migrated to package-mode 2026-07-01 (tap_plugin.aws_core);
+    # Tier-0 boto3 dep travels with the plugin. Loads via TAP_PLUGINS_APPS.
     # GitHub Core plugin — migrated to package-mode 2026-07-01
     # (tap_plugin.github_core). Loads via TAP_PLUGINS_APPS from the profile
     # `install` section; its PyYAML Tier-0 dep rides with the plugin (removed
     # from [tool.uv.workspace] members). Models account/repo/workflow/run/job/
     # runner; collector lands REFERENCES_RESOURCE links against aws_core nodes.
-    # Sigstore Core plugin — library plugin owning Sigstore-ecosystem models
-    # (rekor_log_entry, sigstore_ca) + the canonical verify/decompose helpers.
-    # No collector/panel of its own; samsite's compliance_collector consumes it
-    # to turn signed /.well-known/ artifacts into transparency-log graph data.
-    # Loads before samsite so its EntityTypes + edge constraints are registered
-    # when the samsite collector emits sigstore_core nodes/edges.
-    "plugins.sigstore_core.apps.SigstoreCoreConfig",
+    # Sigstore Core plugin — migrated to package-mode 2026-07-01
+    # (tap_plugin.sigstore_core); Tier-0 sigstore dep travels with the plugin.
+    # Library plugin (rekor_log_entry/sigstore_ca models + verify/decompose
+    # helpers) consumed by samsite's compliance_collector. Loads via
+    # TAP_PLUGINS_APPS from the profile `install` section.
     # Genericom plugin — DEPRECATED 2026-05-19: 100% hand-built mock AWS
     # dataset (lotr-lineage scaffolding) built on aws_core. Code retained in
     # plugins/genericom/ but NOT loaded — real-account work (samsite)

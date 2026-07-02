@@ -9,16 +9,16 @@ from __future__ import annotations
 
 import pytest
 
-from plugins.aws_core.collectors.boto3_collector.edges import (
+from tap_plugin.aws_core.collectors.boto3_collector.edges import (
     EdgeError,
     TransformRegistry,
     emit_edges,
 )
-from plugins.aws_core.collectors.boto3_collector.identity import (
+from tap_plugin.aws_core.collectors.boto3_collector.identity import (
     edge_entity_id,
     node_entity_id,
 )
-from plugins.aws_core.collectors.boto3_collector.projection import ProjectedNode
+from tap_plugin.aws_core.collectors.boto3_collector.projection import ProjectedNode
 
 MODELED = {"aws_lambda", "aws_iam_role", "aws_cloudwatch_log_group", "aws_s3_bucket"}
 DIMS = {"cloud": "aws", "region": "us-east-1"}
@@ -168,7 +168,7 @@ class TestEmitEdges:
         # the transform saw a list, returned None, and silently emitted zero
         # edges. Also pins the None-drop contract: a non-S3 origin -> None ->
         # that element is dropped, no bogus "None" edge, no warning.
-        from plugins.aws_core.collectors.boto3_collector.transforms import (
+        from tap_plugin.aws_core.collectors.boto3_collector.transforms import (
             s3_bucket_name_from_origin_domain,
         )
 

@@ -11,7 +11,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from plugins.aws_core.collectors.boto3_collector.ledger import (
+from tap_plugin.aws_core.collectors.boto3_collector.ledger import (
     CallLedger,
     _classify,
 )

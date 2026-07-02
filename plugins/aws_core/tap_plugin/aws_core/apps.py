@@ -14,7 +14,7 @@ class AwsCoreConfig(TapPluginConfig):
         # on-grid Collector node (req-aws-collector-runtime-4). Imported here,
         # not at module top, so the pure engine subpackage stays import-light
         # and apps loading does not eagerly pull boto3 / the GRIFT importer.
-        from plugins.aws_core.collectors.boto3_collector.collector import (
+        from tap_plugin.aws_core.collectors.boto3_collector.collector import (
             Boto3Collector,
         )
         from tap_cares.registry import register_collector

@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from typing import Any
 from uuid import NAMESPACE_DNS, UUID, uuid5
 
-from plugins.sigstore_core.verify import (
+from tap_plugin.sigstore_core.verify import (
     PUBLIC_GOOD_FULCIO_NAME,
     PUBLIC_GOOD_FULCIO_URL,
     TUF_PUBLIC_GOOD_SOURCE,

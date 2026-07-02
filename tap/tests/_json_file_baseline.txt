@@ -10,7 +10,7 @@
 # These are descriptive-but-unprefixed collector manifests / pinned data files
 # that predate the convention. Renaming them (e.g. to `<plugin>.<collector>.manifest.json`)
 # is opportunistic ratchet work tracked in the spec's Future section.
-plugins/aws_core/collectors/boto3_collector/aws_resource_manifest.json
+plugins/aws_core/tap_plugin/aws_core/collectors/boto3_collector/aws_resource_manifest.json
 plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/collectors/pinned/source_schema.json
 plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/collectors/safety/denylist.json
 plugins/github_core/tap_plugin/github_core/collectors/github_collector/github_collection_manifest.json

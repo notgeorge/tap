@@ -1,4 +1,4 @@
-"""Hermetic tests for ``plugins.sigstore_core.verify``.
+"""Hermetic tests for ``tap_plugin.sigstore_core.verify``.
 
 Scope: behavior that can be exercised without a real Sigstore bundle and
 without touching the network or any other plugin's artifacts. The
@@ -15,7 +15,7 @@ import dataclasses
 
 import pytest
 
-from plugins.sigstore_core.verify import (
+from tap_plugin.sigstore_core.verify import (
     GitHubWorkflowPolicy,
     VerificationResult,
     _classify_failure,

@@ -17,8 +17,8 @@ import urllib.request
 from datetime import UTC, datetime
 from typing import Any
 
-from plugins.sigstore_core.decompose import bundle_to_grift_fragment
-from plugins.sigstore_core.verify import GitHubWorkflowPolicy, verify_bundle
+from tap_plugin.sigstore_core.decompose import bundle_to_grift_fragment
+from tap_plugin.sigstore_core.verify import GitHubWorkflowPolicy, verify_bundle
 from tap_cares.collectors.base import CollectorBase
 
 from . import identity, kev_process, sigstore_link

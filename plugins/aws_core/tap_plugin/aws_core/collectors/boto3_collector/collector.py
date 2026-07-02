@@ -68,7 +68,7 @@ from .source import SourceError, iter_source
 from .tags import normalize_tags, rgta_join_arn
 from .transforms import build_transform_registry
 
-_SOURCE = "plugins.aws_core.collectors.boto3_collector.collector"
+_SOURCE = "tap_plugin.aws_core.collectors.boto3_collector.collector"
 
 # record_* call-site tokens (minted by scripts/log-site-id; held unique by
 # the repo-wide site-uniqueness test).
