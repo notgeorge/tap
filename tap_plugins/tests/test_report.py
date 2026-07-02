@@ -12,9 +12,13 @@ import io
 import json
 
 import pytest
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.core.management import call_command
 
-from tap_plugins.report import build_report
+from tap_auth.errors import AuthzError
+from tap_grid.caller_context import CallerContext, set_caller_context
+from tap_plugins.report import build_report, get_plugin_report
 
 pytestmark = pytest.mark.django_db
 
@@ -73,3 +77,34 @@ def test_plugins_command_human_smoke() -> None:
     text = out.getvalue()
     assert "plugin(s):" in text
     assert "depends_on:" in text and "required_by:" in text
+
+
+# --- Service-layer capability gate (get_plugin_report) ------------------------
+
+
+def _set_caller(group_name: str | None) -> None:
+    user = get_user_model().objects.create_user(username=f"u_{group_name or 'nogroup'}", password="x")
+    if group_name:
+        user.groups.add(Group.objects.get(name=group_name))
+    set_caller_context(CallerContext(user=user))
+
+
+def test_get_plugin_report_allows_plugins_read_holder() -> None:
+    # tap_admin holds "*" (every capability, incl. plugins.read).
+    _set_caller("tap_admin")
+    report = get_plugin_report()
+    assert report["schema_version"] == 1
+    assert report["plugin_count"] >= 1
+
+
+def test_get_plugin_report_denies_caller_without_plugins_read() -> None:
+    # tap_viewer holds only grid.read — enough to see pages, NOT the plugin registry.
+    _set_caller("tap_viewer")
+    with pytest.raises(AuthzError):
+        get_plugin_report()
+
+
+def test_get_plugin_report_denies_capabilityless_caller() -> None:
+    _set_caller(None)
+    with pytest.raises(AuthzError):
+        get_plugin_report()

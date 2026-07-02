@@ -89,6 +89,31 @@ def _plugin_configs() -> list[Any]:
     return sorted(configs, key=lambda ac: ac.label)
 
 
+def get_plugin_report() -> dict[str, Any]:
+    """Capability-gated service entry for the plugin report — authorize, then build.
+
+    The web/UI path (the administrivia plugin-status panel) routes THROUGH here, not
+    through ``build_report()`` directly, so the ``plugins.read`` capability is enforced in
+    the service layer (the single gate point the discipline calls for) — not per-panel.
+    Raises ``AuthzError`` for a caller lacking ``plugins.read`` (propagates to a clean 403
+    at the panel view). The plugin registry is the instance's software bill of materials,
+    so it sits above ``grid.read``.
+
+    ``build_report()`` remains the ungated pure builder for the trusted CLI
+    (``manage.py plugins``), matching the ``manage.py health`` convention.
+
+    NOTE (forward-compat): once the in-flight service-layer refactor routes all grid /
+    sub-grid reads through the service layer with capability gating there, this explicit
+    authorize + the direct ``EntityType`` read inside ``build_report()`` converge on that
+    gate; this wrapper is the seam that makes that a swap-behind-the-interface.
+    """
+    from tap_auth import policy
+    from tap_grid.caller_context import get_caller_context
+
+    policy.authorize(get_caller_context(), "plugins.read", operation="plugin_report")
+    return build_report()
+
+
 def build_report() -> dict[str, Any]:
     """Build the validated plugin report (see module docstring + the JSON schema).
 
