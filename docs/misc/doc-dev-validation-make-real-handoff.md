@@ -81,4 +81,27 @@ Second such data point. Use as the scope-setter for "what the gate must exercise
 3. Known-broken manifest format (follow the house ratcheting-baseline convention).
 4. Sequencing: gate first vs extract `tap/ratchet.py` first vs the makemigrations
    edge — and what stays trigger-gated (server CI, frozen-dataset migration test).
+5. **Per-profile cold-boot validation (validation in a world of variable plugins).**
+   Today the gate/test model is "all plugins installed" — pytest discovery is pure
+   file-path (not plugin-aware; no `importorskip` guards, so an absent plugin's
+   test files hard-error at collection), and `test_settings` loads whatever is
+   editable-installed in the venv (entry-point discovery), NOT a profile. Core
+   suites hardcode plugin fixtures (lotr ×22 core-test files, samsite ×5, gryphon
+   ×3), and `gryphon_playground` is build-baked (always-on) precisely because the
+   Gridkin suite needs it. That's fine for CI correctness, but nothing asserts a
+   *minimal* profile (e.g. no gryphon) actually cold-boots and works — the same bug
+   class as the 2026-07-02 `base`-profile break (65ab633b "guard all shipped
+   profiles"). Decide:
+   - The gate should **cold-boot each shipped profile and assert it comes up** (the
+     missing axis), rather than making pytest discovery plugin-aware (that fights
+     the design and would require de-hardcoding lotr from the core suites).
+   - As profiles diverge (lean customer profiles vs. dev), the **test/dev
+     environment needs a "full/dev" profile whose install set is the superset**, so
+     entry-point discovery still finds every plugin in the test venv (else the
+     Gridkin/plugin suites red). Keep tests = "all plugins"; keep production
+     profiles minimal; bridge with a dev/full profile + per-profile boot-smoke.
+   - Making a plugin profile-optional in production follows the **lotr pattern**
+     (package-mode + in a profile's `install`, editable-installed in the test venv);
+     `gryphon_playground`'s move off build-baked is gated on the held gryphon-engine
+     refactor.
 </content>
