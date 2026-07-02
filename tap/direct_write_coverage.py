@@ -38,7 +38,7 @@ import ast
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from tap.logging import CallSite
+from tap.source_scan import CallSite
 
 # Manager writes: `<Model>.objects.<method>(...)`.
 _MANAGER_WRITES: frozenset[str] = frozenset(

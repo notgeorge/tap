@@ -17,13 +17,15 @@ from typing import TYPE_CHECKING, ClassVar
 from tap.guards.base import REPO_ROOT, CeilingRatchet, Guard
 
 if TYPE_CHECKING:
-    from tap.logging import CallSite, ScanResult, WellFormedSite
+    from tap.logging import ScanResult, WellFormedSite
+    from tap.source_scan import CallSite
 
 
 def _scan() -> ScanResult:
-    from tap.logging import discover_scan_roots, scan_log_sites
+    from tap.logging import scan_log_sites
+    from tap.source_scan import first_party_source_roots
 
-    return scan_log_sites(discover_scan_roots(REPO_ROOT))
+    return scan_log_sites(first_party_source_roots(REPO_ROOT))
 
 
 def _key(site: CallSite | WellFormedSite) -> str:

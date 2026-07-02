@@ -9,12 +9,12 @@ This scanner closes that gap at build time: every call to a privileged sink must
 sit inside a gated function (`@requires_capability`) or an `authorized(...)`
 block, else it is flagged.
 
-It reuses the log-site scanner's harness (`tap/logging.py`): `discover_scan_roots`
-(first-party `tap_*` apps + `plugins/*`) and `CallSite`, the same
-`ast`-at-collection-time approach, and the same baseline-ratchet + exemption-marker
-model. See `tap/tests/test_authz_coverage.py` for the enforcement
-surface; the baseline grandfathers today's ungated paths and ratchets to zero as
-each per-app standard lands.
+It reuses the shared source-scan primitives (`tap/source_scan.py`):
+`first_party_source_roots` (first-party `tap_*` apps + `plugins/*`) and `CallSite`,
+the same `ast`-at-collection-time approach, and the same baseline-ratchet +
+exemption-marker model. `tap/guards/authz.py::AuthzCoverageRatchet` is the
+enforcement surface (via `tap/tests/test_guards.py`); the baseline grandfathers
+today's ungated paths and ratchets to zero as each per-app standard lands.
 
 NOT Semgrep, deliberately (req-tap-auth-policy-9): a later rule — direct
 graph-model ORM in panel/view zones, deferred to the tap_web standard — enumerates
@@ -29,7 +29,7 @@ import ast
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from tap.logging import CallSite
+from tap.source_scan import CallSite
 
 # Privileged graph sinks that are NOT gated at their own definition — a call to one
 # must be reached through a gate, else it is ungated. `write_batch` is the
@@ -175,7 +175,8 @@ def scan_authz_coverage(roots: list[Path]) -> AuthzScanResult:
 
     Files that fail to parse are skipped (pytest collection catches real syntax
     errors elsewhere). Test files are skipped — see `_is_test_path`. Use
-    `discover_scan_roots()` to derive the first-party-app + plugin roots.
+    `tap.source_scan.first_party_source_roots()` to derive the first-party-app +
+    plugin roots.
     """
     result = AuthzScanResult()
     for root in roots:

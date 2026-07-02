@@ -34,7 +34,7 @@ class AuthzCoverageRatchet(CeilingRatchet):
 
     def measure(self) -> set[str]:
         from tap.authz_coverage import scan_authz_coverage
-        from tap.logging import discover_scan_roots
+        from tap.source_scan import first_party_source_roots
 
-        result = scan_authz_coverage(discover_scan_roots(REPO_ROOT))
+        result = scan_authz_coverage(first_party_source_roots(REPO_ROOT))
         return {f"{s.path.relative_to(REPO_ROOT)}:{s.lineno}" for s in result.ungated_sinks}

@@ -28,7 +28,7 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
-from tap.logging import discover_scan_roots
+from tap.source_scan import first_party_source_roots
 
 # The PEP 420 namespace every package-mode plugin imports under (req-plugin-arch-identity-3).
 NAMESPACE = "tap_plugin"
@@ -131,13 +131,13 @@ def read_manifest_slug(package_dir: Path) -> str | None:
 def discover_plugin_packages(project_root: Path) -> dict[str, Path]:
     """Map plugin slug → its in-repo package directory (the ``tap-plugin.toml``-bearing dir).
 
-    Reuses ``tap.logging.discover_scan_roots`` (which already recognizes both the legacy
-    flat layout and the package-mode namespace layout), filtered to manifest-bearing roots.
-    A fully-extracted site-packages plugin is out of scope by construction — same caveat
-    the log/authz scanners carry.
+    Reuses ``tap.source_scan.first_party_source_roots`` (which already recognizes both the
+    legacy flat layout and the package-mode namespace layout), filtered to manifest-bearing
+    roots. A fully-extracted site-packages plugin is out of scope by construction — same
+    caveat the log/authz scanners carry.
     """
     packages: dict[str, Path] = {}
-    for root in discover_scan_roots(project_root):
+    for root in first_party_source_roots(project_root):
         slug = read_manifest_slug(root)
         if slug is not None:
             packages[slug] = root

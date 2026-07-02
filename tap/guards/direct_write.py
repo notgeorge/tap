@@ -37,9 +37,9 @@ class DirectWriteRatchet(CeilingRatchet):
 
     def measure(self) -> set[str]:
         from tap.direct_write_coverage import scan_direct_writes
-        from tap.logging import discover_scan_roots
+        from tap.source_scan import first_party_source_roots
 
-        result = scan_direct_writes(discover_scan_roots(REPO_ROOT), _tap_model_names())
+        result = scan_direct_writes(first_party_source_roots(REPO_ROOT), _tap_model_names())
         return {f"{s.path.relative_to(REPO_ROOT)}:{s.lineno}" for s in result.direct_writes}
 
 
