@@ -39,7 +39,7 @@ Plugins may be developed as standalone git repositories and integrated into TAP 
 | req-plugin-arch-runtime | [Runtime Boundaries](#runtime-boundaries) | Implemented | TAP-facing startup behavior flows through the plugin contract |
 | req-plugin-arch-tests | [Testing Requirements](#testing-requirements) | Implemented | Plugins include plugin-specific tests and participate in shared validation |
 | req-plugin-arch-iterative-dev | [Iterative Development](#iterative-development) | Implemented | Canonical patterns for revising GRIFT content during and after initial import |
-| req-plugin-arch-python-deps | [Plugin Python Dependencies](#plugin-python-dependencies) | Implemented | uv workspace seam wired at root; first plugin proof is `github_core` (PyYAML resolves into root `uv.lock`) |
+| req-plugin-arch-python-deps | [Plugin Python Dependencies](#plugin-python-dependencies) | Implemented | Per-plugin `pyproject.toml` owns Tier-0 deps; plugins install profile-driven via the pre-boot `install` section (editable), not uv workspace membership (`members = []`). Deps resolve at install time — not in the root `uv.lock` during the transition (`github_core` declares `PyYAML`) |
 | req-plugin-arch-dev-deps | [Developer Mode Dependencies](#developer-mode-dependencies) | Backlog | Per-plugin PEP 735 `[dependency-groups]` `dev` group so an evicted plugin is standalone-testable; today plugins free-ride on the shared root venv's dev group. Dev deps never enter a deployed instance. Demand-gated on eviction. Not critical path (design note: `doc-plugin-dependency-scoping-backlog`) |
 | req-plugin-arch-slim-install | [Install-Footprint Slimming](#install-footprint-slimming) | Backlog | Ship only what a deployment uses, across three layers: Python extras (Layer A), Docker image variants for system binaries (Layer B), and the already-built plugin-granularity install section (Layer C). Demand-gated on a deployment that needs a smaller footprint. Not critical path (design note: `doc-plugin-dependency-scoping-backlog`) |
 | req-plugin-arch-isolation | [Plugin Type Ownership & DB Isolation](#plugin-type-ownership--db-isolation) | Proposed | Plugin-refactor pickup: owner-namespaced types + hard-included per-plugin DB guards |
@@ -849,15 +849,15 @@ Status: `Implemented`
 
 Plugins may need third-party Python packages that are not required by TAP core. Examples include cloud SDKs for collectors, service-specific API clients, file parsers, or emitter transports.
 
-The shape is plugin-local dependency ownership without fragmenting a TAP deployment into unrelated Python environments. TAP uses uv workspace support to provide this seam.
+The shape is plugin-local dependency ownership without fragmenting a TAP deployment into unrelated Python environments. Each plugin owns its dependency declaration in its own `pyproject.toml`, and installation is driven by the pre-boot `install` section.
 
 Under this shape:
 
-- the root TAP `pyproject.toml` remains the workspace root and owns TAP core dependencies
-- the root TAP `pyproject.toml` declares plugin workspace members explicitly (`members = ["plugins/<slug>", ...]`), naming only plugins that carry a `pyproject.toml`
-- each plugin that needs Python dependencies may include its own `pyproject.toml`
+- the root TAP `pyproject.toml` owns TAP core dependencies and the developer `[dependency-groups]`
+- **plugin installation is profile-driven via the pre-boot `install` section** (`req-boot-install-section`), **not** uv workspace membership: the root workspace is deliberately empty (`[tool.uv.workspace] members = []`), and `tap/preboot.py` editable-installs (during the monorepo transition) only the plugins a boot profile declares+enables — matching the reconciliation guard's "undeclared code must not load". Blanket workspace membership (which would install every plugin regardless of profile) was superseded by this in the package-mode migration (2026-07-02, `74b71fdc`)
+- each plugin that needs Python dependencies includes its own `pyproject.toml`
 - plugin-local `pyproject.toml` files declare ordinary Python package dependencies for that plugin
-- the root `uv.lock` records one resolved environment for the full TAP installation
+- the root `uv.lock` records the **root/core** environment (incl. the dev group); a plugin's Tier-0 deps resolve at its (editable) install time from its own `pyproject.toml` and are **not** pinned in the root lock during the transition — pinned reproducibility for plugin deps arrives with pinned sources (wheel version / git rev / index version; the `wheelhouse` carries the fully-pinned closure, `req-plugin-arch-sources-6`)
 - plugin `tap-plugin.toml` continues to declare TAP-facing surfaces such as models, edges, searches, and GRIFT; it does not become a Python package manager manifest
 
 This keeps plugin directories self-contained enough to be split back into standalone repositories later. A plugin-local `pyproject.toml` can move with the plugin repo, while the TAP installation can consume it as a uv workspace member, path dependency, or git dependency depending on the deployment shape.
@@ -868,9 +868,9 @@ This requirement provides dependency declaration and lockfile ownership, not run
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-plugin-arch-python-deps-1 | Workspace Root | Implemented | TAP's root `pyproject.toml` declares a uv workspace whose `members` list names every plugin directory that carries a `pyproject.toml`. | Explicit list (not glob): uv errors when a glob match lacks a `pyproject.toml`. Plugins without local deps stay out of the list. |
+| req-plugin-arch-python-deps-1 | Profile-Driven Install | Implemented | Plugin installation is driven by the pre-boot `install` section (editable during the monorepo transition), not uv workspace membership; the root workspace is deliberately empty (`members = []`). Only profile-declared+enabled plugins install. | Superseded blanket workspace membership in the package-mode migration (`74b71fdc`), so installation matches the install-section + reconciliation-guard model. |
 | req-plugin-arch-python-deps-2 | Plugin Local pyproject | Implemented | A plugin that needs third-party Python packages declares them in `plugins/<slug>/pyproject.toml`. | Plugin-local dependency metadata moves with a future standalone plugin repo. First proof: `plugins/github_core/pyproject.toml` declaring `PyYAML`. |
-| req-plugin-arch-python-deps-3 | Shared Lockfile | Implemented | Plugin dependencies resolve into the root `uv.lock` so a TAP installation has one reproducible Python environment. | `docker/entrypoint.sh` runs `uv sync --all-packages` so workspace member deps land in the runtime venv. |
+| req-plugin-arch-python-deps-3 | Dependency Resolution | Implemented | A plugin's Tier-0 deps resolve at its (editable) install time from its own `pyproject.toml`; the root `uv.lock` covers the core/dev environment. `docker/entrypoint.sh` runs `uv sync --all-packages` (root + dev group), then pre-boot editable-installs each declared plugin. | Plugin deps are not pinned in the root lock during the transition; pinned reproducibility arrives with `wheelhouse`/git/index sources (`req-plugin-arch-sources`). |
 | req-plugin-arch-python-deps-4 | Manifest Separation | Implemented | `tap-plugin.toml` does not declare uv-installable Python package dependencies; Python dependencies stay in `pyproject.toml`. | The TAP manifest remains the TAP-facing load contract. |
 | req-plugin-arch-python-deps-5 | No Isolation Claim | Implemented | The spec explicitly states that uv workspaces do not enforce runtime import isolation between plugins. | Future linting may detect undeclared imports. |
 | req-plugin-arch-python-deps-6 | Standalone Repo Compatible | Implemented | The dependency shape works whether a plugin is in-tree, a git submodule, a path dependency, or a standalone repository. | |
