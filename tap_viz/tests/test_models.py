@@ -21,30 +21,32 @@ _PROJECTION_V1_DEBT = pytest.mark.xfail(
 
 def _valid_projection_definition() -> dict:
     return {
-        "default_elevation": "saga-level",
+        "default_elevation": "overview-level",
         "elevations": [
             {
-                "name": "saga-level",
+                "name": "overview-level",
                 "description": "top",
                 "zoom": 0.6,
                 "tap_layouts": [
                     {
-                        "name": "saga-stage",
+                        "name": "overview-stage",
                         "description": "",
-                        "js_file": "plugins/lotr/static/lotr/js/projections/saga-stage.js",
+                        "js_file": "tap_viz/js/projections/overview-stage.js",
                     }
                 ],
-                "double_tap_targets": [{"entity_type": "character", "target_elevation": "character-view"}],
+                "double_tap_targets": [
+                    {"entity_type": "grid_fixtures__constrained_source", "target_elevation": "detail-view"}
+                ],
             },
             {
-                "name": "character-view",
+                "name": "detail-view",
                 "description": "zoomed",
                 "zoom": 1.4,
                 "tap_layouts": [
                     {
-                        "name": "character",
+                        "name": "detail",
                         "description": "",
-                        "js_file": "plugins/lotr/static/lotr/js/projections/character-view.js",
+                        "js_file": "tap_viz/js/projections/detail-view.js",
                     }
                 ],
                 "double_tap_targets": [],
@@ -106,8 +108,8 @@ class TestProjection:
     @_PROJECTION_V1_DEBT
     def test_duplicate_elevation_names_rejected(self):
         d = _valid_projection_definition()
-        d["elevations"][1]["name"] = "saga-level"
-        d["default_elevation"] = "saga-level"
+        d["elevations"][1]["name"] = "overview-level"
+        d["default_elevation"] = "overview-level"
         p = Projection(name="x", definition=d)
         with pytest.raises(ValidationError) as exc:
             p.full_validate()

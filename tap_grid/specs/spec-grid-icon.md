@@ -79,13 +79,13 @@ This requirement formalizes key-by-convention lookup and app/plugin isolation.
 - Canonical static-relative lookup path is:
   - `<app-static-namespace>/icons/<icon-key>.svg`
 - For plugins, `<app-static-namespace>` is the plugin app label used by Django staticfiles resolution.
-- A plugin that declares slug `lotr` and icon key `character` therefore resolves to:
-  - source file: `plugins/lotr/static/lotr/icons/character.svg`
-  - static-relative path: `lotr/icons/character.svg`
+- A plugin that declares slug `grid_fixtures` and icon key `constrained-source` therefore resolves to:
+  - source file: `plugins/grid_fixtures/static/grid_fixtures/icons/constrained-source.svg`
+  - static-relative path: `grid_fixtures/icons/constrained-source.svg`
 - Examples:
   - `tap_web/static/tap_web/icons/page.svg`
   - `tap_viz/static/tap_viz/icons/layout.svg`
-  - `plugins/lotr/static/lotr/icons/character.svg`
+  - `plugins/grid_fixtures/static/grid_fixtures/icons/constrained-source.svg`
 - The icon resolver must not accept arbitrary relative paths, parent-directory traversal, or remote URLs.
 - Icon validation must confirm:
   - the icon key format is valid

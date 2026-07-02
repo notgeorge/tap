@@ -1,8 +1,8 @@
 """Import bundled GRIFT data for one or more TAP plugins.
 
 Usage:
-    docker compose exec web uv run python manage.py import_plugin_grift lotr
-    docker compose exec web uv run python manage.py import_plugin_grift lotr --bundle core-data
+    docker compose exec web uv run python manage.py import_plugin_grift administrivia
+    docker compose exec web uv run python manage.py import_plugin_grift administrivia --bundle grid-landing
     docker compose exec web uv run python manage.py import_plugin_grift --all
 
 Reads each plugin's tap-plugin.toml manifest, finds declared [[grift]] bundles,
@@ -27,7 +27,7 @@ class Command(BaseCommand):
             "plugin_slugs",
             nargs="*",
             metavar="PLUGIN_SLUG",
-            help="One or more plugin slugs to import (e.g. lotr).",
+            help="One or more plugin slugs to import (e.g. administrivia).",
         )
         group.add_argument(
             "--all",

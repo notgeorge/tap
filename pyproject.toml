@@ -178,7 +178,8 @@ python_files = ["test_*.py", "*_test.py"]
 # guard's `_IGNORED_DIRS`, or the guard fails. `-m 'not live_fetch'` defers the
 # opt-in network tests; genericom is DEPRECATED 2026-05-19 (out of INSTALLED_APPS,
 # tap/settings.py) so its tests would fail without the app loaded. (lotr stays
-# registered — load-bearing core-test fixtures.)
+# registered as install-only test-fixture/nostalgia vocabulary and for its own
+# self-tests; the core suites' fixtures now live in the neutral grid_fixtures plugin.)
 addopts = "-v --tb=short -m 'not live_fetch' --ignore=plugins/genericom"
 markers = [
     "no_registry_isolation: opt out of search runner registry isolation between tests",
