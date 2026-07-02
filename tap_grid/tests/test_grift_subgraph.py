@@ -31,17 +31,17 @@ from tap_grid.grift.subgraph import (
 # ---------------------------------------------------------------------------
 
 
-def _make_character(name="Frodo", bio="A hobbit"):
+def _make_character(name="Frodo", description="A hobbit"):
     from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
     from tap_grid.models import Entity
 
     ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
     set_caller_context(ctx)
 
-    from tap_plugin.lotr.models import Character
+    from tap_plugin.grid_fixtures.models import ConstrainedSource
 
-    entity = Entity.objects.create(entity_type="character", name=name)
-    character = Character.objects.create(entity=entity, name=name, bio=bio)
+    entity = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name=name)
+    character = ConstrainedSource.objects.create(entity=entity, name=name, description=description)
     return character
 
 
@@ -94,7 +94,7 @@ class TestBuildSpineSurface:
     def test_entity_type_matches(self):
         character = _make_character()
         spine = build_spine_surface(character.entity)
-        assert spine["entity_type"] == "character"
+        assert spine["entity_type"] == "grid_fixtures__constrained_source"
 
     def test_no_nested_entity_key(self):
         """Spine is flat at top — no `entity` wrapper key."""
@@ -106,10 +106,10 @@ class TestBuildSpineSurface:
 @pytest.mark.django_db
 class TestBuildDataLane:
     def test_includes_field_crud_schema_fields(self):
-        character = _make_character(name="Frodo", bio="A hobbit")
+        character = _make_character(name="Frodo", description="A hobbit")
         data = build_data_lane(character)
         assert data["name"] == "Frodo"
-        assert data["bio"] == "A hobbit"
+        assert data["description"] == "A hobbit"
 
     def test_includes_universal_basemodel_fields(self):
         character = _make_character()
@@ -167,7 +167,7 @@ class TestSerializeNodeLite:
         character = _make_character()
         node = serialize_node_lite(character.entity)
         # Spine fields at top.
-        assert node["entity_type"] == "character"
+        assert node["entity_type"] == "grid_fixtures__constrained_source"
         assert "name" in node
         # No data lane, no display lane.
         assert "data" not in node
@@ -177,13 +177,13 @@ class TestSerializeNodeLite:
 @pytest.mark.django_db
 class TestSerializeNodeFull:
     def test_spine_plus_data(self):
-        character = _make_character(name="Frodo", bio="A hobbit")
+        character = _make_character(name="Frodo", description="A hobbit")
         node = serialize_node_full(character.entity, character)
         assert node["entity_id"] == str(character.entity_id)
-        assert node["entity_type"] == "character"
+        assert node["entity_type"] == "grid_fixtures__constrained_source"
         assert "data" in node
         assert node["data"]["name"] == "Frodo"
-        assert node["data"]["bio"] == "A hobbit"
+        assert node["data"]["description"] == "A hobbit"
         # No display lane in full.
         assert "display" not in node
 
@@ -227,9 +227,7 @@ class TestSerializeNodeExtended:
     def test_no_flat_promotion_of_icon_url_or_shape(self):
         """req-grift-envelope-display-4: flat-field promotion retired."""
         character = _make_character()
-        node = serialize_node_extended(
-            character.entity, character, icon_url="/i.svg", tap_viz_hints={"shape": "x"}
-        )
+        node = serialize_node_extended(character.entity, character, icon_url="/i.svg", tap_viz_hints={"shape": "x"})
         # Top-level should NOT carry icon_url/shape/url_id — those live in display.tap_viz.
         assert "icon_url" not in node
         assert "shape" not in node
@@ -331,9 +329,9 @@ class TestBatchResolveTypedModels:
 @pytest.mark.django_db
 class TestBatchResolveDisplay:
     def test_returns_display_from_default_display(self):
-        result = batch_resolve_display({"character"})
-        assert "character" in result
-        assert result["character"].get("shape") == "round-rectangle"
+        result = batch_resolve_display({"grid_fixtures__constrained_source"})
+        assert "grid_fixtures__constrained_source" in result
+        assert result["grid_fixtures__constrained_source"].get("shape") == "round-rectangle"
 
     def test_unknown_type_defaults_to_empty_dict(self):
         result = batch_resolve_display({"nonexistent_xyz"})

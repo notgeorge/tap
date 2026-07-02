@@ -62,15 +62,15 @@ def _batch_container(
     }
 
 
-def _character_node(entity_id: str, name: str = "Frodo", bio: str = "A hobbit") -> dict[str, Any]:
+def _character_node(entity_id: str, name: str = "Frodo", description: str = "A hobbit") -> dict[str, Any]:
     return {
         "entity": {
             "entity_id": entity_id,
-            "entity_type": "character",
+            "entity_type": "grid_fixtures__constrained_source",
             "name": name,
             "dimensions": {},
         },
-        "node": {"name": name, "bio": bio},
+        "node": {"name": name, "description": description},
     }
 
 
@@ -84,7 +84,7 @@ def _wields_edge(edge_entity_id: str, from_id: str, to_id: str) -> dict[str, Any
         "edge": {
             "from_entity_id": from_id,
             "to_entity_id": to_id,
-            "edge_type": "WIELDS",
+            "edge_type": "SCHEMA_LINK__grid_fixtures",
             "properties": {},
         },
     }
@@ -162,7 +162,7 @@ class TestGriftEnvelopeValidation:
     def test_batch_entity_type_not_batch_fails(self):
         bid = _batch_entity_id()
         container = _batch_container(bid)
-        container["batch_entity"]["entity_type"] = "character"
+        container["batch_entity"]["entity_type"] = "grid_fixtures__constrained_source"
         result = grift_import(_minimal_doc([container]))
         assert not result.success
         assert any(e.code == "entity_type_mismatch" for e in result.errors)
@@ -332,8 +332,8 @@ class TestGriftUpsertCreate:
         char1 = _character_node(nid1, name="Frodo")
         artifact_id = nid2
         artifact_node = {
-            "entity": {"entity_id": artifact_id, "entity_type": "artifact", "dimensions": {}},
-            "node": {"name": "Sting", "power": "glows", "origin": "Erebor"},
+            "entity": {"entity_id": artifact_id, "entity_type": "grid_fixtures__dual_endpoint", "dimensions": {}},
+            "node": {"name": "Sting", "description": "glows", "kind": "Erebor"},
         }
         edge = _wields_edge(eid, nid1, artifact_id)
         container = _batch_container(bid, nodes=[char1, artifact_node], edges=[edge])
@@ -375,22 +375,22 @@ class TestGriftUpsertReplace:
         nid = _node_entity_id()
 
         # First import creates the character.
-        char = _character_node(nid, name="Frodo", bio="Original bio")
+        char = _character_node(nid, name="Frodo", description="Original bio")
         result1 = grift_import(_minimal_doc([_batch_container(bid1, nodes=[char])]))
         assert result1.success
 
         # Second import replaces with updated data under a new batch.
         bid2 = _batch_entity_id()
-        updated_char = _character_node(nid, name="Frodo Updated", bio="Updated bio")
+        updated_char = _character_node(nid, name="Frodo Updated", description="Updated bio")
         result2 = grift_import(_minimal_doc([_batch_container(bid2, nodes=[updated_char])]))
         assert result2.success
         assert result2.counts.nodes_imported == 1
 
-        from tap_plugin.lotr.models import Character
+        from tap_plugin.grid_fixtures.models import ConstrainedSource
 
-        char_obj = Character.objects.get(entity_id=uuid.UUID(nid))
+        char_obj = ConstrainedSource.objects.get(entity_id=uuid.UUID(nid))
         assert char_obj.name == "Frodo Updated"
-        assert char_obj.bio == "Updated bio"
+        assert char_obj.description == "Updated bio"
 
 
 # ---------------------------------------------------------------------------
@@ -562,8 +562,8 @@ class TestGriftIdentitySanity:
         # Second import: same entity_id but now claims it's an artifact.
         bid2 = _batch_entity_id()
         wrong_type_node = {
-            "entity": {"entity_id": nid, "entity_type": "artifact", "dimensions": {}},
-            "node": {"name": "Sting", "power": "glows", "origin": "Erebor"},
+            "entity": {"entity_id": nid, "entity_type": "grid_fixtures__dual_endpoint", "dimensions": {}},
+            "node": {"name": "Sting", "description": "glows", "kind": "Erebor"},
         }
         result2 = grift_import(_minimal_doc([_batch_container(bid2, nodes=[wrong_type_node])]))
         assert not result2.success
@@ -736,17 +736,19 @@ class TestGriftForceReimport:
         assert result.success
 
         # Revise node payload and force re-import.
-        revised = _minimal_doc([_batch_container(bid, nodes=[_character_node(nid, name="Renamed", bio="New bio")])])
+        revised = _minimal_doc(
+            [_batch_container(bid, nodes=[_character_node(nid, name="Renamed", description="New bio")])]
+        )
         result2 = grift_import(revised, force_batches=[bid])
         assert result2.success, result2.errors
         assert result2.counts.batches_force_reimported == 1
 
         # Payload updated in place.
-        from tap_plugin.lotr.models import Character
+        from tap_plugin.grid_fixtures.models import ConstrainedSource
 
-        c = Character.objects.get(entity_id=uuid.UUID(nid))
+        c = ConstrainedSource.objects.get(entity_id=uuid.UUID(nid))
         assert c.name == "Renamed"
-        assert c.bio == "New bio"
+        assert c.description == "New bio"
 
         # FORCE_REIMPORT audit event landed.
         evt = BatchEvent.objects.filter(batch__entity_id=bid, event_type=BatchEventType.FORCE_REIMPORT).first()
@@ -818,7 +820,7 @@ class TestGriftForceReimport:
         other_batch = create_batch(name="other")
         ctx = CallerContext(user=get_caller_context().user, batch_id=str(other_batch.entity_id))
         write_batch(
-            [WriteOperation(verb="replace_node", target=nid, payload={"name": "Touched", "bio": "By other"})],
+            [WriteOperation(verb="replace_node", target=nid, payload={"name": "Touched", "description": "By other"})],
             caller_context=ctx,
         )
 
@@ -847,11 +849,11 @@ class TestGriftForceReimport:
             return {
                 "entity": {
                     "entity_id": nid,
-                    "entity_type": "artifact",
+                    "entity_type": "grid_fixtures__dual_endpoint",
                     "name": name,
                     "dimensions": {},
                 },
-                "node": {"name": name, "power": "modest", "origin": "Valinor"},
+                "node": {"name": name, "description": "modest", "kind": "Valinor"},
             }
 
         initial = _minimal_doc(
@@ -886,7 +888,7 @@ class TestGriftForceReimport:
         summary = result.imported_batches[0]
         reasons = {s.reason for s in summary.sweep_skipped}
         assert "sweep_skipped_referenced" in reasons
-        # Artifact should still be live (not tombstoned).
+        # DualEndpoint should still be live (not tombstoned).
         live = Entity.objects.get(pk=uuid.UUID(artifact))
         assert live.deleted_at is None
 
@@ -906,20 +908,22 @@ class TestGriftForceReimport:
         other_batch = create_batch(name="external")
         ctx = CallerContext(user=get_caller_context().user, batch_id=str(other_batch.entity_id))
         write_batch(
-            [WriteOperation(verb="replace_node", target=nid_drop, payload={"name": "Touched", "bio": "X"})],
+            [WriteOperation(verb="replace_node", target=nid_drop, payload={"name": "Touched", "description": "X"})],
             caller_context=ctx,
         )
 
         # Strict-mode force re-import should abort — no writes applied.
-        revised = _minimal_doc([_batch_container(bid, nodes=[_character_node(nid_keep, name="Changed", bio="Y")])])
+        revised = _minimal_doc(
+            [_batch_container(bid, nodes=[_character_node(nid_keep, name="Changed", description="Y")])]
+        )
         result = grift_import(revised, force_batches=[bid], sweep_strict=True)
         assert not result.success
         assert any(e.code == "sweep_strict_aborted" for e in result.errors)
 
         # Name change on nid_keep was rolled back.
-        from tap_plugin.lotr.models import Character
+        from tap_plugin.grid_fixtures.models import ConstrainedSource
 
-        unchanged = Character.objects.get(entity_id=uuid.UUID(nid_keep))
+        unchanged = ConstrainedSource.objects.get(entity_id=uuid.UUID(nid_keep))
         assert unchanged.name == "char-0"  # original
 
     def test_purge_hard_deletes_orphans(self):
@@ -965,14 +969,14 @@ class TestEnvelopePayloadNameMatch:
     def _node_with_names(self, entity_id: str, envelope_name: str | None, payload_name: str) -> dict[str, Any]:
         envelope: dict[str, Any] = {
             "entity_id": entity_id,
-            "entity_type": "character",
+            "entity_type": "grid_fixtures__constrained_source",
             "dimensions": {},
         }
         if envelope_name is not None:
             envelope["name"] = envelope_name
         return {
             "entity": envelope,
-            "node": {"name": payload_name, "bio": "A hobbit"},
+            "node": {"name": payload_name, "description": "A hobbit"},
         }
 
     def test_matched_names_pass_preflight(self):
@@ -1025,7 +1029,7 @@ class TestEnvelopePayloadNameMatch:
         assert len(mismatches) == 1
         # Issue carries enough context to be operator-actionable.
         assert mismatches[0].entity_id == nid
-        assert mismatches[0].entity_type == "character"
+        assert mismatches[0].entity_type == "grid_fixtures__constrained_source"
         assert "Bilbo" in mismatches[0].message and "Frodo" in mismatches[0].message
         assert mismatches[0].path.endswith(".entity.name")
 
@@ -1234,7 +1238,7 @@ class TestGriftRemovalPreflightShape:
 
     def test_target_requires_reason(self):
         bid = _batch_entity_id()
-        target = {"entity_id": _node_entity_id(), "entity_type": "character"}  # missing reason
+        target = {"entity_id": _node_entity_id(), "entity_type": "grid_fixtures__constrained_source"}  # missing reason
         deletes = {"on_missing": "error", "on_tombstoned": "ignore", "edges": [], "nodes": [target]}
         result = grift_import(_minimal_doc([_container_with_removals(bid, deletes=deletes)]))
         assert not result.success
@@ -1243,8 +1247,8 @@ class TestGriftRemovalPreflightShape:
     def test_duplicate_target_within_sub_array_rejected(self):
         bid = _batch_entity_id()
         nid = _node_entity_id()
-        t1 = _remove_target(nid, "character", "first")
-        t2 = _remove_target(nid, "character", "second")
+        t1 = _remove_target(nid, "grid_fixtures__constrained_source", "first")
+        t2 = _remove_target(nid, "grid_fixtures__constrained_source", "second")
         deletes = {"on_missing": "error", "on_tombstoned": "ignore", "edges": [], "nodes": [t1, t2]}
         result = grift_import(_minimal_doc([_container_with_removals(bid, deletes=deletes)]))
         assert not result.success
@@ -1257,12 +1261,12 @@ class TestGriftRemovalPreflightShape:
             "on_missing": "ignore",
             "on_tombstoned": "ignore",
             "edges": [],
-            "nodes": [_remove_target(nid, "character", "delete")],
+            "nodes": [_remove_target(nid, "grid_fixtures__constrained_source", "delete")],
         }
         purges = {
             "on_missing": "ignore",
             "edges": [],
-            "nodes": [_remove_target(nid, "character", "purge")],
+            "nodes": [_remove_target(nid, "grid_fixtures__constrained_source", "purge")],
         }
         result = grift_import(_minimal_doc([_container_with_removals(bid, deletes=deletes, purges=purges)]))
         assert not result.success
@@ -1276,7 +1280,7 @@ class TestGriftRemovalPreflightShape:
             "on_missing": "ignore",
             "on_tombstoned": "ignore",
             "edges": [],
-            "nodes": [_remove_target(nid, "character", "I changed my mind")],
+            "nodes": [_remove_target(nid, "grid_fixtures__constrained_source", "I changed my mind")],
         }
         result = grift_import(_minimal_doc([_container_with_removals(bid, nodes=[upsert], deletes=deletes)]))
         assert not result.success
@@ -1302,7 +1306,7 @@ class TestGriftRemovalPreflightShape:
         deletes = {
             "on_missing": "ignore",
             "on_tombstoned": "ignore",
-            "edges": [_remove_target(nid, "character", "wrong list")],
+            "edges": [_remove_target(nid, "grid_fixtures__constrained_source", "wrong list")],
             "nodes": [],
         }
         result = grift_import(_minimal_doc([_container_with_removals(bid, deletes=deletes)]))
@@ -1332,7 +1336,7 @@ class TestGriftRemovalExecution:
             "on_missing": "error",
             "on_tombstoned": "ignore",
             "edges": [],
-            "nodes": [_remove_target(nid, "character", "retired")],
+            "nodes": [_remove_target(nid, "grid_fixtures__constrained_source", "retired")],
         }
         result = grift_import(_minimal_doc([_container_with_removals(bid, deletes=deletes)]))
         assert result.success, result.errors
@@ -1340,9 +1344,9 @@ class TestGriftRemovalExecution:
         # Tombstoned — Entity row still exists with deleted_at set.
         assert Entity.objects.filter(pk=uuid.UUID(nid), deleted_at__isnull=False).exists()
         # Typed-model live manager (LiveManager) filters it out.
-        from tap_plugin.lotr.models import Character
+        from tap_plugin.grid_fixtures.models import ConstrainedSource
 
-        assert not Character.objects.filter(entity_id=uuid.UUID(nid)).exists()
+        assert not ConstrainedSource.objects.filter(entity_id=uuid.UUID(nid)).exists()
 
     def test_bootloader_cannot_tombstone_via_import(self):
         """Boot cannot tombstone through the grid.import_grift cover: the bootloader
@@ -1363,7 +1367,7 @@ class TestGriftRemovalExecution:
             "on_missing": "error",
             "on_tombstoned": "ignore",
             "edges": [],
-            "nodes": [_remove_target(nid, "character", "retired")],
+            "nodes": [_remove_target(nid, "grid_fixtures__constrained_source", "retired")],
         }
         doc = _minimal_doc([_container_with_removals(bid, deletes=deletes)])
 
@@ -1389,7 +1393,7 @@ class TestGriftRemovalExecution:
         nid = self._seed_one_character()
         bootloader = get_builtin_actor("tap_bootloader")
         with pytest.raises(CapabilityDenied):
-            _apply_sweep_tombstone([(nid, "character")], CallerContext(user=bootloader))
+            _apply_sweep_tombstone([(nid, "grid_fixtures__constrained_source")], CallerContext(user=bootloader))
         assert Entity.objects.filter(pk=uuid.UUID(nid), deleted_at__isnull=True).exists()
 
     def test_delete_missing_target_on_missing_error_fails(self):
@@ -1399,7 +1403,7 @@ class TestGriftRemovalExecution:
             "on_missing": "error",
             "on_tombstoned": "ignore",
             "edges": [],
-            "nodes": [_remove_target(missing_id, "character", "delete ghost")],
+            "nodes": [_remove_target(missing_id, "grid_fixtures__constrained_source", "delete ghost")],
         }
         result = grift_import(_minimal_doc([_container_with_removals(bid, deletes=deletes)]))
         assert not result.success
@@ -1412,7 +1416,7 @@ class TestGriftRemovalExecution:
             "on_missing": "ignore",
             "on_tombstoned": "ignore",
             "edges": [],
-            "nodes": [_remove_target(missing_id, "character", "ok if gone")],
+            "nodes": [_remove_target(missing_id, "grid_fixtures__constrained_source", "ok if gone")],
         }
         result = grift_import(_minimal_doc([_container_with_removals(bid, deletes=deletes)]))
         assert result.success, result.errors
@@ -1427,7 +1431,7 @@ class TestGriftRemovalExecution:
             "on_missing": "error",
             "on_tombstoned": "ignore",
             "edges": [],
-            "nodes": [_remove_target(nid, "character", "first tombstone")],
+            "nodes": [_remove_target(nid, "grid_fixtures__constrained_source", "first tombstone")],
         }
         r1 = grift_import(_minimal_doc([_container_with_removals(bid1, deletes=deletes1)]))
         assert r1.success
@@ -1437,7 +1441,7 @@ class TestGriftRemovalExecution:
             "on_missing": "error",
             "on_tombstoned": "ignore",
             "edges": [],
-            "nodes": [_remove_target(nid, "character", "second pass")],
+            "nodes": [_remove_target(nid, "grid_fixtures__constrained_source", "second pass")],
         }
         r2 = grift_import(_minimal_doc([_container_with_removals(bid2, deletes=deletes2)]))
         assert r2.success, r2.errors
@@ -1451,7 +1455,7 @@ class TestGriftRemovalExecution:
         purges = {
             "on_missing": "error",
             "edges": [],
-            "nodes": [_remove_target(nid, "character", "hard remove for dev reset")],
+            "nodes": [_remove_target(nid, "grid_fixtures__constrained_source", "hard remove for dev reset")],
         }
         result = grift_import(_minimal_doc([_container_with_removals(bid, purges=purges)]))
         assert result.success, result.errors
@@ -1473,8 +1477,8 @@ class TestGriftRemovalExecution:
             "on_tombstoned": "ignore",
             "edges": [],
             "nodes": [
-                _remove_target(nid_alive, "character", "would tombstone"),
-                _remove_target(nid_ghost, "character", "ghost"),
+                _remove_target(nid_alive, "grid_fixtures__constrained_source", "would tombstone"),
+                _remove_target(nid_ghost, "grid_fixtures__constrained_source", "ghost"),
             ],
         }
         result = grift_import(_minimal_doc([_container_with_removals(bid, nodes=[upsert], deletes=deletes)]))
@@ -1497,12 +1501,12 @@ class TestGriftRemovalExecution:
             "on_missing": "ignore",
             "on_tombstoned": "ignore",
             "edges": [],
-            "nodes": [_remove_target(nid, "character", "batch A")],
+            "nodes": [_remove_target(nid, "grid_fixtures__constrained_source", "batch A")],
         }
         purges = {
             "on_missing": "ignore",
             "edges": [],
-            "nodes": [_remove_target(nid, "character", "batch B")],
+            "nodes": [_remove_target(nid, "grid_fixtures__constrained_source", "batch B")],
         }
         result = grift_import(
             _minimal_doc(
@@ -1528,7 +1532,7 @@ class TestGriftSkippedBatchHadRemovalsWarning:
             "on_missing": "ignore",
             "on_tombstoned": "ignore",
             "edges": [],
-            "nodes": [_remove_target(_node_entity_id(), "character", "first run target")],
+            "nodes": [_remove_target(_node_entity_id(), "grid_fixtures__constrained_source", "first run target")],
         }
         doc = _minimal_doc([_container_with_removals(bid, deletes=deletes)])
         r1 = grift_import(doc)
@@ -1574,14 +1578,14 @@ class TestGriftEnvelopeOCC:
         # Seed character.
         bid1 = _batch_entity_id()
         nid = _node_entity_id()
-        char = _character_node(nid, name="Frodo", bio="ringbearer")
+        char = _character_node(nid, name="Frodo", description="ringbearer")
         result1 = grift_import(_minimal_doc([_batch_container(bid1, nodes=[char])]))
         assert result1.success
         v_after_create = _entity_version(nid)
 
         # Re-import with envelope declaring matching expected version.
         bid2 = _batch_entity_id()
-        char_v2 = _character_node(nid, name="Frodo", bio="updated")
+        char_v2 = _character_node(nid, name="Frodo", description="updated")
         char_v2["entity"]["entity_expected_version"] = v_after_create
         result2 = grift_import(_minimal_doc([_batch_container(bid2, nodes=[char_v2])]))
         assert result2.success, [(e.code, e.message) for e in result2.errors]
@@ -1596,7 +1600,7 @@ class TestGriftEnvelopeOCC:
         v = _entity_version(nid)
 
         bid2 = _batch_entity_id()
-        char_v2 = _character_node(nid, name="Frodo", bio="newer")
+        char_v2 = _character_node(nid, name="Frodo", description="newer")
         char_v2["entity"]["entity_expected_version"] = v + 99  # wrong
         result2 = grift_import(_minimal_doc([_batch_container(bid2, nodes=[char_v2])]))
         assert not result2.success
@@ -1629,7 +1633,7 @@ class TestGriftEnvelopeOCC:
         grift_import(_minimal_doc([_batch_container(bid1, nodes=[char])]))
 
         bid2 = _batch_entity_id()
-        char_v2 = _character_node(nid, name="Frodo", bio="updated")
+        char_v2 = _character_node(nid, name="Frodo", description="updated")
         # No entity_expected_version on envelope.
         result2 = grift_import(_minimal_doc([_batch_container(bid2, nodes=[char_v2])]))
         assert result2.success
@@ -1657,7 +1661,7 @@ class TestGriftRemovalOCC:
             "nodes": [
                 {
                     "entity_id": nid,
-                    "entity_type": "character",
+                    "entity_type": "grid_fixtures__constrained_source",
                     "reason": "occ-test",
                     "entity_expected_version": v,
                 }
@@ -1680,7 +1684,7 @@ class TestGriftRemovalOCC:
             "nodes": [
                 {
                     "entity_id": nid,
-                    "entity_type": "character",
+                    "entity_type": "grid_fixtures__constrained_source",
                     "reason": "stale",
                     "entity_expected_version": v + 1,
                 }
@@ -1713,7 +1717,7 @@ class TestGriftRemovalTargetSchemaOCC:
             "nodes": [
                 {
                     "entity_id": nid,
-                    "entity_type": "character",
+                    "entity_type": "grid_fixtures__constrained_source",
                     "reason": "test",
                     "entity_expected_version": 0,
                 }
@@ -1735,7 +1739,7 @@ class TestGriftRemovalTargetSchemaOCC:
             "nodes": [
                 {
                     "entity_id": nid,
-                    "entity_type": "character",
+                    "entity_type": "grid_fixtures__constrained_source",
                     "reason": "test",
                     "entity_expected_version": "1",  # wrong type
                 }

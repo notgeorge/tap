@@ -3,7 +3,7 @@
 Covers:
   - _check_service_contract: all concrete BaseModel subclasses must declare FIELD_CRUD_SCHEMA
   - _build_service_schemas: synthesizes correct SERVICE_CRUD_SCHEMA from the new ClassVars
-  - Content spot-checks for Edge, Search, and Character
+  - Content spot-checks for Edge, Search, and ConstrainedSource
 """
 
 from typing import Any, ClassVar
@@ -12,8 +12,8 @@ import jsonschema
 import pytest
 from django.core.exceptions import ImproperlyConfigured
 from django.db import models
+from tap_plugin.grid_fixtures.models import ConstrainedSource
 
-from tap_plugin.lotr.models import Character
 from tap_grid.models import BaseModel, Edge, Search
 
 # ---------------------------------------------------------------------------
@@ -158,7 +158,7 @@ class TestServiceSchemasSynthesis:
             ENTITY_TYPE: ClassVar[str] = "test_synth_create_xyz"
             FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
                 "name": {"type": "string"},
-                "bio": {"type": "string"},
+                "description": {"type": "string"},
             }
             CREATE_REQUIRED: ClassVar[list[str]] = ["name"]
 
@@ -190,16 +190,16 @@ class TestServiceSchemasSynthesis:
             ENTITY_TYPE: ClassVar[str] = "test_synth_replace_override_xyz"
             FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
                 "name": {"type": "string"},
-                "bio": {"type": "string"},
+                "description": {"type": "string"},
             }
             CREATE_REQUIRED: ClassVar[list[str]] = ["name"]
-            REPLACE_REQUIRED: ClassVar[list[str]] = ["name", "bio"]
+            REPLACE_REQUIRED: ClassVar[list[str]] = ["name", "description"]
 
             class Meta(_TestBaseModel.Meta):
                 managed = False
 
         assert _M.SERVICE_CRUD_SCHEMA["create"]["required"] == ["name"]
-        assert _M.SERVICE_CRUD_SCHEMA["replace"]["required"] == ["name", "bio"]
+        assert _M.SERVICE_CRUD_SCHEMA["replace"]["required"] == ["name", "description"]
 
     def test_patch_extra_fields_appear_only_in_patch(self):
         """PATCH_EXTRA_FIELDS fields appear in patch but not in create or replace."""
@@ -261,7 +261,7 @@ class TestAllConcreteModelsPublishSchemas:
     """Every registered concrete model must have SERVICE_CRUD_SCHEMA with required keys."""
 
     def test_character_has_all_required_keys(self):
-        assert {"create", "patch", "replace"} <= set(Character.SERVICE_CRUD_SCHEMA.keys())
+        assert {"create", "patch", "replace"} <= set(ConstrainedSource.SERVICE_CRUD_SCHEMA.keys())
 
     def test_edge_has_all_required_keys(self):
         assert {"create", "patch", "replace"} <= set(Edge.SERVICE_CRUD_SCHEMA.keys())
