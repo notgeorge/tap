@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tap.dev/schemas/tap.plugins.report.schema.json",
+  "title": "TAP Plugin Report",
+  "description": "Schema for the read-only plugin registry/report emitted by `manage.py plugins --json` and the `tap_plugins.report.build_report()` service (spec-plugin-architecture.md req-plugin-arch-install-registry -3/-5). The report is a SERIALIZATION of facts boot/Django already hold — installed plugins, provenance, install mode, declared vs loaded surfaces, load health, and the bidirectional cross-plugin dependency graph — not a computation. It is the canonical inspection surface for an assembled instance (the plugin software bill of materials). additionalProperties:false throughout catches drift between the service and this contract. Consumed by the administrivia plugin status page (gated by the plugins.read capability).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "plugin_count", "plugins"],
+  "properties": {
+    "schema_version": {
+      "description": "Report schema version. 1 for v0.",
+      "type": "integer",
+      "const": 1
+    },
+    "plugin_count": {
+      "description": "Number of package-mode plugins in the report (== length of `plugins`).",
+      "type": "integer",
+      "minimum": 0
+    },
+    "plugins": {
+      "description": "One record per loaded TAP plugin, sorted by slug. Each record consolidates identity, provenance, surfaces, health, and BOTH dependency directions so a human reads a plugin's full relationship picture from a single row (req: bidirectional deps on every plugin-describing surface).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "slug",
+          "name",
+          "distribution",
+          "version",
+          "commit",
+          "source",
+          "mode",
+          "app_config",
+          "load_health",
+          "surfaces",
+          "dependencies"
+        ],
+        "properties": {
+          "slug": {
+            "description": "The one-true TAP plugin identity (entry-point key == manifest slug == namespace segment).",
+            "type": "string"
+          },
+          "name": {
+            "description": "Human-readable plugin name from the manifest.",
+            "type": "string"
+          },
+          "distribution": {
+            "description": "Python distribution name (`tap-plugin-<slug>`, PEP 503 normalized).",
+            "type": "string"
+          },
+          "version": {
+            "description": "Installed distribution version (hatch-vcs PEP 440), or null if the distribution metadata is not resolvable.",
+            "type": ["string", "null"]
+          },
+          "commit": {
+            "description": "Resolved VCS commit id for a git-source install (provenance), or null for editable/path/index installs where the version already carries the source pin.",
+            "type": ["string", "null"]
+          },
+          "source": {
+            "description": "Install source type recorded in the distribution's direct_url.json: `editable`, `git`, `path`, `wheel` (index/local wheel), or `unknown` when provenance was not recorded.",
+            "type": "string",
+            "enum": ["editable", "git", "path", "wheel", "unknown"]
+          },
+          "mode": {
+            "description": "Install mode derived from source: `checkout` (editable/path — live source under active edit) or `package` (git/wheel — an installed artifact).",
+            "type": "string",
+            "enum": ["checkout", "package"]
+          },
+          "app_config": {
+            "description": "The Django AppConfig dotted path this plugin loads as (the TAP_PLUGINS/INSTALLED_APPS entry).",
+            "type": "string"
+          },
+          "load_health": {
+            "description": "Whether the plugin loaded cleanly. In a booted instance a present plugin has passed manifest validation (a failure would have aborted boot); this records that state explicitly so the report is honest ground-truth rather than an assumption.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["loaded", "manifest_valid", "detail"],
+            "properties": {
+              "loaded": {
+                "description": "True if the plugin's AppConfig is present in the Django app registry.",
+                "type": "boolean"
+              },
+              "manifest_valid": {
+                "description": "True if the plugin's tap-plugin.toml loaded + validated at ready().",
+                "type": "boolean"
+              },
+              "detail": {
+                "description": "Free-text health detail (empty when healthy; an error summary otherwise).",
+                "type": "string"
+              }
+            }
+          },
+          "surfaces": {
+            "description": "Declared-vs-loaded counts for each TAP surface. `declared` is the manifest count; `loaded` (where derivable) is what actually registered — models/edges register EntityType rows tagged with this plugin, so a declared>loaded gap is a visible load problem.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["models", "edges", "editors", "searches", "grift"],
+            "properties": {
+              "models": { "$ref": "#/$defs/surface_counts" },
+              "edges": { "$ref": "#/$defs/surface_counts" },
+              "editors": { "$ref": "#/$defs/surface_counts" },
+              "searches": { "$ref": "#/$defs/surface_counts" },
+              "grift": { "$ref": "#/$defs/surface_counts" }
+            }
+          },
+          "dependencies": {
+            "description": "The cross-plugin CODE dependency graph, BOTH directions on every row (consolidated so humans never hunt across rows). Does NOT include runtime-DATA dependencies (collector-produced nodes) — those stay profile-explicit and invisible to the import graph by design (req-plugin-arch-dependencies-3).",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["depends_on", "required_by", "observed_imports", "undeclared_imports", "declared_detail"],
+            "properties": {
+              "depends_on": {
+                "description": "Slugs this plugin declares it depends on (Tier-1 out-edges) — 'what this plugin needs'.",
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "required_by": {
+                "description": "Slugs that declare a dependency ON this plugin (reverse edges) — 'who needs this plugin'. Deliberately duplicated across rows for at-a-glance blast-radius reading.",
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "observed_imports": {
+                "description": "Slugs this plugin actually imports via `tap_plugin.<other>` (AST-derived reality). In a healthy instance this equals depends_on for code deps.",
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "undeclared_imports": {
+                "description": "observed_imports minus depends_on — cross-plugin imports NOT declared. Empty in a healthy instance (the pre-boot consistency gate fails closed on any); non-empty means the gate was bypassed or the report drifted.",
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "declared_detail": {
+                "description": "Full declared dependency edges with their optional min-version, optional flag, and intent note.",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["slug", "min_version", "optional", "note"],
+                  "properties": {
+                    "slug": { "description": "Dependency target slug.", "type": "string" },
+                    "min_version": { "description": "PEP 440 minimum-version floor, or null.", "type": ["string", "null"] },
+                    "optional": { "description": "True if the dependency is soft (absence tolerated).", "type": "boolean" },
+                    "note": { "description": "Free-text intent — why the dependency exists.", "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "surface_counts": {
+      "description": "Declared count for a surface, and the loaded count where derivable (null when TAP does not track per-plugin registration for that surface in v0).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["declared", "loaded"],
+      "properties": {
+        "declared": { "description": "Count declared in the manifest.", "type": "integer", "minimum": 0 },
+        "loaded": { "description": "Count actually registered for this plugin, or null when not tracked per-plugin.", "type": ["integer", "null"], "minimum": 0 }
+      }
+    }
+  }
+}

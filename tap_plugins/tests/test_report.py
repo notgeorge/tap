@@ -1,0 +1,75 @@
+"""Tests for the plugin registry/report service + `manage.py plugins` command.
+
+The report reads the live app registry, so these are integration-style (django_db).
+They assert the facts that do NOT depend on EntityType seeding in the test DB — schema
+validity, identity, and the bidirectional dependency graph — which is where the value
+(and the risk of drift) lives. See req-plugin-arch-install-registry -3/-5.
+"""
+
+from __future__ import annotations
+
+import io
+import json
+
+import pytest
+from django.core.management import call_command
+
+from tap_plugins.report import build_report
+
+pytestmark = pytest.mark.django_db
+
+
+def test_build_report_validates_and_is_self_consistent() -> None:
+    # build_report() validates against plugin-report.schema.json internally — a bad shape
+    # would raise here. Then check the count invariant.
+    report = build_report()
+    assert report["schema_version"] == 1
+    assert report["plugin_count"] == len(report["plugins"])
+    assert report["plugin_count"] >= 1
+
+
+def test_report_includes_migrated_gryphon_playground() -> None:
+    slugs = {p["slug"] for p in build_report()["plugins"]}
+    # The package-mode migration target must appear (identity via its tap.plugins entry point).
+    assert "gryphon_playground" in slugs
+    assert "samsite" in slugs
+
+
+def test_report_dependency_edges_are_bidirectional() -> None:
+    by_slug = {p["slug"]: p for p in build_report()["plugins"]}
+    samsite = by_slug["samsite"]
+    assert samsite["dependencies"]["depends_on"] == ["github_core", "roscale", "sigstore_core"]
+    # Every declared out-edge appears as a required_by in-edge on the target row.
+    for dep in ("github_core", "roscale", "sigstore_core"):
+        assert "samsite" in by_slug[dep]["dependencies"]["required_by"]
+
+
+def test_report_has_no_undeclared_imports() -> None:
+    # The pre-boot consistency gate fails closed on any undeclared cross-plugin import, so
+    # a healthy instance's report shows none. This test would light up if a plugin gained
+    # an undeclared import without declaring it (drift the gate would also catch at boot).
+    for p in build_report()["plugins"]:
+        assert p["dependencies"]["undeclared_imports"] == [], p["slug"]
+
+
+def test_report_provenance_is_editable_in_monorepo() -> None:
+    # All plugins are editable installs during the monorepo transition.
+    for p in build_report()["plugins"]:
+        assert p["source"] == "editable"
+        assert p["mode"] == "checkout"
+
+
+def test_plugins_command_json_smoke() -> None:
+    out = io.StringIO()
+    call_command("plugins", "--json", stdout=out)
+    data = json.loads(out.getvalue())
+    assert data["schema_version"] == 1
+    assert {"slug", "dependencies", "surfaces", "load_health"} <= set(data["plugins"][0])
+
+
+def test_plugins_command_human_smoke() -> None:
+    out = io.StringIO()
+    call_command("plugins", stdout=out)
+    text = out.getvalue()
+    assert "plugin(s):" in text
+    assert "depends_on:" in text and "required_by:" in text
