@@ -72,9 +72,10 @@ declare the TAP-specific parts now, defer the machinery that only pays off at sc
   The **filesystem twin of `index`** — same install-by-version model, wheels arrive on a volume
   instead of over HTTP, so **no network and no credential**. Must also carry the plugins' Tier-0
   PyPI deps as wheels (`--no-index` fails loud on a missing one). Wheels are CI-built where the git
-  tag lives (tagless ⇒ `0.0.0` fallback); the volume is the trust boundary. Promoted by monorepo
+  tag lives (tagless ⇒ `0.0.0` fallback); the volume is the trust boundary. Motivated by monorepo
   eviction: once a plugin loses its `editable` source, this is the install path for a deployment
-  that grants no git/repo/network access. Pilot: `fedramp_20x_ksi`.
+  that grants no git/repo/network access. **Not critical path** — design locked, build demand-gated
+  on eviction + a healthy leaf plugin. Pilot (held): `fedramp_20x_ksi`.
 - **`grid` = future**: pull a plugin from another running TAP instance — a drop-in strategy.
 - **The profile carries NO secrets on any path** (`wheelhouse`/`grid` reach for no credential at all).
 

@@ -14,6 +14,14 @@ This specification is the top-level contract. Lower-level operational details ar
 - `spec-grid-service-batch.md`
 - `spec-grid-service-errors.md`
 
+### North star — the grid absorbs its sub-grid
+
+A standing architectural target (not a v0 build item): TAP's "sub-grid" systems — plugins, the scheduler, registries, config — progressively gain **grid-side representations** (BaseModel-backed node types on the Entity spine), so they are read through this one service layer instead of bespoke introspection APIs. Each system that makes the move inherits, for free, the gated read path (`req-grid-service-gateway-gated`), FLIP/history/dimensions, and entity-type + dimensional authz — collapsing N introspection surfaces × N gating schemes into one. This is reflective self-representation (cf. Postgres `pg_catalog`, Kubernetes objects-in-etcd, Datomic schema-as-data); TAP already does it with on-grid keystones. It resolves the three grid-access surface types (BaseModel data / Entity spine / sub-grid) toward "surface 3 collapses into surface 1 over time."
+
+The caveat that keeps it honest: an **irreducible bootstrap core** — the grid engine, the type-slug→model registry, pre-boot, boot — must exist *before* the grid can hold a node, so it stays sub-grid by necessity. The target is "everything above the bootstrap core becomes a grid node," not "everything."
+
+The discipline this implies **now** (cheap edge, not a retrofit): a new sub-grid system SHOULD get a BaseModel-backed node type by default rather than accreting another bespoke table + introspection API to fold in later; and capability names SHOULD follow the representation (a domain cap like `plugins.read` while sub-grid; `grid.read` on that type once it is a grid node). Retrofitting existing sub-grid systems waits for demand.
+
 ## Goals
 
 |    |                  |                                                                                              |
