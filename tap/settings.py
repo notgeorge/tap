@@ -193,11 +193,12 @@ INSTALLED_APPS = [
     # ROSCALE plugin — migrated to package-mode 2026-07-01 (tap_plugin.roscale).
     # Install-only (registers the roscale-oscal-workbench panel types samsite's
     # compliance pages consume); loads via TAP_PLUGINS_APPS from the profile
-    # `install` section, before samsite (still build-baked, below).
-    # Samsite plugin — projection of the live AWS cross-deployment of
-    # samaydlette.com (target of the Sam demo, 2026-06-01). Owns the
-    # landing page + first cytoscape graph panel against real boto3 data.
-    "plugins.samsite.apps.SamsiteConfig",
+    # `install` section.
+    # Samsite plugin — migrated to package-mode 2026-07-01 (tap_plugin.samsite);
+    # the demo integration surface (projection of the live AWS cross-deployment
+    # of samaydlette.com). Loads via TAP_PLUGINS_APPS from the profile `install`
+    # section; depends on sigstore_core/github_core/roscale/aws_core at import
+    # time, installed before it (see boot/samsite.boot.json).
     # FedRAMP 20x KSI plugin — migrated to package-mode 2026-07-01 (first namespaced
     # plugin: tap_plugin.fedramp_20x_ksi). No longer build-baked here; it loads via
     # TAP_PLUGINS_APPS below after the pre-boot stage uv-installs it from the profile

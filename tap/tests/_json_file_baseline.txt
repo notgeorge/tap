@@ -15,4 +15,4 @@ plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/collectors/pinned/source_sche
 plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/collectors/safety/denylist.json
 plugins/github_core/tap_plugin/github_core/collectors/github_collector/github_collection_manifest.json
 plugins/github_core/tap_plugin/github_core/collectors/github_collector/github_grid_link_manifest.json
-plugins/samsite/collectors/compliance_collector/artifact_manifest.json
+plugins/samsite/tap_plugin/samsite/collectors/compliance_collector/artifact_manifest.json

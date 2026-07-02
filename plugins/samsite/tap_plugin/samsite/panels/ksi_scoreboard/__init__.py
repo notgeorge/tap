@@ -6,7 +6,7 @@ themed grid of indicator status (passing / in-progress / accepted / gap).
 
 This is a Samsite-specific synthesis — it computes a roll-up that neither
 the upstream KSI signal nor the SSP carry as a primitive. The math lives in
-`plugins.samsite.scoring`; this panel is just resolution + presentation.
+`tap_plugin.samsite.scoring`; this panel is just resolution + presentation.
 
 Resolution uses the canonical multi-entity surface at
 `tap_web.panels.entity_resolution` with roles `ssp` and `poam`; the panel
@@ -23,7 +23,7 @@ import logging
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from tap_plugin.roscale.panels._common import build_provenance, parse
-from plugins.samsite.scoring import (
+from tap_plugin.samsite.scoring import (
     INDICATOR_ACCEPTED,
     INDICATOR_GAP,
     INDICATOR_IN_PROGRESS,

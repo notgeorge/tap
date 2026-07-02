@@ -49,7 +49,13 @@
         "slug": "fedramp_20x_ksi",
         "enabled": true,
         "source": { "type": "editable", "path": "plugins/fedramp_20x_ksi" },
-        "note": "First plugin migrated to package-mode (tap_plugin.fedramp_20x_ksi), 2026-07-01. Editable local source during the monorepo transition; a real deployment uses a git source pinned to a rev. Remaining samsite plugins are still build-baked (INSTALLED_APPS) until they migrate."
+        "note": "First plugin migrated to package-mode (tap_plugin.fedramp_20x_ksi), 2026-07-01. Editable local source during the monorepo transition; a real deployment uses a git source pinned to a rev."
+      },
+      {
+        "slug": "samsite",
+        "enabled": true,
+        "source": { "type": "editable", "path": "plugins/samsite" },
+        "note": "Package-mode (tap_plugin.samsite), 2026-07-01. Last of the samsite set to migrate; the demo integration surface. DEPENDS ON the four plugins above at import time (compliance_collector + panels import tap_plugin.{sigstore_core,github_core,roscale} and read aws_core nodes) — listed last so its cross-plugin (Tier-1/2) deps are installed first. The manifest depends_on schema + boot consistency gate that would enforce this are deferred (declare-now, resolver-later); today the ordering here satisfies it structurally."
       }
     ]
   },
@@ -120,7 +126,7 @@
       },
       {
         "type": "fire-collector",
-        "key": "plugins.samsite.collectors.compliance_collector.collector:samsite-compliance",
+        "key": "tap_plugin.samsite.collectors.compliance_collector.collector:samsite-compliance",
         "enabled": true,
         "timeout_seconds": 300,
         "note": "Signed /.well-known/ compliance artifacts (OSCAL SSP/POA&M, KSI signal, VDR). Fetches 5 artifacts + verifies sigstore signatures, so it gets a generous timeout. MUST run after boto3 (synthesizes SCOPED_TO_BOUNDARY membership from the aws_account nodes) AND after github_core (sigstore_link resolves the signing github_workflow by content-match; if the workflow node isn't on the grid yet those edges are silently omitted)."

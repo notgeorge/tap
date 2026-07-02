@@ -214,8 +214,10 @@ def test_reconciliation_guard_installed_but_disabled_fails() -> None:
 
 
 def test_static_coherence_guard_passes_for_build_baked() -> None:
-    # a build-baked slug in population, absent from install, must pass
-    profile = {"population": {"steps": [{"type": "seed-plugin", "plugin": "samsite", "enabled": True}]}}
+    # a build-baked slug in population, absent from install, must pass.
+    # gryphon_playground is the last build-baked slug (held pending the
+    # gryphon-engine refactor); samsite migrated to package-mode 2026-07-01.
+    profile = {"population": {"steps": [{"type": "seed-plugin", "plugin": "gryphon_playground", "enabled": True}]}}
     preboot.static_coherence_guard(profile, install_slugs=set())  # no raise
 
 

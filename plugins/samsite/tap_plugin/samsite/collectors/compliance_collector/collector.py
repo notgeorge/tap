@@ -54,7 +54,7 @@ _SITE_KEV_FETCH_SKIPPED = "fa71"
 
 _FETCH_TIMEOUT_SECONDS = 30
 _USER_AGENT = "tap-samsite-compliance-collector"
-_COLLECTOR_SOURCE = "plugins.samsite.collectors.compliance_collector"
+_COLLECTOR_SOURCE = "tap_plugin.samsite.collectors.compliance_collector"
 
 
 class SamsiteComplianceCollectorError(Exception):

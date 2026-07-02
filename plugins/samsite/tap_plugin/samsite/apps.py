@@ -12,7 +12,7 @@ class SamsiteConfig(TapPluginConfig):
         # Dual-existence registration: registers the runner and upserts the
         # on-grid Collector node. Imported here, not at module top, so apps
         # loading does not eagerly pull the collector's fetch/verify stack.
-        from plugins.samsite.collectors.compliance_collector.collector import (
+        from tap_plugin.samsite.collectors.compliance_collector.collector import (
             SamsiteComplianceCollector,
         )
         from tap_cares.registry import register_collector
@@ -34,7 +34,7 @@ class SamsiteConfig(TapPluginConfig):
         # POA&M emissions. Samsite-specific because the catalog + artifacts are
         # samsite's; the panel can be lifted to fedramp_20x_ksi later if a
         # second consumer appears.
-        from plugins.samsite.panels.ksi_scoreboard import KsiScoreboardPanelType
+        from tap_plugin.samsite.panels.ksi_scoreboard import KsiScoreboardPanelType
         from tap_web.registry import panel_type_registry
 
         panel_type_registry.register("samsite-ksi-scoreboard", KsiScoreboardPanelType)
@@ -45,7 +45,7 @@ class SamsiteConfig(TapPluginConfig):
         # as a pill row on the compliance landing, so a silent upstream
         # regression of either ingestion path is visible in the UI rather than
         # buried in JSON.
-        from plugins.samsite.panels.vdr_ingestion_health import (
+        from tap_plugin.samsite.panels.vdr_ingestion_health import (
             VdrIngestionHealthPanelType,
         )
 
@@ -54,11 +54,11 @@ class SamsiteConfig(TapPluginConfig):
         # Classy per-artifact viewers (rollout: KSI signal first), modeled on
         # the roscale OSCAL workbench — resolve one decomposed artifact and
         # recompose it from the grid into a workbench view.
-        from plugins.samsite.panels.iiw_workbench import IiwWorkbenchPanelType
-        from plugins.samsite.panels.ksi_signal_workbench import (
+        from tap_plugin.samsite.panels.iiw_workbench import IiwWorkbenchPanelType
+        from tap_plugin.samsite.panels.ksi_signal_workbench import (
             KsiSignalWorkbenchPanelType,
         )
-        from plugins.samsite.panels.vdr_report_workbench import (
+        from tap_plugin.samsite.panels.vdr_report_workbench import (
             VdrReportWorkbenchPanelType,
         )
 

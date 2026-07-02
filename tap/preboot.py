@@ -60,9 +60,12 @@ BUILD_BAKED_PLUGIN_SLUGS: frozenset[str] = frozenset(
         # github_core migrated to package-mode 2026-07-01 (tap_plugin.github_core).
         # sigstore_core migrated to package-mode 2026-07-01 (tap_plugin.sigstore_core).
         # roscale migrated to package-mode 2026-07-01 (tap_plugin.roscale).
-        "samsite",
+        # samsite migrated to package-mode 2026-07-01 (tap_plugin.samsite) — the last
+        # of the samsite set; installed via the profile `install` section.
         # fedramp_20x_ksi migrated to package-mode 2026-07-01 (first namespaced
         # plugin) — no longer build-baked; installed via the profile `install` section.
+        # gryphon_playground stays build-baked: HELD pending the in-flight
+        # gryphon-engine refactor in another session.
         "gryphon_playground",
     }
 )
