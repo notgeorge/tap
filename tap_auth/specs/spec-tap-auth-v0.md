@@ -507,6 +507,7 @@ actor -> CallerContext -> service call -> tap_auth policy gate
   - `grid.purge` capability
   - `DEBUG=True`
 - Public route policy is deferred. V1 protects application/API routes by default, with auth routes, static assets, and basic health carved out as needed.
+- **Cross-app capability composition.** Capability gates **compose across service layers; they never migrate down.** The grid service layer gates `grid.*` **type-agnostically** — it authorizes `grid.read`/`grid.write` for *any* node/edge access and never special-cases who owns the type, so it stays ignorant of `plugins.read`, `cares.*`, etc. An app service layer gates its own `app.*` capability and composes **above** the grid layer by calling it: viewing the plugin report needs `plugins.read` (checked in `tap_plugins`) *and* `grid.read` (checked in `tap_grid` when the read routes through it) — two gates, two owners, each authorizing only its own vocabulary. Putting an app capability's *enforcement* inside `tap_grid` would give the grid app knowledge of another app's wheelhouse (the cross-app coupling `avoid-tap-app-interdependencies` forbids); composition avoids the coupling entirely, so no "enable only if `tap_plugins` installed" feature-flag is needed — you do not guard a coupling you never create. Capability **definition** stays centralized in the `tap_auth` registry (`req-tap-auth-capabilities`); only **enforcement** lives in the owning app's service function. Prefer a capability-gated *service function* over a per-panel/per-view gate — one gate point every caller (panel, API, trusted CLI) shares. Reference instance: `tap_plugins.report.get_plugin_report()` authorizes `plugins.read` then calls the grid layer, which independently gates `grid.read`; `tap_grid` holds zero references to `plugins.read`. The one case that forces the grid layer to know an app capability is per-entity-**type** app gating (e.g. reading plugin-typed *nodes* requires `plugins.read`); the canonical resolution when it bites is for the **entity type to declare its required read-capability and the grid service layer to consult that declaration generically** via the registry-backed discovery system — a one-field declaration on the type, not `tap_grid` hardcoding the cap. Deferred until plugins are actually grid nodes.
 
 #### Acceptance Criteria
 
@@ -517,6 +518,7 @@ actor -> CallerContext -> service call -> tap_auth policy gate
 | req-tap-auth-service-boundary-3 | Reads Protected | Proposed | All graph read surfaces require `grid.read`. | |
 | req-tap-auth-service-boundary-4 | Writes Protected | Proposed | All graph write surfaces require `grid.write` or a specific write capability. | |
 | req-tap-auth-service-boundary-5 | Purge Double Gate | Proposed | Purge requires `grid.purge` and `DEBUG=True`. | |
+| req-tap-auth-service-boundary-6 | Capability Composition | Implemented | App capabilities gate in the owning app's service layer and compose above the type-agnostic `grid.*` gate; no capability's enforcement migrates into `tap_grid`. Reference: `tap_plugins.report.get_plugin_report()` gates `plugins.read` then calls the grid layer. | |
 
 ---
 
