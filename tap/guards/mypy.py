@@ -28,7 +28,7 @@ from typing import ClassVar
 
 from tap.guards.base import REPO_ROOT, CeilingRatchet
 
-BASELINE_PATH = REPO_ROOT / "tap" / "tests" / "_mypy_baseline.txt"
+BASELINE_PATH = Path(__file__).resolve().parent / "baselines" / "mypy.txt"
 
 # mypy emits `path:line:col: error: message  [code]` (line/col optional). Path has no
 # colon; capture the file and the trailing `[code]`. Lines without a `[code]` are rare

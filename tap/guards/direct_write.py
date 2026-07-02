@@ -28,7 +28,7 @@ class DirectWriteRatchet(CeilingRatchet):
         "statically-resolvable cases at authoring time; the runtime write_guard catches the rest. "
         "It is the write half of the authz-coverage story and ratchets toward zero."
     )
-    baseline_path: ClassVar[Path] = REPO_ROOT / "tap" / "tests" / "_direct_write_baseline.txt"
+    baseline_path: ClassVar[Path] = Path(__file__).resolve().parent / "baselines" / "direct_write.txt"
     new_hint = (
         "Node/edge mutations must route through the service layer (write_batch / create_node / "
         "create_edge / delete_* / patch_node), never direct ORM. Fix the call; if it is a "

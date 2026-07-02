@@ -25,7 +25,7 @@ class AuthzCoverageRatchet(CeilingRatchet):
         "an authorization check. This flags every ungated sink and ratchets the baseline toward zero, "
         "so the per-app authZ build-out cannot regress and its remaining debt stays visible."
     )
-    baseline_path: ClassVar[Path] = REPO_ROOT / "tap" / "tests" / "_authz_coverage_baseline.txt"
+    baseline_path: ClassVar[Path] = Path(__file__).resolve().parent / "baselines" / "authz.txt"
     new_hint = (
         "The call must sit inside a @requires_capability function or an authorized() block. Gate the "
         "enclosing function; if it is provably gated by a caller the per-function scanner cannot see, "

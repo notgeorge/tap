@@ -19,7 +19,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from tap.guards.base import all_guards, validation_map_surfaces
+from tap.guards.base import validation_map_surfaces
+from tap.guards.discovery import discover_guards
 
 
 @dataclass(frozen=True)
@@ -56,7 +57,7 @@ def build_report(*, run_checks: bool = False) -> list[GuardRow]:
     """
     known_surfaces = validation_map_surfaces()
     rows: list[GuardRow] = []
-    for guard in all_guards():
+    for guard in discover_guards():
         passed: bool | None = None
         error: str | None = None
         if run_checks:

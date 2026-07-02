@@ -6,22 +6,24 @@ the fog-killer: it asserts every guard's `map_row` corresponds to a real row in 
 Validation Map, so a guard can no longer emerge unaccounted-for (the exact failure
 that let direct-write-coverage and json-file-naming exist without a Map row).
 
-As guards migrate onto `tap.guards`, they are covered here automatically.
+Guards are discovered across every owner (`tap/guards/` + each `<app>/guards/` and
+`<plugin>/guards/`) by the filesystem walk in `discover_guards()`, so a newly-added
+guard file is covered here automatically — no import list to update.
 """
 
 from __future__ import annotations
 
 import pytest
 
-from tap.guards import all_guards, validation_map_surfaces
+from tap.guards import discover_guards, validation_map_surfaces
 
-_GUARDS = all_guards()
+_GUARDS = discover_guards()
 _IDS = [g.slug for g in _GUARDS]
 
 
 def test_registry_is_non_empty():
     """Guard against an empty enumeration silently passing the parametrized cases."""
-    assert _GUARDS, "no guards registered — did tap/guards/__init__.py stop importing a module?"
+    assert _GUARDS, "no guards discovered — did discover_guards() stop finding a guards/ package?"
 
 
 @pytest.mark.parametrize("guard", _GUARDS, ids=_IDS)

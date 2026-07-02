@@ -2,7 +2,7 @@
 
 The scan logic lives in `tap.runtime_secrets`; these tests pin its behaviour over
 synthetic tracked paths. The repo-wide enforcement walk (a filesystem scan of the
-whole tree) is `tap/guards/secrets.py::SecretLeakGuard`, run via
+whole tree) is `tap/guards/secret_leak.py::SecretLeakGuard`, run via
 `tap/tests/test_guards.py` — this file keeps only the fast, DB-free unit tests.
 """
 

@@ -29,7 +29,7 @@ Sanctioned write modules (the service layer itself and the model base that
 implements save/delete), migrations, and tests are out of scope. A reviewed
 exception is a `# TAP-WRITE-COV: <reason>` comment anywhere on the write's physical
 span (so a black-wrapped call may carry it on a continuation line), or, as a last
-resort, a line in `tap/tests/_direct_write_baseline.txt` (ratchets to zero).
+resort, a line in `tap/guards/baselines/direct_write.txt` (ratchets to zero).
 """
 
 from __future__ import annotations

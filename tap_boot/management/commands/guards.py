@@ -69,7 +69,7 @@ class Command(BaseCommand):
         Single source of the header + sort order the guard reads back, so a reviewed
         typing change re-baselines in one command instead of by hand.
         """
-        from tap.guards.mypy_ratchet import BASELINE_PATH, mypy_error_counts
+        from tap.guards.mypy import BASELINE_PATH, mypy_error_counts
 
         counts = mypy_error_counts()
         lines = sorted(f"{key}:{count}" for key, count in counts.items())

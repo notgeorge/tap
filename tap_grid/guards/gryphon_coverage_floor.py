@@ -1,12 +1,15 @@
 """Gryphon branch-coverage floor honesty guard — `req-gridkin-executor-branch-coverage`.
 
 The floor comparison itself is a ~10-15 min coverage-instrumented run
-(`scripts/gryphon-coverage-ratchet`, which now calls `tap.ratchet.ratchet_floor`) —
-too slow for a per-commit gate. This guard is the cheap per-commit half: it keeps
-the *committed floor* honest (valid integer in range, not exceeding the last real
+(`scripts/gryphon-coverage-ratchet`, which calls `tap.ratchet.ratchet_floor`) — too
+slow for a per-commit gate. This guard is the cheap per-commit half: it keeps the
+*committed floor* honest (valid integer in range, not exceeding the last real
 measurement, provenance recorded), so a malformed or wishful floor is caught by CI
 even though the full instrumented comparison is not. The floor direction has no
 per-commit `measure()`, so this is a structural `Guard`, not a ratchet subclass.
+
+Owned by tap_grid because the floor file and the executor it covers both live under
+`tap_grid/gryphon/`.
 """
 
 from __future__ import annotations
