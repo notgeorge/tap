@@ -815,6 +815,29 @@ never papered over.
 | req-gridkin-property-fuzz-4 | Honest Skips, No Fake Green | Implemented | An unmodeled shape is a loud skip (never asserted false-positive); a non-clean executor failure is reported as `crashed`; a per-case floor fails on vacuous coverage. | `LIMIT`-without-`ORDER BY` is never generated. |
 | req-gridkin-property-fuzz-5 | Bounded Committed Run | Implemented | The committed run is small (12×15) and env-tunable for a longer soak, so it does not balloon the gate. | Per-graph DB isolation, read-only query batches. |
 
+### Fuzz Campaign Ledger
+----
+RID: `req-gridkin-fuzz-campaign`
+Status: `Implemented`
+
+The property fuzzer's long-soak, trend-tracking complement. The per-commit gate (`req-gridkin-property-fuzz`) asserts a small committed band and fails on any divergence; a **campaign** grinds a large band the executor has never seen, classifies every query WITHOUT failing, and appends one summary row to an append-only ledger so the **bug frequency can be watched trending down as the executor hardens**. It is on-demand / loopable, never a per-commit gate (like the branch-coverage ratchet).
+
+#### Implementation
+
+- Engine: `tests/test_gryphon_fuzz_campaign.py` — one `transaction=True` parametrized item per graph (DB isolation inherited from the gate; `search_readonly` shares the physical DB, so seeds must commit to be visible and rollback isolation cannot be used). Every query is classified via `fuzz.run_query`; nothing is asserted; a seeding failure is recorded (not aborted) so the band completes. Activated only when `GRYPHON_FUZZ_CAMPAIGN_OUT` is set, so a normal `pytest` run skips it.
+- Ledger + trend: `gridkin/fuzz_campaign.py` (stdlib-only) — `next_base_seed` advances the band past every prior campaign (divergences are deterministic; re-testing a fixed band reports zero), `append_row` stamps commit/UTC, `trend` renders the table. Ledger: `gridkin/fuzz-campaign-log.jsonl` (committed).
+- Orchestrator: `scripts/gryphon-fuzz-campaign` — run in-container; loop it to grind for hours, one fresh band per iteration.
+- The metric that trends down-and-to-the-right is **distinct new defects per 100k queries over fresh seed space**; a defect is fingerprinted by query SHAPE + status (+ exception class) so distinct seeds tripping one bug collapse to one defect. The **oracle-asserted fraction** is recorded beside it so a falling defect rate cannot be faked by the generator drifting off the modeled surface.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-gridkin-fuzz-campaign-1 | Fresh Bands, Never Re-Tested | Implemented | Each campaign advances the seed band past the highest `seed_end` on record, so no seed is ever re-tested. | Deterministic divergences make a re-run of a fixed band report zero. |
+| req-gridkin-fuzz-campaign-2 | Records, Never Gates | Implemented | The engine classifies every query and writes a summary without asserting; a seeding failure is recorded as a defect, not an abort. | The gate is `req-gridkin-property-fuzz`; this is measurement. |
+| req-gridkin-fuzz-campaign-3 | Distinct-Defect Trend + Honest Denominator | Implemented | The ledger records distinct-defect fingerprints (query shape + status) and the oracle-asserted fraction; the trend reports distinct-new-defects-per-100k over fresh space. | Asserted fraction guards against a falling rate from exploration collapse. |
+| req-gridkin-fuzz-campaign-4 | On-Demand, Not A Per-Commit Gate | Implemented | Skipped unless explicitly requested; run in-container and looped for a long soak. | Sibling of the branch-coverage ratchet. |
+
 ### JSON Schema for Scenario Files
 ----
 RID: `req-gridkin-json-schema`

@@ -418,9 +418,7 @@ def _gen_chain(rng: random.Random, vals: _Values) -> str:
     # hop; a negation over their predicate (`NOT`, or `!=`) is executor-rejected,
     # so generate their leaves on the positive far-node surface only.
     far_vars = set(node_vars[2:])
-    where_parts = [
-        f"({_gen_predicate(rng, v, vals, far=v in far_vars)})" for v in node_vars if rng.random() < 0.5
-    ]
+    where_parts = [f"({_gen_predicate(rng, v, vals, far=v in far_vars)})" for v in node_vars if rng.random() < 0.5]
     if where_parts:
         pattern += " WHERE " + " AND ".join(where_parts)
 
