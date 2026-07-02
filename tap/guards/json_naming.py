@@ -35,6 +35,7 @@ _ROOTS = [
 class JsonNamingGuard(Guard):
     slug = "json-file-naming"
     map_row = "JSON-file naming"
+    rid = "req-tap-json-naming"
     description = (
         "A JSON file whose name doesn't declare its role is undiscoverable by the role-keyed loaders "
         "(boot profiles, grift bundles, edge/gridkin/secret files) and hides its purpose from a reader. "

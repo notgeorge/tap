@@ -21,6 +21,8 @@ from tap.guards.base import REPO_ROOT, Guard
 class PluginDependencyConsistencyGuard(Guard):
     slug = "plugin-dependency-consistency"
     map_row = "Plugin dependency consistency"
+    rid = "req-plugin-arch-dependencies-4"
+    cadence = "Pre-boot (`python -m tap.preboot`) + per-commit (`pytest`)"
     description = (
         "A plugin that imports another plugin's code without declaring it in manifest depends_on is "
         "silently coupled — the import graph and the declared graph diverge, and extraction to a "

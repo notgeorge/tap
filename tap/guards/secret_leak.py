@@ -32,6 +32,7 @@ def _repo_json_files() -> list[str]:
 class SecretLeakGuard(Guard):
     slug = "secret-leak"
     map_row = "Secret leak guard"
+    rid = "req-tap-cares-secrets-leak-guard"
     description = (
         "A real credential committed as a *.secret.json (ignore bypassed with -f) or renamed to dodge the "
         "suffix would leak into source control — .gitignore alone can't stop it. This walks the tree for "

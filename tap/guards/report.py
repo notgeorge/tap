@@ -1,26 +1,32 @@
-"""Generated Validation-Map report — the guards describe themselves.
+"""Generated Validation Map — the guards and declared surfaces describe themselves.
 
-PROTOTYPE of the source-of-truth inversion under discussion: instead of a
-hand-maintained prose table in `spec-dev-validation.md`, the live guard set *is*
-the record, and this derives a report from it that cannot drift from the code.
+This is the source-of-truth inversion: instead of a hand-maintained prose table in
+`spec-dev-validation.md`, the live guard set *is* the record for guarded surfaces,
+and `tap.guards.surfaces.DECLARED_SURFACES` carries the negative space (behavioral
+suites, gates, manual/deferred procedures). `render_map_markdown()` derives the Map
+table from both, so the committed table cannot drift from the code — a meta-test
+(`test_spec_map_in_sync`) asserts the spec block equals this output, and
+`manage.py guards --sync-map` regenerates it.
 
-`build_report()` enumerates every registered `Guard` and reads the metadata each
-already carries (slug, map_row, description, defining module). Optionally it runs
-each `check()` and records pass/fail, so the report can show live guard status —
-"CI-guarded (passing)" is then a measured fact, not a typed-in claim.
-
-Deliberately kept to what the guards already declare: this does NOT yet add
-`rid`/`cadence`/`status` fields or fold in the deliberately-unguarded surfaces
-(the negative space the prose Map also tracks). Those are the open design calls;
-this is the read-only view that makes the shape concrete first.
+`build_report()` additionally enumerates every registered `Guard` with the metadata
+each carries (slug, map_row, rid, cadence, status, description, defining module) and,
+optionally, a live `check()` pass/fail — so `manage.py guards --check` shows measured
+status, not a typed-in claim.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from tap.guards.base import validation_map_surfaces
+from tap.guards.base import Guard, defined_requirement_rids
 from tap.guards.discovery import discover_guards
+from tap.guards.surfaces import DECLARED_SURFACES
+
+# Markers delimiting the generated Map block inside spec-dev-validation.md. The text
+# between them is owned by `render_map_markdown()`; edits belong in the guards /
+# DECLARED_SURFACES, then `manage.py guards --sync-map`.
+MAP_BEGIN = "<!-- BEGIN GENERATED MAP — manage.py guards --sync-map -->"
+MAP_END = "<!-- END GENERATED MAP -->"
 
 
 @dataclass(frozen=True)
@@ -29,9 +35,12 @@ class GuardRow:
 
     slug: str
     map_row: str
+    rid: str
+    cadence: str
+    status: str
     module: str
     description: str
-    in_map: bool
+    rid_resolves: bool
     passed: bool | None
     error: str | None
 
@@ -39,8 +48,11 @@ class GuardRow:
         return {
             "slug": self.slug,
             "map_row": self.map_row,
+            "rid": self.rid,
+            "cadence": self.cadence,
+            "status": self.status,
             "module": self.module,
-            "in_map": self.in_map,
+            "rid_resolves": self.rid_resolves,
             "passed": self.passed,
             "error": self.error,
             "description": self.description,
@@ -53,9 +65,10 @@ def build_report(*, run_checks: bool = False) -> list[GuardRow]:
     Args:
         run_checks: when True, run each guard's `check()` and record whether it
             passed (and the assertion message if not). Some checks are slow
-            (collection-completeness forks pytest), so this is opt-in.
+            (collection-completeness forks pytest; mypy runs the type checker), so
+            this is opt-in.
     """
-    known_surfaces = validation_map_surfaces()
+    defined = defined_requirement_rids()
     rows: list[GuardRow] = []
     for guard in discover_guards():
         passed: bool | None = None
@@ -71,11 +84,81 @@ def build_report(*, run_checks: bool = False) -> list[GuardRow]:
             GuardRow(
                 slug=guard.slug,
                 map_row=guard.map_row,
+                rid=guard.rid,
+                cadence=guard.cadence,
+                status=guard.status,
                 module=type(guard).__module__,
                 description=guard.description,
-                in_map=guard.map_row in known_surfaces,
+                rid_resolves=guard.rid in defined,
                 passed=passed,
                 error=error,
             )
         )
     return sorted(rows, key=lambda r: r.slug)
+
+
+@dataclass(frozen=True)
+class MapRow:
+    """One Validation Map inventory row (a guarded surface or a declared surface)."""
+
+    surface: str
+    rid: str
+    cadence: str
+    status: str
+    enforced_by: str
+
+
+def _guard_map_rows() -> list[MapRow]:
+    """Guards grouped by `map_row` — one inventory row per surface.
+
+    Several guards can protect one surface (three log-site guards, two collection
+    guards); they share rid/cadence/status, so the group collapses to a single row
+    whose "Enforced by" lists each defining module.
+    """
+    by_surface: dict[str, list[Guard]] = {}
+    for guard in discover_guards():
+        by_surface.setdefault(guard.map_row, []).append(guard)
+
+    rows: list[MapRow] = []
+    for surface, guards in by_surface.items():
+        first = guards[0]
+        modules = sorted({f"`{type(g).__module__}`" for g in guards})
+        rows.append(
+            MapRow(
+                surface=surface,
+                rid=first.rid,
+                cadence=first.cadence,
+                status=first.status,
+                enforced_by=", ".join(modules) + " (via `tap/tests/test_guards.py`)",
+            )
+        )
+    return rows
+
+
+def map_rows() -> list[MapRow]:
+    """The full Map: guarded surfaces (from the guards) ∪ declared surfaces, sorted by name."""
+    rows = _guard_map_rows()
+    rows += [
+        MapRow(
+            surface=s.surface,
+            rid=s.rid,
+            cadence=s.cadence,
+            status=s.status,
+            enforced_by=s.enforced_by,
+        )
+        for s in DECLARED_SURFACES
+    ]
+    return sorted(rows, key=lambda r: r.surface.lower())
+
+
+def render_map_markdown() -> str:
+    """The generated Map table, wrapped in the BEGIN/END markers (no trailing newline)."""
+    header = (
+        "| Surface | Requirement | Cadence | Status | Enforced by |\n"
+        "| --- | --- | --- | --- | --- |"
+    )
+    lines = [
+        f"| {r.surface} | `{r.rid}` | {r.cadence} | {r.status} | {r.enforced_by} |"
+        for r in map_rows()
+    ]
+    return "\n".join([MAP_BEGIN, "", header, *lines, "", MAP_END])

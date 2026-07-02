@@ -17,6 +17,7 @@ from tap.guards.base import REPO_ROOT, Guard
 class AddoptsIgnoresRegisteredGuard(Guard):
     slug = "collection-addopts-registered"
     map_row = "Collection completeness"
+    rid = "req-dev-validation-collection-complete"
     description = (
         "A `--ignore=` added to pyproject addopts but not registered in the _IGNORED_DIRS ledger would "
         "let the gate skip a dir the completeness check still believes is covered — a silent coverage "

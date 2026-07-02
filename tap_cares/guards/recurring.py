@@ -23,6 +23,7 @@ _RECURRING_SCAN_ROOTS = (
 class RecurringUniquenessGuard(Guard):
     slug = "recurring-uniqueness"
     map_row = "Recurring-task uniqueness"
+    rid = "req-tap-cares-task-backend-recurring-scope-4"
     description = (
         "Steady Queue's @recurring decorator is permitted for exactly one task — the TAP scheduler tick. "
         "Every other scheduling need must route through an on-grid Schedule entity (auditable, FLIP-able), "

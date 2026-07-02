@@ -13,6 +13,7 @@ from tap.guards.base import Guard
 class LogSiteUniquenessGuard(Guard):
     slug = "log-site-within-file-uniqueness"
     map_row = "Log-site tokens"
+    rid = "req-tap-logging-site-id-scanner"
     description = (
         "Two log calls sharing a hex within one module make a token ambiguous — you can't tell which "
         "call site a log line came from. Usually copy-paste. This flags any hex reused within a file."

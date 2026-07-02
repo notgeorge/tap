@@ -64,6 +64,7 @@ def mypy_error_counts() -> dict[str, int]:
 class MypyRatchet(CeilingRatchet):
     slug = "mypy-static-typing"
     map_row = "Static typing (mypy)"
+    rid = "req-dev-validation-mypy-ratchet"
     description = (
         "pyproject sets mypy strict=true but nothing gates on it, so it drifted to ~1200 errors (mostly "
         "django-stubs friction + test-fixture cascade, not bugs). This freezes that baseline per "

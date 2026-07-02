@@ -23,7 +23,8 @@ _BASELINE = REPO_ROOT / "tap_grid" / "gryphon" / "coverage-baseline.json"
 
 class GryphonCoverageFloorGuard(Guard):
     slug = "gryphon-coverage-floor"
-    map_row = "Gryphon executor branch coverage"
+    map_row = "Gryphon branch-coverage floor (well-formedness)"
+    rid = "req-gridkin-executor-branch-coverage"
     description = (
         "The executor branch-coverage floor is enforced only by a slow on-demand script, so nothing "
         "per-commit stops the committed floor from being set above the real measurement — a wishful floor "

@@ -20,6 +20,9 @@ from tap.guards.base import Guard
 class ProfileResolutionGuard(Guard):
     slug = "per-profile-boot-resolution"
     map_row = "Per-profile boot resolution"
+    rid = "req-dev-validation-smoke-gate"
+    cadence = "Per-commit (`pytest`) + pre-push (`cold_boot_gate`)"
+    status = "CI-guarded + Gate-guarded"
     description = (
         "A fire-collector key or seed-plugin slug that has drifted from what's registered makes a boot "
         "profile abort at resolution — the samsite live-demo break, invisible to schema-parse tests "

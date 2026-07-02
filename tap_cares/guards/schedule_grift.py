@@ -18,6 +18,7 @@ SCHEDULED_TARGET = "SCHEDULED_TARGET"
 class ScheduleGriftTargetsGuard(Guard):
     slug = "schedule-grift-targets"
     map_row = "Schedule grift target integrity"
+    rid = "req-tap-cares-collector-model-10"
     description = (
         "A collector's on-grid id is derived from its scope:key; schedule grift bundles hardcode that id "
         "as a SCHEDULED_TARGET edge. If the two drift (the failure the package-mode rename introduced), the "

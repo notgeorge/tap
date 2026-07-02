@@ -18,7 +18,7 @@ from tap.guards.base import (
     CeilingRatchet,
     Guard,
     all_guards,
-    validation_map_surfaces,
+    defined_requirement_rids,
 )
 from tap.guards.discovery import discover_guards
 
@@ -27,5 +27,5 @@ __all__ = [
     "CeilingRatchet",
     "all_guards",
     "discover_guards",
-    "validation_map_surfaces",
+    "defined_requirement_rids",
 ]

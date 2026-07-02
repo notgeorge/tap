@@ -19,6 +19,7 @@ from tap.guards.base import REPO_ROOT, CeilingRatchet
 class AuthzCoverageRatchet(CeilingRatchet):
     slug = "authz-coverage"
     map_row = "Authz coverage"
+    rid = "req-tap-auth-policy-9"
     description = (
         "A call to a privileged graph sink (write_batch / grift_import / a Search-Gryphon executor / "
         "a _*_internal write helper) outside a capability gate can mutate or read the graph without "

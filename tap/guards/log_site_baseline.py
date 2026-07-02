@@ -17,6 +17,7 @@ from tap.guards.base import CeilingRatchet
 class LogSiteBaselineRatchet(CeilingRatchet):
     slug = "log-site-baseline"
     map_row = "Log-site tokens"
+    rid = "req-tap-logging-site-id-scanner"
     description = (
         "A committed log call with no site token, or one violating the getLogger(__name__) convention, "
         "can't be traced to its callsite. The flagged set must equal the baseline (empty ⇒ strict) and "

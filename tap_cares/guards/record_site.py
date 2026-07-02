@@ -47,6 +47,7 @@ def _iter_repo_python_files() -> list[Path]:
 class RecordSiteUniquenessGuard(Guard):
     slug = "record-site-uniqueness"
     map_row = "`record_*` site tokens"
+    rid = "req-tap-cares-collector-job-model-15"
     description = (
         "Collectors tag observations with a 4-hex record_* site token whose callsite path is the module, so "
         "the hex only has to be unique within its file. Reusing one within a file (copy-paste without "

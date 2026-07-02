@@ -54,6 +54,7 @@ def _ungated_public_defs(path: Path) -> list[str]:
 class ServiceGatewayGuard(Guard):
     slug = "service-gateway-coverage"
     map_row = "Service-gateway capability coverage"
+    rid = "req-grid-service-gateway-gated"
     description = (
         "A public function added to the tap_grid.services gateway without a capability decorator is an "
         "ungated entry into the graph service layer. Location is the contract: every public def here must "

@@ -16,6 +16,7 @@ from tap.guards.base import Guard
 class CollectionCompletenessGuard(Guard):
     slug = "collection-completeness"
     map_row = "Collection completeness"
+    rid = "req-dev-validation-collection-complete"
     description = (
         "A test file on disk that the default pytest run doesn't collect silently gates nothing — the "
         "2026-07-01 login regression shipped green exactly this way. This asserts every on-disk test "

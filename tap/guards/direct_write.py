@@ -22,6 +22,7 @@ from tap.guards.base import REPO_ROOT, CeilingRatchet
 class DirectWriteRatchet(CeilingRatchet):
     slug = "direct-write-coverage"
     map_row = "Direct-write coverage"
+    rid = "req-tap-auth-policy-9"
     description = (
         "A direct ORM write to a TAP-managed model outside the service layer bypasses provenance, "
         "authorization, and history — the graph mutates with no record of who/why. This flags the "

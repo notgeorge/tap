@@ -13,6 +13,7 @@ from tap.guards.base import Guard
 class LogSiteFormatGuard(Guard):
     slug = "log-site-format"
     map_row = "Log-site tokens"
+    rid = "req-tap-logging-site-id-scanner"
     description = (
         "A malformed site token ([<not-4-hex>]) breaks the structured-logging contract the future JSON "
         "formatter depends on. Every committed log call must open with a bare 4-hex [<hex>] token; this "
