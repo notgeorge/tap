@@ -1599,6 +1599,9 @@ def _build_chain_queryset(
     pattern: PathPattern,
     db_alias: str,
     inputs: dict[str, Any] | None = None,
+    *,
+    predicate: Predicate | None = None,
+    bindings: dict[str, dict[str, Any]] | None = None,
 ):
     """Build an Edge queryset that joins all hops of a (potentially multi-hop) pattern.
 
@@ -1610,6 +1613,19 @@ def _build_chain_queryset(
     All hop filters are collapsed into a single ``.filter(**kwargs)`` call so
     Django composes one JOIN per unique reverse-FK path — the standard trick
     for avoiding the "multi-filter spawns separate joins" behavior.
+
+    When ``predicate`` is given, its compiled ``Q`` is folded into that SAME
+    ``.filter()`` call (``bindings`` maps its variables to ORM paths). This is
+    load-bearing for a multi-hop WHERE on a node BEYOND the root edge: that
+    predicate resolves through a reverse-FK path (``to_entity__edges_out__…``)
+    identical to a structural hop path, so applying it in a *separate*
+    ``.filter()`` made Django spawn a SECOND join for that path — one carrying
+    none of the structural edge-type / label filters — which the projection then
+    bound to, silently returning far nodes reached by the wrong edge type (and
+    inflating COUNT). Folding it into the one call reuses the structural join, so
+    the predicate constrains exactly the chain's far node. Callers that cannot
+    fold (the ``NOT EXISTS`` inner, whose correlation layers on afterward) apply
+    it via :func:`_apply_predicate_to_qs` instead.
 
     Variable-length edges and undirected edges are rejected up front.
 
@@ -1676,10 +1692,141 @@ def _build_chain_queryset(
         if right.label:
             filters[f"{right_path}__entity_type"] = right.label
 
-    if filters:
+    from django.db.models import Q
+
+    pred_q = _chain_predicate_q(
+        predicate,
+        bindings if bindings is not None else _build_var_bindings(pattern),
+        inputs or {},
+    )
+    # Structural filters first, then the WHERE predicate — a single `.filter()`
+    # so every reverse-FK path resolves to one shared join (structural + WHERE +
+    # projection alike). Order matches the former structural-then-predicate chain
+    # so single-valued (root-edge / anchored) predicates compile to identical SQL.
+    if pred_q is not None:
+        qs = qs.filter(Q(**filters), pred_q)
+    elif filters:
         qs = qs.filter(**filters)
 
     return qs
+
+
+def _binding_is_multivalued_hop(binding: dict[str, Any]) -> bool:
+    """True if a binding is reached via a reverse-FK hop (a node/edge past the root edge).
+
+    Hop-0 nodes bind to the root Edge's own forward FKs (``from_entity`` /
+    ``to_entity``, single-valued); every hop ≥ 1 node/edge is reached through a
+    multi-valued reverse relation (``edges_out`` / ``edges_in``).
+    """
+    path = binding.get("entity_path") or binding.get("edge_path") or ""
+    return "edges_out" in path or "edges_in" in path
+
+
+def _guard_negated_far_predicate(
+    predicate: Predicate | None,
+    bindings: dict[str, dict[str, Any]],
+    *,
+    negated: bool = False,
+) -> None:
+    """Reject a NEGATED equality/``IN`` predicate on a far (multi-valued-hop) node.
+
+    A far node's field path resolves through a reverse-FK relation
+    (``to_entity__edges_out__…``). Applied positively it is a per-row filter on
+    the structurally-joined far node (correct — see :func:`_build_chain_queryset`).
+    But Django compiles a *negated* comparison over a multi-valued relation
+    (``~Q(reverse_path__field=…)``) as an existential anti-join subquery, which
+    (a) crashes with ``operator does not exist: bigint = uuid`` — the subquery
+    correlates on the model's bigint pk against the Entity uuid — and (b) even
+    when it does not crash carries existential ("no reachable far node matches"),
+    not per-binding ("this bound far node does not match"), semantics. Rather than
+    emit invalid SQL or a silently-wrong answer, reject it: apply-or-reject.
+
+    A leaf negates over its path when its EFFECTIVE parity is odd: the syntactic
+    ``NOT`` nesting XOR the ``!=`` operator (which itself lowers to ``~Q`` — see
+    :func:`_comparison_to_q`). So `c.x != v`, `NOT (c.x = v)`, and `NOT (c.x IN
+    […])` all trip this on a far node, while `NOT (c.x != v)` (double negation)
+    does not. ``IS NULL`` / ``IS KNOWN`` leaves lower to ``__isnull`` (negation
+    flips cleanly, no subquery); positive / ``OR`` / non-negated ``IN`` forms and
+    any negation over single-valued (root-edge) hops are unaffected. Row-level
+    negation of a far-node predicate is a named deferred gap (it needs per-field
+    ``F()`` annotation so the negation lands on the joined column, not the
+    relation path).
+    """
+    if predicate is None:
+        return
+    if isinstance(predicate, (Comparison, InComparison)):
+        # `!=` lowers to `~Q(...)`, so it flips the effective negation parity.
+        effective = negated ^ (isinstance(predicate, Comparison) and predicate.op == "!=")
+        if not effective:
+            return
+        binding = bindings.get(predicate.field_path.variable)
+        if binding is not None and _binding_is_multivalued_hop(binding):
+            raise SearchExecutionError(
+                "A negated comparison (`!=` or `NOT (...)`) or negated IN on a node "
+                "beyond the root edge of a multi-hop pattern (here on variable "
+                f"'{predicate.field_path.variable}') is not supported: negating a "
+                "predicate over a reverse-FK traversal would compile to an "
+                "existential anti-join with the wrong (per-pattern, not "
+                "per-binding) semantics. Express it positively (e.g. an `IN` of the "
+                "allowed values, or `<`/`>` bounds), move the predicate onto the "
+                "root edge's endpoints, or use `NOT EXISTS { ... }` for a true "
+                "anti-join."
+            )
+        return
+    if isinstance(predicate, (IsNullComparison, ObservationComparison)):
+        return
+    if isinstance(predicate, AndPred):
+        _guard_negated_far_predicate(predicate.left, bindings, negated=negated)
+        _guard_negated_far_predicate(predicate.right, bindings, negated=negated)
+        return
+    if isinstance(predicate, OrPred):
+        _guard_negated_far_predicate(predicate.left, bindings, negated=negated)
+        _guard_negated_far_predicate(predicate.right, bindings, negated=negated)
+        return
+    if isinstance(predicate, NotPred):
+        _guard_negated_far_predicate(predicate.operand, bindings, negated=not negated)
+        return
+
+
+def _chain_predicate_q(
+    predicate: Predicate | None,
+    bindings: dict[str, dict[str, Any]],
+    inputs: dict[str, Any],
+):
+    """Compile a WHERE predicate over chain bindings into a Django ``Q`` (or None).
+
+    The full AND / OR / NOT tree is compiled by :func:`_predicate_to_q`; each
+    leaf's field path resolves against its bound variable, with data-lane type
+    strictness consulted per bound node's ``FIELD_CRUD_SCHEMA``. Returns ``None``
+    when there is nothing to apply so callers can fold-or-skip.
+
+    Kept separate from application so a chain query can fold the predicate ``Q``
+    into the SAME ``.filter()`` call as its structural hop filters — see
+    :func:`_build_chain_queryset`.
+    """
+    if predicate is None:
+        return None
+
+    _guard_negated_far_predicate(predicate, bindings)
+
+    from tap_grid.registry import get_model_class
+
+    def _resolve(field_path: FieldPath) -> str:
+        var = field_path.variable
+        if var not in bindings:
+            raise SearchExecutionError(f"Unknown variable '{var}' in WHERE predicate.")
+        return _resolve_orm_path(bindings[var], field_path)
+
+    def _declared(field_path: FieldPath) -> set[str] | None:
+        # Resolve the bound node's model so data-lane type-strictness can consult
+        # its FIELD_CRUD_SCHEMA. Skip when the leaf is on an unlabelled node or an
+        # edge variable (edge properties carry no typed data-lane schema).
+        binding = bindings.get(field_path.variable)
+        if not binding or binding.get("role") != "node" or not binding.get("label"):
+            return None
+        return _declared_data_types(get_model_class(binding["label"]), field_path)
+
+    return _predicate_to_q(predicate, inputs, _resolve, _declared)
 
 
 def _apply_predicate_to_qs(
@@ -1688,11 +1835,14 @@ def _apply_predicate_to_qs(
     bindings: dict[str, dict[str, Any]],
     inputs: dict[str, Any],
 ):
-    """Apply a WHERE predicate tree to a chain queryset as a single ``Q`` filter.
+    """Apply a WHERE predicate tree to an already-built chain queryset.
 
-    The full AND / OR / NOT tree is compiled by :func:`_predicate_to_q`; each
-    leaf's field path resolves against its bound variable. Used by the
-    multi-hop / aggregation path and by ``NOT EXISTS`` inner WHEREs.
+    Thin wrapper over :func:`_chain_predicate_q` used where the predicate cannot
+    be folded into the structural filter — the ``NOT EXISTS`` inner queryset
+    (which the outer correlation is layered onto separately). The multi-hop /
+    single-clause chain path instead passes the predicate straight to
+    :func:`_build_chain_queryset` so it lands in one ``.filter()`` (no duplicate
+    join on far-node predicates).
 
     .. tap:capability:: Gryphon WHERE predicates
        :id: cap-grid-gryphon-where
@@ -1712,27 +1862,8 @@ def _apply_predicate_to_qs(
           WHERE n.data.kind = "neighbor"
                 AND (n.data.severity_score < 15 OR n.data.severity_score > 25)
     """
-    if predicate is None:
-        return qs
-
-    from tap_grid.registry import get_model_class
-
-    def _resolve(field_path: FieldPath) -> str:
-        var = field_path.variable
-        if var not in bindings:
-            raise SearchExecutionError(f"Unknown variable '{var}' in WHERE predicate.")
-        return _resolve_orm_path(bindings[var], field_path)
-
-    def _declared(field_path: FieldPath) -> set[str] | None:
-        # Resolve the bound node's model so data-lane type-strictness can consult
-        # its FIELD_CRUD_SCHEMA. Skip when the leaf is on an unlabelled node or an
-        # edge variable (edge properties carry no typed data-lane schema).
-        binding = bindings.get(field_path.variable)
-        if not binding or binding.get("role") != "node" or not binding.get("label"):
-            return None
-        return _declared_data_types(get_model_class(binding["label"]), field_path)
-
-    return qs.filter(_predicate_to_q(predicate, inputs, _resolve, _declared))
+    q = _chain_predicate_q(predicate, bindings, inputs)
+    return qs if q is None else qs.filter(q)
 
 
 def _flatten_conjunction(
@@ -2086,7 +2217,6 @@ def _build_clause_queryset(
         raise SearchExecutionError("Advanced executor requires at least one edge in the MATCH pattern.")
 
     bindings = _build_var_bindings(pattern)
-    qs = _build_chain_queryset(pattern, db_alias, inputs)
 
     # Filter WHERE predicate to only include comparisons on variables bound
     # in this clause. This allows UNION queries where each MATCH clause
@@ -2095,7 +2225,10 @@ def _build_clause_queryset(
         ast.where_clause.predicate if ast.where_clause else None,
         bindings,
     )
-    qs = _apply_predicate_to_qs(qs, applicable_pred, bindings, inputs)
+    # Fold the WHERE into the chain queryset's single `.filter()` (not a separate
+    # one) so a far-node predicate reuses the structural join instead of spawning
+    # a duplicate — see `_build_chain_queryset`.
+    qs = _build_chain_queryset(pattern, db_alias, inputs, predicate=applicable_pred, bindings=bindings)
 
     for nec in ast.not_exists_clauses:
         qs = _apply_not_exists(qs, nec, bindings, inputs, db_alias)

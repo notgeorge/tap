@@ -786,14 +786,24 @@ never papered over.
   is cleanly rejected ("aggregation requires ≥1 edge") — a deliberate v0 boundary,
   not a silent-wrong-answer. The generator emits COUNT over chains only. Node-only
   aggregation is a named v0 gap, not a bug.
-- **Executor, multi-hop far-node WHERE (deferred, named).** A WHERE on a node
-  beyond the root edge of a multi-hop chain resolves through a reverse-FK path
-  (`to_entity__edges_out__to_entity__…`) that Django compiles into a *duplicate*
-  join — row inflation, and invalid SQL on some OR shapes. This is a substantial
-  pre-existing executor defect; the fuzzer reproduced it (deterministically, from
-  seed 1729) and the generator keeps WHERE off multi-hop chains until it is fixed.
-  A focused fix (reuse the structural join, or fail loud) is left as an open,
-  reproduced finding rather than bundled here.
+- **Executor, multi-hop far-node WHERE (RESOLVED).** A WHERE on a node beyond the
+  root edge of a multi-hop chain resolves through a reverse-FK path
+  (`to_entity__edges_out__to_entity__…`) identical to a structural hop path.
+  Applied as a *separate* `.filter()` (as it was), Django spawned a *duplicate*
+  join carrying none of the structural edge_type/label filters; the projection
+  bound to it, so the chain silently returned far nodes reached by the WRONG edge
+  type and COUNT inflated. **Fixed** by folding the predicate `Q` into the SAME
+  `.filter()` as the structural hop filters (`_build_chain_queryset(...,
+  predicate=..., bindings=...)`), so the far-node predicate reuses the one
+  structural join. Regression-locked by the `far_node_where` scenarios (envelope
+  + COUNT); the generator can now emit WHERE on multi-hop chains. A *negated*
+  far-node comparison (`!=` or `NOT (...)`, both lowering to `~Q` over the
+  reverse-FK path — the residual `bigint = uuid` crash) is now cleanly REJECTED
+  (`_guard_negated_far_predicate`) rather than crashing; the third `far_node_where`
+  scenario locks the rejection, and full row-level-negation support is a named
+  deferred gap (per-field `F()` annotation). See
+  `spec-grid-gryphon-multihop-aggregation.md` `req-grid-gryphon-multihop-envelope-3`
+  + Future.
 
 #### Acceptance Criteria
 
@@ -804,6 +814,53 @@ never papered over.
 | req-gridkin-property-fuzz-3 | Zero Shared Lowering | Implemented | The generator and oracle are authored from the spec/grammar and share no lowering with `executor.py`; the executor is exercised through the real `grift_import` seeding and `explain_gryphon_raw`. | The differential guarantee. |
 | req-gridkin-property-fuzz-4 | Honest Skips, No Fake Green | Implemented | An unmodeled shape is a loud skip (never asserted false-positive); a non-clean executor failure is reported as `crashed`; a per-case floor fails on vacuous coverage. | `LIMIT`-without-`ORDER BY` is never generated. |
 | req-gridkin-property-fuzz-5 | Bounded Committed Run | Implemented | The committed run is small (12×15) and env-tunable for a longer soak, so it does not balloon the gate. | Per-graph DB isolation, read-only query batches. |
+
+### Fuzz Campaign Ledger
+----
+RID: `req-gridkin-fuzz-campaign`
+Status: `Implemented`
+
+The property fuzzer's long-soak, trend-tracking complement. The per-commit gate (`req-gridkin-property-fuzz`) asserts a small committed band and fails on any divergence; a **campaign** grinds a large band the executor has never seen, classifies every query WITHOUT failing, and appends one summary row to an append-only ledger so the **bug frequency can be watched trending down as the executor hardens**. It is on-demand / loopable, never a per-commit gate (like the branch-coverage ratchet).
+
+#### Implementation
+
+- Engine: `tests/test_gryphon_fuzz_campaign.py` — one `transaction=True` parametrized item per graph (DB isolation inherited from the gate; `search_readonly` shares the physical DB, so seeds must commit to be visible and rollback isolation cannot be used). Every query is classified via `fuzz.run_query`; nothing is asserted; a seeding failure is recorded (not aborted) so the band completes. Activated only when `GRYPHON_FUZZ_CAMPAIGN_OUT` is set, so a normal `pytest` run skips it.
+- Ledger + trend: `gridkin/fuzz_campaign.py` (stdlib-only) — `next_base_seed` advances the band past every prior campaign (divergences are deterministic; re-testing a fixed band reports zero), `append_row` stamps commit/UTC, `trend` renders the table. Ledger: `gridkin/fuzz-campaign-log.jsonl` (committed).
+- Orchestrator: `scripts/gryphon-fuzz-campaign` — run in-container; loop it to grind for hours, one fresh band per iteration.
+- Repeatable process: the **`gryphon-fuzz-soak`** skill (`plugins/gryphon_playground/skills/gryphon-fuzz-soak/`) is the canonical way to run a long unattended soak — it takes a duration argument, calibrates the band size, loops the orchestrator in the background to a deadline, then triages each persisted defect (replayable from its seed) and drives any real find through the fix discipline.
+- The metric that trends down-and-to-the-right is **distinct new defects per 100k queries over fresh seed space**; a defect is fingerprinted by query SHAPE + status (+ exception class) so distinct seeds tripping one bug collapse to one defect. The **oracle-asserted fraction** is recorded beside it so a falling defect rate cannot be faked by the generator drifting off the modeled surface.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-gridkin-fuzz-campaign-1 | Fresh Bands, Never Re-Tested | Implemented | Each campaign advances the seed band past the highest `seed_end` on record, so no seed is ever re-tested. | Deterministic divergences make a re-run of a fixed band report zero. |
+| req-gridkin-fuzz-campaign-2 | Records, Never Gates | Implemented | The engine classifies every query and writes a summary without asserting; a seeding failure is recorded as a defect, not an abort. | The gate is `req-gridkin-property-fuzz`; this is measurement. |
+| req-gridkin-fuzz-campaign-3 | Distinct-Defect Trend + Honest Denominator | Implemented | The ledger records distinct-defect fingerprints (query shape + status) and the oracle-asserted fraction; the trend reports distinct-new-defects-per-100k over fresh space. | Asserted fraction guards against a falling rate from exploration collapse. |
+| req-gridkin-fuzz-campaign-4 | On-Demand, Not A Per-Commit Gate | Implemented | Skipped unless explicitly requested; run in-container and looped for a long soak. | Sibling of the branch-coverage ratchet. |
+
+### Findings Ledger (Bug Locality)
+----
+RID: `req-gridkin-findings-ledger`
+Status: `Implemented`
+
+The fuzz-campaign ledger tracks bug **frequency over time** (trending down as the executor hardens); this tracks bug **locality** — WHERE in the executor defects concentrate — so the hot spots become the deliberate **refactor / simplification targets**. Every executor or oracle bug already earns a regression scenario; this rides that same discipline by appending one human-authored row at fix time recording which `subsystem` (a small structural vocabulary, each a set of executor functions) and which `functions` the defect lived in, its `class`, `discovery` source, and cross-cutting `tags`. The concentration is then read as a histogram: the hottest subsystem/function is where the next refactor pays off most.
+
+#### Implementation
+
+- Ledger + reporter: `gridkin/findings_ledger.py` (stdlib-only, imports neither Django nor the executor) — `SUBSYSTEMS` (the structural vocabulary) + `FUNCTION_SUBSYSTEM` (function→subsystem map), `load` / `validate` (schema + controlled-vocabulary enforcement), and `report` (renders hotspots by subsystem, function, tag, and discovery source). Ledger: `gridkin/gryphon-findings.jsonl` (committed, append-only, one row per root-caused defect).
+- Renderer: `scripts/gryphon-findings` — prints the hotspot report in-container.
+- **Honest denominator (do not drop it):** found-bug hotspots are biased toward where we have LOOKED — a subsystem with zero findings may be under-tested, not clean. The report pairs each subsystem's finding count with its **line coverage** (parsed from the branch-coverage ratchet's JSON via each function's AST line span, when the JSON is present): high-coverage + high-findings is a genuine refactor target; low-coverage + low-findings is a blind spot, not a clean bill. Same honest-denominator move as the campaign's asserted-fraction.
+- **Discipline:** every executor/oracle bug fix appends a `gryphon-findings.jsonl` row in the same commit as its regression scenario. Well-formedness + vocabulary are CI-guarded (`tests/test_gryphon_findings_ledger.py`); the hotspot analysis itself is a manual read, not a gate.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-gridkin-findings-ledger-1 | Structural Locality Vocabulary | Implemented | Each finding names a `subsystem` from a small structural vocabulary (each subsystem a set of executor functions) plus the specific `functions`; conceptual concerns that cut across functions are `tags`, a secondary lens. | The subsystem key drives both the histogram and the coverage column. |
+| req-gridkin-findings-ledger-2 | Well-Formedness CI-Guarded | Implemented | A test loads the committed ledger and asserts every row is well-formed and uses the controlled `class` / `discovery` / `subsystem` vocabulary; a malformed or mis-tagged row fails the gate. | The hotspot READ is manual; only well-formedness is gated. |
+| req-gridkin-findings-ledger-3 | Honest Denominator (Coverage-Paired) | Implemented | The report pairs each subsystem's finding count with its executor line coverage so a zero-findings subsystem is read as blind-spot-or-clean, not assumed clean. | Coverage from the branch-coverage ratchet JSON; column omitted with a caveat when absent. |
+| req-gridkin-findings-ledger-4 | Fix-Time Discipline | Implemented | Every executor/oracle bug fix appends a findings row in the same commit as its regression scenario; findings are historical facts, so a row's named function is never asserted to still exist (it may be deleted by the very refactor the map motivated). | Rides the existing "every bug earns a regression scenario" rule. |
 
 ### JSON Schema for Scenario Files
 ----

@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# Gryphon fuzz *campaign* — one long-soak run over a FRESH seed band, appended to
+# an append-only ledger, with the bug-frequency trend printed after.
+#
+# This is the measurement complement to the per-commit fuzz gate
+# (`test_gryphon_fuzz.py`, which asserts a small committed band and fails on any
+# divergence). A campaign does NOT gate: it grinds a large band the executor has
+# never seen, classifies every query WITHOUT failing, and records
+# distinct-defects-per-100k + the oracle-asserted fraction so you can watch the
+# defect rate trend down-and-to-the-right as the executor hardens
+# (`req-gridkin-fuzz-campaign`; honest guard status in the spec-dev-validation
+# Validation Map).
+#
+# Each invocation advances the seed band past every prior campaign (divergences
+# are deterministic — re-testing a fixed band reports zero regardless), so it is
+# safe to loop for hours:
+#
+#   # one campaign (must run INSIDE the compose web container — needs the DB):
+#   scripts/dc exec -T -e TAP_FUZZ_COMMIT="$(git rev-parse --short HEAD)" \
+#       web scripts/gryphon-fuzz-campaign
+#
+#   # grind indefinitely, one fresh band per iteration:
+#   while scripts/dc exec -T -e TAP_FUZZ_COMMIT="$(git rev-parse --short HEAD)" \
+#       web scripts/gryphon-fuzz-campaign; do :; done
+#
+# Env / args (args win): GRAPHS ($1, default 50), QUERIES ($2, default 25).
+# TAP_FUZZ_COMMIT stamps provenance (git is unavailable in-container; defaults to
+# "unknown" if unset).
+
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel 2>/dev/null || echo /app)"
+
+LEDGER="plugins/gryphon_playground/gridkin/fuzz-campaign-log.jsonl"
+GRAPHS="${1:-${GRYPHON_FUZZ_CAMPAIGN_GRAPHS:-50}}"
+QUERIES="${2:-${GRYPHON_FUZZ_CAMPAIGN_QUERIES:-25}}"
+COMMIT="${TAP_FUZZ_COMMIT:-unknown}"
+UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+SUMMARY="$(mktemp /tmp/gryphon-campaign-summary.XXXXXX.json)"
+trap 'rm -f "$SUMMARY"' EXIT
+
+BASE="$(uv run python -c "from plugins.gryphon_playground.gridkin import fuzz_campaign as c; print(c.next_base_seed('$LEDGER'))")"
+
+echo "==> Fuzz campaign: seeds ${BASE}..$((BASE + GRAPHS - 1)) (${GRAPHS} graphs x ${QUERIES} queries), commit ${COMMIT}"
+
+# The engine never fails on a divergence — it records. So `set -e` must not abort
+# the campaign on the pytest exit code; the summary file is the source of truth.
+GRYPHON_FUZZ_CAMPAIGN_BASE="$BASE" \
+GRYPHON_FUZZ_CAMPAIGN_GRAPHS="$GRAPHS" \
+GRYPHON_FUZZ_CAMPAIGN_QUERIES="$QUERIES" \
+GRYPHON_FUZZ_CAMPAIGN_OUT="$SUMMARY" \
+    uv run pytest plugins/gryphon_playground/tests/test_gryphon_fuzz_campaign.py -q || true
+
+if [ ! -s "$SUMMARY" ]; then
+    echo "FAIL: campaign wrote no summary — the engine did not run (check pytest output above)." >&2
+    exit 1
+fi
+
+uv run python - "$LEDGER" "$SUMMARY" "$COMMIT" "$UTC" <<'PY'
+import json
+import sys
+
+from plugins.gryphon_playground.gridkin import fuzz_campaign as c
+
+ledger_path, summary_path, commit, utc = sys.argv[1:5]
+summary = json.load(open(summary_path, encoding="utf-8"))
+row = c.append_row(ledger_path, summary, commit=commit, utc=utc)
+
+t = summary["totals"]
+print(
+    f"==> Recorded: {summary['n_queries']} queries "
+    f"(agree={t['agree']} diverge={t['diverge']} rejected={t['rejected']} "
+    f"crashed={t['crashed']} unmodeled={t['unmodeled']}), "
+    f"{summary['distinct_defects']} distinct defect(s), "
+    f"asserted={summary['asserted_fraction'] * 100:.1f}%"
+)
+print()
+print(c.trend(ledger_path))
+PY

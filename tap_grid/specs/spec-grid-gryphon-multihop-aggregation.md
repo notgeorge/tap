@@ -48,6 +48,7 @@ The executor accepts `MATCH` patterns with more than one edge hop, producing res
 
 - No grammar change required. The grammar already parses `pattern: node_pattern (edge_pattern node_pattern)*` as multi-hop.
 - Executor composes a single `Edge` queryset with reverse-FK joins: each additional hop is reached via the previous hop's shared-node path plus `edges_out` (for `->`) or `edges_in` (for `<-`). All hop filters (edge_type, endpoint labels) are collapsed into one `.filter(**kwargs)` call so Django reuses a single JOIN per unique path.
+- The WHERE predicate is folded into that SAME `.filter()` call (`_build_chain_queryset(..., predicate=..., bindings=...)`), not applied as a separate `.filter()`. This is load-bearing for a predicate on a node BEYOND the root edge: such a predicate resolves through a reverse-FK path (`to_entity__edges_out__…`) identical to a structural hop path, and a separate `.filter()` on a multi-valued path makes Django spawn a SECOND join carrying none of the structural edge_type/label filters. The projection then bound to that duplicate join, silently returning far nodes reached by the WRONG edge type and inflating COUNT. Folding predicate and structure into one call reuses the single structural join, so the far-node WHERE constrains exactly the chain's far node. (The `NOT EXISTS` inner queryset, whose correlation is layered on afterward, still applies its WHERE via `_apply_predicate_to_qs`.)
 - Semantics: `MATCH (a)-[:E1]->(b)-[:E2]->(c)` produces the set of `(a, b, c)` triples where `a -E1-> b` and `b -E2-> c` both hold.
 - Directionality: each edge pattern's arrow is honored independently. `-[:E]->` and `<-[:E]-` each behave as in single-hop. Undirected `-[:E]-` remains rejected by the aggregation executor with a targeted error.
 - Node labels on intermediate nodes may be omitted (wildcard) or present (type filter).
@@ -76,6 +77,7 @@ Multi-hop is the largest of the three language changes in this spec because it s
 - Variable-length traversal with explicit bounds and cycle semantics.
 - Path variable binding and path-level projections.
 - Query planner heuristics for anchor selection when multiple WHERE clauses are equally viable.
+- Row-level negation of a far-node (past-the-root-edge) predicate — `!=` or `NOT (...)` on a node reached through a reverse-FK hop. Today it is *rejected* (`_guard_negated_far_predicate`): Django lowers a negated comparison over a multi-valued relation to an existential anti-join subquery, which crashes (`bigint = uuid`) and carries per-pattern, not per-binding, semantics. Full support needs per-field `F()` annotation so the negation lands on the joined column rather than the relation path (the same JOIN-reuse-via-`F()` trick already used for COUNT/OuterRef). Positive / `OR` / `IN` / `IS NULL` far-node forms already work.
 
 ---
 
@@ -271,7 +273,7 @@ Multi-hop queries support graph envelope returns in addition to row projection, 
 | --- | --- | :---: | --- | --- |
 | req-grid-gryphon-multihop-envelope-1 | No RETURN Graph Envelope | Implemented | Omitting RETURN on a multi-hop query returns all matched nodes and edges. | |
 | req-grid-gryphon-multihop-envelope-2 | Bare Variable RETURN | Implemented | `RETURN c, l` returns only the named node variables plus connecting edges. | |
-| req-grid-gryphon-multihop-envelope-3 | WHERE Anchor Scoping | Implemented | WHERE predicates scope the graph envelope to matching subgraph. | |
+| req-grid-gryphon-multihop-envelope-3 | WHERE Anchor Scoping | Implemented | WHERE predicates scope the graph envelope to matching subgraph, including a predicate on a node BEYOND the root edge (which must constrain the structural far node, not any out-neighbor). | Far-node WHERE folds into the chain's single `.filter()` — see Implementation; regression `gridkin:far_node_where-far-node-where-constrains-the-structural-chain-node-not-any-out-neighbor`. |
 | req-grid-gryphon-multihop-envelope-4 | Deduplication | Implemented | Entities appearing at multiple chain positions are returned exactly once. | |
 
 ---
