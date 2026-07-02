@@ -1,7 +1,8 @@
 ---
-title: Navigation-as-Panel redesign — implementation handoff
-spec: tap_web/specs/spec-web-navigation.md
+title: Navigation-as-Panel redesign — superseded handoff
+spec: tap_web/specs/spec-web-chrome.md
 covers:
+  - req-web-chrome-migration
   - req-web-nav-panel
   - req-web-nav-panel-1
   - req-web-nav-panel-2
@@ -10,6 +11,14 @@ covers:
 ---
 
 # Navigation-as-Panel redesign — handoff
+
+> **Superseded 2026-07-02.** This handoff captured the security/architecture
+> thread that originally proposed navigation as a built-in Panel. The target
+> architecture is now [`tap_web/specs/spec-web-chrome.md`](../../tap_web/specs/spec-web-chrome.md):
+> navigation becomes built-in `ChromeEntry` objects on a persistent
+> `ChromeSurface`, and graph-backed chrome activates only after Page/chrome read
+> authorization. Keep this doc as historical context; do not implement from its
+> Objective section.
 
 A fresh, booted session picks up `req-web-nav-panel` to close out the tap_web
 navigation security/architecture thread. This doc is a **pointer to canon + the
@@ -39,12 +48,15 @@ The four sub-requirements (`spec-web-navigation.md`, all **Proposed**):
 
 ## Ground in canon first (read, then verify)
 
-1. `tap_web/specs/spec-web-navigation.md` — `req-web-nav-panel` and its four ACs.
-2. `plan/road-rampart.md` active step — judge this work against its Objective /
+1. `tap_web/specs/spec-web-chrome.md` — target architecture for `ChromeSurface`,
+   `ChromeEntry`, activation, shortcuts, signals, and migration.
+2. `tap_web/specs/spec-web-navigation.md` — historical/current navigation behavior;
+   `req-web-nav-panel` is now Deprecated and superseded.
+3. `plan/road-rampart.md` active step — judge this work against its Objective /
    Done-Test / Non-Goals; apply the roadmap Doctrine + `specs/spec-security-posture.md`.
-3. The oldest keystone on the grid — `MATCH (k:keystone) RETURN k ORDER BY k.created_at ASC`.
-4. `spec-web-panels-standard-*.md` — how a built-in Panel type runs a Search
-   (nav becomes exactly that).
+4. The oldest keystone on the grid — `MATCH (k:keystone) RETURN k ORDER BY k.created_at ASC`.
+5. `spec-web-panel.md` and `spec-web-page.md` — the reusable Page/Panel patterns
+   chrome intentionally adapts without becoming a Page or Panel.
 
 ## What's already done (the starting line)
 
@@ -76,9 +88,8 @@ These were flagged but never resolved; they change the shape of the build:
 - **Discuss the design with George before implementing.** Surface the three open
   questions above and get alignment first.
 - Follow the sprint patterns: gate at entry, route every grid touch through the
-  service layer, keep `spec-web-navigation.md` aligned as you build (flip
-  `req-web-nav-panel` statuses Proposed → Implemented with the change; add/adjust
-  any Validation Map row in `spec-dev-validation.md`).
+  service layer, keep `spec-web-chrome.md` aligned as you build, and add/adjust
+  any Validation Map row in `spec-dev-validation.md`.
 - Fresh booted instance: containers up on latest `main`. `scripts/test --fast` for
   the inner loop; full `scripts/test` before promoting; `scripts/promote-to-main.sh`.
 
