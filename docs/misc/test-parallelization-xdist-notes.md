@@ -50,22 +50,34 @@ extra shared memory is negligible. Recreate the db container (`scripts/dc up -d
 db`) for it to take effect. Validated: **`out of shared memory` 356 → 0**,
 mirror-teardown errors 2 → 0, `-n auto` green at 9:14.
 
-## Remaining: flip the inner-loop default (needs a lane split)
+## Lanes (implemented) — parallelism in a script, NOT in `addopts`
 
-`-n auto` is now safe, but the default `addopts` is still serial. Flipping it is a
-deliberate lane split, not a one-liner:
+`-n auto` was **deliberately kept out of pyproject `addopts`**: it adds a
+per-worker DB-build tax that penalizes small runs — a single test file measured
+**4.3s serial vs 14.9s under `-n auto`** (~3.5×). So the default `pytest` stays
+serial (best for single-test debugging), and the parallel lanes are explicit in
+`scripts/test`:
 
-1. **`-n auto` probably belongs in `addopts`** — parallelize *every* run, including
-   the promote gate. But **`--ignore=plugins/gryphon_playground` must NOT be
-   global**: the full/pre-push lane needs the gryphon corpus. So: parallel
-   globally; the gryphon-ignore only on the fast inner-loop invocation (a
-   `scripts/` alias or marker).
-2. **Relocate the two gryphon per-commit guards** — `TestStageCoverage` and the
-   branch-coverage measurement live inside `plugins/gryphon_playground/`; ignoring
-   that dir in the fast lane moves them to the full/pre-push lane. Update their
-   Validation Map rows to reflect the cadence change.
-3. **Record the new wall-clock** (9:14) in `req-dev-validation-suite-tiers`.
-4. **Adjacent/optional:** `--reuse-db` for warm local runs; the 47s `test_batch`
+- **`scripts/test`** — FULL lane: every test incl. the gryphon corpus, `-n auto`.
+  The authoritative lane the promote gate uses (~9 min). The gryphon executor
+  stage/branch-coverage guards ride this lane.
+- **`scripts/test --fast`** — INNER-LOOP lane: `-n auto` minus
+  `plugins/gryphon_playground`. A local accelerator, explicitly **not** a gate
+  (`req-dev-validation-suite-tiers-4`), so it skips the gryphon guards — which the
+  full lane still runs. **No Map-row cadence change needed**: the guards remain
+  per-commit in the authoritative full lane; only this opt-in fast lane skips them.
+- Single-test debugging: bare `scripts/dc exec web uv run pytest <path::test>` —
+  serial, no worker/DB startup tax.
+
+`scripts/test` allocates a TTY interactively and falls back to `-T` when piped/under
+automation, so the same script serves both the human inner loop and the future gate.
+
+## Remaining
+
+1. **Record the 9:14 wall-clock in `req-dev-validation-suite-tiers`** — that section
+   lives on `origin/main`, not this branch, so it is recorded here for now and
+   flows into the spec on merge-up.
+2. **Adjacent/optional:** `--reuse-db` for warm local runs; the 47s `test_batch`
    setup outlier; the `affected` lane (`-m "not slow"` / testmon) is a later phase.
 
 ## Unrelated note
