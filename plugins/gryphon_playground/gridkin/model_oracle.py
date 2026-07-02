@@ -860,15 +860,51 @@ def _is_bare_variable_return(items: tuple[Any, ...]) -> bool:
     return bool(items) and all(isinstance(it, ReturnItem) and not it.path.steps for it in items)
 
 
+def _prune_predicate_to_vars(pred: Predicate | None, bound: set[str]) -> Predicate | None:
+    """Restrict a predicate to the leaves whose variable this clause binds.
+
+    Per-clause union scoping (req-grid-traversal-lang-shape-5): a leaf naming a
+    variable the clause does not bind is *dropped from the tree*, not evaluated —
+    a distinction that is invisible for a bare comparison but load-bearing under
+    `NOT` / `OR`. (Substituting TRUE for an unbound leaf and evaluating would make
+    `NOT (a.x)` become FALSE for a clause that does not bind `a`, wrongly emptying
+    that clause.) The surviving-child rules mirror the executor's own AST scoping:
+    an AND keeps whichever children survive; an OR or NOT is dropped whole if any
+    operand references an unbound variable (a conservative over-approximation for
+    a UNION envelope — it widens, never narrows). Authored from the spec, not
+    imported from the executor, so the two engines still share zero lowering.
+    """
+    if pred is None:
+        return None
+    if isinstance(pred, (Comparison, InComparison, IsNullComparison, ObservationComparison)):
+        return pred if pred.field_path.variable in bound else None
+    if isinstance(pred, AndPred):
+        left = _prune_predicate_to_vars(pred.left, bound)
+        right = _prune_predicate_to_vars(pred.right, bound)
+        if left is not None and right is not None:
+            return AndPred(left, right)
+        return left or right
+    if isinstance(pred, OrPred):
+        left = _prune_predicate_to_vars(pred.left, bound)
+        right = _prune_predicate_to_vars(pred.right, bound)
+        return OrPred(left, right) if left is not None and right is not None else None
+    if isinstance(pred, NotPred):
+        inner = _prune_predicate_to_vars(pred.operand, bound)
+        return NotPred(inner) if inner is not None else None
+    return None
+
+
 def _build_union_envelope(
     ast: GryphonAST, graph: Graph, predicate: Predicate | None, inputs: dict[str, Any]
 ) -> OracleResult:
     """Union the graph envelopes of every MATCH clause, deduplicated.
 
     Each clause is enumerated independently and filtered by the one global WHERE
-    scoped to that clause's bound variables (per-clause scoping — a leaf naming a
-    variable the clause does not bind is not applied). The node/edge identity sets
-    are unioned across clauses, so a node satisfying two clauses appears once.
+    *pruned* to that clause's bound variables (per-clause scoping — a leaf naming a
+    variable the clause does not bind is dropped, not applied; see
+    `_prune_predicate_to_vars` for why pruning, not TRUE-substitution, is
+    required). The node/edge identity sets are unioned across clauses, so a node
+    satisfying two clauses appears once.
 
     Only the RETURN-omitted envelope form is modeled — the shape the corpus (and
     the executor's multi-clause-union dispatch) exercises. A bare-variable or
@@ -884,8 +920,11 @@ def _build_union_envelope(
     for match_clause in ast.match_clauses:
         if len(match_clause.patterns) != 1:
             raise OracleUnmodeled("multiple patterns in one MATCH")
-        matches = _enumerate_pattern(match_clause.patterns[0], graph, inputs)
-        matches = [m for m in matches if _passes_where(m, predicate, inputs)]
+        pattern = match_clause.patterns[0]
+        bound = {n.variable for n in pattern.nodes if n.variable}
+        clause_pred = _prune_predicate_to_vars(predicate, bound)
+        matches = _enumerate_pattern(pattern, graph, inputs)
+        matches = [m for m in matches if _passes_where(m, clause_pred, inputs)]
         for m in matches:
             node_ids.update(m.node_ids)
             edge_ids.update(m.edge_ids)
