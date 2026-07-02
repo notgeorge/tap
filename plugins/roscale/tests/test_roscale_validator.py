@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from plugins.roscale.parser import parse
-from plugins.roscale.validator import validate
+from tap_plugin.roscale.parser import parse
+from tap_plugin.roscale.validator import validate
 
 FIXTURES = Path(__file__).parent / "fixtures"
 

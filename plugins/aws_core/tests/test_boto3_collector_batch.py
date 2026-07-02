@@ -8,13 +8,13 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from plugins.aws_core.collectors.boto3_collector.batch import (
+from tap_plugin.aws_core.collectors.boto3_collector.batch import (
     COLLECTION_FORMAT,
     assemble_batch,
     node_envelope,
 )
-from plugins.aws_core.collectors.boto3_collector.identity import node_entity_id
-from plugins.aws_core.collectors.boto3_collector.projection import ProjectedNode
+from tap_plugin.aws_core.collectors.boto3_collector.identity import node_entity_id
+from tap_plugin.aws_core.collectors.boto3_collector.projection import ProjectedNode
 
 FIXED_NOW = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
 FIXED_BATCH_ID = "00000000-0000-7000-8000-000000000000"
@@ -49,7 +49,7 @@ class TestNodeEnvelope:
 class TestAssembleBatch:
     def _doc(self, nodes, edges):
         return assemble_batch(
-            source="plugins.aws_core.collectors.boto3_collector",
+            source="tap_plugin.aws_core.collectors.boto3_collector",
             manifest_version="0",
             account_id="123456789012",
             regions=["us-east-1", "us-west-2"],
@@ -79,7 +79,7 @@ class TestAssembleBatch:
             "dimensions": {},
         }
         bn = batch["batch_node"]
-        assert bn["source"] == "plugins.aws_core.collectors.boto3_collector"
+        assert bn["source"] == "tap_plugin.aws_core.collectors.boto3_collector"
         assert bn["description_json"]["format"] == COLLECTION_FORMAT
         data = bn["description_json"]["data"]
         assert data["manifest_version"] == "0"

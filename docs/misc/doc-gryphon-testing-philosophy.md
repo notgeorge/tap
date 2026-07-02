@@ -330,15 +330,30 @@ The methodology above is strong but still fundamentally *sampled*: we test the
 scenarios we author. The forward research thread (framed in
 `doc-gryphon-path-coverage-sprint-plan.md`) asks what *verifiable completeness*
 would look like, and the "compiler over a trusted substrate" reframe is what makes
-the question tractable. Since this essay was written, the first rungs of that
-thread have landed — the path/branch coverage gates (`req-gridkin-stage-coverage`,
-`req-gridkin-executor-branch-coverage`) and TLP (`req-gridkin-metamorphic-tlp`).
-The remainder below is still forward-looking:
+the question tractable. Since this essay was written, the rungs of that thread have
+landed — the path/branch coverage gates (`req-gridkin-stage-coverage`,
+`req-gridkin-executor-branch-coverage`), TLP (`req-gridkin-metamorphic-tlp`), and
+now the property fuzzer that closes the sampled-testing ladder:
 
-- **Property-based fuzzing, tomorrow, nearly free.** The model oracle plus a
-  random-GRIFT-and-query generator *is* a property fuzzer — generate a fixture and
-  a query, run both engines, assert agreement. The differential harness already
-  exists; only the generator is missing.
+- **Property-based fuzzing — now built** (`req-gridkin-property-fuzz`,
+  `gridkin/fuzz.py`). The model oracle plus a seedable random-GRIFT-and-query
+  generator *is* a property fuzzer: generate a fixture and a query over the oracle's
+  modeled surface, run both engines, assert agreement, replay any divergence from
+  the seed alone. It paid for itself on the first runs — four real defects the
+  authored corpus had never exercised (a `= null` / `!= null` that lowered to
+  `IS NULL` / `IS NOT NULL` instead of the two-valued FALSE the spec mandates; a
+  single-hop field projection silently ignored by the envelope dispatch; an
+  anonymous connecting edge dropped from a bare-variable envelope; and a bug in the
+  *reference oracle itself* — union WHERE scoping mis-handling `NOT` over an
+  unbound-variable leaf). Each was triaged by evidence and fixed with a
+  regression-locking scenario. It also *reproduced* a substantial pre-existing
+  executor defect (multi-hop far-node WHERE spawned a duplicate join → row inflation
+  and far nodes reached by the wrong edge type) — since **fixed** by folding the
+  WHERE into the chain's single `.filter()`, regression-locked by the
+  `far_node_where` scenarios, and the generator now emits WHERE on multi-hop chains
+  so the fuzzer keeps exercising it. This is the discipline's own lesson turned on
+  itself: an authoring-independent generator finds what no hand-authored scenario
+  thought to write — including bugs in the checker.
 - **Metamorphic / differential oracles from the literature.** SQLancer's **NoREC**
   is our envelope-vs-projection consistency relation — considered, but it does not
   yield a *distinct* check at Gryphon's dispatch layer (single-hop projections

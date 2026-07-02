@@ -1,0 +1,34 @@
+{
+  "feature": "Single-hop dispatch — anonymous connecting edges and field-projection RETURNs (fuzzer regressions)",
+  "background": {
+    "grift_fixture": "fixtures/sparse_dense.grift.json"
+  },
+  "scenarios": [
+    {
+      "name": "bare-variable RETURN over an anonymous edge includes the connecting edge",
+      "tags": ["single-hop", "envelope", "anonymous-edge", "bare-variable", "regression"],
+      "covers": [
+        "req-grid-gryphon-multihop-envelope-2",
+        "req-grid-traversal-lang-returns-3"
+      ],
+      "inspired_by": "opencypher TCK — no applicable feature folder (property-fuzzer regression, req-gridkin-property-fuzz: anonymous edge collected into a bare-variable envelope)",
+      "layer": "lite",
+      "query": "MATCH (a:gryphon_playground__pg_hub)-[]->(b:gryphon_playground__pg_node) RETURN a, b",
+      "expected_envelope": "expected/single_hop_dispatch__bare_var_anon_edge.expected.json",
+      "expected_sql_snapshot": "expected/single_hop_dispatch__bare_var_anon_edge.sql.txt"
+    },
+    {
+      "name": "single-hop field-projection RETURN yields rows, not a silently-ignored envelope",
+      "tags": ["single-hop", "projection", "rows", "regression"],
+      "covers": [
+        "req-grid-gryphon-rows",
+        "req-grid-traversal-lang-returns-4"
+      ],
+      "inspired_by": "opencypher TCK — no applicable feature folder (property-fuzzer regression, req-gridkin-property-fuzz: single-hop field projection routes to the row executor)",
+      "layer": "lite",
+      "query": "MATCH (h:gryphon_playground__pg_hub)-[:PG_LINKS__gryphon_playground]->(n:gryphon_playground__pg_node) RETURN h.entity_id AS hub_id, n.data.kind AS neighbor_kind",
+      "expected_envelope": "expected/single_hop_dispatch__field_projection.expected.json",
+      "expected_sql_snapshot": "expected/single_hop_dispatch__field_projection.sql.txt"
+    }
+  ]
+}

@@ -1,0 +1,177 @@
+{
+  "metadata": {
+    "grift_version": "0"
+  },
+  "_reserved": {},
+  "batches": [
+    {
+      "batch_entity": {
+        "entity_id": "019dd143-3e8f-73e4-b0fa-e761dd8c7399",
+        "entity_type": "batch",
+        "name": "LOTR searches v0.1.0",
+        "dimensions": {}
+      },
+      "batch_node": {
+        "source": "plugins.lotr",
+        "name": "LOTR searches v0.1.0",
+        "description": "Reusable Search objects for exploring LOTR data in the TAP grid."
+      },
+      "nodes": [
+        {
+          "entity": {
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e762333aa2d6",
+            "entity_type": "search",
+            "name": "All LOTR Characters",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "All LOTR Characters",
+            "description": "Every character in Middle-earth.",
+            "search_type": "orm",
+            "root": "node",
+            "definition": {"filters": {"entity_type": "character"}, "order_by": ["name"]}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e763b714ba63",
+            "entity_type": "search",
+            "name": "All LOTR Locations",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "All LOTR Locations",
+            "description": "Every location in Middle-earth.",
+            "search_type": "orm",
+            "root": "node",
+            "definition": {"filters": {"entity_type": "location"}, "order_by": ["name"]}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e764bdcb7494",
+            "entity_type": "search",
+            "name": "All LOTR Artifacts",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "All LOTR Artifacts",
+            "description": "Every significant artifact.",
+            "search_type": "orm",
+            "root": "node",
+            "definition": {"filters": {"entity_type": "artifact"}, "order_by": ["name"]}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e765a5116fae",
+            "entity_type": "search",
+            "name": "Characters and Their Artifacts",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Characters and Their Artifacts",
+            "description": "Characters with the artifacts they wield (one-hop graph).",
+            "search_type": "orm",
+            "root": "node",
+            "definition": {
+              "filters": {"entity_type": "character"},
+              "hops": [{"direction": "out", "edge_type": "WIELDS", "target_filters": {"entity_type": "artifact"}}],
+              "order_by": ["name"]
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e766e0658218",
+            "entity_type": "search",
+            "name": "Characters and Their Locations",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Characters and Their Locations",
+            "description": "Characters with where they are located (one-hop graph).",
+            "search_type": "orm",
+            "root": "node",
+            "definition": {
+              "filters": {"entity_type": "character"},
+              "hops": [{"direction": "out", "edge_type": "LOCATED_IN", "target_filters": {"entity_type": "location"}}],
+              "order_by": ["name"]
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e767e77a62dc",
+            "entity_type": "search",
+            "name": "Character Alliances",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Character Alliances",
+            "description": "Characters and who they are allied with.",
+            "search_type": "orm",
+            "root": "node",
+            "definition": {
+              "filters": {"entity_type": "character"},
+              "hops": [{"direction": "out", "edge_type": "ALLIES_WITH"}],
+              "order_by": ["name"]
+            }
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e768932bf6c4",
+            "entity_type": "search",
+            "name": "All Fellowship Edges",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "All Fellowship Edges",
+            "description": "All relationship edges in the Middle-earth graph.",
+            "search_type": "orm",
+            "root": "edge",
+            "definition": {"filters": {}, "order_by": ["entity_id"]}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e7693b9626c6",
+            "entity_type": "search",
+            "name": "Characters with Bio",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "Characters with Bio",
+            "description": "All characters with bio from the typed model.",
+            "search_type": "module",
+            "root": "node",
+            "definition": {"runner_key": "tap_plugin.lotr.searches.characters:list-characters-with-bio"}
+          }
+        },
+        {
+          "entity": {
+            "entity_id": "019dd143-3e8f-73e4-b0fa-e793b2ed6bdf",
+            "entity_type": "search",
+            "name": "LOTR Saga",
+            "dimensions": {}
+          },
+          "node": {
+            "name": "LOTR Saga",
+            "description": "Middle-earth saga seed: realms, locations, and characters (artifacts load on character-view drilldown).",
+            "search_type": "gryphon",
+            "root": "node",
+            "definition": {
+              "query": [
+                "MATCH (r:realm)-[e1:CONTAINS]->(l:location)",
+                "MATCH (l2:location)-[e2:CONTAINS]->(l3:location)",
+                "MATCH (c:character)-[e3:LOCATED_IN]->(loc:location)"
+              ]
+            }
+          }
+        }
+      ],
+      "edges": []
+    }
+  ]
+}

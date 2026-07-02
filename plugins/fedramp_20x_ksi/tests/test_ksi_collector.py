@@ -19,8 +19,8 @@ from pathlib import Path
 
 import pytest
 
-import plugins.fedramp_20x_ksi.collectors.ksi_catalog as ksi_module
-from plugins.fedramp_20x_ksi.collectors.ksi_catalog import (
+import tap_plugin.fedramp_20x_ksi.collectors.ksi_catalog as ksi_module
+from tap_plugin.fedramp_20x_ksi.collectors.ksi_catalog import (
     KSICollector,
 )
 from tap_cares.models import CollectionJob, CollectionJobStatus, Collector
@@ -55,7 +55,7 @@ def _make_collector_with_fixture(doc: dict | None = None):
 
     class _FixtureKSICollector(KSICollector):
         def _fetch_upstream_bytes(self) -> tuple[bytes, str, int]:
-            from plugins.fedramp_20x_ksi.collectors.ksi_catalog import (
+            from tap_plugin.fedramp_20x_ksi.collectors.ksi_catalog import (
                 _SITE_UPSTREAM_FETCHED,
             )
 
@@ -67,11 +67,11 @@ def _make_collector_with_fixture(doc: dict | None = None):
             )
             return body, sha, size
 
-    _FixtureKSICollector.__module__ = "plugins.fedramp_20x_ksi.tests.fixtures.injected"
+    _FixtureKSICollector.__module__ = "tap_plugin.fedramp_20x_ksi.tests.fixtures.injected"
     return _FixtureKSICollector
 
 
-_TEST_REGISTRY_KEY = "plugins.fedramp_20x_ksi.tests.fixtures.injected:ksi-catalog-test"
+_TEST_REGISTRY_KEY = "tap_plugin.fedramp_20x_ksi.tests.fixtures.injected:ksi-catalog-test"
 
 
 def _register_and_fetch(
@@ -174,7 +174,7 @@ class TestHappyPathFreshInstall:
         assert job.results["error"] == []
 
     def test_themes_and_indicators_land_on_grid(self, isolate_collector_registry):
-        from plugins.fedramp_20x_ksi.models import KsiIndicator, KsiTheme
+        from tap_plugin.fedramp_20x_ksi.models import KsiIndicator, KsiTheme
 
         cls = _make_collector_with_fixture()
         col = _register_and_fetch(cls)
@@ -259,7 +259,7 @@ class TestBlockFlags:
                     "fixture: bad content type",
                 )
 
-        _BadCT.__module__ = "plugins.fedramp_20x_ksi.tests.fixtures.injected"
+        _BadCT.__module__ = "tap_plugin.fedramp_20x_ksi.tests.fixtures.injected"
         self._run_and_assert_failed(_BadCT, "UPSTREAM_BAD_CONTENT_TYPE")
 
     def test_oversized(self, isolate_collector_registry):
@@ -271,7 +271,7 @@ class TestBlockFlags:
                     "fixture: oversized",
                 )
 
-        _Oversized.__module__ = "plugins.fedramp_20x_ksi.tests.fixtures.injected"
+        _Oversized.__module__ = "tap_plugin.fedramp_20x_ksi.tests.fixtures.injected"
         self._run_and_assert_failed(_Oversized, "UPSTREAM_OVERSIZED")
 
     def test_schema_drift(self, isolate_collector_registry):
@@ -371,7 +371,7 @@ def test_live_fetch_round_trip(isolate_collector_registry):
         description="Live-network KSI collector test.",
     )
     reconcile_collector_nodes()  # materialize the on-grid node (register is read-only)
-    live_key = "plugins.fedramp_20x_ksi.collectors.ksi_catalog:ksi-catalog-test"
+    live_key = "tap_plugin.fedramp_20x_ksi.collectors.ksi_catalog:ksi-catalog-test"
     col = Collector.objects.get(collector_registry=live_key)
     # We don't assert on diff shape (upstream changes). The immediate backend
     # captures any KSICollectorError on the TaskResult; job.status is the

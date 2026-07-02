@@ -59,7 +59,7 @@ The `evidence` entity is a TAP-managed BaseModel with a minimal field set.
 
 | ACID | Title | Status | Description |
 | --- | --- | :---: | --- |
-| req-fedramp-20x-ksi-evidence-model-1 | Model is registered | Implemented | `evidence` is registered in the plugin manifest under `[models]` and resolves to `plugins.fedramp_20x_ksi.models.evidence.Evidence`. |
+| req-fedramp-20x-ksi-evidence-model-1 | Model is registered | Implemented | `evidence` is registered in the plugin manifest under `[models]` and resolves to `tap_plugin.fedramp_20x_ksi.models.evidence.Evidence`. |
 | req-fedramp-20x-ksi-evidence-model-2 | Schema accepts valid input | Implemented | `create_node(type_slug="evidence", payload={"name": ..., "kind": "scanner_output", ...})` succeeds and produces a corresponding `Entity` row. |
 | req-fedramp-20x-ksi-evidence-model-3 | Required fields enforced | Implemented | Omitting `name` or `kind` produces a validation error from the service layer. |
 | req-fedramp-20x-ksi-evidence-model-4 | Display projection synced | Implemented | After save, `entity.name` equals `Evidence.get_name()`. |

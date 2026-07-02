@@ -13,6 +13,7 @@
     { "name": "auth.manage_sessions", "description": "Invalidate active login sessions (global / per-user / per-session) — the incident-response banhammer. Separable from user management so an IR role can hold it without full account control.", "risk": "high" },
     { "name": "auth.manage_providers", "description": "Configure authentication providers and identity settings.", "risk": "high" },
     { "name": "config.manage", "description": "Manage instance configuration and settings.", "risk": "medium" },
+    { "name": "plugins.read", "description": "Read the plugin registry/report — installed plugins, versions, sources, install mode, declared vs loaded surfaces, load health, and cross-plugin dependency edges (the instance's plugin software bill of materials). Read-only inspection; the read half of plugins.manage.", "risk": "low" },
     { "name": "plugins.manage", "description": "Install, enable, disable, or configure plugins.", "risk": "high" },
     { "name": "cares.run_collectors", "description": "Run collectors and ingestion jobs.", "risk": "medium" },
     { "name": "ai.delegate", "description": "Delegate bounded authority to AI actors acting on a user's behalf.", "risk": "high" }

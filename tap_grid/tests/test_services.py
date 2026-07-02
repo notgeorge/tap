@@ -4,7 +4,7 @@ import uuid
 
 import pytest
 
-from plugins.lotr.models import Character
+from tap_plugin.lotr.models import Character
 from tap_grid.caller_context import CallerContext
 from tap_grid.constraints import (
     _edge_property_schema_registry,

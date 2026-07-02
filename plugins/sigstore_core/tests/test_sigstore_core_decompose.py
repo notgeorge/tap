@@ -1,4 +1,4 @@
-"""Hermetic tests for ``plugins.sigstore_core.decompose``.
+"""Hermetic tests for ``tap_plugin.sigstore_core.decompose``.
 
 The decompose helper draws all its data from ``VerificationResult`` and the
 caller-supplied policy/dimensions/identity. The parsed_bundle attribute on
@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import pytest
 
-from plugins.sigstore_core.decompose import GriftFragment, bundle_to_grift_fragment
-from plugins.sigstore_core.verify import (
+from tap_plugin.sigstore_core.decompose import GriftFragment, bundle_to_grift_fragment
+from tap_plugin.sigstore_core.verify import (
     PUBLIC_GOOD_FULCIO_URL,
     PUBLIC_GOOD_REKOR_URL,
     GitHubWorkflowPolicy,

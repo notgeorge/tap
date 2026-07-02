@@ -1,0 +1,47 @@
+# TAP Samsite plugin — package-mode distribution (namespaced 2026-07-01).
+#
+# Identity chain (req-plugin-arch-identity — all four MUST agree, gate-enforced):
+#   slug             = "samsite"                     (tap-plugin.toml slug)
+#   distribution     = "tap-plugin-samsite"          (PEP 503: slug `_`->`-`, `tap-plugin-` prefix)
+#   import namespace = "tap_plugin.samsite"          (PEP 420 native namespace; NO tap_plugin/__init__.py)
+#   entry-point key  = "samsite"                     (== slug)
+#
+# Samsite is the demo integration plugin — the last of the samsite set to migrate.
+# It depends on FOUR other plugins at import time (its compliance_collector +
+# panels import tap_plugin.sigstore_core, tap_plugin.github_core, tap_plugin.roscale,
+# and reads tap_plugin.aws_core nodes). Those are cross-plugin (Tier-1/Tier-2)
+# dependencies per req-plugin-arch-dependencies: the manifest `depends_on` schema and
+# the boot consistency gate that would enforce presence are DEFERRED (declare-now,
+# resolver-later). Today the dependency is satisfied structurally — the samsite boot
+# profile's `install` section installs all four before samsite. RISK LEFT OPEN
+# (spec-security-posture honest-risk): a profile that installs samsite WITHOUT one of
+# those four would ImportError at AppConfig.ready(); the deferred boot consistency
+# gate is what will fail that closed.
+[project]
+name = "tap-plugin-samsite"
+description = "TAP Samsite plugin — the demo integration surface: KSI scoreboard, compliance collector, and OSCAL/VDR workbench panels tying the AWS/GitHub/sigstore/FedRAMP plugins together."
+requires-python = ">=3.14"
+dynamic = ["version"]
+
+# Tier-0 dependencies (req-plugin-arch-dependencies-1): NONE. Samsite imports only
+# stdlib + the core TAP runtime + OTHER PLUGINS (the latter are cross-plugin Tier-1/2
+# deps documented above, not third-party PyPI packages, so they do not belong here).
+dependencies = []
+
+[project.entry-points."tap.plugins"]
+samsite = "tap_plugin.samsite.apps:SamsiteConfig"
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+# MONOREPO-TRANSITION ARTIFACT — remove on extraction (see fedramp_20x_ksi pyproject).
+root = "../.."
+fallback_version = "0.0.0"
+
+[tool.hatch.build.targets.wheel]
+only-include = ["tap_plugin/samsite"]

@@ -1,15 +1,44 @@
+# TAP GitHub Core plugin — package-mode distribution (namespaced 2026-07-01).
+#
+# Identity chain (pre-boot conformance gate enforces agreement):
+#   slug             = "github_core"
+#   distribution     = "tap-plugin-github-core"
+#   import namespace = "tap_plugin.github_core"   (PEP 420 — no tap_plugin/__init__.py)
+#   entry-point key  = "github_core"              (== slug)
+#
+# Migrated OUT of [tool.uv.workspace] members (root pyproject.toml): a package-mode
+# plugin installs via the pre-boot stage from the boot profile's `install` section,
+# NOT via `uv sync --all-packages`. Its Tier-0 deps (PyYAML) travel with it and uv
+# resolves them at plugin-install time (req-plugin-arch-dependencies-1).
 [project]
 name = "tap-plugin-github-core"
-version = "0.1.0"
 description = "TAP GitHub Core plugin — GitHub Actions deployment plumbing for samsite."
 requires-python = ">=3.14"
+dynamic = ["version"]
+
+# Tier-0 dependencies (req-plugin-arch-dependencies-1): github_core's collector parses
+# workflow YAML, so PyYAML is a plugin-SPECIFIC third-party dep (not core-provided).
+# It rides with the plugin — uv resolves it when the pre-boot stage installs github_core.
 dependencies = [
     "PyYAML>=6.0.2",
 ]
 
+[project.entry-points."tap.plugins"]
+github_core = "tap_plugin.github_core.apps:GithubCoreConfig"
+
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
+# VCS-derived PEP 440 version (req-plugin-arch-versioning-1); no hand-maintained field.
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+# MONOREPO-TRANSITION ARTIFACT — remove on extraction (see fedramp_20x_ksi pyproject).
+root = "../.."
+fallback_version = "0.0.0"
+
+# PEP 420 namespace build: ship tap_plugin/github_core/* with no tap_plugin/__init__.py.
 [tool.hatch.build.targets.wheel]
-packages = ["."]
+only-include = ["tap_plugin/github_core"]

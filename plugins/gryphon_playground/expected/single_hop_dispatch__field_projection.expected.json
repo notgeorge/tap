@@ -1,0 +1,18 @@
+{
+  "nodes": [],
+  "edges": [],
+  "rows": [
+    {
+      "hub_id": "019e4b02-f37b-72df-a3e5-baf99158bb0c",
+      "neighbor_kind": "neighbor"
+    },
+    {
+      "hub_id": "019e4b02-f37b-72df-a3e5-baf99158bb0c",
+      "neighbor_kind": "neighbor"
+    },
+    {
+      "hub_id": "019e4b02-f37b-72df-a3e5-baf99158bb0c",
+      "neighbor_kind": "neighbor"
+    }
+  ]
+}

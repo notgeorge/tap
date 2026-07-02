@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# scripts/test — run the TAP test suite inside the compose image, parallelized.
+#
+# Parallelism lives here, NOT in pyproject `addopts`, on purpose: `-n auto` adds a
+# per-worker DB-build tax that penalizes small/single-test runs (~4s serial vs ~15s
+# under -n auto, measured). So the DEFAULT `pytest` stays serial — best for
+# single-test debugging — and the parallel lanes are explicit.
+#
+# Lanes (req-dev-validation-suite-tiers; docs/misc/test-parallelization-xdist-notes.md):
+#   scripts/test            FULL lane — every test incl. the gryphon_playground
+#                           corpus, -n auto. The authoritative lane; the promote
+#                           gate uses this. ~9 min. The gryphon executor
+#                           stage/branch-coverage guards ride this lane.
+#   scripts/test --fast     INNER-LOOP lane — -n auto minus the gryphon_playground
+#                           corpus (its ~7-18 min of scenarios). NOT a gate: it is
+#                           a local accelerator, so it skips the gryphon guards,
+#                           which the full lane still runs (req-dev-validation-suite-tiers-4).
+#   scripts/test <args...>  Extra args pass through to pytest, e.g.
+#                           scripts/test tap_auth -k login
+#                           scripts/test --fast tap_web
+#
+# For single-test debugging prefer bare (serial) pytest — no worker/DB startup tax:
+#   scripts/dc exec web uv run pytest tap/tests/test_x.py::test_y
+
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+pytest_args=(-n auto)
+if [[ "${1:-}" == "--fast" ]]; then
+  pytest_args+=(--ignore=plugins/gryphon_playground)
+  shift
+fi
+
+# Allocate a TTY when run interactively (colours, live output); use -T when piped
+# or run under automation (the future promote gate) so it does not require one.
+tty_args=()
+[[ -t 1 ]] || tty_args=(-T)
+
+exec scripts/dc exec "${tty_args[@]}" web sh -c \
+  'cd /app && exec uv run pytest "$@"' _ "${pytest_args[@]}" "$@"

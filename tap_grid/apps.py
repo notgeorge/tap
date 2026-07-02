@@ -19,6 +19,16 @@ class TapCoreConfig(AppConfig):
 
         connection_created.connect(install_read_sql_guard, dispatch_uid="tap_grid.read_guard")
 
+        # Detection backstop for the read-only search connection
+        # (req-grid-search-readonly-sec-detect): attach an execute_wrapper to the
+        # search_readonly alias that turns PostgreSQL's silent read-only write
+        # rejection (SQLSTATE 25006) into a loud security Flaw before re-raising.
+        # The write stays blocked; this adds the response-triggering alert. Wiring
+        # here (not per-callsite) makes the alert unforgettable.
+        from tap_grid.search_readonly_guard import install_readonly_write_guard
+
+        connection_created.connect(install_readonly_write_guard, dispatch_uid="tap_grid.search_readonly_guard")
+
         # Register grid-standard edge types (e.g. PRODUCED_BATCH). Pure
         # in-memory registry writes — no DB — so this runs unconditionally,
         # before the DB-touching bootstrap below.

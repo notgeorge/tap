@@ -1,0 +1,72 @@
+{
+  "nodes": [
+    {
+      "entity_id": "019f210b-3b22-738c-be7b-3ccadc367b2c",
+      "entity_type": "gryphon_playground__pg_node",
+      "name": "Root A",
+      "dimensions": {
+        "tap.playground": "gridkin"
+      },
+      "created_at": "<volatile>",
+      "updated_at": "<volatile>",
+      "deleted_at": null,
+      "version": 1,
+      "originating_grid_id": "<volatile>"
+    },
+    {
+      "entity_id": "019f210b-3b22-738c-be7b-3ccb1bfeb5fe",
+      "entity_type": "gryphon_playground__pg_node",
+      "name": "Mid B",
+      "dimensions": {
+        "tap.playground": "gridkin"
+      },
+      "created_at": "<volatile>",
+      "updated_at": "<volatile>",
+      "deleted_at": null,
+      "version": 1,
+      "originating_grid_id": "<volatile>"
+    },
+    {
+      "entity_id": "019f210b-3b22-738c-be7b-3ccc741a6df0",
+      "entity_type": "gryphon_playground__pg_node",
+      "name": "Tail C1",
+      "dimensions": {
+        "tap.playground": "gridkin"
+      },
+      "created_at": "<volatile>",
+      "updated_at": "<volatile>",
+      "deleted_at": null,
+      "version": 1,
+      "originating_grid_id": "<volatile>"
+    }
+  ],
+  "edges": [
+    {
+      "entity_id": "019f210b-3b22-738c-be7b-3ccf7d239d8e",
+      "entity_type": "edge",
+      "name": "019f210b-3b22-738c-be7b-3ccadc367b2c --[PG_LINKS__gryphon_playground]--> 019f210b-3b22-738c-be7b-3ccb1bfeb5fe",
+      "dimensions": {
+        "tap.playground": "gridkin"
+      },
+      "created_at": "<volatile>",
+      "updated_at": "<volatile>",
+      "deleted_at": null,
+      "version": 1,
+      "originating_grid_id": "<volatile>"
+    },
+    {
+      "entity_id": "019f210b-3b22-738c-be7b-3cd04a9ff723",
+      "entity_type": "edge",
+      "name": "019f210b-3b22-738c-be7b-3ccb1bfeb5fe --[PG_LINKS__gryphon_playground]--> 019f210b-3b22-738c-be7b-3ccc741a6df0",
+      "dimensions": {
+        "tap.playground": "gridkin"
+      },
+      "created_at": "<volatile>",
+      "updated_at": "<volatile>",
+      "deleted_at": null,
+      "version": 1,
+      "originating_grid_id": "<volatile>"
+    }
+  ],
+  "rows": []
+}

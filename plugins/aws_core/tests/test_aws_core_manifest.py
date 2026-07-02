@@ -14,6 +14,18 @@ from tap_plugins.validate.service import validate_plugin
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
 
 
+def _manifest_path() -> Path:
+    """Locate tap-plugin.toml across legacy and package-mode layouts.
+
+    Package-mode moves the manifest into the namespace package
+    (tap_plugin/<slug>/tap-plugin.toml); legacy kept it at the plugin root.
+    """
+    legacy = PLUGIN_ROOT / "tap-plugin.toml"
+    if legacy.is_file():
+        return legacy
+    return next((PLUGIN_ROOT / "tap_plugin").glob("*/tap-plugin.toml"))
+
+
 def _declared_model_count() -> int:
     """Number of models declared in the plugin manifest.
 
@@ -21,7 +33,7 @@ def _declared_model_count() -> int:
     a hardcoded count — the invariant is "every declared model loads/creates",
     not a magic number.
     """
-    manifest = tomllib.loads((PLUGIN_ROOT / "tap-plugin.toml").read_text())
+    manifest = tomllib.loads(_manifest_path().read_text())
     return len(manifest.get("models", {}))
 
 

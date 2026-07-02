@@ -1,6 +1,70 @@
 {
   "version": 1,
   "description": "Samsite demo — stand a fresh session up end-to-end: seed the plugin GRIFT (AWS/GitHub/KSI/samsite pages + schedules), then fire the collectors that pull the live world in. Seed order is INSTALLED_APPS order; collector order matters: samsite-compliance reads aws_account nodes (boto3) AND content-matches github_workflow nodes (github_core), so both must run before it.",
+  "install": {
+    "plugins": [
+      {
+        "slug": "administrivia",
+        "enabled": true,
+        "source": { "type": "editable", "path": "plugins/administrivia" },
+        "note": "Package-mode (tap_plugin.administrivia), 2026-07-01. TAP admin pages + grid landing + cares administrivia; seeded in population."
+      },
+      {
+        "slug": "lotr",
+        "enabled": true,
+        "source": { "type": "editable", "path": "plugins/lotr" },
+        "note": "Package-mode (tap_plugin.lotr), 2026-07-01. Load-bearing test-fixture vocabulary the core tap_grid/tap_api suites import; installed here so any env that boots samsite has it importable. Its Middle-earth seed is kept for parity with the bash spawn (safe to drop from a customer profile)."
+      },
+      {
+        "slug": "computing_core",
+        "enabled": true,
+        "source": { "type": "editable", "path": "plugins/computing_core" },
+        "note": "Package-mode (tap_plugin.computing_core), 2026-07-01. Vendor-neutral computing-primitive dimension; seeded in population."
+      },
+      {
+        "slug": "roscale",
+        "enabled": true,
+        "source": { "type": "editable", "path": "plugins/roscale" },
+        "note": "Package-mode (tap_plugin.roscale), 2026-07-01. Install-only: registers the OSCAL workbench panel types samsite's compliance pages consume; no grift seed, no collector, so it is not a population step."
+      },
+      {
+        "slug": "aws_core",
+        "enabled": true,
+        "source": { "type": "editable", "path": "plugins/aws_core" },
+        "note": "Package-mode (tap_plugin.aws_core), 2026-07-01. Tier-0 boto3 dep (uv resolves at install). AWS dimension + the boto3 collector; seeded in population + its collector fired."
+      },
+      {
+        "slug": "sigstore_core",
+        "enabled": true,
+        "source": { "type": "editable", "path": "plugins/sigstore_core" },
+        "note": "Package-mode (tap_plugin.sigstore_core), 2026-07-01. Tier-0 sigstore dep. Install-only library plugin: samsite's compliance_collector consumes its verify/decompose helpers + models; no grift seed / no collector of its own."
+      },
+      {
+        "slug": "github_core",
+        "enabled": true,
+        "source": { "type": "editable", "path": "plugins/github_core" },
+        "note": "Package-mode (tap_plugin.github_core), 2026-07-01. Carries a Tier-0 PyYAML dep (uv resolves it at install). Editable local source during the monorepo transition."
+      },
+      {
+        "slug": "fedramp_20x_ksi",
+        "enabled": true,
+        "source": { "type": "editable", "path": "plugins/fedramp_20x_ksi" },
+        "note": "First plugin migrated to package-mode (tap_plugin.fedramp_20x_ksi), 2026-07-01. Editable local source during the monorepo transition; a real deployment uses a git source pinned to a rev."
+      },
+      {
+        "slug": "samsite",
+        "enabled": true,
+        "source": { "type": "editable", "path": "plugins/samsite" },
+        "note": "Package-mode (tap_plugin.samsite), 2026-07-01. Last of the samsite set to migrate; the demo integration surface. DEPENDS ON the four plugins above at import time (compliance_collector + panels import tap_plugin.{sigstore_core,github_core,roscale} and read aws_core nodes) — listed last so its cross-plugin (Tier-1/2) deps are installed first. The manifest depends_on schema + boot consistency gate that would enforce this are deferred (declare-now, resolver-later); today the ordering here satisfies it structurally."
+      },
+      {
+        "slug": "gryphon_playground",
+        "enabled": true,
+        "source": { "type": "editable", "path": "plugins/gryphon_playground" },
+        "note": "Package-mode (tap_plugin.gryphon_playground), 2026-07-02. Install-only: pg_* playground vocabulary + Gridkin scenario corpus for the Gryphon test suites. Declared here so the pre-boot reconciliation guard passes on the session container (which boots this profile) with gryphon_playground editable-installed; no GRIFT population seed, no cross-plugin deps."
+      }
+    ]
+  },
   "population": {
     "on_failure": "abort",
     "steps": [
@@ -48,27 +112,27 @@
       },
       {
         "type": "fire-collector",
-        "key": "plugins.aws_core.collectors.boto3_collector.collector:boto3",
+        "key": "tap_plugin.aws_core.collectors.boto3_collector.collector:boto3",
         "enabled": true,
         "timeout_seconds": 300,
         "note": "AWS resource graph (Route53/CloudFront/S3/Lambda/IAM/...) + the aws_account node the boundary membership depends on. A full multi-region pull can run well past the 90s default."
       },
       {
         "type": "fire-collector",
-        "key": "plugins.github_core.collectors.github_collector.collector:github_core",
+        "key": "tap_plugin.github_core.collectors.github_collector.collector:github_core",
         "enabled": true,
         "timeout_seconds": 180,
         "note": "GitHub repository / Actions data behind the repo landing page."
       },
       {
         "type": "fire-collector",
-        "key": "plugins.fedramp_20x_ksi.collectors.ksi_catalog:ksi-catalog",
+        "key": "tap_plugin.fedramp_20x_ksi.collectors.ksi_catalog:ksi-catalog",
         "enabled": true,
         "note": "Refresh the FedRAMP 20x KSI catalog (HTTPS, no credentials)."
       },
       {
         "type": "fire-collector",
-        "key": "plugins.samsite.collectors.compliance_collector.collector:samsite-compliance",
+        "key": "tap_plugin.samsite.collectors.compliance_collector.collector:samsite-compliance",
         "enabled": true,
         "timeout_seconds": 300,
         "note": "Signed /.well-known/ compliance artifacts (OSCAL SSP/POA&M, KSI signal, VDR). Fetches 5 artifacts + verifies sigstore signatures, so it gets a generous timeout. MUST run after boto3 (synthesizes SCOPED_TO_BOUNDARY membership from the aws_account nodes) AND after github_core (sigstore_link resolves the signing github_workflow by content-match; if the workflow node isn't on the grid yet those edges are silently omitted)."

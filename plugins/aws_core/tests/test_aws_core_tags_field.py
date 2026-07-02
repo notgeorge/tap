@@ -9,14 +9,14 @@ from __future__ import annotations
 
 import pytest
 
-from plugins.aws_core.models.acm_certificate import AcmCertificate
-from plugins.aws_core.models.cloudfront_distribution import CloudfrontDistribution
-from plugins.aws_core.models.cloudwatch_log_group import CloudwatchLogGroup
-from plugins.aws_core.models.eventbridge_rule import EventbridgeRule
-from plugins.aws_core.models.iam_role import IamRole
-from plugins.aws_core.models.lambda_function import LambdaFunction
-from plugins.aws_core.models.route53_hosted_zone import Route53HostedZone
-from plugins.aws_core.models.s3_bucket import S3Bucket
+from tap_plugin.aws_core.models.acm_certificate import AcmCertificate
+from tap_plugin.aws_core.models.cloudfront_distribution import CloudfrontDistribution
+from tap_plugin.aws_core.models.cloudwatch_log_group import CloudwatchLogGroup
+from tap_plugin.aws_core.models.eventbridge_rule import EventbridgeRule
+from tap_plugin.aws_core.models.iam_role import IamRole
+from tap_plugin.aws_core.models.lambda_function import LambdaFunction
+from tap_plugin.aws_core.models.route53_hosted_zone import Route53HostedZone
+from tap_plugin.aws_core.models.s3_bucket import S3Bucket
 
 _COLLECTED_MODELS = [
     AcmCertificate,

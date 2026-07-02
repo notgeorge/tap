@@ -709,6 +709,159 @@ squarely at Gryphon's highest-risk surface, the null boundary.
 | req-gridkin-metamorphic-tlp-3 | Derived, Not Authored | Implemented | Partition queries are derived mechanically from corpus scenarios; the predicate text is lifted verbatim so no literal is re-rendered. | The relation is the oracle. |
 | req-gridkin-metamorphic-tlp-4 | Non-Vacuous | Implemented | An eligibility floor fails if a regression collapses the derived set, so the check cannot silently pass by covering nothing. | |
 
+### Differential Property Fuzzer
+----
+RID: `req-gridkin-property-fuzz`
+Status: `Implemented`
+
+The model oracle (`req-gridkin-oracle-assertion`) is a second Gryphon engine that
+recomputes each *authored* scenario's answer with zero lowering shared with the
+executor. The property fuzzer removes the "authored" restriction: a **seedable
+generator** emits a random small GRIFT graph over the playground types and a random
+VALID query over the oracle's modeled surface, runs both engines, and asserts they
+agree on identity / row sets. The oracle IS the differential harness the fuzzer
+needs; the generator is the only new part. This is the capstone rung of the ladder
+(`doc-gryphon-testing-philosophy.md` "The frontier"): the methodology stops being
+purely *sampled* over hand-authored scenarios and starts covering the language
+surface mechanically.
+
+#### Implementation
+
+- **Generator** (`gridkin/fuzz.py`): a `random.Random(graph_seed)` stream produces a
+  graph (3–8 nodes over `pg_node`/`pg_hub`/`pg_leaf`, deliberate `observed_at`
+  nulls, 0–n edges over `PG_LINKS`/`PG_OPTIONAL`, including self-loops and
+  multi-edges) and a batch of queries against it. Every case replays from its seed
+  alone — entity UUIDs are drawn from the seeded RNG, never `uuid4()`.
+- **Well-typed by construction.** Query literals are sampled from the values
+  actually present in the seeded graph (filters bind to real rows) and matched to
+  each field's declared type (severity_score/int, is_open/bool,
+  kind·name·description/string, observed_at/null-predicates), so the type-strictness
+  gate never rejects a generated query. Nulls are produced on both sides of the
+  boundary: the 2VL null *literal* operand (`field OP null`) and the 3VL null
+  *field* (unobserved `observed_at`).
+- **Seed once, diff many.** Each parametrized item seeds one graph (through the real
+  `grift_import` path, per-graph DB isolation as `test_gridkin.py`) and runs its
+  whole read-only query batch against it — many differentials per truncation.
+  Committed default 12 graphs × 15 queries; env-tunable
+  (`GRYPHON_FUZZ_GRAPHS`/`_QUERIES`/`_SEED`) for a longer soak.
+- **Honest skips + a floor.** A shape the oracle does not model raises
+  `OracleUnmodeled` and is recorded as a loud skip, never a fake green; the one
+  permanent oracle skip (`LIMIT` without `ORDER BY`) is never generated. A
+  per-case floor fails if most generated queries stop being asserted — the
+  vacuous-coverage tripwire (sibling of the metamorphic eligibility floor). A
+  non-clean executor failure (invalid SQL) is classified `crashed` and reported,
+  never swallowed.
+- **Zero shared lowering, still.** The generator and oracle are authored from the
+  language spec / grammar; neither imports a line of `executor.py` lowering — the
+  entire source of the differential guarantee.
+
+#### Findings (the fuzzer earned its keep)
+
+The first runs surfaced six real issues; each was triaged by evidence and either
+fixed with a regression-locking scenario or scoped with a recorded rationale —
+never papered over.
+
+- **Executor, `= null` / `!= null` (fixed).** The executor lowered `field = null`
+  to `IS NULL` and `field != null` to `IS NOT NULL` (a Django `field=None`
+  artifact), silently returning null-/non-null-field rows — violating the
+  two-valued "unobserved operand" rule that `spec-grid-traversal-language.md`
+  mandates (a null literal short-circuits to genuine FALSE). Fixed in
+  `_comparison_to_q`; locked by the two `is_null` `null-literal` scenarios.
+- **Executor, single-hop field projection (fixed).** A single-hop traversal with a
+  field-projection RETURN fell through to the *envelope* dispatch, which silently
+  ignored the projection (returned nodes/edges, no rows) — the accept-and-drop
+  class the AAR names. `_has_advanced_features` now routes it to the row executor;
+  locked by `single_hop_dispatch-…-field-projection`.
+- **Executor, anonymous connecting edge (fixed).** A bare-variable `RETURN a, b`
+  over an anonymous (`-[]->`) edge dropped the connecting edge from the envelope
+  (only *named* edges were collected). `_collect_graph_envelope` now collects
+  anonymous hop edges too; locked by `single_hop_dispatch-…-anonymous-edge`.
+- **Oracle, union WHERE scoping under NOT (fixed).** The reference oracle's
+  per-clause union scoping substituted TRUE for an unbound-variable leaf and
+  evaluated it, so a `NOT` over that leaf wrongly emptied the arm. It now *prunes*
+  unbound leaves (the executor's own scoping rule, authored independently); locked
+  by `union-…-not-scoped-to-one-arm`. (The reference impl is expected to need
+  debugging too — that is the differential method.)
+- **v0 boundary, node-only aggregation (scoped).** `MATCH (v:L) RETURN …, COUNT(v)`
+  is cleanly rejected ("aggregation requires ≥1 edge") — a deliberate v0 boundary,
+  not a silent-wrong-answer. The generator emits COUNT over chains only. Node-only
+  aggregation is a named v0 gap, not a bug.
+- **Executor, multi-hop far-node WHERE (RESOLVED).** A WHERE on a node beyond the
+  root edge of a multi-hop chain resolves through a reverse-FK path
+  (`to_entity__edges_out__to_entity__…`) identical to a structural hop path.
+  Applied as a *separate* `.filter()` (as it was), Django spawned a *duplicate*
+  join carrying none of the structural edge_type/label filters; the projection
+  bound to it, so the chain silently returned far nodes reached by the WRONG edge
+  type and COUNT inflated. **Fixed** by folding the predicate `Q` into the SAME
+  `.filter()` as the structural hop filters (`_build_chain_queryset(...,
+  predicate=..., bindings=...)`), so the far-node predicate reuses the one
+  structural join. Regression-locked by the `far_node_where` scenarios (envelope
+  + COUNT); the generator can now emit WHERE on multi-hop chains. A *negated*
+  far-node comparison (`!=` or `NOT (...)`, both lowering to `~Q` over the
+  reverse-FK path — the residual `bigint = uuid` crash) is now cleanly REJECTED
+  (`_guard_negated_far_predicate`) rather than crashing; the third `far_node_where`
+  scenario locks the rejection, and full row-level-negation support is a named
+  deferred gap (per-field `F()` annotation). See
+  `spec-grid-gryphon-multihop-aggregation.md` `req-grid-gryphon-multihop-envelope-3`
+  + Future.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-gridkin-property-fuzz-1 | Seedable & Replayable | Implemented | Every case (graph + query batch) is generated from `random.Random(graph_seed)` and replays from the seed alone; a divergence report prints the seed, the emitted GRIFT, the query, and both results. | UUIDs from the seeded RNG, not `uuid4()`. |
+| req-gridkin-property-fuzz-2 | Well-Typed, Binding, Null-Probing | Implemented | Generated queries are well-typed (never tripping type-strictness), sample literals from the seeded graph so filters bind, and deliberately produce both 2VL null-literal and 3VL null-field predicates. | The null boundary is where risk concentrates. |
+| req-gridkin-property-fuzz-3 | Zero Shared Lowering | Implemented | The generator and oracle are authored from the spec/grammar and share no lowering with `executor.py`; the executor is exercised through the real `grift_import` seeding and `explain_gryphon_raw`. | The differential guarantee. |
+| req-gridkin-property-fuzz-4 | Honest Skips, No Fake Green | Implemented | An unmodeled shape is a loud skip (never asserted false-positive); a non-clean executor failure is reported as `crashed`; a per-case floor fails on vacuous coverage. | `LIMIT`-without-`ORDER BY` is never generated. |
+| req-gridkin-property-fuzz-5 | Bounded Committed Run | Implemented | The committed run is small (12×15) and env-tunable for a longer soak, so it does not balloon the gate. | Per-graph DB isolation, read-only query batches. |
+
+### Fuzz Campaign Ledger
+----
+RID: `req-gridkin-fuzz-campaign`
+Status: `Implemented`
+
+The property fuzzer's long-soak, trend-tracking complement. The per-commit gate (`req-gridkin-property-fuzz`) asserts a small committed band and fails on any divergence; a **campaign** grinds a large band the executor has never seen, classifies every query WITHOUT failing, and appends one summary row to an append-only ledger so the **bug frequency can be watched trending down as the executor hardens**. It is on-demand / loopable, never a per-commit gate (like the branch-coverage ratchet).
+
+#### Implementation
+
+- Engine: `tests/test_gryphon_fuzz_campaign.py` — one `transaction=True` parametrized item per graph (DB isolation inherited from the gate; `search_readonly` shares the physical DB, so seeds must commit to be visible and rollback isolation cannot be used). Every query is classified via `fuzz.run_query`; nothing is asserted; a seeding failure is recorded (not aborted) so the band completes. Activated only when `GRYPHON_FUZZ_CAMPAIGN_OUT` is set, so a normal `pytest` run skips it.
+- Ledger + trend: `gridkin/fuzz_campaign.py` (stdlib-only) — `next_base_seed` advances the band past every prior campaign (divergences are deterministic; re-testing a fixed band reports zero), `append_row` stamps commit/UTC, `trend` renders the table. Ledger: `gridkin/fuzz-campaign-log.jsonl` (committed).
+- Orchestrator: `scripts/gryphon-fuzz-campaign` — run in-container; loop it to grind for hours, one fresh band per iteration.
+- Repeatable process: the **`gryphon-fuzz-soak`** skill (`plugins/gryphon_playground/skills/gryphon-fuzz-soak/`) is the canonical way to run a long unattended soak — it takes a duration argument, calibrates the band size, loops the orchestrator in the background to a deadline, then triages each persisted defect (replayable from its seed) and drives any real find through the fix discipline.
+- The metric that trends down-and-to-the-right is **distinct new defects per 100k queries over fresh seed space**; a defect is fingerprinted by query SHAPE + status (+ exception class) so distinct seeds tripping one bug collapse to one defect. The **oracle-asserted fraction** is recorded beside it so a falling defect rate cannot be faked by the generator drifting off the modeled surface.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-gridkin-fuzz-campaign-1 | Fresh Bands, Never Re-Tested | Implemented | Each campaign advances the seed band past the highest `seed_end` on record, so no seed is ever re-tested. | Deterministic divergences make a re-run of a fixed band report zero. |
+| req-gridkin-fuzz-campaign-2 | Records, Never Gates | Implemented | The engine classifies every query and writes a summary without asserting; a seeding failure is recorded as a defect, not an abort. | The gate is `req-gridkin-property-fuzz`; this is measurement. |
+| req-gridkin-fuzz-campaign-3 | Distinct-Defect Trend + Honest Denominator | Implemented | The ledger records distinct-defect fingerprints (query shape + status) and the oracle-asserted fraction; the trend reports distinct-new-defects-per-100k over fresh space. | Asserted fraction guards against a falling rate from exploration collapse. |
+| req-gridkin-fuzz-campaign-4 | On-Demand, Not A Per-Commit Gate | Implemented | Skipped unless explicitly requested; run in-container and looped for a long soak. | Sibling of the branch-coverage ratchet. |
+
+### Findings Ledger (Bug Locality)
+----
+RID: `req-gridkin-findings-ledger`
+Status: `Implemented`
+
+The fuzz-campaign ledger tracks bug **frequency over time** (trending down as the executor hardens); this tracks bug **locality** — WHERE in the executor defects concentrate — so the hot spots become the deliberate **refactor / simplification targets**. Every executor or oracle bug already earns a regression scenario; this rides that same discipline by appending one human-authored row at fix time recording which `subsystem` (a small structural vocabulary, each a set of executor functions) and which `functions` the defect lived in, its `class`, `discovery` source, and cross-cutting `tags`. The concentration is then read as a histogram: the hottest subsystem/function is where the next refactor pays off most.
+
+#### Implementation
+
+- Ledger + reporter: `gridkin/findings_ledger.py` (stdlib-only, imports neither Django nor the executor) — `SUBSYSTEMS` (the structural vocabulary) + `FUNCTION_SUBSYSTEM` (function→subsystem map), `load` / `validate` (schema + controlled-vocabulary enforcement), and `report` (renders hotspots by subsystem, function, tag, and discovery source). Ledger: `gridkin/gryphon-findings.jsonl` (committed, append-only, one row per root-caused defect).
+- Renderer: `scripts/gryphon-findings` — prints the hotspot report in-container.
+- **Honest denominator (do not drop it):** found-bug hotspots are biased toward where we have LOOKED — a subsystem with zero findings may be under-tested, not clean. The report pairs each subsystem's finding count with its **line coverage** (parsed from the branch-coverage ratchet's JSON via each function's AST line span, when the JSON is present): high-coverage + high-findings is a genuine refactor target; low-coverage + low-findings is a blind spot, not a clean bill. Same honest-denominator move as the campaign's asserted-fraction.
+- **Discipline:** every executor/oracle bug fix appends a `gryphon-findings.jsonl` row in the same commit as its regression scenario. Well-formedness + vocabulary are CI-guarded (`tests/test_gryphon_findings_ledger.py`); the hotspot analysis itself is a manual read, not a gate.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-gridkin-findings-ledger-1 | Structural Locality Vocabulary | Implemented | Each finding names a `subsystem` from a small structural vocabulary (each subsystem a set of executor functions) plus the specific `functions`; conceptual concerns that cut across functions are `tags`, a secondary lens. | The subsystem key drives both the histogram and the coverage column. |
+| req-gridkin-findings-ledger-2 | Well-Formedness CI-Guarded | Implemented | A test loads the committed ledger and asserts every row is well-formed and uses the controlled `class` / `discovery` / `subsystem` vocabulary; a malformed or mis-tagged row fails the gate. | The hotspot READ is manual; only well-formedness is gated. |
+| req-gridkin-findings-ledger-3 | Honest Denominator (Coverage-Paired) | Implemented | The report pairs each subsystem's finding count with its executor line coverage so a zero-findings subsystem is read as blind-spot-or-clean, not assumed clean. | Coverage from the branch-coverage ratchet JSON; column omitted with a caveat when absent. |
+| req-gridkin-findings-ledger-4 | Fix-Time Discipline | Implemented | Every executor/oracle bug fix appends a findings row in the same commit as its regression scenario; findings are historical facts, so a row's named function is never asserted to still exist (it may be deleted by the very refactor the map motivated). | Rides the existing "every bug earns a regression scenario" rule. |
+
 ### JSON Schema for Scenario Files
 ----
 RID: `req-gridkin-json-schema`

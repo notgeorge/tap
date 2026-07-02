@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from plugins.aws_core.collectors.boto3_collector.source import (
+from tap_plugin.aws_core.collectors.boto3_collector.source import (
     CustomFnRegistry,
     SourceError,
     iter_aws_op,

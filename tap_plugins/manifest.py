@@ -25,12 +25,14 @@ _ALLOWED_TOP_KEYS = {
     "slug",
     "name",
     "description",
+    "depends_on",
     "models",
     "edges",
     "editors",
     "searches",
     "grift",
 }
+_DEPENDS_ON_KEYS = {"slug", "min_version", "optional", "note"}
 _REQUIRED_TOP_KEYS = {"manifest_version", "plugin_version", "slug", "name"}
 
 _EDGE_SCHEMA_PATH = Path(__file__).resolve().parent.parent / "tap_grid" / "schemas" / "edge-definition.schema.json"
@@ -43,6 +45,23 @@ def _load_edge_schema() -> dict[str, Any]:
 
 class PluginManifestError(Exception):
     """Raised when a tap-plugin.toml is invalid or fails validation."""
+
+
+@dataclass
+class DependencyEntry:
+    """One depends_on entry: a cross-plugin load-order dependency (Tier 1).
+
+    Slug edge to another plugin the declaring plugin's ``ready()``-time type/edge
+    registration (or import-time code) needs present first. ``min_version`` is an
+    optional PEP 440 floor; ``optional`` marks a soft dependency (absence tolerated);
+    ``note`` documents *why* the dependency exists (AI-/security-readable intent).
+    See spec-plugin-architecture.md req-plugin-arch-dependencies-2.
+    """
+
+    slug: str
+    min_version: str | None
+    optional: bool
+    note: str
 
 
 @dataclass
@@ -100,6 +119,7 @@ class PluginManifest:
     slug: str
     name: str
     description: str
+    depends_on: list[DependencyEntry]
     models: list[ModelEntry]
     edges: list[EdgeEntry]
     editors: list[EditorEntry]
@@ -132,6 +152,7 @@ def load_manifest(plugin_root: Path) -> PluginManifest:
 
     _validate_top_level(raw, manifest_path)
 
+    depends_on = _parse_depends_on(raw.get("depends_on", []), raw["slug"], manifest_path)
     models = _parse_models(raw.get("models", {}), manifest_path)
     edges = _parse_edges(raw.get("edges", {}), manifest_path, plugin_root)
     editors = _parse_editors(raw.get("editors", {}), manifest_path)
@@ -144,6 +165,7 @@ def load_manifest(plugin_root: Path) -> PluginManifest:
         slug=raw["slug"],
         name=raw["name"],
         description=raw.get("description", ""),
+        depends_on=depends_on,
         models=models,
         edges=edges,
         editors=editors,
@@ -161,6 +183,52 @@ def load_manifest(plugin_root: Path) -> PluginManifest:
 # ---------------------------------------------------------------------------
 # Section parsers
 # ---------------------------------------------------------------------------
+
+
+def _parse_depends_on(raw_deps: Any, own_slug: str, manifest_path: Path) -> list[DependencyEntry]:
+    """Parse the optional ``depends_on`` array of tables (Tier 1 load-order edges).
+
+    Each entry is a table: required ``slug``; optional ``min_version`` (PEP 440 floor),
+    ``optional`` (bool, default false), and ``note`` (free-text intent). A plugin may
+    not depend on itself. The consistency gate (``tap.preboot``) checks these declared
+    edges against the observed cross-plugin imports and the profile install order.
+    """
+    if not isinstance(raw_deps, list):
+        raise PluginManifestError(f"'depends_on' must be an array of tables in {manifest_path}")
+
+    entries: list[DependencyEntry] = []
+    seen: set[str] = set()
+    for item in raw_deps:
+        if not isinstance(item, dict):
+            raise PluginManifestError(f"each depends_on entry must be a table with a 'slug' key in {manifest_path}")
+        unknown = set(item) - _DEPENDS_ON_KEYS
+        if unknown:
+            raise PluginManifestError(f"depends_on entry has unknown keys {sorted(unknown)} in {manifest_path}")
+
+        slug = item.get("slug")
+        if not isinstance(slug, str) or not slug:
+            raise PluginManifestError(f"depends_on entry must have a non-empty string 'slug' in {manifest_path}")
+        if slug == own_slug:
+            raise PluginManifestError(f"depends_on: plugin '{own_slug}' cannot depend on itself in {manifest_path}")
+        if slug in seen:
+            raise PluginManifestError(f"duplicate depends_on slug '{slug}' in {manifest_path}")
+        seen.add(slug)
+
+        min_version = item.get("min_version")
+        if min_version is not None and (not isinstance(min_version, str) or not min_version):
+            raise PluginManifestError(f"depends_on.{slug}.min_version must be a non-empty string in {manifest_path}")
+
+        optional = item.get("optional", False)
+        if not isinstance(optional, bool):
+            raise PluginManifestError(f"depends_on.{slug}.optional must be a boolean in {manifest_path}")
+
+        note = item.get("note", "")
+        if not isinstance(note, str):
+            raise PluginManifestError(f"depends_on.{slug}.note must be a string in {manifest_path}")
+
+        entries.append(DependencyEntry(slug=slug, min_version=min_version, optional=optional, note=note))
+
+    return entries
 
 
 def _parse_models(raw_models: Any, manifest_path: Path) -> list[ModelEntry]:

@@ -188,6 +188,8 @@ This means:
 
 This requirement is independent of authorization. A caller being authorized to execute a search does not grant permission to mutate data through search execution.
 
+**Prevention and detection.** The read-only connection *prevents* the write (PostgreSQL rejects it — `ReadOnlySqlTransaction`, SQLSTATE `25006`). On its own that rejection is silent: it surfaces as a generic query error, indistinguishable from a malformed query, so a write attempt on the traversal surface — a should-never-happen event, and the signature of either a core executor defect or an injection that escaped bind-parameter safety — would be prevented but never alerted on in production. A `connection.execute_wrapper` on the `search_readonly` alias (`tap_grid/search_readonly_guard.py`, wired on `connection_created`) closes that gap: on a 25006 rejection it emits a `security` Flaw (`invariant_id=search_readonly_write_blocked`, `handling=abort_operation`, blame class by offending callsite) before re-raising. The write stays blocked; the block is now loud. Because it sits at the connection layer, it covers every entry path — `execute_search`'s orm/gryphon/module lanes and direct `execute_gryphon_raw` callers alike.
+
 #### Development
 Keeping read-only enforcement as its own security requirement makes it easier to reason about future SQL mode, inline code mode, and authorization work without burying core safety guarantees inside general execution prose.
 
@@ -200,6 +202,7 @@ Keeping read-only enforcement as its own security requirement makes it easier to
 | req-grid-search-readonly.sec-3 | Module Runners Use Read-Only Connection | Implemented | `module` search runners execute over the same read-only connection. They cannot bypass it via a separate Django connection. | |
 | req-grid-search-readonly.sec-4 | Requirement Applies To Future Modes | Implemented | Any future search execution mode must satisfy the read-only requirement before adoption. | |
 | req-grid-search-readonly.sec-5 | Separate From Authorization | Implemented | Read-only enforcement is required even when the caller is otherwise authorized to execute the search. | |
+| req-grid-search-readonly.sec-6 | Write Attempt Is Detected, Not Only Prevented | Implemented | A write reaching the read-only search connection emits a `security` Flaw (`search_readonly_write_blocked`) — the response-triggering alert — before the DB rejection propagates. Prevention without detection is silent; the guard sits at the connection layer so it covers every execution lane. | `tap_grid/search_readonly_guard.py`; test `tap_grid/tests/test_search_readonly_guard.py`. |
 
 #### Future
 Define concrete enforcement mechanisms for each execution mode, especially for future SQL-backed and inline-code search execution.

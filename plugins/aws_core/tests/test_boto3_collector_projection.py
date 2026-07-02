@@ -11,8 +11,8 @@ from datetime import UTC, datetime
 
 import pytest
 
-from plugins.aws_core.collectors.boto3_collector.identity import node_entity_id
-from plugins.aws_core.collectors.boto3_collector.projection import (
+from tap_plugin.aws_core.collectors.boto3_collector.identity import node_entity_id
+from tap_plugin.aws_core.collectors.boto3_collector.projection import (
     ProjectionError,
     project_item,
     source_op_label,

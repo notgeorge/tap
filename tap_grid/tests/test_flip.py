@@ -228,7 +228,7 @@ class TestUpdateFlipMapIntegration:
 
     def test_flip_map_written_on_create(self):
         """Default-on FLIP writes flip_map for service-writeable fields on create."""
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
         from tap_grid.services import create_entity
 
         with _batch_ctx(source="test:flip") as batch_id:
@@ -241,7 +241,7 @@ class TestUpdateFlipMapIntegration:
 
     def test_flip_map_updated_on_partial_save(self):
         """Partial save (update_fields) stamps only the changed tracked field."""
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
         from tap_grid.services import create_entity
 
         with _batch_ctx(source="test:flip-create"):
@@ -257,7 +257,7 @@ class TestUpdateFlipMapIntegration:
 
     def test_untracked_field_not_in_flip_map(self):
         """System-managed fields (not in SERVICE_CRUD_SCHEMA) are absent from flip_map."""
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
         from tap_grid.services import create_entity
 
         with _batch_ctx(source="test:flip-untracked"):
@@ -274,7 +274,7 @@ class TestUpdateFlipMapIntegration:
 
     def test_no_flip_stamping_without_batch_context(self):
         """Direct ORM save without CallerContext leaves flip_map empty."""
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
         from tap_grid.services import create_entity
 
         entity = create_entity("character", name="Tom Bombadil")

@@ -214,17 +214,44 @@ def validate_plugin(
 # ---------------------------------------------------------------------------
 
 
+def _resolve_package_root(plugin_root: Path) -> Path:
+    """Return the directory that holds ``tap-plugin.toml`` (+ ``apps.py``/``__init__.py``).
+
+    Handles both plugin layouts during the package-mode transition:
+
+    - **Legacy (build-baked):** manifest + code live at ``plugin_root`` itself.
+    - **Package-mode (namespaced):** manifest + code live at
+      ``plugin_root/tap_plugin/<slug>/`` (PEP 420 namespace); ``tests/`` stays at
+      ``plugin_root``. See req-plugin-arch-identity-3.
+
+    Falls back to ``plugin_root`` when no manifest is found so the core-files /
+    manifest-parse checks report the missing manifest rather than raising here.
+    """
+    if (plugin_root / "tap-plugin.toml").is_file():
+        return plugin_root
+    namespace_dir = plugin_root / "tap_plugin"
+    if namespace_dir.is_dir():
+        candidates = sorted(p.parent for p in namespace_dir.glob("*/tap-plugin.toml"))
+        if candidates:
+            return candidates[0]
+    return plugin_root
+
+
 def _run_structure_checks(plugin_root: Path, result: ValidationResult) -> Any:
     """Run all structure-level validation checks. Returns manifest or None."""
+    # In package-mode the manifest + code sit inside tap_plugin/<slug>/, while tests/
+    # stays at the plugin root. Resolve the package dir for the manifest-anchored
+    # checks; keep the tests check anchored at the (top) plugin root.
+    package_root = _resolve_package_root(plugin_root)
     _check_plugin_root(plugin_root, result)
-    _check_core_files(plugin_root, result)
-    manifest = _check_manifest_parse(plugin_root, result)
+    _check_core_files(package_root, result)
+    manifest = _check_manifest_parse(package_root, result)
     if manifest is not None:
         _check_convention_dirs(manifest, result)
         _check_edge_files(manifest, result)
         _check_grift_paths(manifest, result)
         _check_undeclared_files(manifest, result)
-        _check_tests_dir(manifest, result)
+        _check_tests_dir(plugin_root, result)
     return manifest
 
 
@@ -373,9 +400,11 @@ def _check_undeclared_files(manifest: Any, result: ValidationResult) -> None:
     result.checks.append(check)
 
 
-def _check_tests_dir(manifest: Any, result: ValidationResult) -> None:
+def _check_tests_dir(plugin_root: Path, result: ValidationResult) -> None:
     check = CheckResult(id="tests-dir", name="Tests directory exists")
-    tests_dir = manifest.plugin_root / "tests"
+    # tests/ lives at the plugin root in both layouts (in package-mode it sits
+    # OUTSIDE the tap_plugin/<slug>/ package so it is not shipped in the wheel).
+    tests_dir = plugin_root / "tests"
     if tests_dir.is_dir():
         check.info("tests/ exists")
     else:

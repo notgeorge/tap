@@ -23,6 +23,16 @@
       "query": "MATCH (n:gryphon_playground__pg_node) MATCH (m:gryphon_playground__pg_node) WHERE n.data.severity_score >= 15 AND m.data.severity_score <= 20",
       "expected_envelope": "expected/union__overlap_dedup.expected.json",
       "expected_sql_snapshot": "expected/union__overlap_dedup.sql.txt"
+    },
+    {
+      "name": "a NOT predicate scoped to one arm's variable leaves the other arm unfiltered",
+      "tags": ["union", "multi-match", "combinators", "not", "scoping", "regression"],
+      "covers": ["req-grid-traversal-lang-shape-5"],
+      "inspired_by": "opencypher TCK — no applicable feature folder (property-fuzzer regression, req-gridkin-property-fuzz: per-clause WHERE pruning must drop an unbound-variable leaf, not evaluate it under NOT)",
+      "layer": "lite",
+      "query": "MATCH (a:gryphon_playground__pg_node) MATCH (b:gryphon_playground__pg_node) WHERE NOT (a.data.kind IN [\"island\"])",
+      "expected_envelope": "expected/union__not_scoped_to_one_arm.expected.json",
+      "expected_sql_snapshot": "expected/union__not_scoped_to_one_arm.sql.txt"
     }
   ]
 }

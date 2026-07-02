@@ -41,7 +41,7 @@ class TestExecuteSearch:
         assert body["info"]["search_type"] == "orm"
 
     def test_happy_path_with_results(self, logged_in_client):
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
 
         Character.objects.create(bio="Hobbit")
         search = _orm_character_search()

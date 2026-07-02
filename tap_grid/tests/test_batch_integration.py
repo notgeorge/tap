@@ -37,7 +37,7 @@ class TestFullHistoryFlow:
 
     def test_create_update_history_flow(self):
         """Full flow: create → update → history records increase."""
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
 
         user = User.objects.create_user(username="flowtest", password="test")
         set_history_user(user)
@@ -57,7 +57,7 @@ class TestFullHistoryFlow:
 
     def test_history_preserves_old_values(self):
         """History records preserve the state at each point in time."""
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
 
         with _batch_ctx(source="test:history-v1"):
             entity = create_entity("character", name="Gandalf")
@@ -80,7 +80,7 @@ class TestFullHistoryFlow:
 
     def test_history_records_user_from_context(self):
         """History records the user from context."""
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
 
         user = User.objects.create_user(username="historian", password="test")
         set_history_user(user)
@@ -96,7 +96,7 @@ class TestFullHistoryFlow:
 
     def test_history_without_user_context(self):
         """History works even without user in context (None)."""
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
 
         set_history_user(None)
 
@@ -114,7 +114,7 @@ class TestBatchIdFieldExists:
 
     def test_batch_id_field_exists_on_character(self):
         """Character model has batch_id field populated by CallerContext."""
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
 
         with _batch_ctx(source="test:batch-id") as batch_id:
             entity = create_entity("character", name="Batch ID Test")
@@ -125,7 +125,7 @@ class TestBatchIdFieldExists:
 
     def test_batch_id_updated_on_subsequent_save(self):
         """batch_id field is updated to the latest CallerContext batch on each save."""
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
 
         with _batch_ctx(source="test:batch-id-create") as first_batch_id:
             entity = create_entity("character", name="Batch Set Test")
@@ -150,19 +150,19 @@ class TestHistoryEnabledForAllModels:
 
     def test_character_has_history(self):
         """Character has history (FLIP-enabled model)."""
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
 
         assert is_history_enabled(Character) is True
 
     def test_location_has_history(self):
         """Location has history too (all BaseModel subclasses inherit it)."""
-        from plugins.lotr.models import Location
+        from tap_plugin.lotr.models import Location
 
         assert is_history_enabled(Location) is True
 
     def test_both_have_history_manager(self):
         """Both Character and Location have the history manager attribute."""
-        from plugins.lotr.models import Character, Location
+        from tap_plugin.lotr.models import Character, Location
 
         assert hasattr(Character, "history")
         assert hasattr(Location, "history")

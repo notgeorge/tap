@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from botocore.exceptions import ClientError
 
-from plugins.aws_core.collectors.boto3_collector.customfns import (
+from tap_plugin.aws_core.collectors.boto3_collector.customfns import (
     _bucket_size_metrics,
     aws_account_singleton,
     cloudfront_distributions_with_oac,
@@ -398,7 +398,7 @@ class TestBucketSizeMetrics:
 # eventbridge_rules_with_targets — resolve each rule's target ARNs
 # ---------------------------------------------------------------------------
 
-from plugins.aws_core.collectors.boto3_collector.customfns import (  # noqa: E402
+from tap_plugin.aws_core.collectors.boto3_collector.customfns import (  # noqa: E402
     eventbridge_rules_with_targets,
 )
 
