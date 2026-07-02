@@ -32,6 +32,7 @@ We haven't fully defined the panel structure yet, likely going to do that next.
 | req-web-rendering-path.sec | [Path Access Security](#path-access-security) | Backlog | User permission checks (deferred to user security model) |
 | req-web-rendering-route.sec | [Path Overwrite Security](#path-overwrite-security) | Backlog | Plugin isolation to prevent path hijacking |
 | req-web-rendering-docref | [Doc-Reference Link Rendering](#doc-reference-link-rendering) | Backlog | Web-UI touchpoint: render a *resolved* structured doc reference as a navigable link; resolution contract owned by the docs system |
+| req-web-rendering-headless | [Headless Web Disable](#headless-web-disable) | Backlog | Boot/settings toggle to not mount the `tap_web` surface at all — for headless / API-only / minimal deployments (e.g. the gryphon playground) |
 
 
 ### Dynamic Page Resolution
@@ -326,6 +327,26 @@ Backlog, blocked on `req-docs-ref-resolution` (no resolver, no rendered docs to 
 | req-web-rendering-docref-1 | Rendering Only | Backlog | This requirement covers rendering a resolved doc target as a navigable web link; it does not resolve references (that is `req-docs-ref-resolution`). | Concern separation. |
 | req-web-rendering-docref-2 | Shared Primitive | Backlog | Doc-link rendering is a shared `tap_web` rendering helper usable by any page/panel, not duplicated per consuming panel. | |
 | req-web-rendering-docref-3 | Interim Raw Display | Backlog | Until resolution lands, panels display raw `ref`/`label` with no link; this is the named stub from `req-docs-ref-resolution-5`. | |
+
+### Headless Web Disable
+----
+RID: `req-web-rendering-headless`
+Status: `Backlog`
+Revisit When: `a deployment needs to run without the web UI (minimal / headless / API-only), or the gryphon playground wants a truly chrome-free standup`
+
+TAP should support standing up an instance with the **web UI mounted off entirely** — not merely empty of pages, but not served at all — for headless / data-plane / minimal deployments. Today `tap/urls.py` unconditionally delegates every non-reserved path to `tap_web/urls.py` (`req-web-rendering-resolution`); headless mode makes that delegation conditional on a settings flag, ultimately driven by the boot profile (config-as-code, `spec-tap-boot-v0`), so a profile can declare "no web surface."
+
+Motivating case: `boot/gryphon.boot.json` exists only to exercise the Gryphon query language. It already drops the admin chrome (administrivia), but the web catch-all still mounts with no landing page. A headless toggle would let it — and real API-only / minimal deployments — run with no web surface at all.
+
+Parallel: the same capability is wanted for the API surface (see the tap_api backlog, "Headless API disable"). Both are the same idea — a boot/settings **surface toggle** consumed where surfaces mount in `tap/urls.py` — named on each side so the touchpoint is known before it is built. The shared mechanism (the flag) belongs in settings / `tap`, not in either app depending on the other (`avoid tap_* app interdependencies`). Web-disable and API-disable are independent: either surface can be off without the other.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-rendering-headless-1 | Conditional Mount | Backlog | When the web-disabled flag is set, `tap/urls.py` does not mount the `tap_web` delegation; the web surface is absent rather than 404-per-page. | Driven by settings, ultimately the boot profile. |
+| req-web-rendering-headless-2 | Boot-Declared | Backlog | The toggle is declarable in the boot profile so a headless standup is config-as-code, not a code change. | `spec-tap-boot-v0`. |
+| req-web-rendering-headless-3 | Independent Of API | Backlog | Disabling the web surface is independent of disabling the API surface; either can be off without the other. | Parallels the tap_api headless item. |
 
 ## Status Vocabulary
 
