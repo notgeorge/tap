@@ -57,7 +57,10 @@ from django.core.management.base import BaseCommand, CommandError
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_COLLECTOR = "fedramp_20x_ksi:ksi-catalog"
+# The deterministic offline canary (grid_fixtures) — no network, no credentials, so
+# the gate's real-backend cycle never flakes on an upstream being down. Override with
+# --collector to drive a real domain collector (e.g. fedramp_20x_ksi:ksi-catalog).
+DEFAULT_COLLECTOR = "grid_fixtures:canary"
 DEFAULT_COLLECTOR_TIMEOUT = 120
 # House ratcheting-baseline convention (req-dev-validation-known-broken): in-repo,
 # per-entry justified, ratchets to zero. Empty `entries` == strict mode.
@@ -90,8 +93,8 @@ class Command(BaseCommand):
         parser.add_argument(
             "--collector",
             default=DEFAULT_COLLECTOR,
-            help=f"Registry key of the collector fired for the real-backend cycle (default {DEFAULT_COLLECTOR}). "
-            "A deterministic offline canary collector is a drop-in replacement here when one ships.",
+            help=f"Registry key of the collector fired for the real-backend cycle (default {DEFAULT_COLLECTOR}, "
+            "the deterministic offline canary). Override to drive a real domain collector.",
         )
         parser.add_argument(
             "--collector-timeout",

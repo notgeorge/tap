@@ -8,11 +8,12 @@
 > health), the known-broken manifest (`tap_boot.cold_boot_gate_known_broken.json`,
 > seeded empty), and the promote-hook wiring in `scripts/promote-to-main.sh`
 > (full pytest lane + cold-boot gate, hard-block, before the atomic push).
-> Measured wall-clock ~66–80s. Deferred (named): `tap/ratchet.py` extraction,
-> suite-tiers affected lane, canary-set governance, a deterministic **offline
-> canary collector** (the gate's collector cycle currently fires ksi-catalog,
-> which needs network — a one-line default swap when the canary ships). Building
-> it caught + fixed a live break: the collector-identity refactor's stale
+> Measured wall-clock ~66–107s. The gate fires a **deterministic offline canary
+> collector** (`grid_fixtures:canary`, in the neutral grid_fixtures plugin —
+> emits a fixed two-node/one-edge batch with no network/credentials), so the
+> real-backend cycle never flakes on an upstream. Deferred (named): `tap/ratchet.py`
+> extraction, suite-tiers affected lane, canary-set (`-m smoke`) governance.
+> Building it caught + fixed a live break: the collector-identity refactor's stale
 > module-path keys survived in `boot/samsite.boot.json` (the demo profile) *and*
 > `test_orchestrator.py` (4 red tests on main) — both fixed, both now guarded.
 > `specs/spec-dev-validation.md` is authoritative for as-built detail.
