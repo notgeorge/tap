@@ -32,7 +32,7 @@ Plugins may be developed as standalone git repositories and integrated into TAP 
 | req-plugin-arch-repo | [Repository Structure](#repository-structure) | Implemented | Plugins are self-contained git repos integrated as submodules |
 | req-plugin-arch-install-registry | [Install Resolution And Plugin Registry](#install-resolution-and-plugin-registry) | Partially Implemented | Plugin-refactor MVP (2026-07-01): entry-point discovery, no-symlink uv-owned loading, identity separation, and `TAP_PLUGINS` generation are built (`tap/preboot.py`) and carry the **entire plugin set** — 10 package-mode plugins (2026-07-02: `gryphon_playground` migrated, build-baked set now empty) install + discover through the profile `install` section. The registry/report inspection surface (-3/-5/-11) is now built as a **read-model**: `tap_plugins.report.build_report()` + `manage.py plugins [--json]` (schema-validated, gated by `plugins.read`); plugins-as-grid-entities + cytoscape view stay deferred |
 | req-plugin-arch-identity | [Plugin Identity & Naming](#plugin-identity--naming) | Implemented | Applied across the full samsite plugin set (9 plugins, 2026-07-01): namespace `tap_plugin.<slug>` (PEP 420, -3), dist `tap-plugin-<slug>` (-2), slug identity (-1), and the pre-boot **conformance gate** (`tap/preboot.py:conformance_gate`, -5) all live + tested — the gate verifies all four agree for every discovered plugin at boot. Standalone-repo move (-4) is convention, not yet exercised |
-| req-plugin-arch-sources | [Multi-Path Source Resolution](#multi-path-source-resolution) | Proposed | Design locked 2026-07-01; `wheelhouse` offline path added 2026-07-02. Source-type strategy registry (`git` bootstrap → `index` durable = private-bucket+dumb-pypi → `wheelhouse` offline/airgapped = mounted pre-built-wheel directory → future `grid`); credentials resolved from `TAP_SECRETS_ROOT`, never in the profile (the `wheelhouse` path needs none). All migrated plugins currently use `editable` local sources during the monorepo transition |
+| req-plugin-arch-sources | [Multi-Path Source Resolution](#multi-path-source-resolution) | Proposed | Design locked 2026-07-01; `wheelhouse` offline path added 2026-07-02 (design locked, build **not critical path** — demand-gated). Source-type strategy registry (`git` bootstrap → `index` durable = private-bucket+dumb-pypi → `wheelhouse` offline/airgapped = mounted pre-built-wheel directory → future `grid`); credentials resolved from `TAP_SECRETS_ROOT`, never in the profile (the `wheelhouse` path needs none). All migrated plugins currently use `editable` local sources during the monorepo transition |
 | req-plugin-arch-versioning | [Version Naming & Integrity](#version-naming--integrity) | Implemented | VCS-derived PEP 440 via `hatch-vcs` (`source = "vcs"`, `root = "../.."` monorepo-transition override, `fallback_version`) applied to all 9 migrated plugins (-1, -2). Index byte-integrity / append-only / signing (-3/-4/-5) stay deferred (no index yet) |
 | req-plugin-arch-dependencies | [Plugin Dependencies](#plugin-dependencies) | Partially Implemented | Tier 0 (package deps → uv/pyproject, -1) built across the set. Tier 1/2 (-2/-3/-4) built 2026-07-02: manifest `depends_on` schema (slug + min-version + optional + note), the import-graph AST scanner (`tap/plugin_deps.py`), and the pre-boot `dependency_consistency_guard` (declared ⊇ observed, order, min-version — fail closed) are live; `samsite` declares its real edges. Only the topological-sort resolver stays deferred (declare-now, resolver-later — hand-ordering fine at N=10) |
 | req-plugin-arch-skills | [Plugin Skills](#plugin-skills) | Implemented | Plugins may ship Claude Code skills for plugin-specific automation |
@@ -40,6 +40,8 @@ Plugins may be developed as standalone git repositories and integrated into TAP 
 | req-plugin-arch-tests | [Testing Requirements](#testing-requirements) | Implemented | Plugins include plugin-specific tests and participate in shared validation |
 | req-plugin-arch-iterative-dev | [Iterative Development](#iterative-development) | Implemented | Canonical patterns for revising GRIFT content during and after initial import |
 | req-plugin-arch-python-deps | [Plugin Python Dependencies](#plugin-python-dependencies) | Implemented | uv workspace seam wired at root; first plugin proof is `github_core` (PyYAML resolves into root `uv.lock`) |
+| req-plugin-arch-dev-deps | [Developer Mode Dependencies](#developer-mode-dependencies) | Backlog | Per-plugin PEP 735 `[dependency-groups]` `dev` group so an evicted plugin is standalone-testable; today plugins free-ride on the shared root venv's dev group. Dev deps never enter a deployed instance. Demand-gated on eviction. Not critical path (design note: `doc-plugin-dependency-scoping-backlog`) |
+| req-plugin-arch-slim-install | [Install-Footprint Slimming](#install-footprint-slimming) | Backlog | Ship only what a deployment uses, across three layers: Python extras (Layer A), Docker image variants for system binaries (Layer B), and the already-built plugin-granularity install section (Layer C). Demand-gated on a deployment that needs a smaller footprint. Not critical path (design note: `doc-plugin-dependency-scoping-backlog`) |
 | req-plugin-arch-isolation | [Plugin Type Ownership & DB Isolation](#plugin-type-ownership--db-isolation) | Proposed | Plugin-refactor pickup: owner-namespaced types + hard-included per-plugin DB guards |
 | req-plugin-arch-hooks | [Plugin Hook System](#plugin-hook-system) | Backlog | Future Simon Willison DJP/pluggy-style hook surface for plugin injection points throughout TAP |
 | req-plugin-arch-nongoals | [v0 Non-Goals](#v0-non-goals) | Proposed | Explicitly deferred concerns |
@@ -550,15 +552,17 @@ Source types:
 **Sequencing:** `git` carries the near-term critical path (make the samsite set
 installable for the first customer) without standing up index infra; the
 bucket+`dumb-pypi` `index` is the durable target, built when per-repo git auth and
-rebuild-from-source actually bite. `wheelhouse` is the **near-term airgapped answer**
-promoted by the monorepo-eviction work (2026-07-02): once a plugin leaves the
-monorepo its `editable` source disappears, and for a deployment that will not grant
-git/network/repo access the offline wheelhouse is the only remaining install path —
-so it is built alongside eviction, not deferred to the `index` build. Its first proof
-is a **single-plugin pilot** (`fedramp_20x_ksi`: leaf, no cross-plugin deps, imported
-by no core suite) — build wheel → mount volume → throwaway profile → boot → tests
-green, touching nothing load-bearing. The profile carries **no** secrets on any path;
-`wheelhouse` and `grid` reach for no credential at all.
+rebuild-from-source actually bite. `wheelhouse` is the offline **answer to monorepo
+eviction** — once a plugin leaves the monorepo its `editable` source disappears, and
+for a deployment that will not grant git/network/repo access the offline wheelhouse is
+the only remaining install path. It is **not critical path** (2026-07-02): the eviction
+that motivates it is itself deferred, so the design is locked and shovel-ready but the
+build is **demand-gated** on (a) a healthy leaf plugin to pilot and (b) a deployment
+that actually needs airgapped install. Its first proof — **held** — is a single-plugin
+pilot (`fedramp_20x_ksi`: leaf, no cross-plugin deps, imported by no core suite): build
+wheel → mount volume → throwaway profile → boot → tests green, touching nothing
+load-bearing. The profile carries **no** secrets on any path; `wheelhouse` and `grid`
+reach for no credential at all.
 
 #### Acceptance Criteria
 
@@ -569,7 +573,7 @@ green, touching nothing load-bearing. The profile carries **no** secrets on any 
 | req-plugin-arch-sources-3 | Index Durable Path | Proposed | The durable index is a private bucket + `dumb-pypi` (PEP 503 static); install by version; one credential via netrc. GitHub Releases/Packages rejected as backends. | Verified 2026-07-01 |
 | req-plugin-arch-sources-4 | No Secrets In Profile | Proposed | The profile carries only locators; every credential resolves from `TAP_SECRETS_ROOT`. | |
 | req-plugin-arch-sources-5 | Grid Source Reserved | Proposed | A future `grid` source (pull from another TAP instance) is a drop-in strategy; named, not built. | |
-| req-plugin-arch-sources-6 | Offline Wheelhouse Path | Proposed | A `wheelhouse` source installs plugins **and their Tier-0 dependency closure** from a mounted directory of pre-built wheels via `uv pip install --no-index --find-links <dir>`; no network, no credential. Wheels are CI-built where the git tag lives (tagless ⇒ `0.0.0` fallback); `is_satisfied` = dist present at the wheel version; the mounted volume is the trust boundary, with an optional `sha256` manifest + signing sharing the deferred edge of `-versioning-5`. | Filesystem twin of `-3`; near-term airgapped answer to monorepo eviction. Pilot: `fedramp_20x_ksi` |
+| req-plugin-arch-sources-6 | Offline Wheelhouse Path | Proposed | A `wheelhouse` source installs plugins **and their Tier-0 dependency closure** from a mounted directory of pre-built wheels via `uv pip install --no-index --find-links <dir>`; no network, no credential. Wheels are CI-built where the git tag lives (tagless ⇒ `0.0.0` fallback); `is_satisfied` = dist present at the wheel version; the mounted volume is the trust boundary, with an optional `sha256` manifest + signing sharing the deferred edge of `-versioning-5`. | Filesystem twin of `-3`; **not critical path** — demand-gated on eviction + a healthy leaf plugin. Pilot (held): `fedramp_20x_ksi` |
 
 ### Version Naming & Integrity
 ----
@@ -870,6 +874,110 @@ This requirement provides dependency declaration and lockfile ownership, not run
 | req-plugin-arch-python-deps-4 | Manifest Separation | Implemented | `tap-plugin.toml` does not declare uv-installable Python package dependencies; Python dependencies stay in `pyproject.toml`. | The TAP manifest remains the TAP-facing load contract. |
 | req-plugin-arch-python-deps-5 | No Isolation Claim | Implemented | The spec explicitly states that uv workspaces do not enforce runtime import isolation between plugins. | Future linting may detect undeclared imports. |
 | req-plugin-arch-python-deps-6 | Standalone Repo Compatible | Implemented | The dependency shape works whether a plugin is in-tree, a git submodule, a path dependency, or a standalone repository. | |
+
+
+### Developer Mode Dependencies
+----
+RID: `req-plugin-arch-dev-deps`
+Status: `Backlog`
+
+A plugin's **develop/test** dependency closure (test framework, factories, linters) is a
+separate axis from its runtime closure (`req-plugin-arch-python-deps`, Tier 0). This
+requirement records per-plugin **developer mode** as a deliberate backlog target. Full
+rationale, mechanism, and the boot-boundary rule: `doc-plugin-dependency-scoping-backlog`
+(Part A). Not critical path (2026-07-02: everything runs in developer mode for the
+foreseeable future).
+
+#### Status Details
+
+Backlog, but formalizing a **current-reality** gap, not a purely-future feature. Today every
+plugin `pyproject.toml` carries `dependencies = []` and **no dev dependencies**; plugin tests
+run only because they execute inside the **shared root venv**, which carries the root's
+`[dependency-groups]` `dev` group. So a plugin **free-rides** on the root dev group and has no
+independent developer-mode story — fine in the monorepo, broken the moment a plugin is
+`uv sync`'d standalone in its own repo (runtime deps only, no `pytest`/factories → its suite
+cannot run). Developer mode is the dev-dependency sibling of the airgapped `wheelhouse`
+source (`req-plugin-arch-sources-6`): both are things a self-contained plugin needs that the
+monorepo hides.
+
+#### Implementation Direction
+
+- **PEP 735 dependency groups** — a `dev` group in the plugin's own `pyproject.toml`
+  (`[dependency-groups]`, the same standard the root uses), pulled with `uv sync --group dev`
+  / `uv run --group dev pytest`. Dev-group deps **never ship in the wheel** (development
+  metadata, not package metadata). Not `[project.optional-dependencies]` — extras are for
+  opt-in *runtime* features (`req-plugin-arch-slim-install`, Layer A), a different purpose.
+- **Boot boundary (must hold):** developer mode is a local-checkout workflow, **never** a
+  boot/install-section concept. Dev deps must not enter a deployed instance through the boot
+  `install` path — the same discipline as "the profile carries no secrets." No `dev: true` in
+  a profile, ever.
+- **Cheap edge (safe pre-demand):** the `new-plugin` scaffold seeds every new plugin with a
+  `dev` group, so the free-riding habit does not calcify.
+- **Two-tier testing (with eviction):** running each plugin's suite against *its own* dev
+  group instead of the shared root venv is the "two-tier plugin testing" build; it consumes
+  into `spec-plugin-testing.md`.
+
+#### Demand Triggers
+
+The first plugin eviction to a standalone repo, or any need to run a plugin's suite outside
+the shared root venv.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-plugin-arch-dev-deps-1 | Per-Plugin Dev Group | Backlog | A plugin declares its develop/test tooling in its own PEP 735 `[dependency-groups]` `dev` group; not in `[project.dependencies]`, not in extras. | |
+| req-plugin-arch-dev-deps-2 | Never In The Wheel | Backlog | Dev-group deps stay out of wheel metadata and out of any deployed instance; there is no boot/install-section path that installs them. | Same discipline as no-secrets-in-profile |
+| req-plugin-arch-dev-deps-3 | Standalone Testable | Backlog | With its `dev` group installed, a plugin's suite runs in its own checkout without the shared root venv. | The two-tier-testing target; pairs with eviction |
+| req-plugin-arch-dev-deps-4 | Scaffold Seeds It | Backlog | The `new-plugin` scaffold gives a new plugin a baseline `dev` group so free-riding does not calcify. | Cheap edge, safe pre-demand |
+
+### Install-Footprint Slimming
+----
+RID: `req-plugin-arch-slim-install`
+Status: `Backlog`
+
+An instance should not ship packages (or system binaries) it does not use. This records
+install-footprint slimming as a deliberate backlog target. Full model:
+`doc-plugin-dependency-scoping-backlog` (Part B). Not critical path — the plugin system
+already delivers the coarse version (Layer C below), and the expensive layers wait for a
+deployment that genuinely needs a smaller footprint.
+
+#### Status Details
+
+Backlog. The slim-down spans **three layers, three tools** — the common error is assuming
+Python extras reach all three:
+
+- **Layer A — Python packages → extras.** `[project.optional-dependencies]` gate PyPI deps
+  (`pip install tap[saml]`). Real win for providers with heavy deps (`django-allauth[saml]`
+  → `python3-saml` + `xmlsec` system libs). Caveat: Google/generic-OIDC ship *inside* core
+  allauth, so slimming those is **config-level, not package-level** — extras help features
+  that pull their *own* PyPI deps.
+- **Layer B — system binaries → Docker image variants / build args.** `git`,
+  `postgresql-client`, `curl` come from `apt-get`; **extras cannot touch the OS layer.**
+  Dropping git is an image-build switch. It correlates with the source strategy: a
+  `wheelhouse`-only airgapped deployment (`req-plugin-arch-sources-6`) needs no git binary,
+  no network, no credential — the slimmest image drops out of that choice.
+- **Layer C — TAP plugins → already delivered (coarse).** The boot `install` section +
+  per-plugin Tier-0 deps already means an instance does not ship `boto3` unless it installs
+  `aws_core`, etc. Extras (Layer A) would add sub-plugin granularity.
+
+Cross-cutting discipline (cheap edge to keep now): **fail loud at boot if config activates a
+feature whose dependency or binary is absent** — the NetBox failure-mode TAP's static
+coherence guards already prevent for plugin slugs (`req-boot-install-section-3`).
+
+#### Demand Triggers
+
+A deployment (early adopter / customer) whose footprint, attack surface, or airgap
+constraints make the full image genuinely too large — not before.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-plugin-arch-slim-install-1 | Extras For Optional Python Deps | Backlog | Optional *runtime* Python features are gated with `[project.optional-dependencies]` (in-wheel, consumer opt-in), distinct from dev groups. | Layer A; e.g. `[saml]` |
+| req-plugin-arch-slim-install-2 | Image Variants For Binaries | Backlog | System binaries (git, etc.) are slimmed via Docker build args / image variants, not Python packaging. | Layer B; correlates with `wheelhouse` |
+| req-plugin-arch-slim-install-3 | Plugin Granularity Already Built | Backlog | The install section + per-plugin Tier-0 deps already scope dependencies at plugin granularity; extras add sub-plugin granularity. | Layer C, existing |
+| req-plugin-arch-slim-install-4 | Coherence Fail-Loud | Backlog | Config that activates a feature whose dep/binary is absent fails loud at boot, not at first request. | Extends `req-boot-install-section-3` |
 
 
 ### Plugin Hook System
