@@ -31,6 +31,7 @@ Plugins may be developed as standalone git repositories and integrated into TAP 
 | req-plugin-arch-layout | [Package Layout](#package-layout) | Implemented | Core files, convention directories, and self-contained repo structure |
 | req-plugin-arch-repo | [Repository Structure](#repository-structure) | Implemented | Plugins are self-contained git repos integrated as submodules |
 | req-plugin-arch-install-registry | [Install Resolution And Plugin Registry](#install-resolution-and-plugin-registry) | Partially Implemented | Plugin-refactor MVP (2026-07-01): entry-point discovery, no-symlink uv-owned loading, identity separation, and `TAP_PLUGINS` generation are built (`tap/preboot.py`) and carry the **entire plugin set** — 10 package-mode plugins (2026-07-02: `gryphon_playground` migrated, build-baked set now empty) install + discover through the profile `install` section. The registry/report inspection surface (-3/-5/-11) is now built as a **read-model**: `tap_plugins.report.build_report()` + `manage.py plugins [--json]` (schema-validated, gated by `plugins.read`); plugins-as-grid-entities + cytoscape view stay deferred |
+| req-plugin-arch-slug-register | [Slug Load-Bearing Register](#slug-load-bearing-register) | Implemented | The slug is the load-bearing, immutable-by-guardrail canonical identity; `docs/doc-plugin-slug-load-bearing.md` registers every place it is load-bearing, and any change that adds a new slug-dependent coupling updates that register in the same change |
 | req-plugin-arch-identity | [Plugin Identity & Naming](#plugin-identity--naming) | Implemented | Applied across the full samsite plugin set (9 plugins, 2026-07-01): namespace `tap_plugin.<slug>` (PEP 420, -3), dist `tap-plugin-<slug>` (-2), slug identity (-1), and the pre-boot **conformance gate** (`tap/preboot.py:conformance_gate`, -5) all live + tested — the gate verifies all four agree for every discovered plugin at boot. Standalone-repo move (-4) is convention, not yet exercised |
 | req-plugin-arch-sources | [Multi-Path Source Resolution](#multi-path-source-resolution) | Proposed | Design locked 2026-07-01; `wheelhouse` offline path added 2026-07-02 (design locked, build **not critical path** — demand-gated). Source-type strategy registry (`git` bootstrap → `index` durable = private-bucket+dumb-pypi → `wheelhouse` offline/airgapped = mounted pre-built-wheel directory → future `grid`); credentials resolved from `TAP_SECRETS_ROOT`, never in the profile (the `wheelhouse` path needs none). All migrated plugins currently use `editable` local sources during the monorepo transition |
 | req-plugin-arch-versioning | [Version Naming & Integrity](#version-naming--integrity) | Implemented | VCS-derived PEP 440 via `hatch-vcs` (`source = "vcs"`, `root = "../.."` monorepo-transition override, `fallback_version`) applied to all 9 migrated plugins (-1, -2). Index byte-integrity / append-only / signing (-3/-4/-5) stay deferred (no index yet) |
@@ -425,6 +426,48 @@ They sharpen the four-layer direction without changing its shape.
 | req-plugin-arch-install-registry-10 | Optional Pointer State | Proposed | Any future `plugins/<slug>` pointer/symlink for package-mode installs is tooling-only, disposable, and specified separately before implementation. | |
 | req-plugin-arch-install-registry-11 | Registry Report Deliverable | Implemented | `manage.py plugins` ships as a first-class read-only report, shaped like `manage.py health` (`--json` + human), text-and-json parity. | |
 | req-plugin-arch-install-registry-12 | Git Source Is Package Mode | Proposed | GitHub-first plugin consumption uses uv git-source package installs, not git submodules or vendored source under `plugins/`. | |
+
+### Slug Load-Bearing Register
+----
+RID: `req-plugin-arch-slug-register`
+Status: `Implemented`
+
+The slug is *the one stable identity* (`req-plugin-arch-identity-1`) and, by design, the most
+load-bearing identifier in the plugin system: internal code layout is free to move as long as the
+slug holds, which concentrates all stability requirements onto the slug. A slug change is therefore
+a **first-class breaking operation** — a coordinated rename across the identity quadruple + every
+profile/`depends_on`/secret-path reference, plus a data migration for the persistent-identity
+couplings — not a casual edit.
+
+Because that blast radius grows every time a new subsystem keys off the slug, it is **tracked, not
+memorized.** `docs/doc-plugin-slug-load-bearing.md` is the canonical register of every place the slug
+is load-bearing, split into the anchor (the identity quadruple), current mechanical couplings,
+current data/persistent-identity couplings, proposed/incoming couplings (things actively loading the
+slug up — e.g. secret paths and owner-namespaced entity types), and deliberate non-couplings (the
+logging path, which anchors on the module path *because* it is an internal-only label).
+
+#### Implementation
+
+- **Update trigger (the governing discipline):** any change that adds, removes, or alters a
+  slug-dependent coupling MUST update the register in the same change. Adding a subsystem that keys
+  off the slug without a register row is the drift this requirement exists to prevent.
+- **Immutable-by-guardrail:** the `conformance_gate` already makes accidental slug drift impossible
+  (the quadruple must move in lockstep or boot fails closed), so the slug is safe to anchor external
+  contracts and persistent identities on. This requirement documents *why that guarantee is
+  load-bearing* rather than adding new enforcement.
+- **The discriminator** (recorded in the register) governs *whether* a new identifier should anchor
+  on the slug at all: external contracts and persistent identities anchor on the slug (resolved from
+  declared identity, never by string-splitting `__name__`); internal-only labels anchor on the module
+  path (logging).
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-plugin-arch-slug-register-1 | Register Exists | Implemented | `docs/doc-plugin-slug-load-bearing.md` enumerates every place the slug is load-bearing, tiered by mechanical / data / proposed / non-coupling. | |
+| req-plugin-arch-slug-register-2 | Update-In-Same-Change | Implemented | Adding/removing/altering a slug-dependent coupling updates the register in the same change. | The doc's `covers:` list names the requirements whose changes trigger a review. |
+| req-plugin-arch-slug-register-3 | Slug Is Immutable-By-Guardrail | Implemented | Slug changes are gated by `conformance_gate` (quadruple lockstep, fail-closed); a slug change is treated as a first-class breaking operation. | No new enforcement; documents the existing guarantee. |
+| req-plugin-arch-slug-register-4 | Anchor Discriminator | Implemented | New identifiers anchor on the slug (resolved from declared identity) when they are external contracts or persistent identities; on the module path only when internal-only labels. | Never string-split `__name__` to recover the slug. |
 
 ### Plugin Identity & Naming
 ----
