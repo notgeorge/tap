@@ -6,7 +6,8 @@ import uuid
 import pytest
 
 # Import models to trigger constraint registration via __init_subclass__
-import tap_plugin.lotr.models  # noqa: F401
+import tap_plugin.grid_fixtures.models  # noqa: F401
+
 from tap_grid.models import Edge
 from tap_grid.services import create_edge, create_entity
 
@@ -14,8 +15,8 @@ from tap_grid.services import create_edge, create_entity
 @pytest.fixture
 def two_entities():
     """Create character and location entities for testing valid edges."""
-    a = create_entity("character", name="Frodo")
-    b = create_entity("location", name="Mordor")
+    a = create_entity("grid_fixtures__constrained_source", name="Frodo")
+    b = create_entity("grid_fixtures__constrained_target", name="Mordor")
     return a, b
 
 
@@ -61,9 +62,9 @@ class TestListEdges:
 class TestGetEdge:
     def test_found(self, logged_in_client, two_entities):
         a, b = two_entities
-        edge = create_edge(a, b, "LOCATED_IN")
+        edge = create_edge(a, b, "CONSTRAINED_LINK__grid_fixtures")
         data = logged_in_client.get(f"/api/v1/edges/{edge.entity_id}/").json()
-        assert data["edge_type"] == "LOCATED_IN"
+        assert data["edge_type"] == "CONSTRAINED_LINK__grid_fixtures"
         assert data["entity_id"] == str(edge.entity_id)
 
     def test_not_found(self, logged_in_client):
@@ -81,7 +82,7 @@ class TestCreateEdge:
                 {
                     "from_entity_id": str(a.pk),
                     "to_entity_id": str(b.pk),
-                    "edge_type": "LOCATED_IN",
+                    "edge_type": "CONSTRAINED_LINK__grid_fixtures",
                     "properties": {"weight": 0.9},
                 }
             ),
@@ -89,7 +90,7 @@ class TestCreateEdge:
         )
         assert response.status_code == 201
         data = response.json()
-        assert data["edge_type"] == "LOCATED_IN"
+        assert data["edge_type"] == "CONSTRAINED_LINK__grid_fixtures"
         assert data["properties"] == {"weight": 0.9}
 
     def test_invalid_entity_404(self, logged_in_client):
@@ -99,7 +100,7 @@ class TestCreateEdge:
                 {
                     "from_entity_id": str(uuid.uuid4()),
                     "to_entity_id": str(uuid.uuid4()),
-                    "edge_type": "LOCATED_IN",
+                    "edge_type": "CONSTRAINED_LINK__grid_fixtures",
                 }
             ),
             content_type="application/json",
@@ -130,7 +131,7 @@ class TestCreateEdge:
 class TestDeleteEdge:
     def test_delete(self, logged_in_client, two_entities):
         a, b = two_entities
-        edge = create_edge(a, b, "LOCATED_IN")
+        edge = create_edge(a, b, "CONSTRAINED_LINK__grid_fixtures")
         response = logged_in_client.delete(f"/api/v1/edges/{edge.entity_id}/")
         assert response.status_code == 204
         assert not Edge.objects.filter(pk=edge.pk).exists()

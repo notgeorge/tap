@@ -1,0 +1,11 @@
+{
+  "slug": "CONSTRAINED_LINK__grid_fixtures",
+  "name": "Constrained Link",
+  "description": "Source+target-constrained directional fixture edge (tests both endpoint constraints).",
+  "sources": [
+    "grid_fixtures__constrained_source"
+  ],
+  "targets": [
+    "grid_fixtures__constrained_target"
+  ]
+}

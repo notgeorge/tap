@@ -201,12 +201,12 @@ class TestGryphonParser:
 
     def test_node_only_pattern_parses(self):
         """req-grid-traversal-lang-patterns: node-only MATCH pattern is valid syntax."""
-        ast = parse_gryphon("MATCH (c:character) RETURN c.entity_id, c.name")
+        ast = parse_gryphon("MATCH (c:grid_fixtures__constrained_source) RETURN c.entity_id, c.name")
         mc = ast.match_clauses[0]
         pattern = mc.patterns[0]
         assert len(pattern.nodes) == 1
         assert len(pattern.edges) == 0
-        assert pattern.nodes[0].label == "character"
+        assert pattern.nodes[0].label == "grid_fixtures__constrained_source"
 
     def test_node_only_no_label_parses(self):
         """Node-only pattern without label is syntactically valid."""
@@ -233,13 +233,13 @@ class TestGryphonExecutor:
         ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
 
-        hub = Entity.objects.create(entity_type="character", name="Frodo")
-        neighbor = Entity.objects.create(entity_type="location", name="The Shire")
+        hub = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name="Frodo")
+        neighbor = Entity.objects.create(entity_type="grid_fixtures__constrained_target", name="The Shire")
         Edge.objects.create(
             entity=Entity.objects.create(entity_type="edge"),
             from_entity=hub,
             to_entity=neighbor,
-            edge_type="LOCATED_IN",
+            edge_type="CONSTRAINED_LINK__grid_fixtures",
         )
 
         search = Search(
@@ -265,9 +265,9 @@ class TestGryphonExecutor:
         ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
 
-        hub = Entity.objects.create(entity_type="character", name="Frodo")
-        outbound_neighbor = Entity.objects.create(entity_type="location", name="Rivendell")
-        inbound_neighbor = Entity.objects.create(entity_type="character", name="Gandalf")
+        hub = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name="Frodo")
+        outbound_neighbor = Entity.objects.create(entity_type="grid_fixtures__constrained_target", name="Rivendell")
+        inbound_neighbor = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name="Gandalf")
         edge_entity_out = Entity.objects.create(entity_type="edge")
         edge_entity_in = Entity.objects.create(entity_type="edge")
         Edge.objects.create(
@@ -341,7 +341,8 @@ class TestGryphonExecutor:
         """
         import uuid
 
-        from tap_plugin.lotr.models import Character
+        from tap_plugin.grid_fixtures.models import ConstrainedSource
+
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
@@ -349,14 +350,16 @@ class TestGryphonExecutor:
         set_caller_context(ctx)
 
         for name in ("Frodo", "Sam"):
-            entity = Entity.objects.create(entity_type="character", name=name)
-            Character.objects.create(entity=entity, name=name, bio=f"{name} bio")
+            entity = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name=name)
+            ConstrainedSource.objects.create(entity=entity, name=name, description=f"{name} bio")
 
         search = Search(
             search_type="gryphon",
             root="node",
             name="test",
-            definition={"query": "MATCH (c:character) RETURN c.entity_id, c.name, c.data.bio"},
+            definition={
+                "query": "MATCH (c:grid_fixtures__constrained_source) RETURN c.entity_id, c.name, c.data.description"
+            },
         )
         result = execute_search(search, inputs={})
 
@@ -367,27 +370,28 @@ class TestGryphonExecutor:
         row = result["rows"][0]
         assert "entity_id" in row
         assert "name" in row
-        assert "bio" in row
+        assert "description" in row
 
     def test_type_scan_envelope_when_return_omitted(self):
         """req-grid-traversal-lang-returns-1: type scan without RETURN gives graph envelope."""
         import uuid
 
-        from tap_plugin.lotr.models import Character
+        from tap_plugin.grid_fixtures.models import ConstrainedSource
+
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
         ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
 
-        entity = Entity.objects.create(entity_type="character", name="Gandalf")
-        Character.objects.create(entity=entity, name="Gandalf", bio="A wizard.")
+        entity = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name="Gandalf")
+        ConstrainedSource.objects.create(entity=entity, name="Gandalf", description="A wizard.")
 
         search = Search(
             search_type="gryphon",
             root="node",
             name="test",
-            definition={"query": "MATCH (c:character)"},
+            definition={"query": "MATCH (c:grid_fixtures__constrained_source)"},
         )
         result = execute_search(search, inputs={})
 
@@ -434,7 +438,8 @@ class TestGryphonEnvelopePaths:
     def _make_characters(self):
         import uuid
 
-        from tap_plugin.lotr.models import Character
+        from tap_plugin.grid_fixtures.models import ConstrainedSource
+
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
@@ -442,8 +447,8 @@ class TestGryphonEnvelopePaths:
         set_caller_context(ctx)
         out = []
         for name, bio in (("Frodo", "A hobbit."), ("Sam", "Gardener.")):
-            entity = Entity.objects.create(entity_type="character", name=name)
-            out.append(Character.objects.create(entity=entity, name=name, bio=bio))
+            entity = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name=name)
+            out.append(ConstrainedSource.objects.create(entity=entity, name=name, description=bio))
         return out
 
     def test_return_data_prefix_resolves_per_model_field(self):
@@ -453,27 +458,27 @@ class TestGryphonEnvelopePaths:
             search_type="gryphon",
             root="node",
             name="t",
-            definition={"query": "MATCH (c:character) RETURN c.entity_id, c.data.bio"},
+            definition={"query": "MATCH (c:grid_fixtures__constrained_source) RETURN c.entity_id, c.data.description"},
         )
         result = execute_search(search, inputs={})
-        bios = {r["bio"] for r in result["rows"]}
+        bios = {r["description"] for r in result["rows"]}
         assert bios == {"A hobbit.", "Gardener."}
 
     def test_return_unprefixed_per_model_field_rejected(self):
         """req-grid-traversal-lang-envelope-paths-6: no routing sugar.
 
-        Bare `c.bio` is rejected; error message names the explicit form.
+        Bare `c.description` is rejected; error message names the explicit form.
         """
         self._make_characters()
         search = Search(
             search_type="gryphon",
             root="node",
             name="t",
-            definition={"query": "MATCH (c:character) RETURN c.entity_id, c.bio"},
+            definition={"query": "MATCH (c:grid_fixtures__constrained_source) RETURN c.entity_id, c.description"},
         )
-        # Error message names the explicit form (e.g. `<var>.data.bio`) so
+        # Error message names the explicit form (e.g. `<var>.data.description`) so
         # the caller knows exactly what to write instead.
-        with pytest.raises(SearchExecutionError, match=r"data\.bio"):
+        with pytest.raises(SearchExecutionError, match=r"data\.description"):
             execute_search(search, inputs={})
 
     def test_return_display_prefix_rejected_with_extended_layer_hint(self):
@@ -483,7 +488,9 @@ class TestGryphonEnvelopePaths:
             search_type="gryphon",
             root="node",
             name="t",
-            definition={"query": "MATCH (c:character) RETURN c.entity_id, c.display.tap_viz.shape"},
+            definition={
+                "query": "MATCH (c:grid_fixtures__constrained_source) RETURN c.entity_id, c.display.tap_viz.shape"
+            },
         )
         with pytest.raises(SearchExecutionError, match=r"extended"):
             execute_search(search, inputs={})
@@ -495,7 +502,9 @@ class TestGryphonEnvelopePaths:
             search_type="gryphon",
             root="node",
             name="t",
-            definition={"query": "MATCH (c:character) RETURN c.entity_id, c.name, c.entity_type"},
+            definition={
+                "query": "MATCH (c:grid_fixtures__constrained_source) RETURN c.entity_id, c.name, c.entity_type"
+            },
         )
         result = execute_search(search, inputs={})
         assert result["rows"]
@@ -508,7 +517,7 @@ class TestGryphonEnvelopePaths:
             search_type="gryphon",
             root="node",
             name="t",
-            definition={"query": "MATCH (c:character) RETURN c.name.bogus"},
+            definition={"query": "MATCH (c:grid_fixtures__constrained_source) RETURN c.name.bogus"},
         )
         with pytest.raises(SearchExecutionError, match=r"data"):
             execute_search(search, inputs={})
@@ -520,12 +529,12 @@ class TestGryphonEnvelopePaths:
             search_type="gryphon",
             root="node",
             name="t",
-            definition={"query": "MATCH (c:character) RETURN c.entity_id, c.data.bio"},
+            definition={"query": "MATCH (c:grid_fixtures__constrained_source) RETURN c.entity_id, c.data.description"},
         )
         result = execute_search(search, inputs={})
         row = result["rows"][0]
-        # `c.data.bio` → default key is `bio` (last dot-step), not `data` or `data.bio`.
-        assert "bio" in row
+        # `c.data.description` → default key is `bio` (last dot-step), not `data` or `data.description`.
+        assert "description" in row
 
 
 @pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
@@ -540,7 +549,8 @@ class TestGryphonTypeScanWhere:
     def _make_characters(self):
         import uuid
 
-        from tap_plugin.lotr.models import Character
+        from tap_plugin.grid_fixtures.models import ConstrainedSource
+
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
@@ -548,8 +558,8 @@ class TestGryphonTypeScanWhere:
         set_caller_context(ctx)
         out = []
         for name, bio in (("Frodo", "A hobbit."), ("Sam", "Gardener."), ("Aragorn", "King.")):
-            entity = Entity.objects.create(entity_type="character", name=name)
-            out.append(Character.objects.create(entity=entity, name=name, bio=bio))
+            entity = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name=name)
+            out.append(ConstrainedSource.objects.create(entity=entity, name=name, description=bio))
         return out
 
     def test_where_filter_on_spine_field(self):
@@ -559,20 +569,24 @@ class TestGryphonTypeScanWhere:
             search_type="gryphon",
             root="node",
             name="t",
-            definition={"query": 'MATCH (c:character) WHERE c.name = "Frodo" RETURN c.entity_id, c.name'},
+            definition={
+                "query": 'MATCH (c:grid_fixtures__constrained_source) WHERE c.name = "Frodo" RETURN c.entity_id, c.name'
+            },
         )
         result = execute_search(search, inputs={})
         names = {r["name"] for r in result["rows"]}
         assert names == {"Frodo"}
 
     def test_where_filter_on_data_lane_per_model_field(self):
-        """WHERE on n.data.bio filters the type-scan via per-model row access."""
+        """WHERE on n.data.description filters the type-scan via per-model row access."""
         self._make_characters()
         search = Search(
             search_type="gryphon",
             root="node",
             name="t",
-            definition={"query": 'MATCH (c:character) WHERE c.data.bio = "Gardener." RETURN c.entity_id, c.name'},
+            definition={
+                "query": 'MATCH (c:grid_fixtures__constrained_source) WHERE c.data.description = "Gardener." RETURN c.entity_id, c.name'
+            },
         )
         result = execute_search(search, inputs={})
         names = {r["name"] for r in result["rows"]}
@@ -585,7 +599,9 @@ class TestGryphonTypeScanWhere:
             search_type="gryphon",
             root="node",
             name="t",
-            definition={"query": "MATCH (c:character) WHERE c.name = $target RETURN c.entity_id, c.name"},
+            definition={
+                "query": "MATCH (c:grid_fixtures__constrained_source) WHERE c.name = $target RETURN c.entity_id, c.name"
+            },
         )
         result = execute_search(search, inputs={"target": "Aragorn"})
         names = {r["name"] for r in result["rows"]}
@@ -613,16 +629,22 @@ class TestGryphonTypeScanWhere:
         set_caller_context(ctx)
         self._make_characters()
         # A different entity type that won't be touched by the WHERE.
-        realm = Entity.objects.create(entity_type="realm", name="Middle-earth")
-        from tap_plugin.lotr.models import Realm  # noqa: PLC0415
+        realm = Entity.objects.create(entity_type="grid_fixtures__nesting_container", name="Middle-earth")
+        from tap_plugin.grid_fixtures.models import NestingContainer  # noqa: PLC0415
 
-        Realm.objects.create(entity=realm, name="Middle-earth")
+        NestingContainer.objects.create(entity=realm, name="Middle-earth")
 
         search = Search(
             search_type="gryphon",
             root="node",
             name="t",
-            definition={"query": ("MATCH (r:realm) " "MATCH (c:character) " 'WHERE c.name = "Frodo"')},
+            definition={
+                "query": (
+                    "MATCH (r:grid_fixtures__nesting_container) "
+                    "MATCH (c:grid_fixtures__constrained_source) "
+                    'WHERE c.name = "Frodo"'
+                )
+            },
         )
         result = execute_search(search, inputs={})
         names = {n["name"] for n in result["nodes"]}
@@ -646,16 +668,19 @@ class TestGryphonDimensionsMultiStep:
     def _make_characters_with_dimensions(self):
         import uuid
 
-        from tap_plugin.lotr.models import Character
+        from tap_plugin.grid_fixtures.models import ConstrainedSource
+
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
         ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
         results = []
-        for name, realm in (("Frodo", "shire"), ("Sam", "shire"), ("Aragorn", "gondor")):
-            entity = Entity.objects.create(entity_type="character", name=name, dimensions={"realm": realm})
-            results.append(Character.objects.create(entity=entity, name=name, bio=""))
+        for name, region in (("Frodo", "shire"), ("Sam", "shire"), ("Aragorn", "gondor")):
+            entity = Entity.objects.create(
+                entity_type="grid_fixtures__constrained_source", name=name, dimensions={"region": region}
+            )
+            results.append(ConstrainedSource.objects.create(entity=entity, name=name, description=""))
         return results
 
     def test_dimensions_dot_access_filters(self):
@@ -665,7 +690,9 @@ class TestGryphonDimensionsMultiStep:
             search_type="gryphon",
             root="node",
             name="t",
-            definition={"query": 'MATCH (c:character) WHERE c.dimensions.realm = "shire" RETURN c.entity_id, c.name'},
+            definition={
+                "query": 'MATCH (c:grid_fixtures__constrained_source) WHERE c.dimensions.region = "shire" RETURN c.entity_id, c.name'
+            },
         )
         result = execute_search(search, inputs={})
         names = {r["name"] for r in result["rows"]}
@@ -678,25 +705,29 @@ class TestGryphonDimensionsMultiStep:
         self._make_characters_with_dimensions()
         import uuid
 
-        from tap_plugin.lotr.models import Character
+        from tap_plugin.grid_fixtures.models import ConstrainedSource
+
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
         ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
         entity = Entity.objects.create(
-            entity_type="character",
+            entity_type="grid_fixtures__constrained_source",
             name="Gollum",
             dimensions={"tap.graph": "web"},
         )
-        Character.objects.create(entity=entity, name="Gollum", bio="")
+        ConstrainedSource.objects.create(entity=entity, name="Gollum", description="")
 
         search = Search(
             search_type="gryphon",
             root="node",
             name="t",
             definition={
-                "query": ('MATCH (c:character) WHERE c.dimensions["tap.graph"] = "web" ' "RETURN c.entity_id, c.name")
+                "query": (
+                    'MATCH (c:grid_fixtures__constrained_source) WHERE c.dimensions["tap.graph"] = "web" '
+                    "RETURN c.entity_id, c.name"
+                )
             },
         )
         result = execute_search(search, inputs={})
@@ -769,7 +800,7 @@ class TestSearchServiceGryphon:
         ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
 
-        hub = Entity.objects.create(entity_type="character", name="Bilbo")
+        hub = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name="Bilbo")
 
         search = Search(
             search_type="gryphon",
@@ -804,7 +835,7 @@ class TestSearchServiceGryphon:
 @pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
 class TestGryphonEdgeTypeScan:
     def _setup_realm_locations(self):
-        """Create realm→location CONTAINS edges for testing."""
+        """Create realm→location NESTING_LINK__grid_fixtures edges for testing."""
         import uuid
 
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
@@ -813,29 +844,29 @@ class TestGryphonEdgeTypeScan:
         ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
 
-        realm = Entity.objects.create(entity_type="realm", name="Middle-earth")
-        mordor = Entity.objects.create(entity_type="location", name="Mordor")
-        gondor = Entity.objects.create(entity_type="location", name="Gondor")
-        frodo = Entity.objects.create(entity_type="character", name="Frodo")
+        realm = Entity.objects.create(entity_type="grid_fixtures__nesting_container", name="Middle-earth")
+        mordor = Entity.objects.create(entity_type="grid_fixtures__constrained_target", name="Mordor")
+        gondor = Entity.objects.create(entity_type="grid_fixtures__constrained_target", name="Gondor")
+        frodo = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name="Frodo")
 
         Edge.objects.create(
             entity=Entity.objects.create(entity_type="edge"),
             from_entity=realm,
             to_entity=mordor,
-            edge_type="CONTAINS",
+            edge_type="NESTING_LINK__grid_fixtures",
         )
         Edge.objects.create(
             entity=Entity.objects.create(entity_type="edge"),
             from_entity=realm,
             to_entity=gondor,
-            edge_type="CONTAINS",
+            edge_type="NESTING_LINK__grid_fixtures",
         )
         # A non-matching edge type to verify filtering.
         Edge.objects.create(
             entity=Entity.objects.create(entity_type="edge"),
             from_entity=frodo,
             to_entity=mordor,
-            edge_type="LOCATED_IN",
+            edge_type="CONSTRAINED_LINK__grid_fixtures",
         )
         return realm, mordor, gondor, frodo
 
@@ -847,7 +878,9 @@ class TestGryphonEdgeTypeScan:
             search_type="gryphon",
             root="node",
             name="test",
-            definition={"query": "MATCH (r:realm)-[e:CONTAINS]->(l:location)"},
+            definition={
+                "query": "MATCH (r:grid_fixtures__nesting_container)-[e:NESTING_LINK__grid_fixtures]->(l:grid_fixtures__constrained_target)"
+            },
         )
         result = execute_search(search, inputs={})
 
@@ -865,12 +898,14 @@ class TestGryphonEdgeTypeScan:
             search_type="gryphon",
             root="node",
             name="test",
-            definition={"query": "MATCH (r:realm)-[e:CONTAINS]->(l:location)"},
+            definition={
+                "query": "MATCH (r:grid_fixtures__nesting_container)-[e:NESTING_LINK__grid_fixtures]->(l:grid_fixtures__constrained_target)"
+            },
         )
         result = execute_search(search, inputs={})
 
         node_ids = {n["entity_id"] for n in result["nodes"]}
-        # Frodo is not a realm or location endpoint of CONTAINS.
+        # Frodo is not a realm or location endpoint of NESTING_LINK__grid_fixtures.
         assert str(frodo.pk) not in node_ids
 
     def test_edge_type_scan_inbound_direction(self):
@@ -882,7 +917,9 @@ class TestGryphonEdgeTypeScan:
             search_type="gryphon",
             root="node",
             name="test",
-            definition={"query": "MATCH (l:location)<-[e:CONTAINS]-(r:realm)"},
+            definition={
+                "query": "MATCH (l:grid_fixtures__constrained_target)<-[e:NESTING_LINK__grid_fixtures]-(r:grid_fixtures__nesting_container)"
+            },
         )
         result = execute_search(search, inputs={})
 
@@ -910,28 +947,28 @@ class TestGryphonUnion:
         ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
 
-        realm = Entity.objects.create(entity_type="realm", name="Middle-earth")
-        mordor = Entity.objects.create(entity_type="location", name="Mordor")
-        frodo = Entity.objects.create(entity_type="character", name="Frodo")
-        ring = Entity.objects.create(entity_type="artifact", name="The One Ring")
+        realm = Entity.objects.create(entity_type="grid_fixtures__nesting_container", name="Middle-earth")
+        mordor = Entity.objects.create(entity_type="grid_fixtures__constrained_target", name="Mordor")
+        frodo = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name="Frodo")
+        ring = Entity.objects.create(entity_type="grid_fixtures__dual_endpoint", name="The One Ring")
 
         Edge.objects.create(
             entity=Entity.objects.create(entity_type="edge"),
             from_entity=realm,
             to_entity=mordor,
-            edge_type="CONTAINS",
+            edge_type="NESTING_LINK__grid_fixtures",
         )
         Edge.objects.create(
             entity=Entity.objects.create(entity_type="edge"),
             from_entity=frodo,
             to_entity=mordor,
-            edge_type="LOCATED_IN",
+            edge_type="CONSTRAINED_LINK__grid_fixtures",
         )
         Edge.objects.create(
             entity=Entity.objects.create(entity_type="edge"),
             from_entity=frodo,
             to_entity=ring,
-            edge_type="WIELDS",
+            edge_type="SCHEMA_LINK__grid_fixtures",
         )
         return realm, mordor, frodo, ring
 
@@ -940,8 +977,8 @@ class TestGryphonUnion:
         realm, mordor, frodo, ring = self._setup_graph()
 
         query = [
-            "MATCH (r:realm)-[e1:CONTAINS]->(l:location)",
-            "MATCH (c:character)-[e2:WIELDS]->(a:artifact)",
+            "MATCH (r:grid_fixtures__nesting_container)-[e1:NESTING_LINK__grid_fixtures]->(l:grid_fixtures__constrained_target)",
+            "MATCH (c:grid_fixtures__constrained_source)-[e2:SCHEMA_LINK__grid_fixtures]->(a:grid_fixtures__dual_endpoint)",
         ]
         search = Search(
             search_type="gryphon",
@@ -962,10 +999,10 @@ class TestGryphonUnion:
         """Nodes appearing in multiple clause results are not duplicated."""
         realm, mordor, frodo, ring = self._setup_graph()
 
-        # Both clauses will return Mordor (as location in CONTAINS and as target in LOCATED_IN).
+        # Both clauses will return Mordor (as location in NESTING_LINK__grid_fixtures and as target in CONSTRAINED_LINK__grid_fixtures).
         query = [
-            "MATCH (r:realm)-[e1:CONTAINS]->(l:location)",
-            "MATCH (c:character)-[e2:LOCATED_IN]->(l2:location)",
+            "MATCH (r:grid_fixtures__nesting_container)-[e1:NESTING_LINK__grid_fixtures]->(l:grid_fixtures__constrained_target)",
+            "MATCH (c:grid_fixtures__constrained_source)-[e2:CONSTRAINED_LINK__grid_fixtures]->(l2:grid_fixtures__constrained_target)",
         ]
         search = Search(
             search_type="gryphon",
@@ -984,10 +1021,10 @@ class TestGryphonUnion:
         realm, mordor, frodo, ring = self._setup_graph()
 
         query = [
-            "MATCH (r:realm)-[e1:CONTAINS]->(l:location)",
-            "MATCH (l2:location)-[e2:CONTAINS]->(l3:location)",
-            "MATCH (c:character)-[e3:LOCATED_IN]->(loc:location)",
-            "MATCH (c2:character)-[e4:WIELDS]->(a:artifact)",
+            "MATCH (r:grid_fixtures__nesting_container)-[e1:NESTING_LINK__grid_fixtures]->(l:grid_fixtures__constrained_target)",
+            "MATCH (l2:grid_fixtures__constrained_target)-[e2:NESTING_LINK__grid_fixtures]->(l3:grid_fixtures__constrained_target)",
+            "MATCH (c:grid_fixtures__constrained_source)-[e3:CONSTRAINED_LINK__grid_fixtures]->(loc:grid_fixtures__constrained_target)",
+            "MATCH (c2:grid_fixtures__constrained_source)-[e4:SCHEMA_LINK__grid_fixtures]->(a:grid_fixtures__dual_endpoint)",
         ]
         search = Search(
             search_type="gryphon",
@@ -1019,10 +1056,10 @@ class TestGryphonV2ParserExtensions:
 
     def test_edge_pattern_without_variable_parses_as_edge_type(self):
         """-[:TYPE]-> (no variable) must bind edge_type, not variable."""
-        ast = parse_gryphon("MATCH (a)-[:CONTAINS]->(b)")
+        ast = parse_gryphon("MATCH (a)-[:NESTING_LINK__grid_fixtures]->(b)")
         edge = ast.match_clauses[0].patterns[0].edges[0]
         assert edge.variable is None
-        assert edge.edge_type == "CONTAINS"
+        assert edge.edge_type == "NESTING_LINK__grid_fixtures"
         assert edge.direction == "out"
 
     def test_count_aggregate_in_return(self):
@@ -1042,7 +1079,7 @@ class TestGryphonV2ParserExtensions:
         """NOT EXISTS { MATCH ... WHERE ... } is a recognized top-level clause."""
         q = (
             "MATCH (a)-[:R1]->(b) "
-            'NOT EXISTS { MATCH (c)-[:R2]->(b) WHERE c.entity_type = "character" } '
+            'NOT EXISTS { MATCH (c)-[:R2]->(b) WHERE c.entity_type = "grid_fixtures__constrained_source" } '
             "RETURN a.entity_id, COUNT(b) AS n"
         )
         ast = parse_gryphon(q)
@@ -1066,20 +1103,20 @@ class TestGryphonV2Executor:
         ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
 
-        frodo = Entity.objects.create(entity_type="character", name="Frodo")
-        sam = Entity.objects.create(entity_type="character", name="Sam")
-        aragorn = Entity.objects.create(entity_type="character", name="Aragorn")
+        frodo = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name="Frodo")
+        sam = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name="Sam")
+        aragorn = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name="Aragorn")
 
-        ring = Entity.objects.create(entity_type="artifact", name="One Ring")
-        sting = Entity.objects.create(entity_type="artifact", name="Sting")
-        anduril = Entity.objects.create(entity_type="artifact", name="Anduril")
+        ring = Entity.objects.create(entity_type="grid_fixtures__dual_endpoint", name="One Ring")
+        sting = Entity.objects.create(entity_type="grid_fixtures__dual_endpoint", name="Sting")
+        anduril = Entity.objects.create(entity_type="grid_fixtures__dual_endpoint", name="Anduril")
 
         for src, tgt in [(frodo, ring), (frodo, sting), (sam, sting), (aragorn, anduril)]:
             Edge.objects.create(
                 entity=Entity.objects.create(entity_type="edge"),
                 from_entity=src,
                 to_entity=tgt,
-                edge_type="WIELDS",
+                edge_type="SCHEMA_LINK__grid_fixtures",
             )
         return frodo, sam, aragorn, ring, sting, anduril
 
@@ -1093,7 +1130,8 @@ class TestGryphonV2Executor:
             name="wielder-counts",
             definition={
                 "query": (
-                    "MATCH (c:character)-[:WIELDS]->(a:artifact) " "RETURN c.entity_id AS wielder, COUNT(a) AS count"
+                    "MATCH (c:grid_fixtures__constrained_source)-[:SCHEMA_LINK__grid_fixtures]->(a:grid_fixtures__dual_endpoint) "
+                    "RETURN c.entity_id AS wielder, COUNT(a) AS count"
                 )
             },
         )
@@ -1122,9 +1160,9 @@ class TestGryphonV2Executor:
             name="not-wielded-by-sam",
             definition={
                 "query": (
-                    "MATCH (c:character)-[:WIELDS]->(a:artifact) "
+                    "MATCH (c:grid_fixtures__constrained_source)-[:SCHEMA_LINK__grid_fixtures]->(a:grid_fixtures__dual_endpoint) "
                     "NOT EXISTS { "
-                    "  MATCH (sam:character)-[:WIELDS]->(a) "
+                    "  MATCH (sam:grid_fixtures__constrained_source)-[:SCHEMA_LINK__grid_fixtures]->(a) "
                     '  WHERE sam.name = "Sam" '
                     "} "
                     "RETURN c.entity_id AS wielder, COUNT(a) AS count"
@@ -1148,7 +1186,8 @@ class TestGryphonV2Executor:
             name="aggregate",
             definition={
                 "query": (
-                    "MATCH (c:character)-[:WIELDS]->(a:artifact) " "RETURN c.entity_id AS wielder, COUNT(a) AS count"
+                    "MATCH (c:grid_fixtures__constrained_source)-[:SCHEMA_LINK__grid_fixtures]->(a:grid_fixtures__dual_endpoint) "
+                    "RETURN c.entity_id AS wielder, COUNT(a) AS count"
                 )
             },
         )
@@ -1171,19 +1210,19 @@ class TestGryphonV2Executor:
         ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
 
-        frodo = Entity.objects.create(entity_type="character", name="Frodo")
-        aragorn = Entity.objects.create(entity_type="character", name="Aragorn")
+        frodo = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name="Frodo")
+        aragorn = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name="Aragorn")
 
-        shire = Entity.objects.create(entity_type="realm", name="Shire")
-        gondor = Entity.objects.create(entity_type="realm", name="Gondor")
-        arnor = Entity.objects.create(entity_type="realm", name="Arnor")
+        shire = Entity.objects.create(entity_type="grid_fixtures__nesting_container", name="Shire")
+        gondor = Entity.objects.create(entity_type="grid_fixtures__nesting_container", name="Gondor")
+        arnor = Entity.objects.create(entity_type="grid_fixtures__nesting_container", name="Arnor")
 
-        hobbiton = Entity.objects.create(entity_type="location", name="Hobbiton")
-        buckland = Entity.objects.create(entity_type="location", name="Buckland")
-        minas_tirith = Entity.objects.create(entity_type="location", name="Minas Tirith")
-        annuminas = Entity.objects.create(entity_type="location", name="Annuminas")
+        hobbiton = Entity.objects.create(entity_type="grid_fixtures__constrained_target", name="Hobbiton")
+        buckland = Entity.objects.create(entity_type="grid_fixtures__constrained_target", name="Buckland")
+        minas_tirith = Entity.objects.create(entity_type="grid_fixtures__constrained_target", name="Minas Tirith")
+        annuminas = Entity.objects.create(entity_type="grid_fixtures__constrained_target", name="Annuminas")
 
-        # Character OWNS realm.
+        # ConstrainedSource OWNS realm.
         for src, tgt in [(frodo, shire), (aragorn, gondor), (aragorn, arnor)]:
             Edge.objects.create(
                 entity=Entity.objects.create(entity_type="edge"),
@@ -1191,7 +1230,7 @@ class TestGryphonV2Executor:
                 to_entity=tgt,
                 edge_type="OWNS",
             )
-        # Realm CONTAINS location.
+        # NestingContainer NESTING_LINK__grid_fixtures location.
         for src, tgt in [
             (shire, hobbiton),
             (shire, buckland),
@@ -1202,7 +1241,7 @@ class TestGryphonV2Executor:
                 entity=Entity.objects.create(entity_type="edge"),
                 from_entity=src,
                 to_entity=tgt,
-                edge_type="CONTAINS",
+                edge_type="NESTING_LINK__grid_fixtures",
             )
         return {
             "frodo": frodo,
@@ -1227,7 +1266,7 @@ class TestGryphonV2Executor:
             name="two-hop",
             definition={
                 "query": (
-                    "MATCH (c:character)-[:OWNS]->(r:realm)-[:CONTAINS]->(l:location) "
+                    "MATCH (c:grid_fixtures__constrained_source)-[:OWNS]->(r:grid_fixtures__nesting_container)-[:NESTING_LINK__grid_fixtures]->(l:grid_fixtures__constrained_target) "
                     "RETURN c.entity_id AS character, COUNT(l) AS locations"
                 )
             },
@@ -1249,7 +1288,7 @@ class TestGryphonV2Executor:
             name="no-anchor",
             definition={
                 "query": (
-                    "MATCH (c:character)-[:OWNS]->(r:realm)-[:CONTAINS]->(l:location) "
+                    "MATCH (c:grid_fixtures__constrained_source)-[:OWNS]->(r:grid_fixtures__nesting_container)-[:NESTING_LINK__grid_fixtures]->(l:grid_fixtures__constrained_target) "
                     "RETURN c.entity_id AS id, COUNT(l) AS n"
                 )
             },
@@ -1270,7 +1309,7 @@ class TestGryphonV2Executor:
             name="labeled-middle",
             definition={
                 "query": (
-                    "MATCH (c:character)-[:OWNS]->(r:realm)-[:CONTAINS]->(l:location) "
+                    "MATCH (c:grid_fixtures__constrained_source)-[:OWNS]->(r:grid_fixtures__nesting_container)-[:NESTING_LINK__grid_fixtures]->(l:grid_fixtures__constrained_target) "
                     'WHERE c.name = "Frodo" '
                     "RETURN c.entity_id AS character, COUNT(l) AS locations"
                 )
@@ -1284,7 +1323,7 @@ class TestGryphonV2Executor:
     def test_two_hop_with_mixed_directions(self):
         """req-grid-gryphon-multihop-2: each hop's direction is honored independently.
 
-        Pattern: (l:location)<-[:CONTAINS]-(r:realm)<-[:OWNS]-(c:character)
+        Pattern: (l:grid_fixtures__constrained_target)<-[:NESTING_LINK__grid_fixtures]-(r:grid_fixtures__nesting_container)<-[:OWNS]-(c:grid_fixtures__constrained_source)
         Reads the same edges backwards — locations → realms → owning characters.
         """
         e = self._setup_three_layer_chain()
@@ -1295,7 +1334,7 @@ class TestGryphonV2Executor:
             name="mixed-dir",
             definition={
                 "query": (
-                    "MATCH (l:location)<-[:CONTAINS]-(r:realm)<-[:OWNS]-(c:character) "
+                    "MATCH (l:grid_fixtures__constrained_target)<-[:NESTING_LINK__grid_fixtures]-(r:grid_fixtures__nesting_container)<-[:OWNS]-(c:grid_fixtures__constrained_source) "
                     "RETURN c.entity_id AS character, COUNT(l) AS locations"
                 )
             },
@@ -1317,7 +1356,7 @@ class TestGryphonV2Executor:
         # Flag one location as "restricted" via an edge from a separate guard entity.
         ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
-        guard = Entity.objects.create(entity_type="character", name="Guard")
+        guard = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name="Guard")
         Edge.objects.create(
             entity=Entity.objects.create(entity_type="edge"),
             from_entity=guard,
@@ -1333,8 +1372,8 @@ class TestGryphonV2Executor:
             name="two-hop-not-exists",
             definition={
                 "query": (
-                    "MATCH (c:character)-[:OWNS]->(r:realm)-[:CONTAINS]->(l:location) "
-                    "NOT EXISTS { MATCH (g:character)-[:RESTRICTS]->(l) } "
+                    "MATCH (c:grid_fixtures__constrained_source)-[:OWNS]->(r:grid_fixtures__nesting_container)-[:NESTING_LINK__grid_fixtures]->(l:grid_fixtures__constrained_target) "
+                    "NOT EXISTS { MATCH (g:grid_fixtures__constrained_source)-[:RESTRICTS]->(l) } "
                     "RETURN c.entity_id AS character, COUNT(l) AS locations"
                 )
             },
@@ -1358,8 +1397,8 @@ class TestGryphonV2Executor:
         # Set up a 2-hop restriction chain: one guard → restriction → minas tirith.
         ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
-        high_guard = Entity.objects.create(entity_type="character", name="HighGuard")
-        restriction = Entity.objects.create(entity_type="realm", name="Restriction Seal")
+        high_guard = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name="HighGuard")
+        restriction = Entity.objects.create(entity_type="grid_fixtures__nesting_container", name="Restriction Seal")
         Edge.objects.create(
             entity=Entity.objects.create(entity_type="edge"),
             from_entity=high_guard,
@@ -1382,9 +1421,9 @@ class TestGryphonV2Executor:
             name="multi-hop-inner-not-exists",
             definition={
                 "query": (
-                    "MATCH (c:character)-[:OWNS]->(r:realm)-[:CONTAINS]->(l:location) "
+                    "MATCH (c:grid_fixtures__constrained_source)-[:OWNS]->(r:grid_fixtures__nesting_container)-[:NESTING_LINK__grid_fixtures]->(l:grid_fixtures__constrained_target) "
                     "NOT EXISTS { "
-                    "  MATCH (g:character)-[:ISSUES]->(sr:realm)-[:SEALS]->(l) "
+                    "  MATCH (g:grid_fixtures__constrained_source)-[:ISSUES]->(sr:grid_fixtures__nesting_container)-[:SEALS]->(l) "
                     "} "
                     "RETURN c.entity_id AS character, COUNT(l) AS locations"
                 )
@@ -1406,7 +1445,10 @@ class TestGryphonV2Executor:
             root="node",
             name="var-length",
             definition={
-                "query": ("MATCH (c:character)-[:OWNS*1..3]->(r:realm) " "RETURN c.entity_id AS id, COUNT(r) AS n")
+                "query": (
+                    "MATCH (c:grid_fixtures__constrained_source)-[:OWNS*1..3]->(r:grid_fixtures__nesting_container) "
+                    "RETURN c.entity_id AS id, COUNT(r) AS n"
+                )
             },
         )
         with pytest.raises(SearchExecutionError, match="[Vv]ariable-length"):
@@ -1420,7 +1462,11 @@ class TestGryphonV2Executor:
             search_type="gryphon",
             root="node",
             name="envelope-all",
-            definition={"query": ("MATCH (c:character)-[e1:OWNS]->(r:realm)-[e2:CONTAINS]->(l:location)")},
+            definition={
+                "query": (
+                    "MATCH (c:grid_fixtures__constrained_source)-[e1:OWNS]->(r:grid_fixtures__nesting_container)-[e2:NESTING_LINK__grid_fixtures]->(l:grid_fixtures__constrained_target)"
+                )
+            },
         )
         result = execute_search(search, inputs={})
 
@@ -1439,10 +1485,10 @@ class TestGryphonV2Executor:
         ):
             assert str(e[name].pk) in node_ids, f"{name} missing from nodes"
 
-        # Edges: 3 OWNS + 4 CONTAINS = 7
+        # Edges: 3 OWNS + 4 NESTING_LINK__grid_fixtures = 7
         assert len(result["edges"]) == 7
         edge_types = {edg["data"]["edge_type"] for edg in result["edges"]}
-        assert edge_types == {"OWNS", "CONTAINS"}
+        assert edge_types == {"OWNS", "NESTING_LINK__grid_fixtures"}
 
         # rows should be empty for graph envelope
         assert result.get("rows", []) == []
@@ -1457,7 +1503,10 @@ class TestGryphonV2Executor:
             root="node",
             name="envelope-selected",
             definition={
-                "query": ("MATCH (c:character)-[e1:OWNS]->(r:realm)-[e2:CONTAINS]->(l:location) " "RETURN c, l")
+                "query": (
+                    "MATCH (c:grid_fixtures__constrained_source)-[e1:OWNS]->(r:grid_fixtures__nesting_container)-[e2:NESTING_LINK__grid_fixtures]->(l:grid_fixtures__constrained_target) "
+                    "RETURN c, l"
+                )
             },
         )
         result = execute_search(search, inputs={})
@@ -1483,7 +1532,8 @@ class TestGryphonV2Executor:
             name="envelope-anchored",
             definition={
                 "query": (
-                    "MATCH (c:character)-[e1:OWNS]->(r:realm)-[e2:CONTAINS]->(l:location) " 'WHERE c.name = "Frodo"'
+                    "MATCH (c:grid_fixtures__constrained_source)-[e1:OWNS]->(r:grid_fixtures__nesting_container)-[e2:NESTING_LINK__grid_fixtures]->(l:grid_fixtures__constrained_target) "
+                    'WHERE c.name = "Frodo"'
                 )
             },
         )
@@ -1507,7 +1557,11 @@ class TestGryphonV2Executor:
             search_type="gryphon",
             root="node",
             name="envelope-dedup",
-            definition={"query": ("MATCH (c:character)-[e1:OWNS]->(r:realm)-[e2:CONTAINS]->(l:location)")},
+            definition={
+                "query": (
+                    "MATCH (c:grid_fixtures__constrained_source)-[e1:OWNS]->(r:grid_fixtures__nesting_container)-[e2:NESTING_LINK__grid_fixtures]->(l:grid_fixtures__constrained_target)"
+                )
+            },
         )
         result = execute_search(search, inputs={})
 
@@ -1739,7 +1793,8 @@ class TestGryphonOrderByLimitExecutor:
         """Five characters with distinct bios, for ordering tests."""
         import uuid
 
-        from tap_plugin.lotr.models import Character
+        from tap_plugin.grid_fixtures.models import ConstrainedSource
+
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
@@ -1747,8 +1802,8 @@ class TestGryphonOrderByLimitExecutor:
         set_caller_context(ctx)
 
         for name in ("Eowyn", "Aragorn", "Denethor", "Boromir", "Celeborn"):
-            entity = Entity.objects.create(entity_type="character", name=name)
-            Character.objects.create(entity=entity, name=name, bio=f"{name} bio")
+            entity = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name=name)
+            ConstrainedSource.objects.create(entity=entity, name=name, description=f"{name} bio")
 
     def test_order_by_limit_top_n(self):
         """req-grid-gryphon-order-by-3 / limit-2: ORDER BY DESC + LIMIT yields the top rows."""
@@ -1757,7 +1812,9 @@ class TestGryphonOrderByLimitExecutor:
             search_type="gryphon",
             root="node",
             name="top-n",
-            definition={"query": "MATCH (c:character) RETURN c.name AS name ORDER BY name DESC LIMIT 2"},
+            definition={
+                "query": "MATCH (c:grid_fixtures__constrained_source) RETURN c.name AS name ORDER BY name DESC LIMIT 2"
+            },
         )
         rows = execute_search(search, inputs={})["rows"]
         assert [r["name"] for r in rows] == ["Eowyn", "Denethor"]
@@ -1769,7 +1826,9 @@ class TestGryphonOrderByLimitExecutor:
             search_type="gryphon",
             root="node",
             name="cap",
-            definition={"query": "MATCH (c:character) RETURN c.name AS name ORDER BY name LIMIT 3"},
+            definition={
+                "query": "MATCH (c:grid_fixtures__constrained_source) RETURN c.name AS name ORDER BY name LIMIT 3"
+            },
         )
         rows = execute_search(search, inputs={})["rows"]
         assert [r["name"] for r in rows] == ["Aragorn", "Boromir", "Celeborn"]
@@ -1784,7 +1843,7 @@ class TestGryphonOrderByLimitExecutor:
             search_type="gryphon",
             root="node",
             name="latest-character",
-            definition={"query": "MATCH (c:character) ORDER BY c.name DESC LIMIT 1"},
+            definition={"query": "MATCH (c:grid_fixtures__constrained_source) ORDER BY c.name DESC LIMIT 1"},
         )
         envelope = execute_search(search, inputs={})
         assert envelope["edges"] == []
@@ -1798,14 +1857,14 @@ class TestGryphonOrderByLimitExecutor:
         """req-grid-gryphon-order-by-envelope-3: ORDER BY <var>.data.<field>
         resolves through the same type-scan ORM-path machinery as WHERE."""
         self._setup_characters()
-        # `bio` is a per-model field on Character; addressing it as `c.data.bio`
+        # `bio` is a per-model field on ConstrainedSource; addressing it as `c.data.description`
         # routes through `_typescan_orm_path`. Bios sort lexically by name
         # ("Aragorn bio" < "Boromir bio" < ...); ASC LIMIT 1 → "Aragorn".
         search = Search(
             search_type="gryphon",
             root="node",
             name="lowest-bio",
-            definition={"query": "MATCH (c:character) ORDER BY c.data.bio ASC LIMIT 1"},
+            definition={"query": "MATCH (c:grid_fixtures__constrained_source) ORDER BY c.data.description ASC LIMIT 1"},
         )
         envelope = execute_search(search, inputs={})
         assert len(envelope["nodes"]) == 1
@@ -1819,7 +1878,7 @@ class TestGryphonOrderByLimitExecutor:
             search_type="gryphon",
             root="node",
             name="cap-two",
-            definition={"query": "MATCH (c:character) LIMIT 2"},
+            definition={"query": "MATCH (c:grid_fixtures__constrained_source) LIMIT 2"},
         )
         envelope = execute_search(search, inputs={})
         nodes = envelope["nodes"]
@@ -1835,7 +1894,7 @@ class TestGryphonOrderByLimitExecutor:
             search_type="gryphon",
             root="node",
             name="bad-bare",
-            definition={"query": "MATCH (c:character) ORDER BY name"},
+            definition={"query": "MATCH (c:grid_fixtures__constrained_source) ORDER BY name"},
         )
         with pytest.raises(SearchExecutionError, match="Envelope-mode ORDER BY must name a field path"):
             execute_search(search, inputs={})
@@ -1848,7 +1907,7 @@ class TestGryphonOrderByLimitExecutor:
             search_type="gryphon",
             root="node",
             name="bad-var",
-            definition={"query": "MATCH (c:character) ORDER BY x.name LIMIT 1"},
+            definition={"query": "MATCH (c:grid_fixtures__constrained_source) ORDER BY x.name LIMIT 1"},
         )
         with pytest.raises(SearchExecutionError, match="not bound by this MATCH pattern"):
             execute_search(search, inputs={})
@@ -1861,7 +1920,9 @@ class TestGryphonOrderByLimitExecutor:
             search_type="gryphon",
             root="node",
             name="bad-projection-path",
-            definition={"query": "MATCH (c:character) RETURN c.name AS name ORDER BY c.data.bio"},
+            definition={
+                "query": "MATCH (c:grid_fixtures__constrained_source) RETURN c.name AS name ORDER BY c.data.description"
+            },
         )
         with pytest.raises(SearchExecutionError, match="envelope-mode RETURN only"):
             execute_search(search, inputs={})
@@ -1895,7 +1956,9 @@ class TestGryphonOrderByLimitExecutor:
             search_type="gryphon",
             root="node",
             name="bad-edge-scan",
-            definition={"query": "MATCH (a:character)-[e:WIELDS]->(b:artifact) ORDER BY a.name"},
+            definition={
+                "query": "MATCH (a:grid_fixtures__constrained_source)-[e:SCHEMA_LINK__grid_fixtures]->(b:grid_fixtures__dual_endpoint) ORDER BY a.name"
+            },
         )
         with pytest.raises(SearchExecutionError, match="single labelled type-scan"):
             execute_search(search, inputs={})
@@ -1919,7 +1982,7 @@ class TestGryphonOrderByLimitExecutor:
             name="bad-multihop",
             definition={
                 "query": (
-                    "MATCH (a:character)-[:WIELDS]->(b:artifact)-[:FOUND_IN]->(c:location) "
+                    "MATCH (a:grid_fixtures__constrained_source)-[:SCHEMA_LINK__grid_fixtures]->(b:grid_fixtures__dual_endpoint)-[:FOUND_IN]->(c:grid_fixtures__constrained_target) "
                     "WHERE a.entity_id = $root ORDER BY c.name"
                 )
             },
@@ -1934,7 +1997,9 @@ class TestGryphonOrderByLimitExecutor:
             search_type="gryphon",
             root="node",
             name="bad-union",
-            definition={"query": "MATCH (c:character) MATCH (a:artifact) ORDER BY c.name"},
+            definition={
+                "query": "MATCH (c:grid_fixtures__constrained_source) MATCH (a:grid_fixtures__dual_endpoint) ORDER BY c.name"
+            },
         )
         with pytest.raises(SearchExecutionError, match="single labelled type-scan"):
             execute_search(search, inputs={})
@@ -1946,7 +2011,7 @@ class TestGryphonOrderByLimitExecutor:
             search_type="gryphon",
             root="node",
             name="bad-key",
-            definition={"query": "MATCH (c:character) RETURN c.name AS name ORDER BY nonsuch"},
+            definition={"query": "MATCH (c:grid_fixtures__constrained_source) RETURN c.name AS name ORDER BY nonsuch"},
         )
         with pytest.raises(SearchExecutionError, match="not a RETURN output"):
             execute_search(search, inputs={})
@@ -1996,12 +2061,16 @@ class TestGryphonInListParser:
 
     def test_in_list_with_null_member_parses(self):
         """req-grid-traversal-lang-in-4: a null element parses to None inside the list."""
-        ast = parse_gryphon("MATCH (n:grid_fixtures__node) WHERE n.severity_score IN [null, 20] RETURN n.entity_id AS id")
+        ast = parse_gryphon(
+            "MATCH (n:grid_fixtures__node) WHERE n.severity_score IN [null, 20] RETURN n.entity_id AS id"
+        )
         assert ast.where_clause.predicate.values == (None, 20)
 
     def test_in_composes_with_and(self):
         """req-grid-traversal-lang-in-6: an IN leaf combines with AND like any comparison."""
-        ast = parse_gryphon('MATCH (n:grid_fixtures__node) WHERE n.kind IN ["a"] AND n.severity_score > 5 RETURN n.entity_id AS id')
+        ast = parse_gryphon(
+            'MATCH (n:grid_fixtures__node) WHERE n.kind IN ["a"] AND n.severity_score > 5 RETURN n.entity_id AS id'
+        )
         assert isinstance(ast.where_clause.predicate, AndPred)
 
     def test_null_literal_in_comparison_parses(self):
@@ -2028,7 +2097,8 @@ class TestGryphonInListExecutor:
         """Four characters with distinct bios."""
         import uuid
 
-        from tap_plugin.lotr.models import Character
+        from tap_plugin.grid_fixtures.models import ConstrainedSource
+
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
@@ -2037,8 +2107,8 @@ class TestGryphonInListExecutor:
 
         made = {}
         for name in ("Frodo", "Sam", "Merry", "Pippin"):
-            entity = Entity.objects.create(entity_type="character", name=name)
-            Character.objects.create(entity=entity, name=name, bio=f"{name} bio")
+            entity = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name=name)
+            ConstrainedSource.objects.create(entity=entity, name=name, description=f"{name} bio")
             made[name] = entity
         return made
 
@@ -2051,7 +2121,8 @@ class TestGryphonInListExecutor:
             name="in-names",
             definition={
                 "query": (
-                    'MATCH (c:character) WHERE c.name IN ["Frodo", "Pippin"] ' "RETURN c.name AS name ORDER BY name"
+                    'MATCH (c:grid_fixtures__constrained_source) WHERE c.name IN ["Frodo", "Pippin"] '
+                    "RETURN c.name AS name ORDER BY name"
                 )
             },
         )
@@ -2065,7 +2136,9 @@ class TestGryphonInListExecutor:
             search_type="gryphon",
             root="node",
             name="in-empty",
-            definition={"query": "MATCH (c:character) WHERE c.name IN [] RETURN c.name AS name"},
+            definition={
+                "query": "MATCH (c:grid_fixtures__constrained_source) WHERE c.name IN [] RETURN c.name AS name"
+            },
         )
         assert execute_search(search, inputs={}).get("rows", []) == []
 
@@ -2077,7 +2150,7 @@ class TestGryphonInListExecutor:
             root="node",
             name="in-params",
             definition={
-                "query": "MATCH (c:character) WHERE c.entity_id IN [$a, $b] RETURN c.name AS name ORDER BY name"
+                "query": "MATCH (c:grid_fixtures__constrained_source) WHERE c.entity_id IN [$a, $b] RETURN c.name AS name ORDER BY name"
             },
         )
         rows = execute_search(
@@ -2129,10 +2202,11 @@ class TestGryphonOptionalMatchExecutor:
     """Executor coverage for OPTIONAL MATCH — zero-preservation plus the v0 scope bounds."""
 
     def _setup(self):
-        """Three characters (with backing Character rows); only Frodo wields an artifact."""
+        """Three characters (with backing ConstrainedSource rows); only Frodo wields an artifact."""
         import uuid
 
-        from tap_plugin.lotr.models import Character
+        from tap_plugin.grid_fixtures.models import ConstrainedSource
+
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Edge, Entity
 
@@ -2141,15 +2215,15 @@ class TestGryphonOptionalMatchExecutor:
 
         chars = {}
         for n in ("Frodo", "Sam", "Merry"):
-            entity = Entity.objects.create(entity_type="character", name=n)
-            Character.objects.create(entity=entity, name=n, bio=f"{n} bio")
+            entity = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name=n)
+            ConstrainedSource.objects.create(entity=entity, name=n, description=f"{n} bio")
             chars[n] = entity
-        ring = Entity.objects.create(entity_type="artifact", name="One Ring")
+        ring = Entity.objects.create(entity_type="grid_fixtures__dual_endpoint", name="One Ring")
         Edge.objects.create(
             entity=Entity.objects.create(entity_type="edge"),
             from_entity=chars["Frodo"],
             to_entity=ring,
-            edge_type="WIELDS",
+            edge_type="SCHEMA_LINK__grid_fixtures",
         )
         return chars
 
@@ -2160,7 +2234,7 @@ class TestGryphonOptionalMatchExecutor:
         """req-grid-gryphon-optional-match-2/-3: every character appears; COUNT is 0 where unmatched."""
         chars = self._setup()
         search = self._search(
-            "MATCH (c:character) OPTIONAL MATCH (c)-[:WIELDS]->(a:artifact) "
+            "MATCH (c:grid_fixtures__constrained_source) OPTIONAL MATCH (c)-[:SCHEMA_LINK__grid_fixtures]->(a:grid_fixtures__dual_endpoint) "
             "RETURN c.entity_id AS character, COUNT(a) AS wielded"
         )
         rows = {r["character"]: r["wielded"] for r in execute_search(search, inputs={})["rows"]}
@@ -2171,7 +2245,7 @@ class TestGryphonOptionalMatchExecutor:
     def test_optional_match_multi_hop_rejected(self):
         """req-grid-gryphon-optional-match-8: a multi-hop optional pattern is rejected in v0."""
         search = self._search(
-            "MATCH (c:character) OPTIONAL MATCH (c)-[:WIELDS]->(a:artifact)-[:IN]->(r:realm) "
+            "MATCH (c:grid_fixtures__constrained_source) OPTIONAL MATCH (c)-[:SCHEMA_LINK__grid_fixtures]->(a:grid_fixtures__dual_endpoint)-[:IN]->(r:grid_fixtures__nesting_container) "
             "RETURN c.entity_id AS id, COUNT(a) AS c"
         )
         with pytest.raises(SearchExecutionError, match="single-hop"):
@@ -2180,9 +2254,9 @@ class TestGryphonOptionalMatchExecutor:
     def test_optional_match_multiple_clauses_rejected(self):
         """req-grid-gryphon-optional-match-8: more than one OPTIONAL MATCH is rejected in v0."""
         search = self._search(
-            "MATCH (c:character) "
-            "OPTIONAL MATCH (c)-[:WIELDS]->(a:artifact) "
-            "OPTIONAL MATCH (c)-[:OWNS]->(r:realm) "
+            "MATCH (c:grid_fixtures__constrained_source) "
+            "OPTIONAL MATCH (c)-[:SCHEMA_LINK__grid_fixtures]->(a:grid_fixtures__dual_endpoint) "
+            "OPTIONAL MATCH (c)-[:OWNS]->(r:grid_fixtures__nesting_container) "
             "RETURN c.entity_id AS id, COUNT(a) AS c"
         )
         with pytest.raises(SearchExecutionError, match="exactly one OPTIONAL MATCH"):
@@ -2190,14 +2264,16 @@ class TestGryphonOptionalMatchExecutor:
 
     def test_optional_match_graph_envelope_rejected(self):
         """req-grid-gryphon-optional-match-8: a graph-envelope RETURN is rejected in v0."""
-        search = self._search("MATCH (c:character) OPTIONAL MATCH (c)-[:WIELDS]->(a:artifact)")
+        search = self._search(
+            "MATCH (c:grid_fixtures__constrained_source) OPTIONAL MATCH (c)-[:SCHEMA_LINK__grid_fixtures]->(a:grid_fixtures__dual_endpoint)"
+        )
         with pytest.raises(SearchExecutionError, match="row-projection"):
             execute_search(search, inputs={})
 
     def test_optional_match_unanchored_rejected(self):
         """req-grid-gryphon-optional-match-8: the optional pattern must start from the MATCH variable."""
         search = self._search(
-            "MATCH (c:character) OPTIONAL MATCH (x:artifact)-[:IN]->(r:realm) "
+            "MATCH (c:grid_fixtures__constrained_source) OPTIONAL MATCH (x:grid_fixtures__dual_endpoint)-[:IN]->(r:grid_fixtures__nesting_container) "
             "RETURN c.entity_id AS id, COUNT(r) AS c"
         )
         with pytest.raises(SearchExecutionError, match="must start from the MATCH variable"):
@@ -2207,7 +2283,7 @@ class TestGryphonOptionalMatchExecutor:
         """req-grid-gryphon-optional-match-8: the optional variable can only be COUNTed, not projected."""
         self._setup()
         search = self._search(
-            "MATCH (c:character) OPTIONAL MATCH (c)-[:WIELDS]->(a:artifact) "
+            "MATCH (c:grid_fixtures__constrained_source) OPTIONAL MATCH (c)-[:SCHEMA_LINK__grid_fixtures]->(a:grid_fixtures__dual_endpoint) "
             "RETURN c.entity_id AS id, a.entity_id AS art"
         )
         with pytest.raises(SearchExecutionError, match="optional variable can only be COUNTed"):
@@ -2229,18 +2305,19 @@ class TestGryphonCombinatorsExecutor:
     """
 
     def _setup(self):
-        """Four characters with backing Character rows."""
+        """Four characters with backing ConstrainedSource rows."""
         import uuid
 
-        from tap_plugin.lotr.models import Character
+        from tap_plugin.grid_fixtures.models import ConstrainedSource
+
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
         ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
         for name in ("Frodo", "Sam", "Merry", "Pippin"):
-            entity = Entity.objects.create(entity_type="character", name=name)
-            Character.objects.create(entity=entity, name=name, bio=f"{name} bio")
+            entity = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name=name)
+            ConstrainedSource.objects.create(entity=entity, name=name, description=f"{name} bio")
 
     def _search(self, query):
         return Search(search_type="gryphon", root="node", name="comb", definition={"query": query})
@@ -2249,7 +2326,8 @@ class TestGryphonCombinatorsExecutor:
         """req-grid-traversal-lang-combinators-2: OR returns rows matching either branch."""
         self._setup()
         search = self._search(
-            'MATCH (c:character) WHERE c.name = "Frodo" OR c.name = "Pippin" ' "RETURN c.name AS name ORDER BY name"
+            'MATCH (c:grid_fixtures__constrained_source) WHERE c.name = "Frodo" OR c.name = "Pippin" '
+            "RETURN c.name AS name ORDER BY name"
         )
         rows = execute_search(search, inputs={})["rows"]
         assert [r["name"] for r in rows] == ["Frodo", "Pippin"]
@@ -2257,7 +2335,9 @@ class TestGryphonCombinatorsExecutor:
     def test_not_predicate_executes(self):
         """req-grid-traversal-lang-combinators-3: NOT negates a comparison."""
         self._setup()
-        search = self._search('MATCH (c:character) WHERE NOT c.name = "Frodo" RETURN c.name AS name ORDER BY name')
+        search = self._search(
+            'MATCH (c:grid_fixtures__constrained_source) WHERE NOT c.name = "Frodo" RETURN c.name AS name ORDER BY name'
+        )
         rows = execute_search(search, inputs={})["rows"]
         assert [r["name"] for r in rows] == ["Merry", "Pippin", "Sam"]
 
@@ -2269,7 +2349,7 @@ class TestGryphonCombinatorsExecutor:
         """
         self._setup()
         search = self._search(
-            'MATCH (c:character) WHERE (c.name = "Frodo" OR c.name = "Sam") AND NOT c.name = "Sam" '
+            'MATCH (c:grid_fixtures__constrained_source) WHERE (c.name = "Frodo" OR c.name = "Sam") AND NOT c.name = "Sam" '
             "RETURN c.name AS name ORDER BY name"
         )
         rows = execute_search(search, inputs={})["rows"]
@@ -2322,15 +2402,16 @@ class TestGryphonStringMatchExecutor:
         """Create characters from (name, bio) tuples."""
         import uuid
 
-        from tap_plugin.lotr.models import Character
+        from tap_plugin.grid_fixtures.models import ConstrainedSource
+
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
         ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
         for name, bio in specs:
-            entity = Entity.objects.create(entity_type="character", name=name)
-            Character.objects.create(entity=entity, name=name, bio=bio)
+            entity = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name=name)
+            ConstrainedSource.objects.create(entity=entity, name=name, description=bio)
 
     def _search(self, query):
         return Search(search_type="gryphon", root="node", name="sm", definition={"query": query})
@@ -2339,7 +2420,9 @@ class TestGryphonStringMatchExecutor:
         """req-grid-traversal-lang-string-match-2: STARTS_WITH filters by prefix."""
         self._make(("Aragorn", "x"), ("Arwen", "x"), ("Boromir", "x"))
         rows = execute_search(
-            self._search('MATCH (c:character) WHERE c.name STARTS_WITH "Ar" RETURN c.name AS name ORDER BY name'),
+            self._search(
+                'MATCH (c:grid_fixtures__constrained_source) WHERE c.name STARTS_WITH "Ar" RETURN c.name AS name ORDER BY name'
+            ),
             inputs={},
         )["rows"]
         assert [r["name"] for r in rows] == ["Aragorn", "Arwen"]
@@ -2347,12 +2430,14 @@ class TestGryphonStringMatchExecutor:
     def test_like_metacharacters_in_needle_are_literal(self):
         """req-grid-traversal-lang-string-match-5: a `%` in the needle matches literally.
 
-        If `%` were treated as a LIKE wildcard, `CONTAINS "100%"` would also match
+        If `%` were treated as a LIKE wildcard, `NESTING_LINK__grid_fixtures "100%"` would also match
         "battery 100 then percent"; escaped, it matches only the literal "100%".
         """
         self._make(("Literal", "battery 100% charged"), ("Wildcard", "battery 100 then percent"))
         rows = execute_search(
-            self._search('MATCH (c:character) WHERE c.data.bio CONTAINS "100%" RETURN c.name AS name'),
+            self._search(
+                'MATCH (c:grid_fixtures__constrained_source) WHERE c.data.description CONTAINS "100%" RETURN c.name AS name'
+            ),
             inputs={},
         )["rows"]
         assert [r["name"] for r in rows] == ["Literal"]
@@ -2371,8 +2456,8 @@ class TestGryphonBareMatchExecutor:
         """Two characters (which have a `bio` field) and two pg_node rows (which do not)."""
         import uuid
 
-        from tap_plugin.grid_fixtures.models import PgNode
-        from tap_plugin.lotr.models import Character
+        from tap_plugin.grid_fixtures.models import ConstrainedSource, PgNode
+
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
@@ -2380,8 +2465,8 @@ class TestGryphonBareMatchExecutor:
         set_caller_context(ctx)
         made = {}
         for name in ("Frodo", "Sam"):
-            entity = Entity.objects.create(entity_type="character", name=name)
-            Character.objects.create(entity=entity, name=name, bio=f"{name} the brave")
+            entity = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name=name)
+            ConstrainedSource.objects.create(entity=entity, name=name, description=f"{name} the brave")
             made[name] = entity
         for name in ("Node A", "Node B"):
             entity = Entity.objects.create(entity_type="grid_fixtures__node", name=name)
@@ -2404,17 +2489,20 @@ class TestGryphonBareMatchExecutor:
             edge_type="KNOWS",
         )
         result = execute_search(self._search("MATCH (n)"), inputs={})
-        assert sorted({node["entity_type"] for node in result["nodes"]}) == ["character", "grid_fixtures__node"]
+        assert sorted({node["entity_type"] for node in result["nodes"]}) == [
+            "grid_fixtures__constrained_source",
+            "grid_fixtures__node",
+        ]
         assert len(result["nodes"]) == 4
 
     def test_bare_match_field_absence_is_silently_non_matching(self):
         """req-grid-traversal-lang-bare-match-3: a type lacking the data field matches nothing, no error.
 
-        `bio` is a Character field; pg_node has no `bio`. The bare scan must skip
-        pg_node silently and return only the matching Character.
+        `bio` is a ConstrainedSource field; pg_node has no `bio`. The bare scan must skip
+        pg_node silently and return only the matching ConstrainedSource.
         """
         self._setup()
-        result = execute_search(self._search('MATCH (n) WHERE n.data.bio = "Frodo the brave"'), inputs={})
+        result = execute_search(self._search('MATCH (n) WHERE n.data.description = "Frodo the brave"'), inputs={})
         assert sorted(node["name"] for node in result["nodes"]) == ["Frodo"]
 
     def test_bare_match_row_projection_rejected(self):
@@ -2446,7 +2534,7 @@ class TestGryphonTypelessEdgeScanExecutor:
     """Executor coverage for the typeless edge scan — MATCH (a)-[e]-(b), no edge type."""
 
     def _setup(self):
-        """Frodo WIELDS the Ring and OWNS the Shire — two edges of different types."""
+        """Frodo SCHEMA_LINK__grid_fixtures the Ring and OWNS the Shire — two edges of different types."""
         import uuid
 
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
@@ -2454,10 +2542,10 @@ class TestGryphonTypelessEdgeScanExecutor:
 
         ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
-        frodo = Entity.objects.create(entity_type="character", name="Frodo")
-        ring = Entity.objects.create(entity_type="artifact", name="One Ring")
-        shire = Entity.objects.create(entity_type="realm", name="The Shire")
-        for src, tgt, edge_type in ((frodo, ring, "WIELDS"), (frodo, shire, "OWNS")):
+        frodo = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name="Frodo")
+        ring = Entity.objects.create(entity_type="grid_fixtures__dual_endpoint", name="One Ring")
+        shire = Entity.objects.create(entity_type="grid_fixtures__nesting_container", name="The Shire")
+        for src, tgt, edge_type in ((frodo, ring, "SCHEMA_LINK__grid_fixtures"), (frodo, shire, "OWNS")):
             Edge.objects.create(
                 entity=Entity.objects.create(entity_type="edge"),
                 from_entity=src,
@@ -2481,8 +2569,10 @@ class TestGryphonTypelessEdgeScanExecutor:
     def test_typeless_edge_scan_honors_endpoint_labels(self):
         """A labelless edge still filters by the pattern's node labels."""
         self._setup()
-        result = execute_search(self._search("MATCH (a:character)-[e]->(b:artifact)"), inputs={})
-        # The character->artifact WIELDS edge only; the character->realm OWNS edge is excluded.
+        result = execute_search(
+            self._search("MATCH (a:grid_fixtures__constrained_source)-[e]->(b:grid_fixtures__dual_endpoint)"), inputs={}
+        )
+        # The character->artifact SCHEMA_LINK__grid_fixtures edge only; the character->realm OWNS edge is excluded.
         assert len(result["edges"]) == 1
 
 
@@ -2518,7 +2608,9 @@ class TestGryphonIsNullParser:
         """req-grid-traversal-lang-is-null-3: IS NULL nests inside an AND tree like any leaf."""
         from tap_grid.gryphon.ast_nodes import IsNullComparison
 
-        ast = parse_gryphon('MATCH (n:grid_fixtures__node) WHERE n.data.observed_at IS NULL AND n.data.kind = "reading"')
+        ast = parse_gryphon(
+            'MATCH (n:grid_fixtures__node) WHERE n.data.observed_at IS NULL AND n.data.kind = "reading"'
+        )
         pred = ast.where_clause.predicate
         assert isinstance(pred, AndPred)
         # The IS NULL leaf may be on either side depending on the parser's associativity;
@@ -2565,7 +2657,8 @@ class TestGryphonIsNullExecutor:
         """Five characters, one with a NULL bio — for IS NULL / IS NOT NULL filtering."""
         import uuid
 
-        from tap_plugin.lotr.models import Character
+        from tap_plugin.grid_fixtures.models import ConstrainedSource
+
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
@@ -2574,20 +2667,20 @@ class TestGryphonIsNullExecutor:
 
         # Four characters with bios.
         for name in ("Aragorn", "Boromir", "Celeborn", "Denethor"):
-            entity = Entity.objects.create(entity_type="character", name=name)
-            Character.objects.create(entity=entity, name=name, bio=f"{name} bio")
+            entity = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name=name)
+            ConstrainedSource.objects.create(entity=entity, name=name, description=f"{name} bio")
         # One with bio set to the empty string (the model defaults to ""; null is
         # not allowed on bio, but `is_open`-style optional fields on pg_node would
         # be the cleaner null carrier — the Gridkin scenarios cover that). For
         # the executor IS NULL exec test we exercise the empty-bio path that
         # behaves like a present but empty value, plus a separately set NULL on a
         # spine-adjacent field — see is_not_null filter test below.
-        entity = Entity.objects.create(entity_type="character", name="Eowyn")
-        Character.objects.create(entity=entity, name="Eowyn", bio="")
+        entity = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name="Eowyn")
+        ConstrainedSource.objects.create(entity=entity, name="Eowyn", description="")
 
     def test_is_not_null_filter_works(self):
         """req-grid-traversal-lang-is-null-2: IS NOT NULL filters out NULL values.
-        On Character.bio (a non-nullable TextField defaulting to ''), no row is
+        On ConstrainedSource.description (a non-nullable TextField defaulting to ''), no row is
         ever NULL — so IS NOT NULL returns all 5 rows. The complementary IS NULL
         case returns zero. This confirms the lowering reaches the column and
         produces the right SQL, even though the model field itself can't be
@@ -2597,7 +2690,7 @@ class TestGryphonIsNullExecutor:
             search_type="gryphon",
             root="node",
             name="bio-not-null",
-            definition={"query": "MATCH (c:character) WHERE c.data.bio IS NOT NULL"},
+            definition={"query": "MATCH (c:grid_fixtures__constrained_source) WHERE c.data.description IS NOT NULL"},
         )
         envelope = execute_search(search, inputs={})
         assert len(envelope["nodes"]) == 5
@@ -2610,7 +2703,7 @@ class TestGryphonIsNullExecutor:
             search_type="gryphon",
             root="node",
             name="bio-is-null",
-            definition={"query": "MATCH (c:character) WHERE c.data.bio IS NULL"},
+            definition={"query": "MATCH (c:grid_fixtures__constrained_source) WHERE c.data.description IS NULL"},
         )
         envelope = execute_search(search, inputs={})
         assert envelope["nodes"] == []
@@ -2622,7 +2715,9 @@ class TestGryphonIsNullExecutor:
             search_type="gryphon",
             root="node",
             name="and-is-not-null",
-            definition={"query": 'MATCH (c:character) WHERE c.data.bio IS NOT NULL AND c.name = "Aragorn"'},
+            definition={
+                "query": 'MATCH (c:grid_fixtures__constrained_source) WHERE c.data.description IS NOT NULL AND c.name = "Aragorn"'
+            },
         )
         envelope = execute_search(search, inputs={})
         assert len(envelope["nodes"]) == 1
@@ -2635,7 +2730,7 @@ class TestGryphonIsNullExecutor:
             search_type="gryphon",
             root="node",
             name="not-is-null",
-            definition={"query": "MATCH (c:character) WHERE NOT (c.data.bio IS NULL)"},
+            definition={"query": "MATCH (c:grid_fixtures__constrained_source) WHERE NOT (c.data.description IS NULL)"},
         )
         envelope = execute_search(search, inputs={})
         assert len(envelope["nodes"]) == 5
@@ -2672,7 +2767,9 @@ class TestGryphonObservationParser:
         """req-grid-traversal-lang-observation-3: composes inside an AND tree like any leaf."""
         from tap_grid.gryphon.ast_nodes import ObservationComparison
 
-        ast = parse_gryphon('MATCH (n:grid_fixtures__node) WHERE n.data.observed_at IS UNKNOWN AND n.data.kind = "reading"')
+        ast = parse_gryphon(
+            'MATCH (n:grid_fixtures__node) WHERE n.data.observed_at IS UNKNOWN AND n.data.kind = "reading"'
+        )
         pred = ast.where_clause.predicate
         assert isinstance(pred, AndPred)
         leaves = [pred.left, pred.right]
@@ -2709,6 +2806,7 @@ class TestGryphonObservationExecutor:
         import uuid
 
         from tap_plugin.computing_core.models.network_interface import NetworkInterface
+
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
 
         set_caller_context(CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4())))
@@ -2775,7 +2873,8 @@ class TestGryphonRegexParser:
     def test_regex_composes_with_and_or_not(self):
         """req-grid-traversal-lang-regex-9: regex composes inside AND / OR / NOT trees."""
         ast = parse_gryphon(
-            'MATCH (n:grid_fixtures__node) WHERE n.name =~ "(?i)token" AND NOT (n.name =~ "imposter") ' "RETURN n.entity_id AS id"
+            'MATCH (n:grid_fixtures__node) WHERE n.name =~ "(?i)token" AND NOT (n.name =~ "imposter") '
+            "RETURN n.entity_id AS id"
         )
         pred = ast.where_clause.predicate
         assert isinstance(pred, AndPred)
@@ -2790,7 +2889,9 @@ class TestGryphonRegexParser:
 
     def test_regex_on_data_lane_path(self):
         """req-grid-traversal-lang-regex-10: regex on a multi-step data-lane path parses cleanly."""
-        ast = parse_gryphon('MATCH (n:grid_fixtures__node) WHERE n.data.tags.url =~ "(?i)github" RETURN n.entity_id AS id')
+        ast = parse_gryphon(
+            'MATCH (n:grid_fixtures__node) WHERE n.data.tags.url =~ "(?i)github" RETURN n.entity_id AS id'
+        )
         pred = ast.where_clause.predicate
         assert isinstance(pred, Comparison)
         assert pred.op == "regex"
@@ -2807,24 +2908,25 @@ class TestGryphonRegexParser:
 @pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
 class TestGryphonRegexExecutor:
     """Executor coverage for `=~` — crafted corners that Gridkin's shared fixture
-    does not (and should not) carry: a column-NULL row (Character.bio is a
+    does not (and should not) carry: a column-NULL row (ConstrainedSource.description is a
     non-nullable TextField but the JSON-key NULL case is the Gridkin witness;
     here we exercise the executor's NULL-pattern short-circuit and the
-    metacharacter-in-needle path on crafted Character rows)."""
+    metacharacter-in-needle path on crafted ConstrainedSource rows)."""
 
     def _make(self, *specs):
         """Create characters from (name, bio) tuples."""
         import uuid
 
-        from tap_plugin.lotr.models import Character
+        from tap_plugin.grid_fixtures.models import ConstrainedSource
+
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
         ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
         set_caller_context(ctx)
         for name, bio in specs:
-            entity = Entity.objects.create(entity_type="character", name=name)
-            Character.objects.create(entity=entity, name=name, bio=bio)
+            entity = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name=name)
+            ConstrainedSource.objects.create(entity=entity, name=name, description=bio)
 
     def _search(self, query, **kwargs):
         return Search(search_type="gryphon", root="node", name="re", definition={"query": query, **kwargs})
@@ -2835,7 +2937,9 @@ class TestGryphonRegexExecutor:
         that has `token` in the middle, not just at the start."""
         self._make(("alpha-token-1", "x"), ("just-text", "x"))
         rows = execute_search(
-            self._search('MATCH (c:character) WHERE c.name =~ "token" RETURN c.name AS name ORDER BY name'),
+            self._search(
+                'MATCH (c:grid_fixtures__constrained_source) WHERE c.name =~ "token" RETURN c.name AS name ORDER BY name'
+            ),
             inputs={},
         )["rows"]
         assert [r["name"] for r in rows] == ["alpha-token-1"]
@@ -2845,7 +2949,9 @@ class TestGryphonRegexExecutor:
         only the exactly-equal row matches."""
         self._make(("exact", "x"), ("exact-suffix", "x"), ("prefix-exact", "x"))
         rows = execute_search(
-            self._search('MATCH (c:character) WHERE c.name =~ "^exact$" RETURN c.name AS name ORDER BY name'),
+            self._search(
+                'MATCH (c:grid_fixtures__constrained_source) WHERE c.name =~ "^exact$" RETURN c.name AS name ORDER BY name'
+            ),
             inputs={},
         )["rows"]
         assert [r["name"] for r in rows] == ["exact"]
@@ -2856,7 +2962,9 @@ class TestGryphonRegexExecutor:
         side rewriting)."""
         self._make(("MixedCase", "x"), ("MIXEDCASE", "x"), ("other", "x"))
         rows = execute_search(
-            self._search('MATCH (c:character) WHERE c.name =~ "(?i)mixedcase" RETURN c.name AS name ORDER BY name'),
+            self._search(
+                'MATCH (c:grid_fixtures__constrained_source) WHERE c.name =~ "(?i)mixedcase" RETURN c.name AS name ORDER BY name'
+            ),
             inputs={},
         )["rows"]
         # Case-sensitive `=~ "mixedcase"` (no flag) matches neither; with
@@ -2867,12 +2975,14 @@ class TestGryphonRegexExecutor:
 
     def test_regex_needle_is_regex_text_not_escaped(self):
         """req-grid-traversal-lang-regex-7: `.` is a regex metacharacter (any
-        character), not a literal dot — opposite of `CONTAINS`. The pattern
+        character), not a literal dot — opposite of `NESTING_LINK__grid_fixtures`. The pattern
         `"a.b"` matches `aXb` because `.` is "any char." This is the explicit
         deal of `=~` and must be loud."""
         self._make(("aXb", "x"), ("a.b", "x"), ("axxb", "x"))
         rows = execute_search(
-            self._search('MATCH (c:character) WHERE c.name =~ "a.b" RETURN c.name AS name ORDER BY name'),
+            self._search(
+                'MATCH (c:grid_fixtures__constrained_source) WHERE c.name =~ "a.b" RETURN c.name AS name ORDER BY name'
+            ),
             inputs={},
         )["rows"]
         # All three names have `a` + single char + `b` somewhere — `aXb`, `a.b`,
@@ -2887,7 +2997,9 @@ class TestGryphonRegexExecutor:
         match `"a\\.b"`, only the literal-dot row does."""
         self._make(("aXb", "x"), ("a.b", "x"))
         rows = execute_search(
-            self._search('MATCH (c:character) WHERE c.name =~ "a\\.b" RETURN c.name AS name ORDER BY name'),
+            self._search(
+                'MATCH (c:grid_fixtures__constrained_source) WHERE c.name =~ "a\\.b" RETURN c.name AS name ORDER BY name'
+            ),
             inputs={},
         )["rows"]
         assert [r["name"] for r in rows] == ["a.b"]
@@ -2901,7 +3013,9 @@ class TestGryphonRegexExecutor:
         the Gridkin runner exposes for the matching scenario."""
         self._make(("alpha", "x"), ("beta", "x"))
         envelope = execute_search(
-            self._search("MATCH (c:character) WHERE c.name =~ $pattern RETURN c.name AS name ORDER BY name"),
+            self._search(
+                "MATCH (c:grid_fixtures__constrained_source) WHERE c.name =~ $pattern RETURN c.name AS name ORDER BY name"
+            ),
             inputs={"pattern": None},
         )
         assert envelope.get("rows", []) == []
@@ -2910,7 +3024,9 @@ class TestGryphonRegexExecutor:
         """req-grid-traversal-lang-regex-8: $pattern resolves at execution time."""
         self._make(("alpha", "x"), ("ALPHA", "x"), ("beta", "x"))
         rows = execute_search(
-            self._search("MATCH (c:character) WHERE c.name =~ $pattern RETURN c.name AS name ORDER BY name"),
+            self._search(
+                "MATCH (c:grid_fixtures__constrained_source) WHERE c.name =~ $pattern RETURN c.name AS name ORDER BY name"
+            ),
             inputs={"pattern": "(?i)alpha"},
         )["rows"]
         assert sorted(r["name"] for r in rows) == ["ALPHA", "alpha"]
@@ -2922,7 +3038,9 @@ class TestGryphonRegexExecutor:
         query takes."""
         self._make(("aragorn", "x"), ("boromir", "x"))
         rows = execute_search(
-            self._search('MATCH (c:character) WHERE c.entity_type =~ "^character" RETURN c.name AS name ORDER BY name'),
+            self._search(
+                'MATCH (c:grid_fixtures__constrained_source) WHERE c.entity_type =~ "^grid_fixtures__constrained_source" RETURN c.name AS name ORDER BY name'
+            ),
             inputs={},
         )["rows"]
         assert sorted(r["name"] for r in rows) == ["aragorn", "boromir"]
@@ -2932,11 +3050,13 @@ class TestGryphonRegexExecutor:
         value does not match a non-empty pattern. `'' ~ 'x'` is false in
         Postgres — the empty-string row is dropped. Crafted in test_gryphon
         because PgNode fixture rows all carry non-empty names; here we set
-        Character.bio to '' inline to exercise the empty-vs-non-empty corner
+        ConstrainedSource.description to '' inline to exercise the empty-vs-non-empty corner
         without forcing a fixture row."""
         self._make(("with-content", "abc"), ("empty-bio", ""))
         rows = execute_search(
-            self._search('MATCH (c:character) WHERE c.data.bio =~ "a" RETURN c.name AS name ORDER BY name'),
+            self._search(
+                'MATCH (c:grid_fixtures__constrained_source) WHERE c.data.description =~ "a" RETURN c.name AS name ORDER BY name'
+            ),
             inputs={},
         )["rows"]
         assert [r["name"] for r in rows] == ["with-content"]

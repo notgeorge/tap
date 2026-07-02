@@ -18,8 +18,8 @@ from __future__ import annotations
 import uuid
 
 import pytest
+from tap_plugin.grid_fixtures.models import ConstrainedSource
 
-from tap_plugin.lotr.models import Character
 from tap_grid.exceptions import ServiceVersionConflictError
 from tap_grid.models import Edge, Entity
 from tap_grid.service_types import WriteOperation
@@ -42,11 +42,11 @@ from tap_grid.services import (
 # ---------------------------------------------------------------------------
 
 
-def _make_character(name: str = "Frodo", bio: str = "x") -> Character:
-    return Character.objects.create(name=name, bio=bio)
+def _make_character(name: str = "Frodo", description: str = "x") -> ConstrainedSource:
+    return ConstrainedSource.objects.create(name=name, description=description)
 
 
-def _make_edge(from_e: Entity, to_e: Entity, edge_type: str = "ALLIES_WITH") -> Edge:
+def _make_edge(from_e: Entity, to_e: Entity, edge_type: str = "SYMMETRIC_LINK__grid_fixtures") -> Edge:
     return create_edge(from_e, to_e, edge_type)
 
 
@@ -64,7 +64,7 @@ class TestPatchReplaceNodeOCC:
     def test_patch_node_matching_version_succeeds(self):
         char = _make_character()
         v = _version_of(char.entity_id)
-        result = patch_node(char.entity_id, {"bio": "updated"}, entity_expected_version=v)
+        result = patch_node(char.entity_id, {"description": "updated"}, entity_expected_version=v)
         assert result.success
         # Single-bump invariant: exactly one increment.
         assert _version_of(char.entity_id) == v + 1
@@ -72,7 +72,7 @@ class TestPatchReplaceNodeOCC:
     def test_patch_node_mismatched_version_returns_conflict(self):
         char = _make_character()
         v = _version_of(char.entity_id)
-        result = patch_node(char.entity_id, {"bio": "x"}, entity_expected_version=v + 99)
+        result = patch_node(char.entity_id, {"description": "x"}, entity_expected_version=v + 99)
         assert not result.success
         assert result.errors[0].code == "entity_version_conflict"
         assert result.errors[0].detail == {
@@ -85,28 +85,28 @@ class TestPatchReplaceNodeOCC:
 
     def test_patch_node_missing_entity_with_occ_is_conflict_not_not_found(self):
         missing = uuid.uuid4()
-        result = patch_node(missing, {"bio": "x"}, entity_expected_version=1)
+        result = patch_node(missing, {"description": "x"}, entity_expected_version=1)
         assert not result.success
         assert result.errors[0].code == "entity_version_conflict"
         assert result.errors[0].detail["actual_entity_version"] is None
 
     def test_patch_node_missing_entity_without_occ_is_not_found(self):
         missing = uuid.uuid4()
-        result = patch_node(missing, {"bio": "x"})
+        result = patch_node(missing, {"description": "x"})
         assert not result.success
         assert result.errors[0].code == "not_found"
 
     def test_replace_node_matching_version_succeeds(self):
         char = _make_character()
         v = _version_of(char.entity_id)
-        result = replace_node(char.entity_id, {"name": "Replaced", "bio": "new"}, entity_expected_version=v)
+        result = replace_node(char.entity_id, {"name": "Replaced", "description": "new"}, entity_expected_version=v)
         assert result.success
         assert _version_of(char.entity_id) == v + 1
 
     def test_replace_node_mismatched_version_returns_conflict(self):
         char = _make_character()
         v = _version_of(char.entity_id)
-        result = replace_node(char.entity_id, {"name": "Replaced", "bio": "new"}, entity_expected_version=v + 5)
+        result = replace_node(char.entity_id, {"name": "Replaced", "description": "new"}, entity_expected_version=v + 5)
         assert not result.success
         assert result.errors[0].code == "entity_version_conflict"
         assert result.errors[0].detail["entity_expected_version"] == v + 5
@@ -244,8 +244,8 @@ class TestCreateVerbsRejectOCC:
     def test_create_node_via_write_batch_rejects_expected_version(self):
         op = WriteOperation(
             verb="create_node",
-            type_slug="character",
-            payload={"name": "Sam", "bio": "x"},
+            type_slug="grid_fixtures__constrained_source",
+            payload={"name": "Sam", "description": "x"},
             entity_expected_version=1,
         )
         result = write_batch([op])
@@ -257,8 +257,8 @@ class TestCreateVerbsRejectOCC:
         # entity_expected_version (per req-grid-service-write-occ).
         with pytest.raises(TypeError):
             create_node(  # type: ignore[call-arg]
-                "character",
-                {"name": "Pippin", "bio": "x"},
+                "grid_fixtures__constrained_source",
+                {"name": "Pippin", "description": "x"},
                 entity_expected_version=1,
             )
 
@@ -269,7 +269,7 @@ class TestCreateVerbsRejectOCC:
             verb="create_edge",
             from_target=a.entity_id,
             to_target=b.entity_id,
-            edge_type="ALLIES_WITH",
+            edge_type="SYMMETRIC_LINK__grid_fixtures",
             payload={"properties": {}},
             entity_expected_version=1,
         )
@@ -296,13 +296,13 @@ class TestOCCBatchRollback:
         op_a = WriteOperation(
             verb="patch_node",
             target=char_a.entity_id,
-            payload={"bio": "updated A"},
+            payload={"description": "updated A"},
             entity_expected_version=v_a,
         )
         op_b_stale = WriteOperation(
             verb="patch_node",
             target=char_b.entity_id,
-            payload={"bio": "updated B"},
+            payload={"description": "updated B"},
             entity_expected_version=v_b + 99,  # stale
         )
         result = write_batch([op_a, op_b_stale])
@@ -314,7 +314,7 @@ class TestOCCBatchRollback:
         # (Pipeline bails on first failure; first op's result is success=True
         # but the rollback undid it.)
         char_a.refresh_from_db()
-        assert char_a.bio == "x"
+        assert char_a.description == "x"
 
 
 # ---------------------------------------------------------------------------
@@ -327,16 +327,16 @@ class TestSingleBumpInvariant:
     def test_patch_with_occ_bumps_exactly_once(self):
         char = _make_character()
         v0 = _version_of(char.entity_id)
-        patch_node(char.entity_id, {"bio": "first"}, entity_expected_version=v0)
+        patch_node(char.entity_id, {"description": "first"}, entity_expected_version=v0)
         v1 = _version_of(char.entity_id)
         assert v1 == v0 + 1
-        patch_node(char.entity_id, {"bio": "second"}, entity_expected_version=v1)
+        patch_node(char.entity_id, {"description": "second"}, entity_expected_version=v1)
         assert _version_of(char.entity_id) == v1 + 1
 
     def test_replace_with_occ_bumps_exactly_once(self):
         char = _make_character()
         v0 = _version_of(char.entity_id)
-        replace_node(char.entity_id, {"name": "n", "bio": "b"}, entity_expected_version=v0)
+        replace_node(char.entity_id, {"name": "n", "description": "b"}, entity_expected_version=v0)
         assert _version_of(char.entity_id) == v0 + 1
 
     def test_delete_with_occ_bumps_exactly_once(self):
@@ -349,6 +349,6 @@ class TestSingleBumpInvariant:
         char = _make_character()
         v0 = _version_of(char.entity_id)
         # No OCC declared — patch should succeed and bump.
-        result = patch_node(char.entity_id, {"bio": "no-occ"})
+        result = patch_node(char.entity_id, {"description": "no-occ"})
         assert result.success
         assert _version_of(char.entity_id) == v0 + 1

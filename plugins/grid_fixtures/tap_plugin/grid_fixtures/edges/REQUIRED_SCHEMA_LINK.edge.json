@@ -1,0 +1,27 @@
+{
+  "slug": "REQUIRED_SCHEMA_LINK__grid_fixtures",
+  "name": "Required Schema Link",
+  "description": "Self-referential edge whose property_schema has a REQUIRED string field + a bounded integer, additionalProperties false (tests required/bounded edge-property validation).",
+  "sources": [
+    "grid_fixtures__constrained_source"
+  ],
+  "targets": [
+    "grid_fixtures__constrained_source"
+  ],
+  "property_schema": {
+    "type": "object",
+    "required": [
+      "discipline"
+    ],
+    "properties": {
+      "discipline": {
+        "type": "string"
+      },
+      "duration_years": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "additionalProperties": false
+  }
+}
