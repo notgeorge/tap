@@ -155,13 +155,13 @@ Any two plugins could independently choose `"users"` as a panel type key. In a f
 
 #### Scope inference
 
-Scope is the `__module__` attribute of the value being registered. A class defined in `tap_plugins.lotr.panels` has `__module__ = "tap_plugins.lotr.panels"` — that string is the scope. No truncation, no Django app-registry lookup, no stack inspection.
+Scope is the `__module__` attribute of the value being registered. A class defined in `tap_plugins.grid_fixtures.panels` has `__module__ = "tap_plugins.grid_fixtures.panels"` — that string is the scope. No truncation, no Django app-registry lookup, no stack inspection.
 
 Callers may pass `scope=` explicitly to override inference. This is required when registering values that do not have a meaningful `__module__` (e.g., plain instances or lambdas).
 
 #### Fully-qualified key format
 
-The canonical key is `"{scope}:{short_key}"`, e.g. `"tap_plugins.lotr.panels:users"`. This is the unique identifier used for duplicate detection, error messages, and explicit lookups.
+The canonical key is `"{scope}:{short_key}"`, e.g. `"tap_plugins.grid_fixtures.panels:users"`. This is the unique identifier used for duplicate detection, error messages, and explicit lookups.
 
 #### Interface
 
@@ -171,7 +171,7 @@ from tap_grid.registry import ScopedRegistry
 panel_registry: ScopedRegistry[type[PanelBase]] = ScopedRegistry("panel")
 
 # Registration — scope auto-inferred from CharacterListPanel.__module__
-panel_registry.register("users", LotrUsersPanel)        # scope = "tap_plugins.lotr.panels"
+panel_registry.register("users", GridFixturesUsersPanel)        # scope = "tap_plugins.grid_fixtures.panels"
 panel_registry.register("users", AcmeUsersPanel)        # scope = "tap_plugins.acme.panels" — no collision
 
 # Unambiguous short-key lookup (exactly one scope has this key)
@@ -179,17 +179,17 @@ panel_registry.get("character-list")                    # works
 panel_registry.get("users")                             # raises KeyError — ambiguous across 2 scopes
 
 # Explicit scoped lookup
-panel_registry.get("tap_plugins.lotr.panels:users")     # returns LotrUsersPanel
-panel_registry.get("users", scope="tap_plugins.lotr.panels")  # same result
+panel_registry.get("tap_plugins.grid_fixtures.panels:users")     # returns GridFixturesUsersPanel
+panel_registry.get("users", scope="tap_plugins.grid_fixtures.panels")  # same result
 
 # All matches for a short key across all scopes
 panel_registry.get_all("users")
-# {"tap_plugins.lotr.panels": LotrUsersPanel, "tap_plugins.acme.panels": AcmeUsersPanel}
+# {"tap_plugins.grid_fixtures.panels": GridFixturesUsersPanel, "tap_plugins.acme.panels": AcmeUsersPanel}
 
 # Inspect
 panel_registry.keys()      # sorted fully-qualified keys: ["tap_plugins.acme.panels:users", ...]
 panel_registry.scopes()    # sorted list of scope strings
-panel_registry.all()       # {"tap_plugins.lotr.panels": {"users": LotrUsersPanel}, ...}
+panel_registry.all()       # {"tap_plugins.grid_fixtures.panels": {"users": GridFixturesUsersPanel}, ...}
 ```
 
 #### Duplicate detection

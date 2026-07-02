@@ -51,7 +51,7 @@ def resolve_icon_path(entity_type: EntityType) -> str | None:
         entity_type: The EntityType whose icon should be resolved.
 
     Returns:
-        A static-relative path such as ``"lotr/icons/character.svg"``,
+        A static-relative path such as ``"grid_fixtures/icons/constrained-source.svg"``,
         suitable for passing to ``{% static %}``, or None.
     """
     key = entity_type.icon
@@ -90,7 +90,7 @@ def resolve_icon_url(entity_type: EntityType) -> str | None:
         entity_type: The EntityType whose icon URL should be resolved.
 
     Returns:
-        A full URL string such as ``"/static/lotr/icons/character.svg"``,
+        A full URL string such as ``"/static/grid_fixtures/icons/constrained-source.svg"``,
         or None if no icon is available.
     """
     path = resolve_icon_path(entity_type)

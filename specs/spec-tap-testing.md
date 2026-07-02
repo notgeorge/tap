@@ -269,7 +269,7 @@ A plugin's tests must exercise the plugin using **only the plugin's own artifact
 
 The phrasing that matters: **depend-by-approval, not depend-because-it-happens-to-be-there.**
 
-**Why this is here as its own requirement.** The genericom / KSI / lotr fixture coupling caused real pain when genericom was de-registered (2026-05-19): plugins that had been quietly using genericom data as test fixtures — without that dependency being a declared contract — broke for reasons no one could find without spelunking. `lotr` is now load-bearing for seven core test suites by accident and cannot be de-registered without reds on the promote gate. That state should never recur elsewhere.
+**Why this is here as its own requirement.** The genericom / KSI / lotr fixture coupling caused real pain when genericom was de-registered (2026-05-19): plugins that had been quietly using genericom data as test fixtures — without that dependency being a declared contract — broke for reasons no one could find without spelunking. `lotr` had by accident become load-bearing for ~19 core test suites — unwound 2026-07-02 by extracting the neutral `grid_fixtures` vocabulary the core suites now build their fixtures from, leaving lotr install-only + self-testing (nothing outside `plugins/lotr/` depends on it). That state should never recur elsewhere.
 
 #### Implementation
 
