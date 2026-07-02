@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# scripts/gryphon-findings — render the executor findings hotspot report.
+#
+# The findings ledger (plugins/gryphon_playground/gridkin/gryphon-findings.jsonl,
+# req-gridkin-findings-ledger) records WHERE bugs were root-caused in the Gryphon
+# executor, so the concentration points become refactor / simplification targets.
+# This prints the hotspot report: by subsystem (paired with line coverage so a
+# low finding-count is not misread as clean when it is really under-tested), by
+# function, by cross-cutting tag, and by discovery source.
+#
+# Coverage column: pass a coverage.py JSON path as $1, or leave it and the report
+# reuses the branch-coverage ratchet's output at /tmp/gryphon-coverage.json if
+# present (run `scripts/gryphon-coverage-ratchet` first to produce it). Without
+# it, the report renders finding counts only, with a caveat.
+#
+#   scripts/dc exec -T web scripts/gryphon-findings
+#   scripts/dc exec -T web scripts/gryphon-findings /tmp/gryphon-coverage.json
+
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel 2>/dev/null || echo /app)"
+
+LEDGER="plugins/gryphon_playground/gridkin/gryphon-findings.jsonl"
+EXECUTOR="tap_grid/gryphon/executor.py"
+COV="${1:-/tmp/gryphon-coverage.json}"
+
+uv run python -c "
+from plugins.gryphon_playground.gridkin import findings_ledger as f
+print(f.report('$LEDGER', '$EXECUTOR', '$COV'))
+"

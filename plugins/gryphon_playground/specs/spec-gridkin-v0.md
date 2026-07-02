@@ -838,6 +838,29 @@ The property fuzzer's long-soak, trend-tracking complement. The per-commit gate 
 | req-gridkin-fuzz-campaign-3 | Distinct-Defect Trend + Honest Denominator | Implemented | The ledger records distinct-defect fingerprints (query shape + status) and the oracle-asserted fraction; the trend reports distinct-new-defects-per-100k over fresh space. | Asserted fraction guards against a falling rate from exploration collapse. |
 | req-gridkin-fuzz-campaign-4 | On-Demand, Not A Per-Commit Gate | Implemented | Skipped unless explicitly requested; run in-container and looped for a long soak. | Sibling of the branch-coverage ratchet. |
 
+### Findings Ledger (Bug Locality)
+----
+RID: `req-gridkin-findings-ledger`
+Status: `Implemented`
+
+The fuzz-campaign ledger tracks bug **frequency over time** (trending down as the executor hardens); this tracks bug **locality** — WHERE in the executor defects concentrate — so the hot spots become the deliberate **refactor / simplification targets**. Every executor or oracle bug already earns a regression scenario; this rides that same discipline by appending one human-authored row at fix time recording which `subsystem` (a small structural vocabulary, each a set of executor functions) and which `functions` the defect lived in, its `class`, `discovery` source, and cross-cutting `tags`. The concentration is then read as a histogram: the hottest subsystem/function is where the next refactor pays off most.
+
+#### Implementation
+
+- Ledger + reporter: `gridkin/findings_ledger.py` (stdlib-only, imports neither Django nor the executor) — `SUBSYSTEMS` (the structural vocabulary) + `FUNCTION_SUBSYSTEM` (function→subsystem map), `load` / `validate` (schema + controlled-vocabulary enforcement), and `report` (renders hotspots by subsystem, function, tag, and discovery source). Ledger: `gridkin/gryphon-findings.jsonl` (committed, append-only, one row per root-caused defect).
+- Renderer: `scripts/gryphon-findings` — prints the hotspot report in-container.
+- **Honest denominator (do not drop it):** found-bug hotspots are biased toward where we have LOOKED — a subsystem with zero findings may be under-tested, not clean. The report pairs each subsystem's finding count with its **line coverage** (parsed from the branch-coverage ratchet's JSON via each function's AST line span, when the JSON is present): high-coverage + high-findings is a genuine refactor target; low-coverage + low-findings is a blind spot, not a clean bill. Same honest-denominator move as the campaign's asserted-fraction.
+- **Discipline:** every executor/oracle bug fix appends a `gryphon-findings.jsonl` row in the same commit as its regression scenario. Well-formedness + vocabulary are CI-guarded (`tests/test_gryphon_findings_ledger.py`); the hotspot analysis itself is a manual read, not a gate.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-gridkin-findings-ledger-1 | Structural Locality Vocabulary | Implemented | Each finding names a `subsystem` from a small structural vocabulary (each subsystem a set of executor functions) plus the specific `functions`; conceptual concerns that cut across functions are `tags`, a secondary lens. | The subsystem key drives both the histogram and the coverage column. |
+| req-gridkin-findings-ledger-2 | Well-Formedness CI-Guarded | Implemented | A test loads the committed ledger and asserts every row is well-formed and uses the controlled `class` / `discovery` / `subsystem` vocabulary; a malformed or mis-tagged row fails the gate. | The hotspot READ is manual; only well-formedness is gated. |
+| req-gridkin-findings-ledger-3 | Honest Denominator (Coverage-Paired) | Implemented | The report pairs each subsystem's finding count with its executor line coverage so a zero-findings subsystem is read as blind-spot-or-clean, not assumed clean. | Coverage from the branch-coverage ratchet JSON; column omitted with a caveat when absent. |
+| req-gridkin-findings-ledger-4 | Fix-Time Discipline | Implemented | Every executor/oracle bug fix appends a findings row in the same commit as its regression scenario; findings are historical facts, so a row's named function is never asserted to still exist (it may be deleted by the very refactor the map motivated). | Rides the existing "every bug earns a regression scenario" rule. |
+
 ### JSON Schema for Scenario Files
 ----
 RID: `req-gridkin-json-schema`
