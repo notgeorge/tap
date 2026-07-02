@@ -47,8 +47,8 @@ tap_api/routers/gryphon.py:34
 tap_api/routers/searches.py:47
 tap_grid/batch.py:254
 tap_grid/gryphon/executor.py:107
-tap_grid/services/__init__.py:935
-tap_grid/services/__init__.py:954
+tap_grid/services/__init__.py:941
+tap_grid/services/__init__.py:960
 tap_plugins/seeding.py:119
 tap_plugins/validate/service.py:780
 tap_viz/panels/graph_panel/__init__.py:188

@@ -740,8 +740,15 @@ class TestResolveEntity:
             resolve_entity(uuid.uuid7())
 
 
+@pytest.mark.django_db
 class TestDiscoveryFunctions:
-    """req-grid-service-read-discovery: list and describe node/edge types."""
+    """req-grid-service-read-discovery: list and describe node/edge types.
+
+    django_db so each test runs as the tap_test actor (holds grid.discover via
+    tap_admin '*'); the discovery API is gated on grid.discover (req-tap-auth-
+    capabilities). Without a DB the autouse context binds a None actor, which the
+    gate denies.
+    """
 
     def test_list_node_types_returns_registered_types(self):
         from tap_grid.services import list_node_types

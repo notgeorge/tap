@@ -100,6 +100,23 @@ def requires_capability(capability: str, *, operation: str = "") -> Callable[[F]
     return decorator
 
 
+def gates_per_operation(fn: F) -> F:  # noqa: UP047 — module uses the F TypeVar style throughout
+    """Marker: a public service function that authorizes *per operation* in its
+    body rather than via a single static ``@requires_capability``.
+
+    Used only where one static capability genuinely cannot express the
+    requirement — the canonical case is ``write_batch``, whose batch may mix
+    create/update ops (need ``grid.write``) and delete ops (need ``grid.delete``),
+    each authorized at dispatch via ``assert_write_authorized``. The gateway
+    coverage lint (``test_service_gateway_coverage``) accepts this marker in lieu
+    of ``@requires_capability`` so a per-op-gated function is not mistaken for an
+    ungated one. It is a no-op at runtime beyond stamping a detectable attribute;
+    reach for it sparingly — a static gate is always preferred when it fits.
+    """
+    fn.__tap_gates_per_operation__ = True  # type: ignore[attr-defined]
+    return fn
+
+
 @contextlib.contextmanager
 def authorized(
     caller_context: CallerContext | None,

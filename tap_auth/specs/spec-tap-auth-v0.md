@@ -262,6 +262,7 @@ TAP capabilities are the public authorization vocabulary. Django permissions are
 
 - Capability names use TAP vocabulary such as:
   - `grid.read`
+  - `grid.discover` (introspect the type/schema catalog — reads the registry, not graph data; strictly less sensitive than `grid.read`. Gates the service discovery reads per `req-grid-service-gateway-gated`. Granted to `tap_admin` via `*`; deliberately not yet on `grid.read`-holding roles because v0 has no non-admin discovery consumer — relaxed on demand when a schema/AI surface needs it.)
   - `grid.write`
   - `grid.delete`
   - `grid.import_grift`

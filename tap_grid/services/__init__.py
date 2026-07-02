@@ -24,7 +24,12 @@ from typing import Any, Literal, cast
 
 from django.db import transaction
 
-from tap_auth.enforcement import assert_program_actor, assert_write_authorized, requires_capability
+from tap_auth.enforcement import (
+    assert_program_actor,
+    assert_write_authorized,
+    gates_per_operation,
+    requires_capability,
+)
 from tap_grid.caller_context import (
     CallerContext,
     get_caller_context,
@@ -93,6 +98,7 @@ class _BailOut(Exception):
 # ---------------------------------------------------------------------------
 
 
+@gates_per_operation
 @service_write_scope()
 def write_batch(
     operations: list[WriteOperation],
@@ -965,7 +971,7 @@ def _patch_node_internal_for_test(
 
 
 @requires_capability("grid.read", operation="resolve_entity")
-def resolve_entity(target: str | uuid.UUID) -> Entity:
+def resolve_entity(target: str | uuid.UUID, *, caller_context: CallerContext | None = None) -> Entity:
     """Return the Entity row for the given entity UUID.
 
     Args:
@@ -985,7 +991,7 @@ def resolve_entity(target: str | uuid.UUID) -> Entity:
 
 
 @requires_capability("grid.read", operation="get_node")
-def get_node(target: str | uuid.UUID) -> Any:
+def get_node(target: str | uuid.UUID, *, caller_context: CallerContext | None = None) -> Any:
     """Return the typed domain node instance for the given entity UUID.
 
     Args:
@@ -1018,7 +1024,7 @@ def get_node(target: str | uuid.UUID) -> Any:
 
 
 @requires_capability("grid.read", operation="get_edge")
-def get_edge(target: str | uuid.UUID) -> Edge:
+def get_edge(target: str | uuid.UUID, *, caller_context: CallerContext | None = None) -> Edge:
     """Return the Edge instance for the given entity UUID.
 
     Args:
@@ -1041,7 +1047,7 @@ def get_edge(target: str | uuid.UUID) -> Edge:
 
 
 @requires_capability("grid.read", operation="get_object")
-def get_object(target: str | uuid.UUID) -> Any:
+def get_object(target: str | uuid.UUID, *, caller_context: CallerContext | None = None) -> Any:
     """Return the typed domain instance for the given entity UUID (node or edge).
 
     Dispatches to get_edge() for edge entities and get_node() for all others.
@@ -1070,14 +1076,16 @@ def get_object(target: str | uuid.UUID) -> Any:
 # ---------------------------------------------------------------------------
 
 
-def list_node_types() -> list[str]:
+@requires_capability("grid.discover", operation="list_node_types")
+def list_node_types(*, caller_context: CallerContext | None = None) -> list[str]:
     """Return all registered node type slugs, sorted."""
     from tap_grid.registry import list_entity_types
 
     return list_entity_types()
 
 
-def describe_node_type(type_slug: str) -> NodeTypeDescription:
+@requires_capability("grid.discover", operation="describe_node_type")
+def describe_node_type(type_slug: str, *, caller_context: CallerContext | None = None) -> NodeTypeDescription:
     """Return a discovery description for a registered node type.
 
     Args:
@@ -1118,14 +1126,16 @@ def describe_node_type(type_slug: str) -> NodeTypeDescription:
     )
 
 
-def list_edge_types() -> list[str]:
+@requires_capability("grid.discover", operation="list_edge_types")
+def list_edge_types(*, caller_context: CallerContext | None = None) -> list[str]:
     """Return all registered edge type slugs, sorted."""
     from tap_grid.constraints import list_registered_edge_types
 
     return list_registered_edge_types()
 
 
-def describe_edge_type(edge_type: str) -> EdgeTypeDescription:
+@requires_capability("grid.discover", operation="describe_edge_type")
+def describe_edge_type(edge_type: str, *, caller_context: CallerContext | None = None) -> EdgeTypeDescription:
     """Return a discovery description for a registered edge type.
 
     Args:
@@ -1159,7 +1169,8 @@ def describe_edge_type(edge_type: str) -> EdgeTypeDescription:
     )
 
 
-def describe_service_capabilities() -> ServiceCapabilities:
+@requires_capability("grid.discover", operation="describe_service_capabilities")
+def describe_service_capabilities(*, caller_context: CallerContext | None = None) -> ServiceCapabilities:
     """Return a top-level discovery description of the TAP service layer."""
     return ServiceCapabilities(
         node_types=list_node_types(),
