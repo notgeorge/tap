@@ -67,8 +67,16 @@ declare the TAP-specific parts now, defer the machinery that only pays off at sc
   rejected** as a backend (private assets aren't `--find-links`-consumable — browser URL
   dead-ends under auth, only the REST asset-ID endpoint works; GitHub Packages has no Python
   index at all).
+- **`wheelhouse` = offline/airgapped (added 2026-07-02)**: a **mounted directory of pre-built
+  wheels**, installed with `uv pip install --no-index --find-links <dir> tap-plugin-<slug>==<ver>`.
+  The **filesystem twin of `index`** — same install-by-version model, wheels arrive on a volume
+  instead of over HTTP, so **no network and no credential**. Must also carry the plugins' Tier-0
+  PyPI deps as wheels (`--no-index` fails loud on a missing one). Wheels are CI-built where the git
+  tag lives (tagless ⇒ `0.0.0` fallback); the volume is the trust boundary. Promoted by monorepo
+  eviction: once a plugin loses its `editable` source, this is the install path for a deployment
+  that grants no git/repo/network access. Pilot: `fedramp_20x_ksi`.
 - **`grid` = future**: pull a plugin from another running TAP instance — a drop-in strategy.
-- **The profile carries NO secrets on any path.**
+- **The profile carries NO secrets on any path** (`wheelhouse`/`grid` reach for no credential at all).
 
 ### Versioning (`req-plugin-arch-versioning`)
 - **VCS-derived PEP 440 versions via `hatch-vcs`** (`{tag}.dev{n}+g{sha}`) — George's "Go

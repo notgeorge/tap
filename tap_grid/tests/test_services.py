@@ -740,8 +740,15 @@ class TestResolveEntity:
             resolve_entity(uuid.uuid7())
 
 
+@pytest.mark.django_db
 class TestDiscoveryFunctions:
-    """req-grid-service-read-discovery: list and describe node/edge types."""
+    """req-grid-service-read-discovery: list and describe node/edge types.
+
+    django_db so each test runs as the tap_test actor (holds grid.discover via
+    tap_admin '*'); the discovery API is gated on grid.discover (req-tap-auth-
+    capabilities). Without a DB the autouse context binds a None actor, which the
+    gate denies.
+    """
 
     def test_list_node_types_returns_registered_types(self):
         from tap_grid.services import list_node_types
@@ -994,3 +1001,50 @@ class TestEntityVersion:
 
         entity = Entity.objects.get(pk=entity_id)
         assert entity.version == 2
+
+
+@pytest.mark.django_db
+class TestPublicReadGate:
+    """The public entity-spine read API gates on grid.read (req-tap-auth-policy).
+
+    resolve_entity / get_node / get_edge / get_object are the spine's read
+    gateway — every above-service caller routes through them. Each authorizes
+    grid.read in the decorator, before any DB work. This is the regression lock
+    for the 2026-07-02 read-gap closure: before it these four were ungated, so a
+    caller lacking grid.read could read the Entity spine directly (the ORM read
+    backstop deliberately excludes the spine — see service-layer-guards-sprint).
+    """
+
+    def _write_only_ctx(self) -> CallerContext:
+        from django.contrib.auth import get_user_model
+        from django.contrib.auth.models import Group, Permission
+
+        from tap_auth import sync
+
+        sync.sync_auth()
+        group, _ = Group.objects.get_or_create(name="test_read_gate_write_only")
+        group.permissions.set([Permission.objects.get(codename="grid_write")])
+        user = get_user_model().objects.create_user(username="read-gate-noread", password="x")
+        user.groups.add(group)
+        return CallerContext(user=user)
+
+    def test_reads_deny_actor_without_grid_read(self):
+        from tap_auth import policy
+        from tap_auth.errors import CapabilityDenied
+        from tap_grid.caller_context import set_caller_context
+        from tap_grid.services import get_edge, get_node, get_object, resolve_entity
+
+        ctx = self._write_only_ctx()
+        # Sanity: the actor holds write but NOT read — so a read denial below is
+        # about the read gate, not a blanket no-caps actor.
+        assert policy.can(ctx, "grid.write") is True
+        assert policy.can(ctx, "grid.read") is False
+
+        # The public reads authorize against the ambient context, so bind it
+        # (the autouse default_caller_context fixture resets it after this test).
+        set_caller_context(ctx)
+        # The denial fires in the decorator's authorize(), before any DB work, so
+        # a real seeded entity is unnecessary — the gate never reaches the body.
+        for read_fn in (resolve_entity, get_node, get_edge, get_object):
+            with pytest.raises(CapabilityDenied):
+                read_fn(uuid.uuid4())
