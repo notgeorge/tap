@@ -2371,7 +2371,7 @@ class TestGryphonBareMatchExecutor:
         """Two characters (which have a `bio` field) and two pg_node rows (which do not)."""
         import uuid
 
-        from plugins.gryphon_playground.models import PgNode
+        from tap_plugin.gryphon_playground.models import PgNode
         from tap_plugin.lotr.models import Character
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity

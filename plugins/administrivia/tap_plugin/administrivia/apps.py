@@ -24,8 +24,12 @@ class AdministriviaConfig(TapPluginConfig):
         from tap_plugin.administrivia.tap_cares.panels.schedule_table import (
             ScheduleTablePanelType,
         )
+        from tap_plugin.administrivia.panels.plugin_status import (
+            PluginStatusPanelType,
+        )
         from tap_web.registry import panel_type_registry
 
+        panel_type_registry.register("plugin_status", PluginStatusPanelType)
         panel_type_registry.register(
             "cares_collector_table", CollectorTablePanelType
         )

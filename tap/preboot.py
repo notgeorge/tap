@@ -37,6 +37,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlparse
 
+from tap import plugin_deps
+
 logger = logging.getLogger(__name__)
 
 # Repo root = the directory that holds `tap/` and `boot/`. tap/preboot.py lives at
@@ -46,29 +48,16 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # --- Build-baked plugin transition set ---------------------------------------
 # Plugins still hardcoded in settings.INSTALLED_APPS (not yet package-mode). The
 # static coherence guard treats these as "available" without an `install` entry so
-# a legacy profile (samsite) whose population names build-baked plugins still passes.
-# This shrinks to empty as plugins migrate to package-mode; `genericom` is NOT here
-# (it is the first package-mode plugin). Kept honest against settings by
-# tap/tests/test_preboot.py::test_build_baked_matches_installed_apps.
-BUILD_BAKED_PLUGIN_SLUGS: frozenset[str] = frozenset(
-    {
-        # administrivia migrated to package-mode 2026-07-01 (tap_plugin.administrivia).
-        # lotr migrated to package-mode 2026-07-01 (tap_plugin.lotr) — the load-bearing
-        # test-fixture vocabulary; installed via the profile `install` section.
-        # computing_core migrated to package-mode 2026-07-01 (tap_plugin.computing_core).
-        # aws_core migrated to package-mode 2026-07-01 (tap_plugin.aws_core).
-        # github_core migrated to package-mode 2026-07-01 (tap_plugin.github_core).
-        # sigstore_core migrated to package-mode 2026-07-01 (tap_plugin.sigstore_core).
-        # roscale migrated to package-mode 2026-07-01 (tap_plugin.roscale).
-        # samsite migrated to package-mode 2026-07-01 (tap_plugin.samsite) — the last
-        # of the samsite set; installed via the profile `install` section.
-        # fedramp_20x_ksi migrated to package-mode 2026-07-01 (first namespaced
-        # plugin) — no longer build-baked; installed via the profile `install` section.
-        # gryphon_playground stays build-baked: HELD pending the in-flight
-        # gryphon-engine refactor in another session.
-        "gryphon_playground",
-    }
-)
+# a legacy profile whose population names build-baked plugins still passes.
+#
+# EMPTY as of 2026-07-02: the initial plugin migration is COMPLETE. Every shipped
+# plugin (the samsite set + gryphon_playground) is package-mode (`tap_plugin.<slug>`),
+# installed via a profile `install` section and discovered through its `tap.plugins`
+# entry point. No plugin is hardcoded in INSTALLED_APPS anymore, so this set is empty
+# (a future re-introduced build-baked plugin would re-add its slug here). Kept honest
+# against settings by tap/tests/test_preboot.py::test_build_baked_matches_installed_apps
+# (which now asserts the empty set equals zero hardcoded `plugins.*` INSTALLED_APPS entries).
+BUILD_BAKED_PLUGIN_SLUGS: frozenset[str] = frozenset()
 
 TAP_PLUGINS_ENTRY_POINT_GROUP = "tap.plugins"
 
@@ -417,6 +406,61 @@ def reconciliation_guard(entries: list[dict[str, Any]], discovered: dict[str, st
 
 
 # =============================================================================
+# Dependency consistency gate (req-plugin-arch-dependencies-4)
+# =============================================================================
+
+
+def _installed_version(slug: str) -> str | None:
+    """Best-effort installed distribution version for a plugin slug, or None."""
+    dist = _installed_distribution(dist_name_for_slug(slug))
+    return dist.version if dist is not None else None
+
+
+def dependency_consistency_guard(entries: list[dict[str, Any]]) -> None:
+    """Fail closed on plugin dependency divergence (declared vs observed vs install order).
+
+    The Tier-1 sibling of ``reconciliation_guard`` (spec ``req-plugin-arch-dependencies-4``).
+    Cross-checks three facts already in hand — each plugin's manifest ``depends_on``
+    (declared intent), the AST-observed ``tap_plugin.<other>`` imports (derived code graph,
+    ``tap.plugin_deps``), and the profile install order — and raises ``PrebootError`` on:
+
+    1. an undeclared cross-plugin import (declared ⊇ observed),
+    2. a dependency missing from / ordered after its dependent in the install set,
+    3. a violated ``min_version`` floor.
+
+    Scoped to in-repo plugin packages by construction (a fully-extracted site-packages
+    plugin is out of the scanner's reach — the same caveat the log/authz scanners carry).
+    Captures CODE dependencies only; the runtime-*data* (collector-produced) ordering
+    stays profile-explicit by design (``req-plugin-arch-dependencies-3``).
+    """
+    install_order = [e["slug"] for e in entries]
+    packages = plugin_deps.discover_plugin_packages(REPO_ROOT)
+
+    declared: dict[str, list[plugin_deps.DeclaredDep]] = {}
+    observed: dict[str, set[str]] = {}
+    versions: dict[str, str | None] = {}
+    for slug in install_order:
+        pkg = packages.get(slug)
+        if pkg is None:
+            continue  # out-of-repo / unscannable — cannot observe, skip (documented caveat)
+        declared[slug] = plugin_deps.read_declared_depends_on(pkg)
+        observed[slug] = plugin_deps.scan_observed_imports(pkg, slug)
+        versions[slug] = _installed_version(slug)
+
+    violations = plugin_deps.compute_violations(install_order, declared, observed, versions)
+    if violations:
+        joined = "\n  - ".join(violations)
+        raise PrebootError(f"plugin dependency consistency gate failed:\n  - {joined}")
+
+    edge_count = sum(len(v) for v in observed.values())
+    logger.info(
+        "[3b7e] pre-boot dependency consistency gate passed: %d cross-plugin import edge(s) across %d scanned plugin(s), all declared + ordered",
+        edge_count,
+        len(observed),
+    )
+
+
+# =============================================================================
 # Static coherence guard (req-boot-install-section-3)
 # =============================================================================
 
@@ -545,6 +589,7 @@ def run_preboot(profile_id: str) -> list[str]:
     app_configs = resolve_tap_plugins(entries, discovered)
     conformance_gate(entries, discovered)
     reconciliation_guard(entries, discovered)
+    dependency_consistency_guard(entries)
     install_slugs = {e["slug"] for e in entries}
 
     static_coherence_guard(profile, install_slugs)

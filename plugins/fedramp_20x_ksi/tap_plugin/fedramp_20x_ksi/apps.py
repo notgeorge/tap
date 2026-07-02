@@ -48,6 +48,12 @@ class Fedramp20xKsiConfig(TapPluginConfig):
 
         register_collector(
             key="ksi-catalog",
+            # Explicit stable scope (the plugin slug) so the collector's derived
+            # entity id (uuid5("{scope}:{key}")) is immune to Python module
+            # renames. Omitting scope defaults it to cls.__module__, which the
+            # package-mode migration silently changed — orphaning hardcoded
+            # grift edge targets. See req-tap-cares-collector-model-10.
+            scope="fedramp_20x_ksi",
             cls=KSICollector,
             name="FedRAMP 20x KSI Catalog",
             description=(

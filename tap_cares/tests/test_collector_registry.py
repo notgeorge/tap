@@ -69,9 +69,15 @@ def _register(key, cls, **kwargs):
     node is materialized separately by reconcile_collector_nodes (see
     TestReconcileCollectorNodes).
     """
+    # Production register_collector requires an explicit `scope` (identity must
+    # not ride on cls.__module__ — req-tap-cares-collector-model-10). These
+    # registry-mechanics tests control the scope via each fixture's __module__,
+    # so the helper defaults scope to cls.__module__ for convenience; callers
+    # can still override with scope=.
     return register_collector(
         key=key,
         cls=cls,
+        scope=kwargs.pop("scope", cls.__module__),
         name=kwargs.pop("name", f"Test collector {key}"),
         description=kwargs.pop("description", "Fixture collector for registry tests."),
         **kwargs,
@@ -184,10 +190,18 @@ class TestRegisterCollector:
         _register("alpha", Cls)
         assert get_collector("my.plugin:alpha") is Cls
 
-    def test_scope_inferred_from_module(self):
+    def test_scope_is_required(self):
+        # register_collector must NOT infer scope from cls.__module__: a
+        # collector's derived entity id is a durable cross-referenced grid key,
+        # so identity is an explicit declaration (req-tap-cares-collector-model-10).
         Cls = _make_collector_class(module="some.plugin.module")
-        _register("inferred", Cls)
-        assert "some.plugin.module:inferred" in collector_registry
+        with pytest.raises(TypeError):
+            register_collector(  # scope omitted → required keyword-only arg
+                key="noscope",
+                cls=Cls,
+                name="No scope",
+                description="Should fail: scope is mandatory.",
+            )
 
     def test_scope_can_be_overridden(self):
         Cls = _make_collector_class(module="default.scope")
@@ -217,11 +231,6 @@ class TestRegisterCollector:
         Cls = _make_collector_class()
         with pytest.raises(InvalidCollectorRegistryKeyError):
             _register("ok", Cls, scope="bad scope")
-
-    def test_bad_inferred_scope_format_rejected(self):
-        Cls = _make_collector_class(module="bad scope from module")
-        with pytest.raises(InvalidCollectorRegistryKeyError):
-            _register("ok", Cls)
 
     def test_duplicate_registration_raises(self):
         Cls = _make_collector_class(module="dup.scope")
