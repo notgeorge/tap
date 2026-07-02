@@ -42,12 +42,14 @@ import pytest
 
 from plugins.gryphon_playground.gridkin import fuzz
 
+# Activated only when a summary path is named (set by scripts/gryphon-fuzz-campaign).
+# A NORMAL pytest run leaves it unset — the test is then COLLECTED but skips at
+# call time (a function-level skipif, NOT a module-level skip). Module-level skip
+# would collect zero node ids, which the collection-completeness guard
+# (`tap/tests/test_collection_completeness.py`, req-dev-validation-collection-complete)
+# correctly flags as an uncollected orphan. So the file always contributes an item.
 _OUT = os.environ.get("GRYPHON_FUZZ_CAMPAIGN_OUT", "").strip()
-if not _OUT:
-    pytest.skip(
-        "fuzz campaign not requested (set GRYPHON_FUZZ_CAMPAIGN_OUT); run via scripts/gryphon-fuzz-campaign",
-        allow_module_level=True,
-    )
+_ACTIVE = bool(_OUT)
 
 
 def _env_int(name: str, default: int) -> int:
@@ -59,7 +61,14 @@ _BASE = _env_int("GRYPHON_FUZZ_CAMPAIGN_BASE", 1_000_000)
 _GRAPHS = _env_int("GRYPHON_FUZZ_CAMPAIGN_GRAPHS", 50)
 _QUERIES = _env_int("GRYPHON_FUZZ_CAMPAIGN_QUERIES", 25)
 
-_CASES = fuzz.build_cases(_BASE, _GRAPHS, _QUERIES)
+# Build the real band only when a campaign is requested; otherwise a single
+# placeholder so the file still collects one (skipped) item.
+if _ACTIVE:
+    _CASES: list = fuzz.build_cases(_BASE, _GRAPHS, _QUERIES)
+    _IDS = [c.case_id for c in _CASES]
+else:
+    _CASES = [None]
+    _IDS = ["campaign-disabled"]
 
 # Accumulates across the parametrized graph items; the module-teardown fixture
 # reduces it to one summary. A defect (diverge / rejected / crashed) is a
@@ -89,6 +98,8 @@ def _fingerprint(oc: fuzz.QueryOutcome) -> str:
 @pytest.fixture(scope="module", autouse=True)
 def _write_campaign_summary():
     yield
+    if not _ACTIVE:
+        return  # no campaign requested — nothing collected ran, nothing to write
     totals: dict[str, int] = {"agree": 0, "diverge": 0, "rejected": 0, "crashed": 0, "unmodeled": 0}
     fingerprints: dict[str, dict[str, object]] = {}
     for seed, oc in _OUTCOMES:
@@ -117,8 +128,9 @@ def _write_campaign_summary():
         json.dump(summary, fh, indent=2, ensure_ascii=False)
 
 
+@pytest.mark.skipif(not _ACTIVE, reason="fuzz campaign not requested; run via scripts/gryphon-fuzz-campaign")
 @pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
-@pytest.mark.parametrize("case", _CASES, ids=[c.case_id for c in _CASES])
+@pytest.mark.parametrize("case", _CASES, ids=_IDS)
 def test_campaign_graph(case: fuzz.Case) -> None:
     """Grind one fresh graph; record every query outcome. Never asserts.
 
