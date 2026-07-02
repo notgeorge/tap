@@ -53,7 +53,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 BUILD_BAKED_PLUGIN_SLUGS: frozenset[str] = frozenset(
     {
         # administrivia migrated to package-mode 2026-07-01 (tap_plugin.administrivia).
-        "lotr",
+        # lotr migrated to package-mode 2026-07-01 (tap_plugin.lotr) — the load-bearing
+        # test-fixture vocabulary; installed via the profile `install` section.
         # computing_core migrated to package-mode 2026-07-01 (tap_plugin.computing_core).
         # aws_core migrated to package-mode 2026-07-01 (tap_plugin.aws_core).
         # github_core migrated to package-mode 2026-07-01 (tap_plugin.github_core).

@@ -13,7 +13,7 @@ import pytest
 from django.core.exceptions import ImproperlyConfigured
 from django.db import models
 
-from plugins.lotr.models import Character
+from tap_plugin.lotr.models import Character
 from tap_grid.models import BaseModel, Edge, Search
 
 # ---------------------------------------------------------------------------

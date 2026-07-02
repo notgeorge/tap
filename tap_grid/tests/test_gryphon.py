@@ -341,7 +341,7 @@ class TestGryphonExecutor:
         """
         import uuid
 
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
@@ -373,7 +373,7 @@ class TestGryphonExecutor:
         """req-grid-traversal-lang-returns-1: type scan without RETURN gives graph envelope."""
         import uuid
 
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
@@ -434,7 +434,7 @@ class TestGryphonEnvelopePaths:
     def _make_characters(self):
         import uuid
 
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
@@ -540,7 +540,7 @@ class TestGryphonTypeScanWhere:
     def _make_characters(self):
         import uuid
 
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
@@ -614,7 +614,7 @@ class TestGryphonTypeScanWhere:
         self._make_characters()
         # A different entity type that won't be touched by the WHERE.
         realm = Entity.objects.create(entity_type="realm", name="Middle-earth")
-        from plugins.lotr.models import Realm  # noqa: PLC0415
+        from tap_plugin.lotr.models import Realm  # noqa: PLC0415
 
         Realm.objects.create(entity=realm, name="Middle-earth")
 
@@ -646,7 +646,7 @@ class TestGryphonDimensionsMultiStep:
     def _make_characters_with_dimensions(self):
         import uuid
 
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
@@ -678,7 +678,7 @@ class TestGryphonDimensionsMultiStep:
         self._make_characters_with_dimensions()
         import uuid
 
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
@@ -1739,7 +1739,7 @@ class TestGryphonOrderByLimitExecutor:
         """Five characters with distinct bios, for ordering tests."""
         import uuid
 
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
@@ -2028,7 +2028,7 @@ class TestGryphonInListExecutor:
         """Four characters with distinct bios."""
         import uuid
 
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
@@ -2132,7 +2132,7 @@ class TestGryphonOptionalMatchExecutor:
         """Three characters (with backing Character rows); only Frodo wields an artifact."""
         import uuid
 
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Edge, Entity
 
@@ -2232,7 +2232,7 @@ class TestGryphonCombinatorsExecutor:
         """Four characters with backing Character rows."""
         import uuid
 
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
@@ -2322,7 +2322,7 @@ class TestGryphonStringMatchExecutor:
         """Create characters from (name, bio) tuples."""
         import uuid
 
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
@@ -2372,7 +2372,7 @@ class TestGryphonBareMatchExecutor:
         import uuid
 
         from plugins.gryphon_playground.models import PgNode
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
@@ -2565,7 +2565,7 @@ class TestGryphonIsNullExecutor:
         """Five characters, one with a NULL bio — for IS NULL / IS NOT NULL filtering."""
         import uuid
 
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 
@@ -2816,7 +2816,7 @@ class TestGryphonRegexExecutor:
         """Create characters from (name, bio) tuples."""
         import uuid
 
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
 

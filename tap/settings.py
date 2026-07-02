@@ -163,14 +163,14 @@ INSTALLED_APPS = [
     # Administrivia plugin — migrated to package-mode 2026-07-01
     # (tap_plugin.administrivia); loads via TAP_PLUGINS_APPS from the profile
     # `install` section.
-    # LOTR plugin — Middle-earth entities for constraint testing.
-    # NOTE 2026-05-19: kept in INSTALLED_APPS deliberately — it is the
-    # load-bearing test-fixture vocabulary for core tap_grid/tap_api
-    # constraint/edge/validation suites (7 modules import plugins.lotr
-    # .models). De-registering it reds the promote-gate. Its Middle-earth
-    # *seed data* is the instance clutter; decouple that from spawn rather
-    # than de-registering the app. See the lotr-vs-genericom note.
-    "plugins.lotr.apps.LotrConfig",
+    # LOTR plugin — migrated to package-mode 2026-07-01 (tap_plugin.lotr).
+    # Still the load-bearing test-fixture vocabulary for the core tap_grid/
+    # tap_api constraint/edge/validation suites (~20 modules import
+    # tap_plugin.lotr.models), so it MUST be installed (editable) in any env
+    # that runs those suites. Loads via TAP_PLUGINS_APPS from a profile
+    # `install` section + the test-settings entry-point discovery-fallback;
+    # its Middle-earth *seed data* remains instance clutter decoupled from the
+    # app registration. See the lotr-vs-genericom note.
     # Computing Core plugin — migrated to package-mode 2026-07-01
     # (tap_plugin.computing_core); loads via TAP_PLUGINS_APPS.
     # AWS Core plugin — migrated to package-mode 2026-07-01 (tap_plugin.aws_core);

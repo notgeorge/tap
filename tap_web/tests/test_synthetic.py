@@ -248,7 +248,7 @@ class TestRenderSyntheticPage:
     def test_editor_page_renders(self):
         from django.test import RequestFactory
 
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
         from tap_grid.batch import create_batch
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity

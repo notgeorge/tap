@@ -10,6 +10,12 @@
         "note": "Package-mode (tap_plugin.administrivia), 2026-07-01. TAP admin pages + grid landing + cares administrivia; seeded in population."
       },
       {
+        "slug": "lotr",
+        "enabled": true,
+        "source": { "type": "editable", "path": "plugins/lotr" },
+        "note": "Package-mode (tap_plugin.lotr), 2026-07-01. Load-bearing test-fixture vocabulary the core tap_grid/tap_api suites import; installed here so any env that boots samsite has it importable. Its Middle-earth seed is kept for parity with the bash spawn (safe to drop from a customer profile)."
+      },
+      {
         "slug": "computing_core",
         "enabled": true,
         "source": { "type": "editable", "path": "plugins/computing_core" },

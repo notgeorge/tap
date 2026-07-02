@@ -5,15 +5,15 @@ name = "Lord of the Rings"
 description = "Middle-earth example plugin — characters, locations, artifacts, races, and factions."
 
 [models]
-character = "plugins.lotr.models.character.Character"
-location = "plugins.lotr.models.location.Location"
-artifact = "plugins.lotr.models.artifact.Artifact"
-race = "plugins.lotr.models.race.Race"
-faction = "plugins.lotr.models.faction.Faction"
-sentinel = "plugins.lotr.models.sentinel.Sentinel"
-citadel = "plugins.lotr.models.citadel.Citadel"
-realm = "plugins.lotr.models.realm.Realm"
-wanderer = "plugins.lotr.models.wanderer.Wanderer"
+character = "tap_plugin.lotr.models.character.Character"
+location = "tap_plugin.lotr.models.location.Location"
+artifact = "tap_plugin.lotr.models.artifact.Artifact"
+race = "tap_plugin.lotr.models.race.Race"
+faction = "tap_plugin.lotr.models.faction.Faction"
+sentinel = "tap_plugin.lotr.models.sentinel.Sentinel"
+citadel = "tap_plugin.lotr.models.citadel.Citadel"
+realm = "tap_plugin.lotr.models.realm.Realm"
+wanderer = "tap_plugin.lotr.models.wanderer.Wanderer"
 
 [edges]
 WIELDS = "edges/WIELDS.edge.json"
@@ -30,10 +30,10 @@ PROTECTS = "edges/PROTECTS.edge.json"
 MENTORS = "edges/MENTORS.edge.json"
 
 [editors]
-character = "plugins.lotr.editors.character.CharacterEditorDescriptor"
+character = "tap_plugin.lotr.editors.character.CharacterEditorDescriptor"
 
 [searches]
-list-characters-with-bio = "plugins.lotr.searches.characters.list_characters_with_bio"
+list-characters-with-bio = "tap_plugin.lotr.searches.characters.list_characters_with_bio"
 
 [grift]
 core-data = "grift/core-data.grift.json"
