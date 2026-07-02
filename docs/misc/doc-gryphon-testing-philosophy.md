@@ -237,10 +237,18 @@ Design choices that make it real rather than a mirror of the bug:
   row values — not by serialization. Format quirks can't hide a wrong result and
   can't manufacture a false one.
 - **Fail *loud* on anything unmodeled.** The oracle raises `OracleUnmodeled` for
-  shapes it hasn't implemented (OPTIONAL MATCH, NOT EXISTS, multi-MATCH,
-  LIMIT-without-ORDER-BY, …) and the assertion *skips* those scenarios rather than
-  silently passing them. Honest partial coverage beats fake total coverage. The
-  oracle knows what it doesn't know and says so.
+  shapes it hasn't implemented (bounded multi-hop, display-lane / array field
+  paths, aggregates beyond `COUNT`, `LIMIT`-without-`ORDER BY`, …) and the
+  assertion *skips* those scenarios rather than silently passing them. Honest
+  partial coverage beats fake total coverage. The oracle knows what it doesn't
+  know and says so. The Phase-4 deepening (2026-07-01) shrank that skip-list —
+  bare-variable `RETURN`, multi-`MATCH` union, `NOT EXISTS`, and the v0 `OPTIONAL
+  MATCH` scoreboard are now all modeled, taking oracle coverage of result
+  scenarios from 89% to 99% (139/140). The lone remaining skip, `LIMIT` without
+  `ORDER BY`, is *deliberate and permanent*: the surviving subset is the
+  executor's arbitrary default order, so modeling it would couple the oracle to
+  `executor.py` and destroy the zero-shared-lowering guarantee — the one thing
+  the differential rests on.
 - **Model the backend's real semantics** where they bite — Postgres NULLS-ordering
   under ORDER BY, and the two distinct null logics (see
   `doc-dev-gryphon-vs-cypher.md` and the 2VL/3VL boundary: a null *literal*
@@ -320,19 +328,40 @@ preserved. Test discipline and architecture are the same craft from two angles.
 
 The methodology above is strong but still fundamentally *sampled*: we test the
 scenarios we author. The forward research thread (framed in
-`doc-gryphon-path-coverage-sprint-plan.md`, deliberately **not** built yet) asks
-what *verifiable completeness* would look like, and the "compiler over a trusted
-substrate" reframe is what makes the question tractable:
+`doc-gryphon-path-coverage-sprint-plan.md`) asks what *verifiable completeness*
+would look like, and the "compiler over a trusted substrate" reframe is what makes
+the question tractable. Since this essay was written, the rungs of that thread have
+landed — the path/branch coverage gates (`req-gridkin-stage-coverage`,
+`req-gridkin-executor-branch-coverage`), TLP (`req-gridkin-metamorphic-tlp`), and
+now the property fuzzer that closes the sampled-testing ladder:
 
-- **Property-based fuzzing, tomorrow, nearly free.** The model oracle plus a
-  random-GRIFT-and-query generator *is* a property fuzzer — generate a fixture and
-  a query, run both engines, assert agreement. The differential harness already
-  exists; only the generator is missing.
+- **Property-based fuzzing — now built** (`req-gridkin-property-fuzz`,
+  `gridkin/fuzz.py`). The model oracle plus a seedable random-GRIFT-and-query
+  generator *is* a property fuzzer: generate a fixture and a query over the oracle's
+  modeled surface, run both engines, assert agreement, replay any divergence from
+  the seed alone. It paid for itself on the first runs — four real defects the
+  authored corpus had never exercised (a `= null` / `!= null` that lowered to
+  `IS NULL` / `IS NOT NULL` instead of the two-valued FALSE the spec mandates; a
+  single-hop field projection silently ignored by the envelope dispatch; an
+  anonymous connecting edge dropped from a bare-variable envelope; and a bug in the
+  *reference oracle itself* — union WHERE scoping mis-handling `NOT` over an
+  unbound-variable leaf). Each was triaged by evidence and fixed with a
+  regression-locking scenario. It also *reproduced* a substantial pre-existing
+  executor defect (multi-hop far-node WHERE spawns a duplicate join → row inflation)
+  that is recorded as a named open finding rather than papered over. This is the
+  discipline's own lesson turned on itself: an authoring-independent generator finds
+  what no hand-authored scenario thought to write — including bugs in the checker.
 - **Metamorphic / differential oracles from the literature.** SQLancer's **NoREC**
-  is exactly our envelope-vs-projection consistency relation (the two shapes of
-  the same intent must agree — the automated form of what caught the bug by hand).
-  **TLP** (ternary logic partitioning) is precisely a probe of our 2VL/3VL null
-  boundary. **PQS** (pivoted query synthesis) guarantees a known row is returned.
+  is our envelope-vs-projection consistency relation — considered, but it does not
+  yield a *distinct* check at Gryphon's dispatch layer (single-hop projections
+  degrade to envelopes; the target is already covered by the dispatch collapse and
+  the oracle), so it is recorded as deferred rather than built. **TLP** (ternary
+  logic partitioning) is precisely a probe of our 2VL/3VL null boundary — **now
+  built** (`req-gridkin-metamorphic-tlp`): it partitions each labelled-type-scan
+  scenario into TRUE / FALSE / (UNKNOWN) and asserts they reconstruct the
+  unfiltered scan, discriminating the null-literal (2VL) from the null-field (3VL)
+  case. **PQS** (pivoted query synthesis) guarantees a known row is returned —
+  still open.
 - **Semantic ground truth.** Francis et al., *"Formal Semantics of the Language
   Cypher"* (SIGMOD 2018, arXiv:1802.09984), is the baseline the model oracle is
   written against; it's the closest thing to a spec we can check *against* rather

@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from plugins.gryphon_playground.gridkin import coverage, loader
+from plugins.gryphon_playground.gridkin import coverage, loader, stage_coverage
 from plugins.gryphon_playground.gridkin.loader import GridkinScenarioError, Scenario
 from plugins.gryphon_playground.gridkin.runner import normalize_sql
 from tap.jsonfiles import load_json_file, load_schema
@@ -102,9 +102,9 @@ class TestSchemaValidation:
         # "Looked, found nothing" is a deliberate, recorded state for a
         # TAP-native feature with no TCK analog — and must be accepted.
         ok = json.loads(json.dumps(_VALID_SCENARIO))
-        ok["scenarios"][0]["inspired_by"] = (
-            "opencypher TCK — no applicable feature folder (TAP-native: soft-delete visibility filter)"
-        )
+        ok["scenarios"][0][
+            "inspired_by"
+        ] = "opencypher TCK — no applicable feature folder (TAP-native: soft-delete visibility filter)"
         _write(tmp_path, "ok.gridkin.json", ok)
         scenarios = loader.discover_scenarios(tmp_path)
         assert len(scenarios) == 1
@@ -118,8 +118,7 @@ class TestSchemaValidation:
         assert not missing, (
             "Gridkin scenarios missing the openCypher-TCK breadcrumb — run the "
             "mining pass per req-gridkin-tck-inspiration / build-gryphon-capability "
-            "Step 8, then cite the folder or record the empty-pass marker: "
-            + ", ".join(missing)
+            "Step 8, then cite the folder or record the empty-pass marker: " + ", ".join(missing)
         )
 
 
@@ -170,9 +169,8 @@ class TestTckCoverageLedger:
         cited = {f for s in scenarios if (f := _cited_folder(s.inspired_by or ""))}
         ledgered = {entry["folder"] for entry in self._load_ledger()["folders"]}
         orphans = ledgered - cited
-        assert not orphans, (
-            "the coverage ledger lists folders no scenario cites (stale entries): "
-            + ", ".join(sorted(orphans))
+        assert not orphans, "the coverage ledger lists folders no scenario cites (stale entries): " + ", ".join(
+            sorted(orphans)
         )
 
     def test_no_applicable_folder_features_use_the_empty_pass_marker(self):
@@ -188,8 +186,7 @@ class TestTckCoverageLedger:
             assert feature in by_file, f"no_applicable_folder lists unknown feature {feature!r}"
             non_empty = [b for b in by_file[feature] if _cited_folder(b) is not None]
             assert not non_empty, (
-                f"{feature} is recorded as having no applicable TCK folder but a "
-                f"scenario cites one: {non_empty}"
+                f"{feature} is recorded as having no applicable TCK folder but a " f"scenario cites one: {non_empty}"
             )
 
     def test_carried_over_ratio_is_derivable(self):
@@ -262,6 +259,77 @@ def _scenario(scenario_id: str, covers: tuple[str, ...]) -> Scenario:
         source_file=Path("x"),
     )
     return base
+
+
+class TestStageCoverage:
+    """Empirical executor-stage coverage gate (the intent≠path-coverage AAR).
+
+    The dispatch-path set is derived from the executor source (every
+    `gryphon_stage("...")` call), the exercised set from the committed SQL
+    snapshots. The gate is sharpened past reachability: each stage must be
+    exercised by a scenario that *carries a WHERE* — the property whose absence
+    on the edge-type-scan path was the envelope-WHERE silent-drop bug.
+    """
+
+    def test_every_dispatch_stage_is_exercised_with_a_where(self):
+        enumerated = stage_coverage.enumerate_stage_labels()
+        _, with_where = stage_coverage.where_exercised_stages(loader.discover_scenarios())
+        uncovered = enumerated - with_where
+        assert not uncovered, (
+            "executor dispatch stages never exercised by a WHERE-carrying result "
+            f"scenario: {sorted(uncovered)}. Each stage applies a WHERE; a stage "
+            "reached only without one is the envelope-WHERE blind spot the "
+            "intent≠path-coverage AAR names. Author a WHERE-carrying scenario that "
+            "routes through it (see stage_coverage.py)."
+        )
+
+    def test_no_snapshot_stage_is_unknown_to_the_executor(self):
+        # Drift axis: a stage label in a committed snapshot that the executor no
+        # longer emits (renamed / removed) is a stale snapshot or a typo.
+        enumerated = stage_coverage.enumerate_stage_labels()
+        seen, _ = stage_coverage.where_exercised_stages(loader.discover_scenarios())
+        stale = seen - enumerated
+        assert not stale, (
+            "SQL snapshots record stage labels the executor source no longer emits "
+            f"(regenerate the snapshots or fix the label): {sorted(stale)}"
+        )
+
+    def test_known_dispatch_stages_are_acknowledged(self):
+        # Tripwire: adding or removing a dispatch stage changes this set, forcing
+        # the author to confront the new path's coverage rather than let it slip in
+        # untested. The WHERE-coverage test above already fails for an unexercised
+        # new stage; this pins the inventory so the change is deliberate.
+        assert stage_coverage.enumerate_stage_labels() == {
+            "optional-match",
+            "advanced",
+            "bare-type-scan",
+            "type-scan",
+            "single-hop",
+        }
+
+    def test_enumerate_stage_labels_rejects_a_non_literal(self, tmp_path):
+        source = tmp_path / "fake_executor.py"
+        source.write_text("label = 'x'\ngryphon_stage(label)\n", encoding="utf-8")
+        with pytest.raises(ValueError, match="non-literal stage label"):
+            stage_coverage.enumerate_stage_labels(source)
+
+    def test_snapshot_stages_parses_the_header_lines(self):
+        text = "-- statement 1 · stage: single-hop\nSELECT 1\n\n-- statement 2 · stage: advanced\nSELECT 2\n"
+        assert stage_coverage.snapshot_stages(text) == {"single-hop", "advanced"}
+
+    def test_query_carries_where_counts_not_exists_inner(self):
+        # A NOT EXISTS with only an inner WHERE still exercises the advanced
+        # stage's WHERE-application path, so it counts as WHERE-carrying.
+        no_where = "MATCH (n:gryphon_playground__pg_node) RETURN n"
+        outer_where = "MATCH (n:gryphon_playground__pg_node) WHERE n.data.severity_score > 1 RETURN n"
+        inner_only = (
+            "MATCH (s)-[:PG_LINKS__gryphon_playground]->(t) "
+            "NOT EXISTS { MATCH (g:gryphon_playground__pg_node)-[:PG_OPTIONAL__gryphon_playground]->(t) "
+            "WHERE g.data.severity_score > 100 }"
+        )
+        assert not stage_coverage.query_carries_where(no_where)
+        assert stage_coverage.query_carries_where(outer_where)
+        assert stage_coverage.query_carries_where(inner_only)
 
 
 class TestCoverageMatrix:

@@ -78,15 +78,27 @@ def build_breadcrumb(url: str) -> list[BreadcrumbSegment]:
     parts = [p for p in path.split("/") if p]
     prefixes = ["/" + "/".join(parts[: i + 1]) for i in range(len(parts))]
 
+    # The breadcrumb chrome renders on EVERY response (context processor), long
+    # before we know the caller holds grid.read — including anonymous renders
+    # (the login page) and capability-less authenticated renders (the no-access
+    # page, error pages). The Page enrichment below is a guarded BaseModel read;
+    # running it unconditionally trips the ORM read backstop and 500s those
+    # pages (req-tap-auth-orm-read-backstop). So the always-present shell is
+    # read-free: we only enrich labels/links when the caller is authorized to
+    # read the grid, and otherwise fall through to the URL-derived plain-text
+    # segments below. This is the interim shape; the enrichment moves into a
+    # gated nav Panel under req-web-nav-panel (nav-as-panel migration).
+    from tap_grid.read_guard import caller_can_read
+
     # One batched query for every prefix, including the home page (slug "/").
     # Filter `discoverable=True` so parameterized pages (e.g. /samsite/finding,
     # which requires an entity_id) render as plain text in the breadcrumb
     # rather than as broken links — same gate used by nav-index, palette,
     # chevron popovers, and column-view per req-web-nav-page-discoverable.
-    page_map = {
-        p.slug: p.name
-        for p in Page.objects.filter(slug__in=["/", *prefixes], discoverable=True)
-    }
+    if caller_can_read():
+        page_map = {p.slug: p.name for p in Page.objects.filter(slug__in=["/", *prefixes], discoverable=True)}
+    else:
+        page_map = {}
 
     segments: list[BreadcrumbSegment] = [
         BreadcrumbSegment(

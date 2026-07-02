@@ -47,6 +47,9 @@ is their shared operational companion.
 | req-gridkin-req-traceability | [Requirement Traceability](#requirement-traceability) | Implemented | Every scenario cites the spec RIDs it covers |
 | req-gridkin-tck-inspiration | [TCK as Scenario Inspiration](#tck-as-scenario-inspiration) | Implemented | Mine the openCypher TCK for corner-case intent; never port queries |
 | req-gridkin-tck-coverage | [TCK Coverage Ledger](#tck-coverage-ledger) | Implemented | A machine-checked, corpus-wide ledger of per-folder TCK coverage (covered/gaps/excluded) |
+| req-gridkin-stage-coverage | [Executor-Stage Coverage Gate](#executor-stage-coverage-gate) | Implemented | Every executor dispatch stage is exercised by a WHERE-carrying scenario; the path set is derived from the source, not a hand-kept list |
+| req-gridkin-executor-branch-coverage | [Executor Branch-Coverage Ratchet](#executor-branch-coverage-ratchet) | Implemented | `coverage.py` branch coverage of `executor.py`, ratcheted against a committed floor — the branch-level complement to the stage gate |
+| req-gridkin-metamorphic-tlp | [Metamorphic TLP Corpus Assertion](#metamorphic-tlp-corpus-assertion) | Implemented | Ternary-logic partitioning derived from corpus scenarios probes the executor's 2VL/3VL null boundary for self-consistency |
 | req-gridkin-json-schema | [JSON Schema for Scenario Files](#json-schema-for-scenario-files) | Implemented | Author and validate-at-load a JSON Schema for the scenario format |
 | req-gridkin-multi-fixture-load | [Multi-Fixture Background Loads](#multi-fixture-background-loads) | Approved for Development | `background.grift_fixture` accepts a list of fixture paths; the runner imports each in order |
 | req-gridkin-nongoals | [v0 Non-Goals](#v0-non-goals) | Implemented | Explicitly deferred concerns |
@@ -536,6 +539,271 @@ structural, not a convention to remember.
 | req-gridkin-tck-coverage-2 | Covered Is Derived | Implemented | `covered` (and thus the carried-over ratio) is computed from scenario `inspired_by` cites, never stored, so it cannot drift from the corpus. | |
 | req-gridkin-tck-coverage-3 | Gaps And Exclusions Enumerated | Implemented | Each folder enumerates uncovered applicable intents (`gaps`, each `kind`-tagged) and deliberately-excluded Cypher-specific intents (`excluded`, each with a reason). | |
 | req-gridkin-tck-coverage-4 | Bidirectional Folder Tie | Implemented | Every cited folder has a ledger entry and every ledger entry is cited — enforced by the guard, so language extensions force a ledger update. | |
+
+### Executor-Stage Coverage Gate
+----
+RID: `req-gridkin-stage-coverage`
+Status: `Implemented`
+
+`req-gridkin-tck-coverage` accounts for coverage of the language *intent*
+surface. It says nothing about coverage of the executor's *dispatch paths* — and
+the two are not the same. The intent≠path-coverage AAR
+(`docs/aar/2026-06-30-gridkin-intent-coverage-not-path-coverage.md`) records a
+silent-wrong-answer bug that lived on an executor path *no* scenario exercised,
+while a green "intents covered" ledger sat directly over it: one intent ("a WHERE
+over two bound nodes") mapped many-to-one onto dispatch paths, and the buggy path
+had zero scenarios. This gate closes that specific accounting gap — a second
+coverage axis, keyed on executor path rather than TCK folder.
+
+#### Implementation
+
+- **The path set is derived from the source, never hand-kept.** The executor tags
+  every dispatch path with a `gryphon_stage("<label>")` context manager
+  (`tap_grid/gryphon/executor.py`). `stage_coverage.enumerate_stage_labels()`
+  AST-parses those call sites into the authoritative stage inventory. A
+  `gryphon_stage()` called with a non-literal label raises rather than being
+  silently missed — the inventory must fail loud, not under-report. The current
+  stages are `optional-match`, `advanced`, `bare-type-scan`, `type-scan`, and
+  `single-hop`.
+- **The exercised set is derived from the committed snapshots.** Every result
+  scenario's `.sql.txt` records the stage each statement ran under
+  (`-- statement N · stage: <label>`, per `req-gridkin-explain-snapshot`).
+  `snapshot_stages()` parses those headers; the union across the corpus is the
+  set actually exercised.
+- **The gate is sharpened past reachability — WHERE-carrying, not merely reached.**
+  The motivating bug was a stage reached only *without* a WHERE, so its
+  WHERE-application code was never run; reachability alone would have passed. So a
+  stage counts as covered only when a scenario that *carries a WHERE* routes
+  through it. "Carries a WHERE" counts a top-level `WHERE` and a
+  `NOT EXISTS { … WHERE … }` inner predicate (the advanced stage applies the
+  latter inside the anti-join). All five current stages apply a WHERE, so all five
+  must be WHERE-exercised.
+- **The tie is bidirectional.** Every enumerated stage must be WHERE-exercised (a
+  new dispatch path with no WHERE-carrying scenario fails the gate — the direct
+  regression lock for the AAR's class), and every stage label seen in a snapshot
+  must still be emitted by the source (a renamed/removed stage leaves a stale
+  label that fails the drift axis). The guard lives in
+  `tests/test_gridkin_internals.py::TestStageCoverage`.
+- **A pinned inventory forces acknowledgment.** A tripwire test pins the current
+  five-stage set, so adding or removing a dispatch path is a deliberate, reviewed
+  change rather than a silent one — the author must confront the new path's
+  coverage, which the WHERE-coverage assertion then enforces.
+
+This gate is what makes "the executor is covered" a claim about *paths* rather
+than *intents*. Its complement is the model-based reference oracle (the third
+Gridkin assertion, `req-gridkin-oracle-assertion`), which checks each exercised
+path returns the *right answer*; together they cover both "is every path run"
+and "does every run agree with an independent recomputation."
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-gridkin-stage-coverage-1 | Path Set Derived From Source | Implemented | The dispatch-stage inventory is AST-parsed from the executor's `gryphon_stage()` call sites; a non-literal label raises rather than being silently dropped. | Not a hand-kept list. |
+| req-gridkin-stage-coverage-2 | Every Stage WHERE-Exercised | Implemented | Each enumerated stage is exercised by at least one result scenario whose query carries a WHERE (top-level or NOT-EXISTS-inner). | The direct lock for the intent≠path AAR class. |
+| req-gridkin-stage-coverage-3 | No Stale Snapshot Labels | Implemented | Every stage label appearing in a committed SQL snapshot is still emitted by the executor source; a renamed/removed label fails the drift axis. | Bidirectional tie. |
+| req-gridkin-stage-coverage-4 | Inventory Pinned | Implemented | The current stage set is pinned by a tripwire test so adding or removing a dispatch path is a deliberate, reviewed change. | Forces coverage acknowledgment for a new path. |
+
+### Executor Branch-Coverage Ratchet
+----
+RID: `req-gridkin-executor-branch-coverage`
+Status: `Implemented`
+
+The stage gate (`req-gridkin-stage-coverage`) proves every dispatch *path* runs
+with a WHERE, but its granularity is the whole stage — it cannot see an
+unexercised *branch within* a stage (a new WHERE operator, a null-handling arm, a
+direction fan-out). `coverage.py` branch coverage over `tap_grid/gryphon/executor.py`,
+ratcheted against a committed floor, is that finer complement — the "branch
+coverage on the executor, ratcheted" corrective action named in the
+intent≠path-coverage AAR §7.
+
+#### Implementation
+
+- **Measured across the whole executor corpus.** The floor is branch coverage of
+  `executor.py` under the union of the suites that exercise it — the tap_grid unit
+  and SQL-capture suites, the Gridkin scenario suite, and the API-level Gryphon
+  suite. Measuring across the corpus is deliberate: the envelope-WHERE branch was
+  reached only by a Gridkin scenario, so a unit-suite-only floor would have
+  mislabelled a covered branch as a gap.
+- **A script, not a per-commit pytest gate — and honestly labelled as such.**
+  `coverage.py` must wrap the whole test process, and the instrumented run of the
+  full corpus takes ~10-15 minutes, so it cannot ride the per-commit `pytest`
+  path the way the stage gate does. It is `scripts/gryphon-coverage-ratchet`, run
+  on-demand (inside the compose web container) and, once the dev-validation
+  promote gate lands, from there. Its honest guard status lives in the
+  `spec-dev-validation.md` Validation Map — the per-commit-CI piece is only the
+  baseline-file sanity guard, not the coverage comparison itself.
+- **Committed floor, ratchets up.** `tap_grid/gryphon/coverage-baseline.json`
+  records the integer branch-coverage floor plus provenance (the exact percent
+  measured, the commit, the suites). The script fails if `int(current) < floor`
+  (a real regression), tolerating sub-point wobble; when coverage improves it
+  prints a reminder to bump the floor and lock the gain. A cheap per-commit test
+  (`tap_grid/tests/test_gryphon_coverage_baseline.py`) keeps the committed floor
+  well-formed and never above the last real measurement.
+- **First instance of the standardizing pattern.** This is the bounded, reviewed,
+  in-repo, ratcheting mechanism `spec-dev-validation.md` names as TAP's canonical
+  honesty convention (alongside the log-site-ID and authz-coverage baselines). As
+  the build/validation pipeline is standardized, this ratchet is the template the
+  dev-validation gate absorbs rather than a one-off.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-gridkin-executor-branch-coverage-1 | Branch Coverage Measured | Implemented | `scripts/gryphon-coverage-ratchet` runs the executor-exercising suites under `coverage.py --branch` and reads `executor.py` branch coverage. | Union of unit, SQL-capture, Gridkin, and API suites. |
+| req-gridkin-executor-branch-coverage-2 | Ratchet Floor Enforced | Implemented | The script fails when integer branch coverage drops below the committed floor; sub-point wobble is tolerated. | Regression is loud and blocking. |
+| req-gridkin-executor-branch-coverage-3 | Floor Committed And Honest | Implemented | The floor lives in a committed baseline file with provenance; a per-commit guard test keeps it well-formed and never above the last measurement. | |
+| req-gridkin-executor-branch-coverage-4 | Honest Guard Status | Implemented | The Validation Map records the ratchet as script-invoked (not per-commit CI), with only the baseline-file sanity as the CI-guarded piece, until the dev-validation gate absorbs it. | Counters the false-confidence failure mode. |
+
+### Metamorphic TLP Corpus Assertion
+----
+RID: `req-gridkin-metamorphic-tlp`
+Status: `Implemented`
+
+The model oracle (`req-gridkin-oracle-assertion`) checks each query against an
+independent recomputation; the stage/branch gates check that paths and branches
+run. A *metamorphic* relation adds a third, orthogonal kind of check: it transforms
+one query into related forms that must agree, and compares the executor against
+**itself** — catching a bug the oracle and the executor could share (common-mode:
+both authored the same null-logic mistake) without needing a known-correct answer.
+Ternary Logic Partitioning (TLP, after SQLancer) is the relation shipped here, aimed
+squarely at Gryphon's highest-risk surface, the null boundary.
+
+#### Implementation
+
+- **The relation.** For a predicate `p` over a bound variable, the rows where `p` is
+  TRUE, FALSE, and UNKNOWN must *partition* the unfiltered scan — pairwise disjoint,
+  and together the whole. `gridkin/metamorphic.py` derives four queries from an
+  eligible scenario (unfiltered, `WHERE p`, `WHERE NOT (p)`, and — in 3VL —
+  `WHERE <field> IS UNKNOWN`), all normalized to an entity-id projection so the
+  relation compares identity sets. `tests/test_gryphon_metamorphic.py` seeds each
+  scenario's fixture (per-scenario isolation, as `test_gridkin.py`) and asserts the
+  partition.
+- **The 2VL/3VL discriminator is load-bearing.** A null *field* vs a non-null literal
+  follows SQL 3VL, so `p` is UNKNOWN exactly when the field is unobserved and the
+  third partition is `<field> IS UNKNOWN`. A null *literal* operand short-circuits to
+  genuine FALSE (2VL) — `p` is never UNKNOWN, so there is **no** third partition, the
+  TRUE partition must be empty, and a naive `IS UNKNOWN` third partition would
+  double-count the field-null rows. TLP discriminates on where the null lives
+  (`Comparison.value is None`, resolving params); getting this wrong is the whole
+  trap the relation exists to catch.
+- **Scope: labelled type scans, single `Comparison` WHERE.** Within one declared type
+  the split is exact. A bare labelless scan defers OR/NOT and conflates
+  "field is null" with "this type lacks the field", so it is excluded. Derivation is
+  mechanical from existing scenarios (no hand-authored expected — the partition *is*
+  the oracle); ineligible shapes are simply not emitted, and an eligibility floor
+  guards against a silent collapse to vacuous coverage.
+- **NoREC deferred, honestly.** The envelope-vs-projection relation (which first
+  caught the envelope-WHERE bug by hand) does not yield a *distinct* check: single-hop
+  field projections degrade to a bare-variable envelope, and a type-scan
+  envelope-vs-projection is same-path and redundant with TLP's TRUE partition. Its
+  target is already covered by the single-hop dispatch collapse and the model oracle,
+  so it is recorded as considered-and-deferred, not built.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-gridkin-metamorphic-tlp-1 | Partition Holds | Implemented | For each eligible scenario the TRUE / FALSE / (UNKNOWN) partitions are pairwise disjoint and union to the unfiltered scan. | Executor self-consistency. |
+| req-gridkin-metamorphic-tlp-2 | 2VL/3VL Discriminated | Implemented | The UNKNOWN partition is emitted only for a 3VL null-field predicate; a 2VL null-literal operand yields no UNKNOWN partition and an empty TRUE partition. | The load-bearing null boundary. |
+| req-gridkin-metamorphic-tlp-3 | Derived, Not Authored | Implemented | Partition queries are derived mechanically from corpus scenarios; the predicate text is lifted verbatim so no literal is re-rendered. | The relation is the oracle. |
+| req-gridkin-metamorphic-tlp-4 | Non-Vacuous | Implemented | An eligibility floor fails if a regression collapses the derived set, so the check cannot silently pass by covering nothing. | |
+
+### Differential Property Fuzzer
+----
+RID: `req-gridkin-property-fuzz`
+Status: `Implemented`
+
+The model oracle (`req-gridkin-oracle-assertion`) is a second Gryphon engine that
+recomputes each *authored* scenario's answer with zero lowering shared with the
+executor. The property fuzzer removes the "authored" restriction: a **seedable
+generator** emits a random small GRIFT graph over the playground types and a random
+VALID query over the oracle's modeled surface, runs both engines, and asserts they
+agree on identity / row sets. The oracle IS the differential harness the fuzzer
+needs; the generator is the only new part. This is the capstone rung of the ladder
+(`doc-gryphon-testing-philosophy.md` "The frontier"): the methodology stops being
+purely *sampled* over hand-authored scenarios and starts covering the language
+surface mechanically.
+
+#### Implementation
+
+- **Generator** (`gridkin/fuzz.py`): a `random.Random(graph_seed)` stream produces a
+  graph (3–8 nodes over `pg_node`/`pg_hub`/`pg_leaf`, deliberate `observed_at`
+  nulls, 0–n edges over `PG_LINKS`/`PG_OPTIONAL`, including self-loops and
+  multi-edges) and a batch of queries against it. Every case replays from its seed
+  alone — entity UUIDs are drawn from the seeded RNG, never `uuid4()`.
+- **Well-typed by construction.** Query literals are sampled from the values
+  actually present in the seeded graph (filters bind to real rows) and matched to
+  each field's declared type (severity_score/int, is_open/bool,
+  kind·name·description/string, observed_at/null-predicates), so the type-strictness
+  gate never rejects a generated query. Nulls are produced on both sides of the
+  boundary: the 2VL null *literal* operand (`field OP null`) and the 3VL null
+  *field* (unobserved `observed_at`).
+- **Seed once, diff many.** Each parametrized item seeds one graph (through the real
+  `grift_import` path, per-graph DB isolation as `test_gridkin.py`) and runs its
+  whole read-only query batch against it — many differentials per truncation.
+  Committed default 12 graphs × 15 queries; env-tunable
+  (`GRYPHON_FUZZ_GRAPHS`/`_QUERIES`/`_SEED`) for a longer soak.
+- **Honest skips + a floor.** A shape the oracle does not model raises
+  `OracleUnmodeled` and is recorded as a loud skip, never a fake green; the one
+  permanent oracle skip (`LIMIT` without `ORDER BY`) is never generated. A
+  per-case floor fails if most generated queries stop being asserted — the
+  vacuous-coverage tripwire (sibling of the metamorphic eligibility floor). A
+  non-clean executor failure (invalid SQL) is classified `crashed` and reported,
+  never swallowed.
+- **Zero shared lowering, still.** The generator and oracle are authored from the
+  language spec / grammar; neither imports a line of `executor.py` lowering — the
+  entire source of the differential guarantee.
+
+#### Findings (the fuzzer earned its keep)
+
+The first runs surfaced six real issues; each was triaged by evidence and either
+fixed with a regression-locking scenario or scoped with a recorded rationale —
+never papered over.
+
+- **Executor, `= null` / `!= null` (fixed).** The executor lowered `field = null`
+  to `IS NULL` and `field != null` to `IS NOT NULL` (a Django `field=None`
+  artifact), silently returning null-/non-null-field rows — violating the
+  two-valued "unobserved operand" rule that `spec-grid-traversal-language.md`
+  mandates (a null literal short-circuits to genuine FALSE). Fixed in
+  `_comparison_to_q`; locked by the two `is_null` `null-literal` scenarios.
+- **Executor, single-hop field projection (fixed).** A single-hop traversal with a
+  field-projection RETURN fell through to the *envelope* dispatch, which silently
+  ignored the projection (returned nodes/edges, no rows) — the accept-and-drop
+  class the AAR names. `_has_advanced_features` now routes it to the row executor;
+  locked by `single_hop_dispatch-…-field-projection`.
+- **Executor, anonymous connecting edge (fixed).** A bare-variable `RETURN a, b`
+  over an anonymous (`-[]->`) edge dropped the connecting edge from the envelope
+  (only *named* edges were collected). `_collect_graph_envelope` now collects
+  anonymous hop edges too; locked by `single_hop_dispatch-…-anonymous-edge`.
+- **Oracle, union WHERE scoping under NOT (fixed).** The reference oracle's
+  per-clause union scoping substituted TRUE for an unbound-variable leaf and
+  evaluated it, so a `NOT` over that leaf wrongly emptied the arm. It now *prunes*
+  unbound leaves (the executor's own scoping rule, authored independently); locked
+  by `union-…-not-scoped-to-one-arm`. (The reference impl is expected to need
+  debugging too — that is the differential method.)
+- **v0 boundary, node-only aggregation (scoped).** `MATCH (v:L) RETURN …, COUNT(v)`
+  is cleanly rejected ("aggregation requires ≥1 edge") — a deliberate v0 boundary,
+  not a silent-wrong-answer. The generator emits COUNT over chains only. Node-only
+  aggregation is a named v0 gap, not a bug.
+- **Executor, multi-hop far-node WHERE (deferred, named).** A WHERE on a node
+  beyond the root edge of a multi-hop chain resolves through a reverse-FK path
+  (`to_entity__edges_out__to_entity__…`) that Django compiles into a *duplicate*
+  join — row inflation, and invalid SQL on some OR shapes. This is a substantial
+  pre-existing executor defect; the fuzzer reproduced it (deterministically, from
+  seed 1729) and the generator keeps WHERE off multi-hop chains until it is fixed.
+  A focused fix (reuse the structural join, or fail loud) is left as an open,
+  reproduced finding rather than bundled here.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-gridkin-property-fuzz-1 | Seedable & Replayable | Implemented | Every case (graph + query batch) is generated from `random.Random(graph_seed)` and replays from the seed alone; a divergence report prints the seed, the emitted GRIFT, the query, and both results. | UUIDs from the seeded RNG, not `uuid4()`. |
+| req-gridkin-property-fuzz-2 | Well-Typed, Binding, Null-Probing | Implemented | Generated queries are well-typed (never tripping type-strictness), sample literals from the seeded graph so filters bind, and deliberately produce both 2VL null-literal and 3VL null-field predicates. | The null boundary is where risk concentrates. |
+| req-gridkin-property-fuzz-3 | Zero Shared Lowering | Implemented | The generator and oracle are authored from the spec/grammar and share no lowering with `executor.py`; the executor is exercised through the real `grift_import` seeding and `explain_gryphon_raw`. | The differential guarantee. |
+| req-gridkin-property-fuzz-4 | Honest Skips, No Fake Green | Implemented | An unmodeled shape is a loud skip (never asserted false-positive); a non-clean executor failure is reported as `crashed`; a per-case floor fails on vacuous coverage. | `LIMIT`-without-`ORDER BY` is never generated. |
+| req-gridkin-property-fuzz-5 | Bounded Committed Run | Implemented | The committed run is small (12×15) and env-tunable for a longer soak, so it does not balloon the gate. | Per-graph DB isolation, read-only query batches. |
 
 ### JSON Schema for Scenario Files
 ----

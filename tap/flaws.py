@@ -31,6 +31,7 @@ req-flaw-domain-tags, req-flaw-emission, req-flaw-handling).
 from __future__ import annotations
 
 import logging
+import traceback
 from typing import Any, ClassVar
 
 # ---------------------------------------------------------------------------
@@ -171,6 +172,93 @@ class InstanceFlaw(Flaw):
     """The instance is misconfigured or in an inconsistent runtime state."""
 
     flaw_class: ClassVar[str] = "instance"
+
+
+# ---------------------------------------------------------------------------
+# Service-layer-bypass helper — the class-aware emitter for the grid guards.
+# ---------------------------------------------------------------------------
+#
+# The read/write ORM backstops (`tap_grid.read_guard` / `tap_grid.write_guard`)
+# and the enforcement backstop fire when graph data is read or mutated outside the
+# service layer. Blame belongs to *whoever made the offending call*: a bypass from
+# a plugin is the plugin author's contract violation (`app`); a bypass from
+# first-party code is TAP core's bug (`code`). This helper decides that from the
+# offending call's file path and emits the security Flaw accordingly, so a router
+# never has to read code to know who fixes it.
+
+# Infra modules that sit between the offending callsite and the Flaw emit — skipped
+# when locating who bypassed the service layer.
+_BYPASS_INFRA_MARKERS: tuple[str, ...] = (
+    "/tap/flaws.py",
+    "/tap_grid/read_guard.py",
+    "/tap_grid/write_guard.py",
+    "/tap_grid/models.py",
+    "/tap_auth/enforcement.py",
+)
+
+
+def flaw_class_for_path(path: str | None) -> type[Flaw]:
+    """Blame class for a service-layer bypass, by where the offending call lives.
+
+    A path under ``plugins/`` is an :class:`AppFlaw` (a plugin bypassed the service
+    layer); anything else (first-party ``tap_*`` code, or an unknown path) is a
+    :class:`CodeFlaw`. Pure function so the classification is unit-testable without
+    synthesizing a call stack.
+    """
+    if path and "/plugins/" in path:
+        return AppFlaw
+    return CodeFlaw
+
+
+def _offending_callsite() -> tuple[str | None, str]:
+    """Best-effort (path, "path:lineno in func") of the code that bypassed the
+    service layer — the first stack frame outside the guard/ORM/enforcement
+    infrastructure and outside third-party packages."""
+    for frame in reversed(traceback.extract_stack()):
+        fn = frame.filename
+        if any(marker in fn for marker in _BYPASS_INFRA_MARKERS):
+            continue
+        if "/site-packages/" in fn or "/dist-packages/" in fn:
+            continue
+        return fn, f"{fn}:{frame.lineno} in {frame.name}"
+    return None, "<unknown>"
+
+
+def report_service_layer_bypass(
+    *,
+    invariant_id: str,
+    message: str,
+    logger: logging.Logger,
+    **context: Any,
+) -> Flaw:
+    """Emit a `security` Flaw for a grid read/write that bypassed the service layer.
+
+    The blame class (`code` vs `app`) is decided by where the offending call lives
+    (see :func:`flaw_class_for_path`). Always `security`-tagged and
+    operation-aborting. The offending callsite is woven into the message and rides
+    ``message_data.context.offending_callsite`` for structured routing.
+
+    Args:
+        invariant_id: Stable token naming the violated invariant (e.g.
+            ``unguarded_operation`` / ``grid_write_service_layer_bypass``).
+        message: Human-readable description (no secrets).
+        logger: The calling module's logger, so the record name is the callsite.
+        **context: Extra safe structured context merged into ``message_data``.
+
+    Returns:
+        The emitted Flaw, so the caller may ``raise`` it or continue.
+    """
+    path, site = _offending_callsite()
+    flaw_cls = flaw_class_for_path(path)
+    return flaw_cls.report(
+        invariant_id=invariant_id,
+        tags=["security"],
+        handling=HANDLING_ABORT_OPERATION,
+        message=f"{message} — offending callsite: {site}",
+        logger=logger,
+        offending_callsite=site,
+        **context,
+    )
 
 
 def _tag_problems(tags: list[str]) -> list[str]:

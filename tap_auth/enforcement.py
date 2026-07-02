@@ -39,6 +39,7 @@ from tap_auth import capabilities as caps
 from tap_auth import policy
 from tap_auth.errors import UnguardedOperation
 from tap_auth.models import UserKind
+from tap_grid.write_guard import WRITE_SCOPE_CAPABILITIES, service_write_scope
 
 if TYPE_CHECKING:
     from tap_grid.caller_context import CallerContext
@@ -86,6 +87,12 @@ def requires_capability(capability: str, *, operation: str = "") -> Callable[[F]
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             ctx = _resolve_caller_context(kwargs)
             policy.authorize(ctx, capability, operation=operation or fn.__name__)
+            # A gated write function opens the service-write scope for its body, so
+            # its node/edge writes pass the write backstop (req-tap-auth-write-batch-
+            # routing). Reads (grid.read) do not open it.
+            if capability in WRITE_SCOPE_CAPABILITIES:
+                with service_write_scope():
+                    return fn(*args, **kwargs)
             return fn(*args, **kwargs)
 
         return wrapper  # type: ignore[return-value]
@@ -118,7 +125,13 @@ def authorized(
         resource_type=resource_type,
         resource=resource,
     )
-    yield
+    # Same as the decorator: a write-class authorization opens the service-write
+    # scope for the body (e.g. grift_import runs under `authorized(grid.import_grift)`).
+    if capability in WRITE_SCOPE_CAPABILITIES:
+        with service_write_scope():
+            yield
+    else:
+        yield
 
 
 def _callsite(skip: int = 2) -> str:
@@ -132,29 +145,24 @@ def _callsite(skip: int = 2) -> str:
 
 
 def _raise_unguarded(kind: str, caller_context: CallerContext | None, detail: str) -> None:
-    """Log loudly and raise UnguardedOperation (fail closed in every mode)."""
-    callsite = _callsite()
+    """Emit the class-aware security Flaw and raise UnguardedOperation (fail closed).
+
+    The blame class (`code` vs `app`) is decided from the offending callsite: a
+    read/write that skipped the authorize gate from a plugin is an `app` Flaw, from
+    first-party code a `code` Flaw. `report_service_layer_bypass` locates that
+    callsite and emits the `unguarded_operation` Flaw before we fail closed.
+    """
+    from tap.flaws import report_service_layer_bypass
+
     user = caller_context.user if caller_context is not None else None
-    logger.error(
-        "[eeef] UNGUARDED %s operation — no authorize() decision recorded; failing closed. "
-        "callsite=%s actor=%s detail=%s",
-        kind,
-        callsite,
-        getattr(user, "username", None),
-        detail,
-        # stack_info attaches the full call path that reached this
-        # should-never-happen backstop — the defect is a forgotten gate
-        # somewhere up that stack, so the trace IS the debugging signal.
-        stack_info=True,
-        extra={
-            "message_data": {
-                "flaw_class": "code",
-                "flaw_tags": ["security"],
-                "kind": kind,
-                "callsite": callsite,
-                "actor": getattr(user, "username", None),
-            }
-        },
+    callsite = _callsite()
+    report_service_layer_bypass(
+        invariant_id="unguarded_operation",
+        message=f"unguarded {kind} operation — no authorize() decision recorded; failing closed",
+        logger=logger,
+        kind=kind,
+        detail=detail,
+        actor=getattr(user, "username", None),
     )
     raise UnguardedOperation(f"unguarded {kind}: no authorization decision recorded before {detail}", callsite=callsite)
 

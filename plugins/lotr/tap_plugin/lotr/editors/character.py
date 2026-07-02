@@ -46,29 +46,23 @@ class CharacterEditorDescriptor(EditorDescriptor):
         }
 
     def handle_save(self, form: forms.Form, obj: Any, request: HttpRequest) -> Any:
-        """Persist validated form data to the Character.
+        """Persist validated form data to the Character through the service layer.
 
-        BaseModel is the source of truth for `name` (via get_name()); the
-        Entity.name spine value is a subordinate projection that obj.save()
-        materializes. We therefore set the field on the node and never write
-        Entity.name directly — a direct write is silently reverted by the
-        spine sync (see spec-grid-node.md req-grid-node-display).
+        Routes the write through `patch_node` (never a direct `obj.save()`), so it
+        carries grid.write + batch/FLIP/provenance and a caller lacking grid.write
+        is denied (AuthzError → 403). BaseModel is the source of truth for `name`
+        (via get_name()); the Entity.name spine value is a subordinate projection
+        the write pipeline materializes — we set the node field and never write
+        Entity.name directly (see spec-grid-node.md req-grid-node-display).
         """
-        import uuid
-
-        from django.contrib.auth import get_user_model
-
-        from tap_grid.caller_context import CallerContext, set_caller_context
+        from tap_grid.services import patch_node
 
         cleaned = form.cleaned_data
-
-        user = request.user if isinstance(request.user, get_user_model()) else None
-        set_caller_context(CallerContext(user=user, batch_id=str(uuid.uuid7())))
-        try:
-            obj.name = cleaned["name"]
-            obj.bio = cleaned.get("bio", "")
-            obj.save(skip_validation=True)
-        finally:
-            set_caller_context(None)
-
+        # Actor resolves from the ambient CallerContext (bound by the request
+        # middleware / test fixture); patch_node authorizes it (grid.write).
+        patch_node(
+            target=obj.entity.pk,
+            payload={"name": cleaned["name"], "bio": cleaned.get("bio", "")},
+        )
+        obj.refresh_from_db()
         return obj

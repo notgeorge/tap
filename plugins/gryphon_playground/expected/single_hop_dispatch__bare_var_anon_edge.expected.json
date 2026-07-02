@@ -1,0 +1,97 @@
+{
+  "nodes": [
+    {
+      "entity_id": "019e4b02-f37b-72df-a3e5-baf99158bb0c",
+      "entity_type": "gryphon_playground__pg_hub",
+      "name": "Dense Hub",
+      "dimensions": {
+        "tap.playground": "gridkin"
+      },
+      "created_at": "<volatile>",
+      "updated_at": "<volatile>",
+      "deleted_at": null,
+      "version": 1,
+      "originating_grid_id": "<volatile>"
+    },
+    {
+      "entity_id": "019e4b02-f37b-72df-a3e5-bafa7b3865a9",
+      "entity_type": "gryphon_playground__pg_node",
+      "name": "Neighbor One",
+      "dimensions": {
+        "tap.playground": "gridkin"
+      },
+      "created_at": "<volatile>",
+      "updated_at": "<volatile>",
+      "deleted_at": null,
+      "version": 1,
+      "originating_grid_id": "<volatile>"
+    },
+    {
+      "entity_id": "019e4b02-f37b-72df-a3e5-bafb10535646",
+      "entity_type": "gryphon_playground__pg_node",
+      "name": "Neighbor Two",
+      "dimensions": {
+        "tap.playground": "gridkin"
+      },
+      "created_at": "<volatile>",
+      "updated_at": "<volatile>",
+      "deleted_at": null,
+      "version": 1,
+      "originating_grid_id": "<volatile>"
+    },
+    {
+      "entity_id": "019e4b02-f37b-72df-a3e5-bafc00e2b0af",
+      "entity_type": "gryphon_playground__pg_node",
+      "name": "Neighbor Three",
+      "dimensions": {
+        "tap.playground": "gridkin"
+      },
+      "created_at": "<volatile>",
+      "updated_at": "<volatile>",
+      "deleted_at": null,
+      "version": 1,
+      "originating_grid_id": "<volatile>"
+    }
+  ],
+  "edges": [
+    {
+      "entity_id": "019e4b02-f37b-72df-a3e5-bb00cf03bb0e",
+      "entity_type": "edge",
+      "name": "019e4b02-f37b-72df-a3e5-baf99158bb0c --[PG_LINKS__gryphon_playground]--> 019e4b02-f37b-72df-a3e5-bafa7b3865a9",
+      "dimensions": {
+        "tap.playground": "gridkin"
+      },
+      "created_at": "<volatile>",
+      "updated_at": "<volatile>",
+      "deleted_at": null,
+      "version": 1,
+      "originating_grid_id": "<volatile>"
+    },
+    {
+      "entity_id": "019e4b02-f37b-72df-a3e5-bb0135c1d515",
+      "entity_type": "edge",
+      "name": "019e4b02-f37b-72df-a3e5-baf99158bb0c --[PG_LINKS__gryphon_playground]--> 019e4b02-f37b-72df-a3e5-bafb10535646",
+      "dimensions": {
+        "tap.playground": "gridkin"
+      },
+      "created_at": "<volatile>",
+      "updated_at": "<volatile>",
+      "deleted_at": null,
+      "version": 1,
+      "originating_grid_id": "<volatile>"
+    },
+    {
+      "entity_id": "019e4b02-f37b-72df-a3e5-bb02a19297a0",
+      "entity_type": "edge",
+      "name": "019e4b02-f37b-72df-a3e5-baf99158bb0c --[PG_LINKS__gryphon_playground]--> 019e4b02-f37b-72df-a3e5-bafc00e2b0af",
+      "dimensions": {
+        "tap.playground": "gridkin"
+      },
+      "created_at": "<volatile>",
+      "updated_at": "<volatile>",
+      "deleted_at": null,
+      "version": 1,
+      "originating_grid_id": "<volatile>"
+    }
+  ]
+}

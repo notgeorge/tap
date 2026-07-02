@@ -16,3 +16,10 @@ plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/collectors/safety/denylist.js
 plugins/github_core/tap_plugin/github_core/collectors/github_collector/github_collection_manifest.json
 plugins/github_core/tap_plugin/github_core/collectors/github_collector/github_grid_link_manifest.json
 plugins/samsite/tap_plugin/samsite/collectors/compliance_collector/artifact_manifest.json
+#
+# Gryphon executor branch-coverage ratchet data (added by the gryphon-completeness
+# session, commit 039ac0a2). Shipped non-conforming; hatched here so the gate is
+# green. RENAME is owned by the gryphon session (e.g. a conforming role like
+# `gryphon.coverage.json`), which must also update its reader
+# `scripts/gryphon-coverage-ratchet`; remove this line when they do.
+tap_grid/gryphon/coverage-baseline.json

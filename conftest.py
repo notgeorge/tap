@@ -104,3 +104,25 @@ def default_caller_context(request):
         yield ctx
     finally:
         set_caller_context(None)
+
+
+@pytest.fixture(autouse=True)
+def _service_write_hatch(request):
+    """Permit direct-ORM model setup in tests (req-tap-auth-write-batch-routing).
+
+    The write backstop fails a node/edge write that does not route through the
+    service layer. Tests are the sanctioned below-service write zone (like
+    migrations): a great deal of test setup legitimately does direct
+    `.objects.create()` / `.save()` (including intentional model-level tests). So
+    each test runs inside `unguarded_write()` by default — prod enforces the guard,
+    and the static lint carries authoring-time detection of direct writes in app
+    code. A test that needs to exercise the guard itself opts out with
+    `@pytest.mark.enforce_write_guard`.
+    """
+    from tap_grid.write_guard import unguarded_write
+
+    if request.node.get_closest_marker("enforce_write_guard"):
+        yield
+        return
+    with unguarded_write():
+        yield

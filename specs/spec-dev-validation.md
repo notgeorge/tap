@@ -27,7 +27,10 @@ The discipline running through every requirement here is honest coverage account
 | req-dev-validation-real-backend | [Real-Backend Fidelity](#real-backend-fidelity) | Proposed | Gate runs the real task backend, never `ImmediateBackend` |
 | req-dev-validation-canary-tier | [Canary Test Tier](#canary-test-tier) | Proposed | `-m smoke` blast-radius subset; does not substitute for the gate |
 | req-dev-validation-known-broken | [Known-Broken Manifest](#known-broken-manifest) | Proposed | In-repo, ratchets down; named here as the house convention |
+| req-dev-validation-collection-complete | [Collection Completeness](#collection-completeness) | Implemented | Every test file on disk is collected by the gate run; discovery not an allow-list; validates the validator |
 | req-dev-validation-promote-hook | [Promote-Path Enforcement](#promote-path-enforcement) | Proposed | Reciprocal of `req-dev-multisession-promote-gate` |
+| req-dev-validation-ratchet-harness | [Reusable Ratchet Harness](#reusable-ratchet-harness) | Proposed | Extract the shared compare-and-report core of the proliferating baseline ratchets |
+| req-dev-validation-suite-tiers | [Suite Tiering & Performance](#suite-tiering--performance) | Proposed | Fast / affected / full test lanes so a slow full run leaves the inner loop; how-each-runs discipline |
 
 Leaf surfaces referenced by the Map are owned elsewhere: spawn-env smoke in [spec-dev-multisession-smoketest.md](spec-dev-multisession-smoketest.md), teardown in [spec-dev-multisession-teardown.md](spec-dev-multisession-teardown.md), the log-site scanner in [spec-tap-logging.md](spec-tap-logging.md), and the async-delivery tiers in [spec-tap-cares-task-backend.md](../tap_cares/specs/spec-tap-cares-task-backend.md) (`req-tap-cares-task-backend-backlog-2`). This spec does not re-specify them.
 
@@ -58,10 +61,18 @@ The Validation Map is the spine of this spec and the single authoritative invent
 | Async-delivery — tier 1 | `spec-tap-cares-task-backend.md` (`-transactional-integrity-1`) | `run_collection` `on_commit` deferral is positively, mutation-provenly guarded | Per-commit (`pytest`) | CI-guarded (`TestTransactionalIntegrity`) |
 | Async-delivery — tiers 2–3 | `spec-tap-cares-task-backend.md` (`-backlog-2`) | Real-worker fork safety, queue isolation, wall-clock lifecycle, pickup latency, crash recovery | Deferred | Named, deferred |
 | Assembled-instance health | `specs/spec-tap-health-v0.md` (the pair) | A stood-up instance's real backends actually work: DatabaseCache table provisioned (`tap_cache`), live db + cache set/get round-trip + best-effort queue + secrets probe + auth-providers offline self-test probe pass. Catches the latent-provisioning-fault class (standup "succeeds" but a never-exercised-at-boot path is broken) | Per-commit (`pytest`) + per-spawn (`manage.py health` exec gate) | Partially guarded — **CI-guarded** for the unit pieces (`tap_health/tests/test_checks.py` cache-table system check; `tap_health/tests/` registry/service/projection-leak/command tests) and the database-tagged check fires loud at `migrate`/`check --database`; **per-spawn** the `manage.py health` non-zero-exit gate (`spawn-session.sh` Step 6.5) replaces both the prior 5xx-passes liveness blindness and the now-parked unauthenticated `/healthz` (`req-tap-health-exposure-4`). The full cold-boot assembled-instance live-health run under automation is **Named, deferred** → folds into the Cold-boot system cycle gate (CI/CD is roadmap item 5, post-July) |
+| Gryphon executor-stage coverage | `plugins/gryphon_playground/specs/spec-gridkin-v0.md` (`req-gridkin-stage-coverage`) | Every executor dispatch stage (`gryphon_stage()` label, derived from source) is exercised by a WHERE-carrying Gridkin scenario; snapshot stage labels don't drift from the source. Closes the intent≠path-coverage gap (silent-wrong-answer bug on an unexercised dispatch path) | Per-commit (`pytest`) | CI-guarded (`plugins/gryphon_playground/tests/test_gridkin_internals.py::TestStageCoverage`) |
+| Gryphon executor branch coverage | `plugins/gryphon_playground/specs/spec-gridkin-v0.md` (`req-gridkin-executor-branch-coverage`) | `executor.py` branch coverage (measured across the unit + SQL-capture + Gridkin + API suites) holds at/above a committed floor — the branch-level complement to the stage gate, catching an unexercised branch *within* a stage | On-demand script (~10-15 min instrumented run); pre-push once the gate absorbs it | Partially guarded — the ratchet comparison is **Manual (CI-unguarded by design)** via `scripts/gryphon-coverage-ratchet` (too slow for per-commit); the committed floor's well-formedness is **CI-guarded** (`tap_grid/tests/test_gryphon_coverage_baseline.py`). Folds into the Cold-Boot gate when built. First instance of the ratcheting-baseline convention applied to runtime coverage. |
+| Gryphon metamorphic TLP | `plugins/gryphon_playground/specs/spec-gridkin-v0.md` (`req-gridkin-metamorphic-tlp`) | Ternary-logic-partitioning of corpus scenarios: TRUE/FALSE/(UNKNOWN) partitions reconstruct the unfiltered scan, discriminating the 2VL null-literal vs 3VL null-field boundary — executor self-consistency on the highest-risk null surface, independent of the model oracle | Per-commit (`pytest`) | CI-guarded (`plugins/gryphon_playground/tests/test_gryphon_metamorphic.py`) |
+| Gryphon differential property fuzzer | `plugins/gryphon_playground/specs/spec-gridkin-v0.md` (`req-gridkin-property-fuzz`) | Seedable random GRIFT graph + random valid query over the model oracle's modeled surface → executor vs oracle agree on identity/row sets; the capstone that lifts coverage past hand-authored scenarios. Surfaced four executor/oracle bugs on first runs (all fixed + regression-locked); replayable from the seed alone | Per-commit (`pytest`, committed 12×15; env-tunable soak) | CI-guarded (`plugins/gryphon_playground/tests/test_gryphon_fuzz.py`) |
 | Cold-boot system cycle | this spec (`req-dev-validation-smoke-gate`) | Fresh DB → migrate → seed → one real collector cycle → one scheduler fire, end to end | Pre-push | Gate-guarded *(target)* |
 | Canary tier | this spec (`req-dev-validation-canary-tier`) | Blast-radius unit/functional subset still passes | Pre-push + per-commit | Gate-guarded *(target)* |
+| Web render smoke (login/landing) | `tap_web/specs/spec-web-navigation.md` (`req-web-nav-chrome-read-free-3`) | The always-present base.html chrome renders without a 500 for both an anonymous caller (`GET /auth/login/` → 200) and an authenticated `grid.read` holder (`GET /` → 200) — catches a shared context processor / chrome read tripping a structural backstop, whose blast radius is every page | Per-commit (`pytest -m smoke`) | CI-guarded (`tap_auth/tests/test_login_wall.py`, `@pytest.mark.smoke`) |
+| Collection completeness | this spec (`req-dev-validation-collection-complete`) | Every `test_*.py`/`*_test.py` on disk (minus the justified `_IGNORED_DIRS`) is collected by a full-repo run — the check that validates the validator, so "green" cannot mean "the subset pytest happened to collect passed" | Per-commit (`pytest`) | CI-guarded (`tap/tests/test_collection_completeness.py`) |
 
 Rows marked *(target)* describe the intended state once this spec is implemented; their guard status is honestly `Named, deferred` until then. The Map is updated in the same change as any new or retired validation surface, and reviewed when it changes — the change to the Map *is* the visible decision.
+
+**Collection-scope caveat (a guard that isn't collected does not guard).** A test that the default `pytest` run does not collect is **invisible to the gate** — it passes when named explicitly and silently protects nothing otherwise. This let the 2026-07-01 login regression ship green: `tap_auth`, `tap_boot`, and `tap_cares` all sat outside the `testpaths` **allow-list**, so their tests (including `test_login_wall.py`'s render assertions) were never in the gate. The allow-list is fail-open over a scattered per-app layout — a new app is uncollected until someone remembers to list it. The fix is structural, not another list entry: `pyproject.toml` no longer sets `testpaths`, so pytest **discovers** every test file from the repo root (an ignore-list, fail-safe), and [Collection Completeness](#collection-completeness) asserts the outcome so the scope can never silently narrow again. See that requirement.
 
 #### Acceptance Criteria
 
@@ -148,7 +159,7 @@ Status: `Proposed`
 
 Known-broken state is enumerated in a committed manifest, never held in human memory. The gate exits non-zero on any failure **not** listed, and also on any listed entry that no longer fails (stale entries are removed so the manifest ratchets toward zero). Each entry carries a one-line reason and owning context. The manifest is seeded at landing with whatever is genuinely known-broken at that moment — possibly empty.
 
-This requirement also **names, once, the house convention** the repository has independently reached for repeatedly: a *bounded, reviewed, in-repo manifest that ratchets down* is TAP's canonical mechanism for honest coverage accounting. Its instances are the log-site-ID baseline (`spec-tap-logging.md`), the authz-coverage baseline (`spec-tap-auth-v0.md` `req-tap-auth-policy-9`), this known-broken manifest, canary-set membership ([Canary Test Tier](#canary-test-tier)), and honest `CI-unguarded` spec-status labeling (`spec-tap-cares-task-backend.md`). New honesty mechanisms SHOULD follow this pattern rather than invent a parallel one.
+This requirement also **names, once, the house convention** the repository has independently reached for repeatedly: a *bounded, reviewed, in-repo manifest that ratchets down* is TAP's canonical mechanism for honest coverage accounting. Its instances are the log-site-ID baseline (`spec-tap-logging.md`), the authz-coverage baseline (`spec-tap-auth-v0.md` `req-tap-auth-policy-9`), the direct-write-coverage baseline (`tap/tests/_direct_write_baseline.txt`), the Gryphon executor branch-coverage floor (`tap_grid/gryphon/coverage-baseline.json`, `req-gridkin-executor-branch-coverage`), this known-broken manifest, canary-set membership ([Canary Test Tier](#canary-test-tier)), and honest `CI-unguarded` spec-status labeling (`spec-tap-cares-task-backend.md`). New honesty mechanisms SHOULD follow this pattern rather than invent a parallel one — and, per [Reusable Ratchet Harness](#reusable-ratchet-harness), should increasingly share its *implementation*, not just its shape.
 
 #### Acceptance Criteria
 
@@ -159,6 +170,169 @@ This requirement also **names, once, the house convention** the repository has i
 | req-dev-validation-known-broken-3 | Per-entry justification | Proposed | Each entry has a one-line reason and owning context. | |
 | req-dev-validation-known-broken-4 | Seeded at landing | Proposed | The manifest is seeded with whatever is known-broken when the gate lands; an empty manifest (effective strict mode) is the preferred state. | |
 | req-dev-validation-known-broken-5 | Named house convention | Proposed | The bounded-reviewed-ratcheting-manifest pattern is named here as canonical; other honesty mechanisms reference it rather than reinvent. | One vocabulary across sessions. |
+
+### Collection Completeness
+----
+RID: `req-dev-validation-collection-complete`
+Status: `Implemented`
+
+Every test file that exists on disk MUST be collected by the default full-repo `pytest` run, except a small, justified set of intentional exclusions. This is the guard that **validates the validator**: without it, "green" silently means "the subset pytest happened to collect passed," and the subset can drift narrower than the code with no signal.
+
+#### Status Details
+
+This requirement exists because of a concrete miss. The 2026-07-01 login regression shipped green while `test_login_wall.py` was red, because `pyproject.toml` `testpaths` was an **allow-list** (`["tap", "tap_grid", …]`) that omitted whole apps — `tap_auth`, `tap_boot`, `tap_cares` — so their tests were never collected by the gate. No ordinary test can catch this: the failure is in the collection scope, one layer beneath the tests.
+
+#### Implementation
+
+- **Discovery, not an allow-list.** `pyproject.toml` sets no `testpaths`; pytest discovers every `test_*.py`/`*_test.py` from the repo root, minus `norecursedirs` (`.venv`, `node_modules`, `build`, `dist`, dot-dirs) and the explicit `--ignore`s in `addopts`. Discovery is fail-safe (a new test dir is collected automatically); an allow-list is fail-open (a new app is uncollected until someone remembers it). The reversibility argument of `spec-security-posture.md` applies: coverage config should fail toward over-collection, never under.
+- **Outcome-based guard.** `tap/tests/test_collection_completeness.py` enumerates the on-disk test files and diffs them against the set a full `pytest --collect-only .` run collects (real `addopts`, marker filter overridden to a tautology so opt-in `-m` tests are not false orphans). Any file on disk but not collected fails the guard, naming the orphan. Being outcome-based, it catches every cause — a re-introduced `testpaths`, a stray `--ignore`, an import error that drops a module — not just the original mechanism.
+- **Single visible ledger of holes.** The guard's `_IGNORED_DIRS` is the one place deliberate coverage exclusions live; each entry is justified and MUST correspond to an `--ignore=` in `addopts`. A real `--ignore` not mirrored there surfaces as an orphan, forcing the exclusion to be recorded rather than hidden.
+
+#### Development
+
+This is the honest-coverage-accounting discipline of this spec turned on the test suite itself: the Map's `CI-guarded` rows each *assume* their test is collected, and nothing verified that assumption until now. The guard is cheap (one `--collect-only` subprocess, no test execution) and structural, so the class cannot silently recur.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-dev-validation-collection-complete-1 | Discovery, not allow-list | Implemented | `pyproject.toml` sets no `testpaths`; test collection is repo-root discovery minus an explicit ignore-list. | Fail-safe over the scattered per-app layout. |
+| req-dev-validation-collection-complete-2 | Every file collected | Implemented | A guard asserts every on-disk `test_*.py`/`*_test.py`, minus justified `_IGNORED_DIRS`, is collected by a full-repo run. | `tap/tests/test_collection_completeness.py`. |
+| req-dev-validation-collection-complete-3 | Justified holes only | Implemented | Each intentional exclusion is a justified `_IGNORED_DIRS` entry mirrored by an `addopts` `--ignore`; an unmirrored ignore fails the guard. | The single visible ledger of coverage holes. |
+
+### Reusable Ratchet Harness
+----
+RID: `req-dev-validation-ratchet-harness`
+Status: `Proposed`
+
+> **Forward note, not a build (jotted 2026-07-01).** Seeded for a validation-focused
+> session. The convention above names the *shape*; this requirement is the
+> observation that the shape has proliferated enough to share an *implementation*,
+> plus a sketch of what to extract. Do not build speculatively — build it when the
+> next ratchet would be the third caller of the same copy-pasted compare-and-report
+> logic, or when the [Cold-Boot Smoke Gate](#cold-boot-smoke-gate) needs to invoke
+> several ratchets uniformly.
+
+#### Why now (the demand signal)
+
+The ratcheting-baseline pattern is no longer one mechanism — it is at least four, and
+two of them (the direct-write-coverage baseline and the Gryphon executor
+branch-coverage floor) landed *on the same day, in independent sessions, blind to
+each other*, each hand-rolling its own "measure → compare to a committed number/set →
+fail on regression → tell the human to bump on improvement" loop. Independent
+convergence on one shape is the signal that the shape wants a shared core. The cost
+of not extracting it is N slightly-different failure messages, N slightly-different
+ratchet-direction bugs, and N places the dev-validation gate must special-case when
+it comes to invoke them.
+
+#### What generalizes vs. what stays bespoke
+
+The **measurement** is irreducibly per-surface and MUST stay bespoke — a static AST
+scan (log-site, authz), a runtime `coverage.py` run (Gryphon branch, direct-write), a
+full smoke cycle. Do not try to unify measurement; that way lies a framework nobody
+can read.
+
+What generalizes is everything *after* the current value is in hand:
+
+- **Baseline artifact schema.** A common committed shape: the ratchet value
+  (scalar / count / set / manifest), plus provenance (`measured_at_commit`, what was
+  measured over, a human `note`). Today each invents its own file format
+  (`.json`, `.txt`, inline constant).
+- **Compare + ratchet-direction.** One helper each for the two directions —
+  *floor* (must not decrease; coverage %) and *ceiling→zero* (must not increase;
+  uncovered-count / known-broken). Both share: fail on regression with a uniform,
+  actionable message; on an *un-locked improvement*, fail-or-warn telling the human to
+  bump the baseline so gains are captured (the single most-repeated hand-rolled bit).
+- **Honest-status reporting.** Every ratchet already owes a Validation Map row with a
+  guard-status label; the harness can emit the row stub and the standard
+  `Manual (CI-unguarded by design)` vs `CI-guarded` phrasing so labeling can't drift.
+- **Sub-point tolerance + integer flooring** for float metrics (the Gryphon ratchet's
+  `int(current) < floor` rule) so wobble is not a false regression.
+
+Sketch: a small `tap/ratchet.py` exposing `ratchet_floor(current, baseline_path, ...)`
+and `ratchet_ceiling(current, baseline_path, ...)` over a shared baseline schema, with
+uniform exit codes and messages. The existing callers (Gryphon
+`scripts/gryphon-coverage-ratchet`, the authz/direct-write/log-site guards) migrate to
+it incrementally; none is rewritten speculatively.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-dev-validation-ratchet-harness-1 | Shared compare core | Proposed | A single helper implements the floor and ceiling-to-zero ratchet directions, with one actionable regression message and one improvement/bump message, replacing per-caller copies. | Measurement stays bespoke per surface. |
+| req-dev-validation-ratchet-harness-2 | Common baseline schema | Proposed | Ratchet baselines share a committed artifact shape carrying the value plus provenance (`measured_at_commit`, scope, note). | |
+| req-dev-validation-ratchet-harness-3 | Emits its Map row | Proposed | The harness produces the surface's Validation Map row stub with standard guard-status phrasing so honest-status labeling cannot drift. | Ties to `req-dev-validation-map`. |
+| req-dev-validation-ratchet-harness-4 | Incremental migration, no speculative rewrite | Proposed | Existing ratchets migrate to the shared core only as they are next touched; the harness is built when it would have its second or third real caller, not before. | Guards against framework-ahead-of-demand. |
+
+### Suite Tiering & Performance
+----
+RID: `req-dev-validation-suite-tiers`
+Status: `Proposed`
+
+> **Forward note, not a build (jotted 2026-07-01).** Seeded for the
+> validation-focused session. The corpus has grown fast (the Gryphon suites alone
+> now run 7–18 minutes), and a full run has crept onto the inner loop. This is the
+> tiering + acceleration strategy to pull it back off. `req-dev-validation-canary-tier`
+> already owns the *membership discipline* of the fast tier; this requirement owns
+> the *tiering model and the performance levers* around it.
+
+#### The model: fast / affected / full
+
+Three lanes, and the load-bearing insight is that the fix is usually *when each
+lane runs*, not making the full run fast. A 15-minute full suite is fine if it runs
+at the promote gate and not on every save.
+
+- **Fast (smoke) — seconds, every save / pre-commit.** A curated blast-radius
+  subset, governed by `-m smoke` and the membership rules in
+  [Canary Test Tier](#canary-test-tier) (a test earns `smoke` only if its failure
+  predicts broad downstream failure — importance alone is insufficient).
+- **Affected — ~a minute, per chunk.** The tests touching what changed, selected by
+  marker (`-m "not slow"`) or by test-impact analysis (below).
+- **Full — the slow run, at the pre-push gate / CI only.** Everything, including the
+  DB-heavy integration suites. Slow is acceptable here *by design*; this lane is the
+  binary gate, not the inner loop.
+
+#### Acceleration levers, ranked by ROI for this DB-bound suite
+
+1. **Parallelize first — `pytest-xdist -n auto`.** The single biggest win for a
+   DB-heavy Django suite, and low-effort. `pytest-django` gives each xdist worker its
+   *own* test database, so it does **not** violate the standing "run overlapping
+   suites as one invocation or they deadlock the test DB" rule — that rule is about
+   two separate pytest *processes* sharing *one* DB; xdist is one process, N workers,
+   N separate DBs. Expect roughly `cores`× on the full run.
+2. **Profile before cutting — `pytest --durations=25`.** Time is rarely spread evenly;
+   it concentrates in a handful of DB-seeding integration tests. Mark the offenders
+   `slow` and add them to `smoke` only if they meet the blast-radius bar.
+3. **Attack the per-test DB cost — the real hot spot.** `@pytest.mark.django_db(transaction=True)`
+   is expensive (it truncates tables between tests rather than rolling back a
+   transaction); it is genuinely required where `on_commit`/service-layer hooks fire
+   (e.g. the Gridkin GRIFT seed) but should not be the default elsewhere. `--reuse-db`
+   skips migrate/create-DB between local runs. A *separate* shared-seed "fast Gridkin"
+   lane (seed a fixture once, run its read-only scenarios against it) would collapse
+   much of the per-scenario cost — a speed lane only, since it trades away the
+   per-scenario isolation `req-gridkin-runner-contract-2` requires of the canonical
+   suite.
+4. **Test-impact analysis for the affected lane — `pytest-testmon`.** Runs only tests
+   whose covered code changed (same lineage as the branch-coverage data the ratchets
+   now collect). A local accelerator for deciding *what to run fast*, never a
+   substitute for the full gate — its tracking DB can go stale on config/env changes.
+
+#### Anti-patterns to avoid
+
+- The fast tier drifting into "the important tests" instead of the blast-radius set
+  (the canary-tier bar exists precisely to prevent this).
+- Optimizing before `--durations` says where the time is.
+- Trusting an affected/impact lane as a gate — it accelerates the inner loop; the
+  full lane is what refuses the push.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-dev-validation-suite-tiers-1 | Three named lanes | Proposed | The suite exposes fast (`-m smoke`), affected (`-m "not slow"` or impact-selected), and full lanes, with a documented "which runs when". | Fast tier membership is owned by `req-dev-validation-canary-tier`. |
+| req-dev-validation-suite-tiers-2 | Parallel full run | Proposed | The full lane runs under `pytest-xdist` with per-worker databases; this does not conflict with the shared-DB single-invocation rule. | Highest-ROI lever. |
+| req-dev-validation-suite-tiers-3 | Profiled, not guessed | Proposed | `slow` designations follow from `--durations` evidence, not intuition. | |
+| req-dev-validation-suite-tiers-4 | Impact lane is not a gate | Proposed | Any test-impact/affected selection accelerates the inner loop only; the pre-push gate always runs the full lane. | Counters the substitution-backend blind spot. |
 
 ### Promote-Path Enforcement
 ----

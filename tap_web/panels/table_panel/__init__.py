@@ -308,23 +308,36 @@ class TablePanelType:
 
     @classmethod
     def handle_save(cls, form: TablePanelEditForm, panel: Panel, request: HttpRequest) -> None:
-        """Persist panel fields, validate config, and update the USES_SEARCH edge.
+        """Persist panel fields, validate config, and rebind the USES_SEARCH edge.
 
-        Steps:
-          1. Apply title and description to the panel instance.
-          2. Build and validate the config dict against TABLE_CONFIG_SCHEMA.
-          3. Save the panel.
-          4. Replace the USES_SEARCH edge binding (delete old, create new).
+        The whole edit is one atomic, named batch (the grift-importer idiom):
+          1. Build and validate the config dict against TABLE_CONFIG_SCHEMA.
+          2. Assemble the write as a single ``WriteOperation`` list — patch the
+             panel node (name/description/config) + delete the existing
+             USES_SEARCH edge(s) + create the new binding.
+          3. ``create_batch`` opens a *named* batch ("Edit table panel: …") so the
+             provenance trail records the intent, not three anonymous batches.
+          4. ``write_batch`` applies every op in one transaction — a mid-edit
+             failure rolls the whole thing back (no half-rebound edge).
+
+        Authorization is the primary gate (``AuthzError`` → 403): ``authorized``
+        checks ``grid.write`` and opens the service-write scope; ``grid.delete`` is
+        additionally required when there are edges to remove. A direct
+        ``.save()`` / ``Edge.objects`` write would bypass both the gate and the
+        batch — the write backstop makes that fail closed.
 
         Raises:
-            ValidationError: if the config fails schema validation.
+            ValidationError: if the config fails schema validation or the batch fails.
         """
+        from tap_auth import policy
+        from tap_auth.enforcement import authorized
+        from tap_grid.batch import close_batch, create_batch, fail_batch
+        from tap_grid.caller_context import CallerContext, get_caller_context
         from tap_grid.models import Edge, Entity
+        from tap_grid.service_types import WriteOperation
+        from tap_grid.services import write_batch
 
         cleaned = form.cleaned_data
-
-        panel.name = cleaned["name"]
-        panel.description = cleaned.get("description", "")
 
         new_config: dict[str, Any] = {
             **(panel.config or {}),  # preserve grift-seeded extras (e.g. columns) the form does not edit
@@ -332,26 +345,64 @@ class TablePanelType:
             "default_page_size": cleaned.get("default_page_size") or _DEFAULT_PAGE_SIZE,
         }
         _validate_table_config(new_config)
-        panel.config = new_config
-        panel.save()
 
-        # Replace the USES_SEARCH edge.
-        Edge.objects.filter(from_entity=panel.entity, edge_type="USES_SEARCH").delete()
+        # Assemble the atomic op list. The edge rebind needs the current bindings,
+        # so read them (by entity_id — delete_edge targets the edge's Entity) first.
+        ops: list[WriteOperation] = [
+            WriteOperation(
+                verb="patch_node",
+                target=str(panel.entity.pk),
+                payload={
+                    "name": cleaned["name"],
+                    "description": cleaned.get("description", ""),
+                    "config": new_config,
+                },
+            )
+        ]
+        existing_edge_ids = list(
+            Edge.objects.filter(from_entity=panel.entity, edge_type="USES_SEARCH").values_list("entity_id", flat=True)
+        )
+        ops += [WriteOperation(verb="delete_edge", target=str(eid)) for eid in existing_edge_ids]
 
         search_uuid_str: str = cleaned.get("search_uuid") or ""
         if search_uuid_str:
             try:
                 search_entity = Entity.objects.get(pk=search_uuid_str)
-                Edge.objects.create(
-                    from_entity=panel.entity,
-                    to_entity=search_entity,
-                    edge_type="USES_SEARCH",
-                )
             except Entity.DoesNotExist:
                 logger.warning(
                     "[6d10] Table panel editor: search entity %s not found; USES_SEARCH edge not created.",
                     search_uuid_str,
                 )
+            else:
+                ops.append(
+                    WriteOperation(
+                        verb="create_edge",
+                        from_target=str(panel.entity.id),
+                        to_target=str(search_entity.id),
+                        edge_type="USES_SEARCH",
+                    )
+                )
+
+        ctx = get_caller_context()
+        actor = ctx.user if ctx else None
+
+        # One atomic, named batch. authorized() is the primary 403 gate and opens
+        # the service-write scope so create_batch's rows + the pipeline pass the
+        # write backstop; grid.delete is gated too when edges are being removed.
+        with authorized(ctx, "grid.write", operation="table_panel.handle_save"):
+            if existing_edge_ids:
+                policy.authorize(ctx, "grid.delete", operation="table_panel.handle_save")
+            batch = create_batch(
+                name=f"Edit table panel: {cleaned['name']}",
+                description="Table panel editor: update fields and rebind USES_SEARCH.",
+                source="tap_web:table_panel_editor",
+                actor=actor,
+            )
+            result = write_batch(ops, caller_context=CallerContext(user=actor, batch_id=str(batch.entity_id)))
+            if not result.success:
+                fail_batch(batch, "; ".join(f"{e.code}: {e.message}" for e in result.errors) or "batch failed")
+                raise ValidationError("Failed to save table panel; changes were rolled back.")
+            close_batch(batch)
 
 
 def _build_page_size_options(total_count: int, current_page_size: int) -> list[dict[str, Any]]:

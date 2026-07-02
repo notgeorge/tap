@@ -21,6 +21,29 @@
 > the 2VL/3VL null boundary is what *TLP* probes; a random-GRIFT generator feeding
 > the model oracle turns it into a property-based fuzzer overnight. See the
 > compiler-validation research thread in `docs/misc/doc-gryphon-path-coverage-sprint-plan.md`.
+>
+> **Update 2026-07-01 (follow-on).** The oracle's `OracleUnmodeled` skip-list was
+> shrunk so it asserts on 99% of result scenarios (union, NOT EXISTS, OPTIONAL
+> MATCH, bare-var RETURN now modeled). And the §7 **"executor-path coverage axis"**
+> corrective action is now built as a real gate: `req-gridkin-stage-coverage`
+> (`plugins/gryphon_playground/gridkin/stage_coverage.py`, guarded by
+> `TestStageCoverage`) derives the dispatch-path set from the executor's
+> `gryphon_stage()` call sites and asserts each is exercised by a *WHERE-carrying*
+> scenario — the exact property whose absence was this bug. The §7
+> **"branch coverage on the executor, ratcheted"** action is built too:
+> `req-gridkin-executor-branch-coverage` (`scripts/gryphon-coverage-ratchet` + a
+> committed floor in `tap_grid/gryphon/coverage-baseline.json`) ratchets
+> `coverage.py` branch coverage of `executor.py` (floor 73% at landing) across the
+> whole executor test corpus — the branch-level complement to the stage gate,
+> honestly tracked in the `spec-dev-validation.md` Validation Map as a script (not
+> per-commit CI) until the dev-validation gate absorbs it. Every §7 corrective
+> action is now realized. **And one next-tier seed is built:** TLP
+> (`req-gridkin-metamorphic-tlp`) — a metamorphic partition (TRUE/FALSE/UNKNOWN
+> reconstructs the unfiltered scan) that probes the 2VL/3VL null boundary as
+> executor *self*-consistency, catching common-mode bugs the oracle could share.
+> Its sibling NoREC was considered and deferred (single-hop projections degrade to
+> envelopes, so it yields no distinct check). Still open: the property fuzzer
+> (random graph + query → executor vs oracle).
 
 ---
 
