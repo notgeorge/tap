@@ -24,10 +24,14 @@ related_specs:
 > dev snapshot-disable in spawn. `genericom` is migrated to package-mode as the one real install
 > target; `boot/genericom-install.boot.json` is the validation profile; `tap/tests/test_preboot.py`
 > covers the units. The related boot/plugin-arch spec reqs are flipped to `Implemented`
-> (MVP) / `Partially Implemented`. **Transition state:** the samsite plugin set stays build-baked in
-> `INSTALLED_APPS`; migrating it to package-mode (the mechanical follow-on) is what makes the
-> full Done-test pass. See "Install MVP — as-built" near the end. The spike section + decisions
-> below remain the design record.
+> (MVP) / `Partially Implemented`. **Transition state (UPDATED 2026-07-01):** the mechanical
+> follow-on is DONE — the entire samsite plugin set (`fedramp_20x_ksi`, `github_core`, `roscale`,
+> `computing_core`, `administrivia`, `aws_core`, `sigstore_core`, `lotr`, `samsite`) is migrated to
+> package-mode (`tap_plugin.<slug>`), out of hardcoded `INSTALLED_APPS`, and installed via the
+> `samsite` boot profile's `install` section; only `gryphon_playground` stays build-baked (held for
+> the in-flight gryphon-engine refactor). The pre-boot conformance + reconciliation gates verify all
+> 9 at boot; the full suite is green. See "Install MVP — as-built" near the end. The spike section +
+> decisions below remain the design record.
 >
 > **Original status (2026-06-30): shovel-ready specs.** All requirements were `Proposed`; this note
 > handed a fresh session the design decisions so implementation would not re-litigate them.
@@ -262,13 +266,18 @@ full container restart runs the entrypoint pre-boot stage; instance healthy. `ta
 (`test_json_filename_convention` on `plugins/gryphon_playground/scenarios/tck-coverage.json`, red on
 main `a40419e`).
 
-**Immediate follow-on (mechanical, uses the proven recipe):** migrate the samsite plugin set
-(`aws_core`, `github_core`, `sigstore_core`, `computing_core`, `fedramp_20x_ksi`, `roscale`,
-`samsite`, `administrivia`, `lotr`) to package-mode, move each out of hardcoded `INSTALLED_APPS`
-into the profile `install` section (shrinking `BUILD_BAKED_PLUGIN_SLUGS` toward empty), and rewrite
-their `plugins.<slug>.` collector keys / manifest `[models]` paths. That is what makes the full
-Done-test ("samsite plugins uv-installed") pass. Also still open: the registry/report inspection
-surface (`req-plugin-arch-install-registry` -3/-5), and the plugin-creation skill bump below.
+**Immediate follow-on — DONE (2026-07-01):** the samsite plugin set (`fedramp_20x_ksi`,
+`github_core`, `roscale`, `computing_core`, `administrivia`, `aws_core`, `sigstore_core`, `lotr`,
+`samsite`) is migrated to package-mode, moved out of hardcoded `INSTALLED_APPS` into the `samsite`
+profile `install` section, with `plugins.<slug>.` collector keys / manifest `[models]` paths /
+cross-plugin imports rewritten to `tap_plugin.<slug>`. `BUILD_BAKED_PLUGIN_SLUGS` is down to
+`{gryphon_playground}` (held for the in-flight gryphon-engine refactor). Each migration folded in the
+source-identity / versioning / Tier-0 dependency declarations at authoring time; the pre-boot
+conformance + reconciliation gates verify all 9 at boot; the full suite is green. The Done-test
+("samsite plugins uv-installed") passes. Still open: the registry/report inspection surface
+(`req-plugin-arch-install-registry` -3/-5), the plugin `depends_on` schema + consistency gate +
+resolver (deferred, declare-now — `samsite` is the first real cross-plugin dependency), and the
+plugin-creation skill bump below.
 
 ## Also bump
 

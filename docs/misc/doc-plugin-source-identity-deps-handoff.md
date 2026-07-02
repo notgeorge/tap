@@ -15,12 +15,17 @@ related_specs:
 
 # Plugin Source-Identity, Versioning & Dependencies — Design Handoff
 
-> **Status: design locked, not yet implemented (2026-07-01).** This captures a design
-> session that ran *after* the install MVP landed (see `doc-plugin-boot-install-handoff.md`).
-> Every decision below is prior-art-grounded and written into
-> `spec-plugin-architecture.md` as `req-plugin-arch-identity` / `-sources` / `-versioning` /
-> `-dependencies` (all `Proposed`). This note is the orientation + rationale + build
-> sequencing so the next session builds instead of re-deriving. No code was written.
+> **Status: design locked; identity + versioning + Tier-0 dependencies IMPLEMENTED across the
+> full samsite plugin set (updated 2026-07-01).** This captures a design session that ran *after*
+> the install MVP landed (see `doc-plugin-boot-install-handoff.md`). Every decision below is
+> prior-art-grounded and written into `spec-plugin-architecture.md` as `req-plugin-arch-identity`
+> (now `Implemented`) / `-sources` (`Proposed` — all plugins use `editable` local sources during the
+> monorepo transition) / `-versioning` (`Implemented`, hatch-vcs) / `-dependencies` (`Partially
+> Implemented` — Tier-0 built; `depends_on` schema + resolver deferred, `samsite` being the first real
+> cross-plugin case). All 9 samsite-set plugins now ship the namespace `tap_plugin.<slug>` layout,
+> `tap-plugin-<slug>` dists, hatch-vcs versions, and Tier-0 deps declared in-plugin, verified at boot
+> by the pre-boot conformance gate. This note remains the orientation + rationale + the record of what
+> is still deferred (sources registry, index integrity/signing, dependency resolver).
 
 ## What this covers
 
