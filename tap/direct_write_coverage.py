@@ -49,8 +49,9 @@ _TERMINAL_WRITES: frozenset[str] = frozenset({"delete", "update", "adelete", "au
 
 # Modules that legitimately write TAP-managed rows directly — the service layer is
 # the sanctioned path, and models.py implements the guarded save/delete themselves.
+# The service layer is a package (tap_grid/services/): every module in it is the
+# sanctioned direct-write path, covered by the package check in _is_out_of_scope.
 _SANCTIONED_SUFFIXES: tuple[str, ...] = (
-    "tap_grid/services.py",
     "tap_grid/models.py",
     "tap_grid/batch.py",
     "tap_grid/grift/importer.py",  # the grift_import service implementation (bulk write pipeline)
@@ -143,6 +144,8 @@ class _DirectWriteVisitor(ast.NodeVisitor):
 def _is_out_of_scope(path: Path) -> bool:
     """Sanctioned service modules, migrations, and tests are out of scope."""
     posix = path.as_posix()
+    if "tap_grid/services/" in posix:  # the whole service-layer package is sanctioned
+        return True
     if any(posix.endswith(suffix) for suffix in _SANCTIONED_SUFFIXES):
         return True
     if "migrations" in path.parts:

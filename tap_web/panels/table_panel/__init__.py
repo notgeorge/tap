@@ -333,9 +333,10 @@ class TablePanelType:
         from tap_auth.enforcement import authorized
         from tap_grid.batch import close_batch, create_batch, fail_batch
         from tap_grid.caller_context import CallerContext, get_caller_context
-        from tap_grid.models import Edge, Entity
+        from tap_grid.exceptions import ServiceNotFoundError, ServiceValidationError
+        from tap_grid.models import Edge
         from tap_grid.service_types import WriteOperation
-        from tap_grid.services import write_batch
+        from tap_grid.services import resolve_entity, write_batch
 
         cleaned = form.cleaned_data
 
@@ -367,8 +368,8 @@ class TablePanelType:
         search_uuid_str: str = cleaned.get("search_uuid") or ""
         if search_uuid_str:
             try:
-                search_entity = Entity.objects.get(pk=search_uuid_str)
-            except Entity.DoesNotExist:
+                search_entity = resolve_entity(search_uuid_str)
+            except ServiceNotFoundError, ServiceValidationError:
                 logger.warning(
                     "[6d10] Table panel editor: search entity %s not found; USES_SEARCH edge not created.",
                     search_uuid_str,

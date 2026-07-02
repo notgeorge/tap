@@ -63,10 +63,10 @@ Status: `Implemented`
 The service layer provides machine-usable discovery so clients can understand type shape, constraints, hotlinks, and operation support without importing server-side code.
 
 #### Status Details
-Implemented in `tap_grid/services.py`. `NodeTypeDescription`, `EdgeTypeDescription`, and `ServiceCapabilities` dataclasses defined in `tap_grid/service_types.py`.
+Implemented in the `tap_grid/services/` gateway package. `NodeTypeDescription`, `EdgeTypeDescription`, and `ServiceCapabilities` dataclasses defined in `tap_grid/service_types.py`.
 
 #### Implementation
-Discovery read API:
+Discovery read API (each gated on `grid.discover` per `req-grid-service-gateway-gated` — introspecting the type/schema catalog is a distinct, less-sensitive capability than reading graph data):
 
 - `list_node_types()` — sorted list of registered entity type slugs
 - `describe_node_type(type_slug)` — returns `NodeTypeDescription` with schemas, hotlinks, outbound/inbound constraint edge types

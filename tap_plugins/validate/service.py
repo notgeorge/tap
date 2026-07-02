@@ -728,7 +728,7 @@ def _check_create_edges(manifest: Any, result: ValidationResult, *, caller_conte
 
     from tap_grid.models import Entity
     from tap_grid.registry import get_model_class
-    from tap_grid.services import create_edge, create_node
+    from tap_grid.services import create_edge, create_node, resolve_entity
 
     # Build a cache of entities we've already created for source/target types
     entity_cache: dict[str, Entity] = {}
@@ -747,7 +747,7 @@ def _check_create_edges(manifest: Any, result: ValidationResult, *, caller_conte
             return None
         if not wr.success or wr.entity_id is None:
             return None
-        entity = Entity.objects.get(pk=wr.entity_id)
+        entity = resolve_entity(wr.entity_id)
         entity_cache[type_slug] = entity
         return entity
 

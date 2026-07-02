@@ -49,33 +49,40 @@ def get_flip_context_for_entity(entity_id: str) -> dict[str, Any]:
                           started_at, status
           flip_error    - error string or None
     """
-    from tap_grid.models import Entity
+    from tap_grid import services
+    from tap_grid.exceptions import (
+        ServiceConstraintError,
+        ServiceNotFoundError,
+        ServiceValidationError,
+    )
 
+    # Route the spine read through the gated service layer (grid.read) instead of
+    # a raw Entity.objects lookup: get_node resolves the entity, its type, and the
+    # typed instance in one gated call (req-tap-auth-policy). An authorization
+    # denial propagates (fail closed); only genuine "not resolvable" outcomes
+    # degrade gracefully so the panel can still render the subject.
     try:
-        entity = Entity.objects.get(pk=entity_id)
-    except Entity.DoesNotExist:
+        instance = services.get_node(entity_id)
+    except (ServiceNotFoundError, ServiceConstraintError, ServiceValidationError) as exc:
+        try:
+            flip_subject = services.resolve_entity(entity_id)
+        except ServiceNotFoundError, ServiceValidationError:
+            return {
+                "flip_subject": None,
+                "flip_rows": [],
+                "flip_error": f"Subject entity {entity_id!r} not found.",
+            }
+        logger.warning("[7f38] FLIP panel: could not load subject model %s: %s", entity_id, exc)
         return {
-            "flip_subject": None,
-            "flip_rows": [],
-            "flip_error": f"Subject entity {entity_id!r} not found.",
-        }
-
-    try:
-        from tap_grid.registry import get_model_class
-
-        model_cls = get_model_class(entity.entity_type)
-        instance = model_cls.objects.select_related("entity").get(entity_id=entity_id)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("[7f38] FLIP panel: could not load subject %s: %s", entity_id, exc)
-        return {
-            "flip_subject": entity,
+            "flip_subject": flip_subject,
             "flip_rows": [],
             "flip_error": f"Could not load subject model: {exc}",
         }
 
+    flip_subject = instance.entity
     flip_map: dict[str, str] = instance.flip_map or {}
     if not flip_map:
-        return {"flip_subject": entity, "flip_rows": [], "flip_error": None}
+        return {"flip_subject": flip_subject, "flip_rows": [], "flip_error": None}
 
     # Batch-load Batch records to avoid N+1 queries.
     from tap_grid.batch import get_batch
@@ -101,7 +108,7 @@ def get_flip_context_for_entity(entity_id: str) -> dict[str, Any]:
             }
         )
 
-    return {"flip_subject": entity, "flip_rows": rows, "flip_error": None}
+    return {"flip_subject": flip_subject, "flip_rows": rows, "flip_error": None}
 
 
 class FlipPanelType:

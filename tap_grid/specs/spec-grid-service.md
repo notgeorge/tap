@@ -32,6 +32,7 @@ This specification is the top-level contract. Lower-level operational details ar
 | req-grid-service-scope | [Service Layer Scope](#service-layer-scope) | Proposed | Canonical scope and non-conformant bypasses |
 | req-grid-service-objects | [Canonical Objects And Addressing](#canonical-objects-and-addressing) | In Development | Public object kinds and accepted target forms |
 | req-grid-service-public | [Public API Surface](#public-api-surface) | In Development | Public entry points vs internal plumbing |
+| req-grid-service-gateway-gated | [Gateway Capability Gating](#gateway-capability-gating) | Implemented | Location-as-contract: every public gateway function is capability-gated; helpers live below the gate |
 | req-grid-service-discovery | [Discovery And Capability Publication](#discovery-and-capability-publication) | Implemented | list_node_types, describe_node_type, list_edge_types, describe_edge_type, describe_service_capabilities |
 | req-grid-service-schemas | [Schema Publication And Identity](#schema-publication-and-identity) | In Development | Stable schema IDs, refs, bundling, model publication |
 | req-grid-service-response | [Representation And Response Modes](#representation-and-response-modes) | In Development | JSON envelopes, model return mode, schema refs |
@@ -169,6 +170,35 @@ This balances readability for callers with maintainability for TAP itself.
 
 #### Future
 Define naming conventions and module boundaries for public entry points versus internal plumbing helpers.
+(Realized by `req-grid-service-gateway-gated`.)
+
+
+### Gateway Capability Gating
+----
+RID: `req-grid-service-gateway-gated`
+Status: `Implemented`
+
+The service layer is the only sanctioned path to grid state, so every public function it exposes MUST be capability-gated — no public grid-touching entry point may reach node/edge/spine state without an authorization check. The gate must be enforced by **location**, not by a "does this look like a privileged sink?" heuristic: that heuristic being too narrow is what let the Entity-spine reads (`resolve_entity`/`get_node`/`get_edge`/`get_object`) ship ungated (2026-07-02 read-gap closure).
+
+#### Implementation
+`tap_grid.services` is a package with a two-location contract:
+
+- **Public gateway** — `tap_grid/services/__init__.py` (and any future non-`_` domain submodule). Every top-level `def` whose name does not start with `_` carries `@requires_capability(<cap>, operation=...)`, naming the specific capability it needs (`grid.read` for the reads, `grid.write`/`grid.delete`/`grid.purge` for mutations, `grid.discover` for the discovery reads). The one exception is a function whose required capability varies per call — `write_batch`, whose batch may mix `grid.write` and `grid.delete` ops each authorized at dispatch — marked with the reviewed `@gates_per_operation` marker instead of a single static gate.
+- **Helpers below the gate** — `tap_grid/services/_impl.py` (and any `_`-prefixed module) holds pure logic and below-service-boundary machinery. These run *after* a gateway function has authorized the caller and carry no gate. The import is strictly one-way (`__init__` → `_impl`, never back).
+
+The gated-internal write cluster (`_create_node_internal`/`_patch_node_internal` and their `_for_test` variants) is `_`-prefixed but retains `@requires_capability` and lives with `write_batch` in `__init__.py`, because it calls `write_batch` (keeping it out of `_impl` preserves the one-way import).
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-service-gateway-gated-1 | Public Gateway Fully Gated | Implemented | Every public (non-`_`) top-level function in the `tap_grid.services` gateway package carries `@requires_capability` or `@gates_per_operation`. | Enforced by location, not heuristic. |
+| req-grid-service-gateway-gated-2 | Helpers Below The Gate | Implemented | Pure helpers live in `_impl.py`; the `__init__` → `_impl` import is one-way. | |
+| req-grid-service-gateway-gated-3 | Location-Scoped Lint | Implemented | A per-commit lint enumerates the gateway package and fails on any ungated public function — no baseline, no allowlist. | `tap/tests/test_service_gateway_coverage.py`; Validation Map row in `spec-dev-validation.md`. |
+| req-grid-service-gateway-gated-4 | Per-Operation Marker Is Narrow | Implemented | `@gates_per_operation` is used only where one static capability cannot express the requirement (`write_batch`); a static gate is always preferred. | |
+
+#### Future
+Fold the location lint into the future cold-boot/dev-validation gate. As domain submodules (`nodes.py`, `edges.py`) are split out for readability, they inherit the same location contract with no lint change.
 
 
 ### Discovery And Capability Publication
