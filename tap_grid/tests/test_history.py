@@ -107,20 +107,20 @@ class TestHistoryServiceRawRecords:
 
     def test_all_concrete_subclasses_have_history(self):
         """All concrete BaseModel subclasses inherit HistoricalRecords from BaseModel."""
-        from plugins.lotr.models import Character, Location
+        from tap_plugin.lotr.models import Character, Location
 
         assert is_history_enabled(Character) is True
         assert is_history_enabled(Location) is True
 
     def test_character_has_history_manager(self):
         """Character has the history manager from django-simple-history."""
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
 
         assert hasattr(Character, "history")
 
     def test_location_has_history_manager(self):
         """Location also has history (inherited from BaseModel)."""
-        from plugins.lotr.models import Location
+        from tap_plugin.lotr.models import Location
 
         assert hasattr(Location, "history")
 
@@ -129,7 +129,7 @@ class TestHistoryServiceRawRecords:
         from collections.abc import Generator
         from contextlib import contextmanager
 
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
         from tap_grid.batch import create_batch
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.services import create_entity
@@ -157,7 +157,7 @@ class TestHistoryServiceRawRecords:
 
     def test_history_service_timeline_raises_not_implemented(self):
         """HistoryService.timeline() is backlogged — raises NotImplementedError."""
-        from plugins.lotr.models import Location
+        from tap_plugin.lotr.models import Location
         from tap_grid.services import create_entity
 
         entity = create_entity("location", name="Timeline Test")

@@ -14,23 +14,23 @@ from datetime import UTC, date, datetime
 import jsonschema
 import pytest
 
-from plugins.aws_core.collectors.boto3_collector import manifest as manifest_mod
-from plugins.aws_core.collectors.boto3_collector.envelope import (
+from tap_plugin.aws_core.collectors.boto3_collector import manifest as manifest_mod
+from tap_plugin.aws_core.collectors.boto3_collector.envelope import (
     build_configuration,
     jsonable,
     without_response_metadata,
 )
-from plugins.aws_core.collectors.boto3_collector.identity import (
+from tap_plugin.aws_core.collectors.boto3_collector.identity import (
     NAMESPACE_AWS_COLLECTOR,
     edge_entity_id,
     node_entity_id,
 )
-from plugins.aws_core.collectors.boto3_collector.manifest import (
+from tap_plugin.aws_core.collectors.boto3_collector.manifest import (
     ManifestError,
     load_manifest,
     manifest_entries,
 )
-from plugins.aws_core.collectors.boto3_collector.paths import eval_path
+from tap_plugin.aws_core.collectors.boto3_collector.paths import eval_path
 
 
 class TestEvalPath:

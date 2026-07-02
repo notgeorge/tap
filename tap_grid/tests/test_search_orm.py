@@ -45,14 +45,14 @@ def _edge_type(edge):
 
 
 def _make_character(bio="Test"):
-    from plugins.lotr.models import Character
+    from tap_plugin.lotr.models import Character
 
     return Character.objects.create(bio=bio)
 
 
 def _make_wanderer(journey="Test"):
     """Wanderer has no edge constraints — safe for tests with arbitrary edge types."""
-    from plugins.lotr.models import Wanderer
+    from tap_plugin.lotr.models import Wanderer
 
     return Wanderer.objects.create(journey=journey)
 
@@ -149,7 +149,7 @@ class TestConjunctiveFilters:
 
     def test_multiple_filters_applied_conjunctively(self):
         """Multiple filters are combined as AND."""
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
 
         Character.objects.create(bio="alpha")
         Character.objects.create(bio="beta")
@@ -261,7 +261,7 @@ class TestHopTraversal:
 class TestOrdering:
     def test_default_ordering_is_deterministic(self):
         """Without order_by, results are ordered by id (deterministic)."""
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
 
         Character.objects.create(bio="first")
         Character.objects.create(bio="second")
@@ -277,7 +277,7 @@ class TestOrdering:
 
     def test_explicit_order_by_applied(self):
         """order_by field is applied to the queryset."""
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
 
         Character.objects.create(bio="z_character")
         Character.objects.create(bio="a_character")

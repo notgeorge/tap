@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from botocore.exceptions import ClientError, ConnectTimeoutError
 
-from plugins.aws_core.collectors.boto3_collector.hydrate import hydrate_item
+from tap_plugin.aws_core.collectors.boto3_collector.hydrate import hydrate_item
 
 _HYDRATE_OPS = [
     {"key": "loc", "op": "GetBucketLocation", "why": "region"},

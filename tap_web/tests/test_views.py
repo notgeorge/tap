@@ -73,7 +73,7 @@ class TestObjectEditorView:
     """Generic /object/<type>/<slug>--<uuid>/edit/ editor shell for registered entity types."""
 
     def _make_character(self, name: str = "Gandalf") -> tuple[object, str]:
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
 
         entity = Entity.objects.create(entity_type="character", name=name)
         with _batch_ctx(source="test:setup"):
@@ -149,7 +149,7 @@ class TestObjectViewerView:
     """Generic /object/<type>/<slug>--<uuid>/ viewer shell."""
 
     def _make_character(self, name: str = "Aragorn") -> tuple[object, str]:
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
 
         entity = Entity.objects.create(entity_type="character", name=name)
         with _batch_ctx(source="test:setup"):
@@ -221,7 +221,7 @@ class TestObjectViewReadGate:
     """
 
     def _make_character(self, name: str = "Boromir") -> str:
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
 
         entity = Entity.objects.create(entity_type="character", name=name)
         with _batch_ctx(source="test:setup"):

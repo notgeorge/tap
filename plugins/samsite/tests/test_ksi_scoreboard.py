@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from plugins.samsite.scoring import (
+from tap_plugin.samsite.scoring import (
     CONTROL_NA,
     CONTROL_OPEN,
     CONTROL_PASS,

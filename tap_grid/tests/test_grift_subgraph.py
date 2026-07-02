@@ -38,7 +38,7 @@ def _make_character(name="Frodo", bio="A hobbit"):
     ctx = CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4()))
     set_caller_context(ctx)
 
-    from plugins.lotr.models import Character
+    from tap_plugin.lotr.models import Character
 
     entity = Entity.objects.create(entity_type="character", name=name)
     character = Character.objects.create(entity=entity, name=name, bio=bio)

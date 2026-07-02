@@ -16,10 +16,10 @@ import uuid
 
 import pytest
 
-from plugins.aws_core.collectors.boto3_collector import collector as collector_mod
-from plugins.aws_core.collectors.boto3_collector import credentials as cred
-from plugins.aws_core.collectors.boto3_collector.collector import Boto3Collector
-from plugins.aws_core.collectors.boto3_collector.identity import (
+from tap_plugin.aws_core.collectors.boto3_collector import collector as collector_mod
+from tap_plugin.aws_core.collectors.boto3_collector import credentials as cred
+from tap_plugin.aws_core.collectors.boto3_collector.collector import Boto3Collector
+from tap_plugin.aws_core.collectors.boto3_collector.identity import (
     edge_entity_id,
     node_entity_id,
 )
@@ -280,7 +280,7 @@ def test_unregistered_custom_fn_is_classified_not_fatal(_stub_aws, monkeypatch):
     classify-and-skip path deterministically, independent of which
     custom_fns ship registered.
     """
-    from plugins.aws_core.collectors.boto3_collector.source import CustomFnRegistry
+    from tap_plugin.aws_core.collectors.boto3_collector.source import CustomFnRegistry
 
     monkeypatch.setattr(collector_mod, "build_custom_fn_registry", CustomFnRegistry)
 
@@ -307,7 +307,7 @@ def test_unregistered_edge_transform_is_classified_not_fatal(_stub_aws, monkeypa
     deterministically with an empty transform registry, independent of which
     transforms ship registered.
     """
-    from plugins.aws_core.collectors.boto3_collector.edges import TransformRegistry
+    from tap_plugin.aws_core.collectors.boto3_collector.edges import TransformRegistry
     from tap_grid.services import get_node
 
     monkeypatch.setattr(collector_mod, "build_transform_registry", TransformRegistry)

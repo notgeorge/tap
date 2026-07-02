@@ -396,6 +396,11 @@ PY
 # It is chosen explicitly per spawn via `--boot <profile>`; an empty value means
 # Step 6 falls back to the seed-all, no-collectors `base` profile — a plain spawn
 # seeds every plugin but reaches out to nothing. See specs/spec-tap-boot-v0.md.
+# TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE=false disables the pre-boot pre-migrate
+# snapshot in dev worktrees (req-boot-snapshot-2): dev DBs reset freely, so the
+# restore point is pure overhead. The env override wins over the profile's
+# snapshot_before_migrate field; a skipped snapshot logs loud at container start.
+# Prod/customer standups OMIT this line so the snapshot defaults on.
 cat > .env.local <<EOF
 COMPOSE_PROJECT_NAME=tap_$SESSION_NAME
 WEB_PORT=$WEB_PORT
@@ -403,6 +408,7 @@ POSTGRES_PORT=$POSTGRES_PORT
 TAP_GRID_ID=$TAP_GRID_ID
 TAP_SESSION_LABEL=$SESSION_NAME
 TAP_BOOT_PROFILE=$BOOT_PROFILE
+TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE=false
 EOF
 info "Wrote $WORKTREE/.env.local (gitignored)."
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from django.utils import timezone
 
-from plugins.fedramp_20x_ksi.models import Evidence, Finding
+from tap_plugin.fedramp_20x_ksi.models import Evidence, Finding
 from tap_grid.caller_context import CallerContext
 from tap_grid.models import Edge, Entity
 from tap_grid.services import WriteOperation, write_batch

@@ -20,6 +20,97 @@
       "description": "The auth section (req-tap-auth-boot): external login providers, initial-admin emails, local-password toggle, and admin-lockout break-glass. tap_auth OWNS this section's schema (tap_auth/schemas/auth-boot-section.schema.json) and the bootloader composes it — only its object-shape is asserted here; the boot auth phase validates it strictly against the tap_auth fragment before applying. Omit for a local-password-only standup.",
       "type": "object"
     },
+    "install": {
+      "description": "The install section (req-boot-install-section): the desired package-mode plugin set for this instance plus the pre-migrate snapshot switch. Consumed by the settings-free PRE-BOOT stage as plain JSON BEFORE Django starts (req-boot-preboot), separately from and earlier than `population` (which enables/seeds them) — the NetBox local_requirements.txt-vs-PLUGINS split. Build-baked plugins (hardcoded in INSTALLED_APPS during the transition to full package-mode) are NOT listed here; only plugins installed from a source. Omit for an all-build-baked instance: pre-boot install then no-ops (the snapshot still runs).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "snapshot_before_migrate": {
+          "description": "Pre-migrate full-DB snapshot switch (req-boot-snapshot). Absent ⇒ true (safe-by-default: a prod profile that forgets the field still snapshots). This is a boot-variable: the effective value resolves flag > env (TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE) > this profile field > default-true (req-boot-variable-resolution). Dev worktrees set the env override to false since dev DBs reset freely; a skipped snapshot logs loud (WARNING).",
+          "type": "boolean"
+        },
+        "plugins": {
+          "description": "Ordered list of package-mode plugins to uv-install in pre-boot before `migrate`. Each install is idempotent: an already-satisfied plugin re-runs as a fast no-op, so a reboot does not re-pull (req-boot-preboot-3).",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["slug", "enabled", "source"],
+            "properties": {
+              "slug": {
+                "description": "The plugin slug (tap-plugin.toml `slug`), which MUST equal the plugin's `tap.plugins` entry-point key. Every enabled `seed-plugin` slug in `population` must appear here or be build-baked, else pre-boot fails the static coherence guard before `migrate` (req-boot-install-section-3).",
+                "type": "string",
+                "minLength": 1
+              },
+              "enabled": {
+                "description": "false skips the install without removing it (the 'comment it out' affordance).",
+                "type": "boolean"
+              },
+              "note": {
+                "description": "Free-text annotation for the human reader (e.g. why this source/rev).",
+                "type": "string"
+              },
+              "source": {
+                "description": "Where to install the plugin from — exactly one source type. 'git' is the headline distribution path (the same mechanism as a PyPI install, source-URL only); 'editable'/'path' are for local/dev.",
+                "type": "object",
+                "oneOf": [
+                  {
+                    "additionalProperties": false,
+                    "required": ["type", "url", "rev"],
+                    "properties": {
+                      "type": {
+                        "description": "git: install `tap-plugin-<slug> @ git+<url>@<rev>`, pinned to an immutable revision. Requires `git` in the runtime image.",
+                        "const": "git"
+                      },
+                      "url": {
+                        "description": "The git URL, e.g. https://github.com/org/tap-plugin-genericom.git",
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "rev": {
+                        "description": "Immutable revision (commit SHA or tag) to pin. Never a moving branch — the pin is the reproducibility + idempotency oracle (req-boot-preboot-3).",
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  },
+                  {
+                    "additionalProperties": false,
+                    "required": ["type", "path"],
+                    "properties": {
+                      "type": {
+                        "description": "editable: `uv pip install --editable <path>` — resolves from the source tree (dev/local).",
+                        "const": "editable"
+                      },
+                      "path": {
+                        "description": "Path to the plugin's pyproject.toml directory, relative to the repo root (e.g. 'plugins/genericom').",
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  },
+                  {
+                    "additionalProperties": false,
+                    "required": ["type", "path"],
+                    "properties": {
+                      "type": {
+                        "description": "path: non-editable install from a local directory or a built wheel.",
+                        "const": "path"
+                      },
+                      "path": {
+                        "description": "Path to the plugin directory or .whl, relative to the repo root.",
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "population": {
       "description": "The population section: ordered steps that bring plugins online and populate them. Omit for a safe, no-outbound auth-only standup (req-boot-profile-4).",
       "type": "object",

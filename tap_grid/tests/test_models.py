@@ -4,7 +4,7 @@ import pytest
 from django.apps import apps
 from django.core.exceptions import ImproperlyConfigured
 
-from plugins.lotr.models import Character, Location
+from tap_plugin.lotr.models import Character, Location
 from tap_grid.constraints import (
     _edge_property_schema_registry,
     register_edge_property_schema,
@@ -418,7 +418,7 @@ class TestBaseModelTombstoneFilters:
         Entity.objects.filter(pk=instance.entity_id).update(deleted_at=timezone.now())
 
     def test_default_live_manager_excludes_tombstoned(self):
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
 
         a = Character.objects.create(name="Frodo", bio="ringbearer")
         b = Character.objects.create(name="Gollum", bio="precious")
@@ -427,7 +427,7 @@ class TestBaseModelTombstoneFilters:
         assert names == {"Frodo"}
 
     def test_all_objects_returns_both(self):
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
 
         a = Character.objects.create(name="Sam", bio="gardener")
         b = Character.objects.create(name="Lobelia", bio="thief")
@@ -436,7 +436,7 @@ class TestBaseModelTombstoneFilters:
         assert names == {"Sam", "Lobelia"}
 
     def test_all_objects_live_narrows_to_live(self):
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
 
         a = Character.objects.create(name="Pippin", bio="took")
         b = Character.objects.create(name="Saruman", bio="fallen")
@@ -445,7 +445,7 @@ class TestBaseModelTombstoneFilters:
         assert names == {"Pippin"}
 
     def test_all_objects_tombstoned_returns_only_tombstoned(self):
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
 
         a = Character.objects.create(name="Merry", bio="brandybuck")
         b = Character.objects.create(name="Wormtongue", bio="schemer")
@@ -467,7 +467,7 @@ class TestBaseModelTombstoneFilters:
         the canonical surface is `Model.all_objects.tombstoned()`. See the
         gotcha called out in `req-grid-entity-tombstone-managers`.
         """
-        from plugins.lotr.models import Character
+        from tap_plugin.lotr.models import Character
 
         a = Character.objects.create(name="Galadriel", bio="elf")
         b = Character.objects.create(name="Witch-King", bio="nazgul")

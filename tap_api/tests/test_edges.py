@@ -6,7 +6,7 @@ import uuid
 import pytest
 
 # Import models to trigger constraint registration via __init_subclass__
-import plugins.lotr.models  # noqa: F401
+import tap_plugin.lotr.models  # noqa: F401
 from tap_grid.models import Edge
 from tap_grid.services import create_edge, create_entity
 

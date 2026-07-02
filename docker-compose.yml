@@ -9,6 +9,17 @@ services:
     # Official PostgreSQL 16 image (Alpine variant for smaller size)
     image: postgres:16-alpine
 
+    # Raise the lock table for parallel test runs. Each pytest-xdist worker's
+    # transaction=True flush TRUNCATEs the full table set (~247 tables → one
+    # AccessExclusiveLock each); the default max_locks_per_transaction=64
+    # (× max_connections=100 ≈ a 6,400-slot shared pool) is exhausted when N
+    # workers truncate concurrently, surfacing as
+    # "out of shared memory / increase max_locks_per_transaction" flush errors.
+    # 512 gives a ~51k-slot pool — ample headroom for `-n auto`. Test/dev infra
+    # only; the extra shared memory is negligible.
+    # (req-dev-validation-suite-tiers; docs/misc/test-parallelization-xdist-notes.md)
+    command: ["postgres", "-c", "max_locks_per_transaction=512"]
+
     # Persist database data between container restarts
     # Without this, your data disappears when the container stops
     #
@@ -145,6 +156,13 @@ services:
       # boot-profile arg (or --boot <profile>), which writes it into .env.local.
       # See specs/spec-dev-boot-collectors.md.
       TAP_BOOT_PROFILE: "${TAP_BOOT_PROFILE:-}"
+
+      # Pre-boot snapshot switch override (req-boot-snapshot / req-boot-variable-resolution).
+      # A boot-variable whose env form is TAP_BOOT_<SECTION>__<KEY>; empty here means
+      # "unset" so the profile field / default-true wins. spawn-session.sh writes
+      # =false into a dev worktree's .env.local (dev DBs reset freely, so the
+      # pre-migrate snapshot is pure overhead). Prod/customer standups leave it unset.
+      TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE: "${TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE:-}"
 
       # Public base URL of this instance (req-tap-auth-providers-7). Used by auth
       # provider self-tests + boot validation to derive the OIDC callback URL.

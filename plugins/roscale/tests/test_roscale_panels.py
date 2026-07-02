@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 import pytest
 
-from plugins.roscale.panels._common import (
+from tap_plugin.roscale.panels._common import (
     build_provenance,
     poam_headline_stats,
     poam_items,
@@ -179,9 +179,9 @@ class TestPoamExtractors:
 
 class TestSspBuildContext:
     def test_happy_path_against_samsite_ssp(self):
-        from plugins.roscale.panels import oscal_workbench
+        from tap_plugin.roscale.panels import oscal_workbench
 
-        with patch("plugins.roscale.panels.oscal_workbench.resolve_entity") as mock_resolve:
+        with patch("tap_plugin.roscale.panels.oscal_workbench.resolve_entity") as mock_resolve:
             mock_resolve.return_value = EntityResolution(
                 entity_id="ent-xyz",
                 var_name="oscal_ssp_artifact_entity_id",
@@ -199,16 +199,16 @@ class TestSspBuildContext:
         assert ctx["raw_json"]
 
     def test_no_entity_id_is_polished_error(self):
-        from plugins.roscale.panels import oscal_workbench
+        from tap_plugin.roscale.panels import oscal_workbench
 
         ctx = oscal_workbench.build_context(_FakePanel(), _FakeRequest({}))
         assert ctx["error_phase"] == "load"
         assert "oscal_ssp_artifact_entity_id" in ctx["error_message"]
 
     def test_wrong_root_returns_root_detect_error(self):
-        from plugins.roscale.panels import oscal_workbench
+        from tap_plugin.roscale.panels import oscal_workbench
 
-        with patch("plugins.roscale.panels.oscal_workbench.resolve_entity") as mock_resolve:
+        with patch("tap_plugin.roscale.panels.oscal_workbench.resolve_entity") as mock_resolve:
             mock_resolve.return_value = EntityResolution(
                 entity_id="ent-xyz",
                 var_name="oscal_ssp_artifact_entity_id",
@@ -224,9 +224,9 @@ class TestSspBuildContext:
 
 class TestPoamBuildContext:
     def test_happy_path_against_samsite_poam(self):
-        from plugins.roscale.panels import oscal_poam_workbench
+        from tap_plugin.roscale.panels import oscal_poam_workbench
 
-        with patch("plugins.roscale.panels.oscal_poam_workbench.resolve_entity") as mock_resolve:
+        with patch("tap_plugin.roscale.panels.oscal_poam_workbench.resolve_entity") as mock_resolve:
             mock_resolve.return_value = EntityResolution(
                 entity_id="ent-xyz",
                 var_name="oscal_poam_artifact_entity_id",
@@ -241,7 +241,7 @@ class TestPoamBuildContext:
         assert ctx["validation"]["schema_ok"] is True
 
     def test_no_entity_id_is_polished_error(self):
-        from plugins.roscale.panels import oscal_poam_workbench
+        from tap_plugin.roscale.panels import oscal_poam_workbench
 
         ctx = oscal_poam_workbench.build_context(_FakePanel(), _FakeRequest({}))
         assert ctx["error_phase"] == "load"
@@ -264,9 +264,9 @@ class TestPanelBuildContextWithFallback:
     POAM_FALLBACK_DESCRIPTION = "Latest oscal_poam compliance artifact by fetched_at."
 
     def test_ssp_build_context_propagates_fallback_flag(self):
-        from plugins.roscale.panels import oscal_workbench
+        from tap_plugin.roscale.panels import oscal_workbench
 
-        with patch("plugins.roscale.panels.oscal_workbench.resolve_entity") as mock_resolve:
+        with patch("tap_plugin.roscale.panels.oscal_workbench.resolve_entity") as mock_resolve:
             mock_resolve.return_value = EntityResolution(
                 entity_id="ent-latest",
                 var_name="oscal_ssp_artifact_entity_id",
@@ -284,9 +284,9 @@ class TestPanelBuildContextWithFallback:
         assert ctx["metadata"]["title"]
 
     def test_poam_build_context_propagates_fallback_flag(self):
-        from plugins.roscale.panels import oscal_poam_workbench
+        from tap_plugin.roscale.panels import oscal_poam_workbench
 
-        with patch("plugins.roscale.panels.oscal_poam_workbench.resolve_entity") as mock_resolve:
+        with patch("tap_plugin.roscale.panels.oscal_poam_workbench.resolve_entity") as mock_resolve:
             mock_resolve.return_value = EntityResolution(
                 entity_id="ent-latest",
                 var_name="oscal_poam_artifact_entity_id",
