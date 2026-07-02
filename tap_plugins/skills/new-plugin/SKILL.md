@@ -10,7 +10,65 @@ argument-hint: <slug> <display-name>  |  --from-spec <path>
 
 > **Skill source-of-truth.** This SKILL.md's canonical location is `tap_plugins/skills/new-plugin/SKILL.md`. The `.claude/skills/new-plugin/` path is a directory-level symlink — edit the canonical, the symlink follows. Same pattern holds for the other plugin-tooling skills (`add-model`, `add-edge`, `add-page`, `add-panel`): canonical lives under the owning package's `skills/` directory.
 
-You are creating a new TAP plugin. TAP plugins may be developed as standalone git repositories and later integrated into TAP as submodules, but the plugin's TAP contract should stay valid regardless of when that publishing shape is used.
+You are creating a new TAP plugin. Plugins are **installable Python packages** (package-mode, since the 2026-07 refactor): a wheel-buildable dist with a `tap.plugins` entry point, consumed via uv (editable in the monorepo now; git-source / index later). The repo is decoupled from identity — a plugin can live standalone or in the monorepo `plugins/<slug>/` without changing what it *is*. Lead with the package-mode shape below from the very first file; it is cheap now and expensive to retrofit.
+
+## Package-Mode Layout (the current shape — READ FIRST)
+
+> This supersedes any older "flat `plugins/<slug>/apps.py` + `git submodule add`" guidance. Authoritative specs: `req-plugin-arch-identity` (identity chain), `req-plugin-arch-install-registry` (install/discovery), `req-plugin-arch-versioning` (hatch-vcs), `req-plugin-arch-dependencies` (deps). Recipe reference: `docs/misc/doc-plugin-boot-install-handoff.md` + `doc-plugin-source-identity-deps-handoff.md`. Clone an already-migrated plugin (`plugins/computing_core/` is the cleanest leaf; `plugins/samsite/` shows cross-plugin deps) as your template.
+
+**The identity chain (all four MUST agree — the pre-boot conformance gate fails closed otherwise):**
+`slug` (manifest `slug` == `tap.plugins` entry-point key == namespace segment) · dist `tap-plugin-<slug>` (PEP 503) · import namespace `tap_plugin.<slug>` (PEP 420, singular `tap_plugin`) · AppConfig `tap_plugin.<slug>.apps:<Slug>Config`.
+
+**Directory shape** — the monorepo project dir `plugins/<slug>/` holds the packaging + test-infra; the **runtime package** is nested at `tap_plugin/<slug>/` and is the ONLY thing that ships in the wheel:
+
+```text
+plugins/<slug>/
+  pyproject.toml            # dist + entry point + hatch-vcs (template below)
+  __init__.py               # monorepo test-collection MARKER (not the package; ships in no wheel)
+  .gitignore                # __pycache__/, *.pyc, .pytest_cache/, .mypy_cache/, .ruff_cache/
+  specs/                    # plugin specs (NOT in wheel)
+  tests/                    # plugin tests (NOT in wheel)
+  tap_plugin/               # PEP 420 namespace — NO __init__.py here (shared namespace)
+    <slug>/                 # the runtime package (this is what installs)
+      __init__.py           # package docstring
+      apps.py               # one TapPluginConfig subclass, body `pass`
+      tap-plugin.toml       # manifest (lives INSIDE the runtime package)
+      models/  edges/  grift/  static/<slug>/  templates/<slug>/  migrations/
+```
+
+**`pyproject.toml` template** (namespace build via hatchling + hatch-vcs; the plugin-creation skill emits this so authors never hand-set it):
+
+```toml
+[project]
+name = "tap-plugin-<slug>"
+description = "TAP <Display Name> plugin — <one line>."
+requires-python = ">=3.14"
+dynamic = ["version"]
+dependencies = []                    # Tier-0 deps go here (see Dependencies below)
+
+[project.entry-points."tap.plugins"]
+<slug> = "tap_plugin.<slug>.apps:<Slug>Config"   # entry-point KEY == slug
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+root = "../.."                       # MONOREPO-TRANSITION ARTIFACT — remove on extraction
+fallback_version = "0.0.0"
+
+[tool.hatch.build.targets.wheel]
+only-include = ["tap_plugin/<slug>"]
+```
+
+- **Manifest class paths use the namespace.** `[models]`/`[edges]` entries are `tap_plugin.<slug>.models.X`, not `plugins.<slug>...` or a bare `<slug>...`.
+- **`models/__init__.py` re-exports via the namespace:** `from tap_plugin.<slug>.models.foo import Foo`.
+- **`apps.py` sets no `name`/`label`.** `TapPluginConfig.__init_subclass__` derives `name` from the module path (`tap_plugin.<slug>`); `label` comes from the manifest `slug`.
+- **Install is uv, not submodules.** In the monorepo, add the plugin to a boot profile's `install` section (`{ "slug": "<slug>", "enabled": true, "source": { "type": "editable", "path": "plugins/<slug>" } }`) and it installs at pre-boot. `git submodule add` is explicitly rejected (the old dependency nightmare). Do NOT add the plugin to `INSTALLED_APPS` — package-mode plugins load via `TAP_PLUGINS` from the profile.
+- **A SPLIT plugin** (one that ships a test harness, like `gryphon_playground`) keeps test-infra subpackages at `plugins/<slug>/` and only moves the runtime into `tap_plugin/<slug>/`; the marker `__init__.py` lets the test-infra keep importing `plugins.<slug>.<subpkg>`.
 
 ## Operating Modes
 
@@ -65,28 +123,17 @@ Gather from the user:
 3. **Description** — one-line description
 4. **Default dimensions convention** — what dimension key/value should all TAP-managed entities and edges use?
 5. **Naming strategy** — proposed model/type slugs, edge slugs, icon keys, and GRIFT bundle names
-6. **GitHub repo name and org** — where the repo will be created, if the standalone-repo/submodule shape will be used
+6. **Repo shape** — default is in-monorepo (`plugins/<slug>/`, editable-installed via a boot profile). Only gather a standalone GitHub repo name/org if the user explicitly wants a separate repo now (rare during the monorepo phase; identity is repo-independent either way)
 
 Default dimensions are required **when the plugin contributes TAP-managed entities** (models or edges). If the plugin's Plugin Scope explicitly excludes TAP-managed entities — e.g., a panel-only, presentation-only, or pure-helper plugin — default dimensions are N/A; note the carve-out once and do not require a value. Otherwise, dimension-less TAP-managed types should be treated as a design bug to justify rather than a default to accept silently.
 
 **In spec-first mode**, slug + display name come from the spec's `## Plugin Identity` section (see Step 3). Default dimensions, naming strategy, and GitHub repo metadata may or may not be answered in the spec — the Step 3 review pass identifies the gaps and asks for them in one bounded batch rather than re-eliciting answers the spec already contains.
 
-## Step 2: Create GitHub Repo Early
+## Step 2: Repository Shape (decoupled — usually the monorepo)
 
-Once the plugin slug, display name, description, and repo metadata are stable enough, create the GitHub repository early rather than waiting until the end. This lets the plugin author push partial specification work even if implementation is not finished yet.
+The repo is **not** load-bearing for identity (`req-plugin-arch-identity-4`). In the current monorepo workflow a new plugin lives in-tree at `plugins/<slug>/` and is installed as an **editable uv package** via a boot profile — no separate repo and **no `git submodule add`** (submodules were the prior dependency nightmare; package-mode install replaces them). Commit the plugin dir alongside the rest of the monorepo.
 
-If the standalone-repo/submodule shape is being used:
-
-```bash
-cd plugins/<slug>
-git init
-gh repo create <org>/<repo-name> --private --description "<description>"
-git remote add origin <repo-url>
-```
-
-If the plugin directory does not exist yet, create it first with the minimal package skeleton or initialize the repository at the intended plugin root before continuing.
-
-Do not wait for the full plugin scaffold to exist before creating the remote. Early publication of partial spec work is an intended workflow.
+If a genuinely standalone repo is wanted later, extraction is a one-line source change (editable → git-source) plus removing the `root = "../.."` monorepo-transition artifact from `pyproject.toml`; identity is unchanged because it lives in the package, not the repo. Do not stand up a separate GitHub repo pre-emptively unless the user asks — it adds submodule/CI friction with no identity benefit during the monorepo phase.
 
 ## Step 3: Write or Graduate the Specification
 
@@ -116,7 +163,7 @@ Collaborate with the user to draft the spec from zero. Gather:
 1. **Domain** — what resource types, relationships, and reference data does this plugin model?
 2. **Default dimensions** — confirm the convention from Step 1 (skip if the plugin contributes no TAP-managed entities)
 3. **Naming strategy** — confirm the naming set from Step 1 before drafting
-4. **GitHub repo name and org** — confirm whether the standalone-repo/submodule shape will be used now or later
+4. **Repo shape** — confirm in-monorepo (default) vs a standalone repo now (rare; identity is repo-independent)
 
 Bias toward durable primitives. If a proposed model or edge feels speculative, unstable, or too domain-specific for the plugin's stated scope, flag it and move it to non-goals or future work instead of forcing it into v0.
 
@@ -175,18 +222,22 @@ After either variant, update requirement statuses to `Implemented` as you build 
 
 ## Step 4: Create Plugin Directory and Core Files
 
-Create the directory at `plugins/<slug>/`. Read `tap_plugins/specs/spec-plugin-architecture.md` for the full package layout requirements — do not hardcode the directory list here.
+Create the package-mode layout under `plugins/<slug>/` per the **Package-Mode Layout** section above (the authoritative shape) and `tap_plugins/specs/spec-plugin-architecture.md`. Clone an already-migrated leaf (`plugins/computing_core/`) rather than hand-building — it is faster and guarantees the identity chain agrees.
 
-The core files every plugin needs:
+The core files every plugin needs (note the packaging vs runtime-package split):
 
-- `__init__.py` — package marker, docstring only
-- `apps.py` — single `TapPluginConfig` subclass, body is `pass`, no explicit `name`/`label`/`verbose_name`
-- `tap-plugin.toml` — manifest per `spec-plugin-manifest-v0.md`
-- `README.md` — plugin-local developer and AI-agent orientation notes that travel with the plugin
-- `docs/` — setup guides, runbooks, inventories, and deeper operational/design notes
-- `migrations/__init__.py` — empty
-- `tests/__init__.py` — empty
-- `.gitignore` — if the plugin will be its own git repo (the standalone-repo/submodule shape from Step 2), create one to keep Python bytecode and tooling caches out of the index. Plugin repos do not inherit the TAP repo's top-level `.gitignore`. Skip this step only if `.gitignore` is already tracked. Minimum recommended contents:
+- `plugins/<slug>/pyproject.toml` — the dist + `tap.plugins` entry point + hatch-vcs (template in the layout section)
+- `plugins/<slug>/__init__.py` — the monorepo test-collection **marker** (comment only; ships in no wheel), NOT the package
+- `plugins/<slug>/.gitignore` — bytecode/cache ignores (contents below)
+- `plugins/<slug>/tap_plugin/<slug>/__init__.py` — the runtime package marker, docstring only
+- `plugins/<slug>/tap_plugin/<slug>/apps.py` — single `TapPluginConfig` subclass, body `pass`, no explicit `name`/`label`/`verbose_name`
+- `plugins/<slug>/tap_plugin/<slug>/tap-plugin.toml` — manifest per `spec-plugin-manifest-v0.md` (class paths use `tap_plugin.<slug>.…`)
+- `plugins/<slug>/tap_plugin/<slug>/migrations/__init__.py` — empty
+- `plugins/<slug>/README.md` — plugin-local developer and AI-agent orientation notes
+- `plugins/<slug>/docs/` — setup guides, runbooks, inventories, deeper design notes
+- `plugins/<slug>/tests/__init__.py` — empty
+- **NO** `plugins/<slug>/tap_plugin/__init__.py` — the namespace package must stay init-free so dists share it (PEP 420).
+- `.gitignore` — keep Python bytecode and tooling caches out of the index. Minimum recommended contents:
 
   ```gitignore
   __pycache__/
@@ -222,7 +273,22 @@ If the plugin will render its own panels or pages, those land under `plugins/<sl
 Two anti-patterns that have bitten this codebase — do not repeat them:
 
 - **No plugin config in core infrastructure.** A plugin's configuration must not live in `docker-compose.yml`, core settings, or other shared infra (`req-plugin-arch-runtime-4`). Plugins self-configure through plugin-owned mechanisms — in v0, on-disk secrets discovered under `TAP_SECRETS_ROOT` (e.g. resolve a well-known `SecretRef`). A durable on-grid plugin-config model is future work. The removed `AWS_CORE_STEAMPIPE_COLLECTOR` compose entry was this mistake.
-- **No new third-party dependencies without explicit approval.** TAP deliberately minimizes third-party dependence: prefer Django/stdlib and capabilities already present before reaching for a package. Adding a library requires deliberate justification and the user's go-ahead — never slip one in. (boto3 was pulled in for an AWS identity check and removed; the check uses the already-present Steampipe instead.)
+- **No new third-party dependencies without explicit approval.** TAP deliberately minimizes third-party dependence: prefer Django/stdlib and capabilities already present before reaching for a package. Adding a library requires deliberate justification and the user's go-ahead — never slip one in.
+
+### Declaring dependencies (three tiers, `req-plugin-arch-dependencies`)
+
+- **Tier 0 — package/library deps (incl. plugin→plugin code) → `pyproject.toml` `dependencies`.** e.g. `dependencies = ["tap-plugin-aws-core>=0.1"]` or a third-party lib. uv resolves the closure + version diamonds, fail-closed. Use version specifiers, not git-URLs, so deps stay index-resolvable.
+- **Tier 1 — load/registration order → manifest `depends_on`.** If your plugin *imports* another plugin (`from tap_plugin.<other> import …`), declare that edge:
+  ```toml
+  depends_on = [
+    { slug = "<other>", note = "why — e.g. imports its models/panels at import time" },
+    # optional: min_version = "0.2.0", optional = true
+  ]
+  ```
+  The pre-boot **consistency gate fails closed** if you import a plugin you didn't declare (declared ⊇ observed), if a declared dep isn't installed before you, or if a min-version is unmet. So: import a plugin → declare it. The `note` is AI-/security-readable intent — always write one.
+- **Tier 2 — runtime DATA order (you read nodes another plugin's *collector* produced) → stays PROFILE-EXPLICIT.** This is NOT a `depends_on` — the import graph can't see data deps, and conflating them produces a confidently-wrong picture. Order the fire-collector steps in the boot profile and document why (samsite reads `aws_core` nodes this way — profile order, not a manifest edge).
+
+After scaffolding, `manage.py plugins` (the read-only report, gated by `plugins.read`) shows your plugin's identity, surfaces, load health, and both dependency directions (`depends_on` + `required_by`) — use it to confirm the plugin loaded and its edges are what you expect.
 
 ## Step 5: Create Models
 
@@ -230,7 +296,7 @@ For each model the plugin needs, follow the **[`add-model`](../../../tap_grid/sk
 
 Within plugin scaffolding, complete the skill's Step 1 (shape) and Step 2 (model file) for every model before moving on. Step 4 (manifest registration), Step 5 (migrations), and Step 8 (tests) typically run once at the end of plugin scaffolding rather than once per model.
 
-Re-export every model from `models/__init__.py` so `from <plugin>.models import <Model>` works.
+Re-export every model from `models/__init__.py` using the namespace path so `from tap_plugin.<slug>.models import <Model>` works (e.g. `from tap_plugin.<slug>.models.foo import Foo`).
 
 ## Step 6: Create Edge Definitions
 
@@ -290,7 +356,7 @@ class TestStructure:
         assert result.ok, result.to_human()
 ```
 
-Note: `loads` and `runs` level tests require the plugin to be in `INSTALLED_APPS`. Structure-level tests work standalone.
+Note: `loads` and `runs` level tests require the plugin to be installed + loaded (editable-installed and listed in a booted profile's `install` section, so it lands in `TAP_PLUGINS`). Structure-level tests work standalone.
 
 Create additional test files for domain-specific behavior. Name test files after what they test — `test_<slug>_edges.py`, `test_<slug>_defaults.py`, etc. — not always `_models.py`.
 
@@ -298,17 +364,23 @@ Do not re-implement structural or smoke tests that the centralized plugin valida
 
 ## Step 10: Validate
 
-Run structural validation to confirm the scaffold is correct:
+Validate in layers — structure first (no Django), then the real package-mode install + boot gates:
 
-```bash
-python -m tap_plugins.validate_plugin plugins/<slug>
-```
+1. **Structure** (no Django) — manifest, paths, edge files, directory structure:
+   ```bash
+   python -m tap_plugins.validate_plugin plugins/<slug>/tap_plugin/<slug>
+   ```
+2. **Editable install + pre-boot gates** — install the package and run pre-boot for a profile that lists it in its `install` section. This exercises the conformance gate (slug/dist/entry-key/namespace agree), the reconciliation guard (installed == declared), and the dependency consistency gate (declared ⊇ observed imports, order, min-version):
+   ```bash
+   scripts/dc exec -T web uv pip install --editable plugins/<slug>
+   scripts/dc exec -T web uv run --no-sync python -m tap.preboot --profile <profile>
+   ```
+3. **Report** — confirm the plugin loaded, its surfaces registered, and its dependency edges are correct:
+   ```bash
+   scripts/dc exec -T web uv run --no-sync python manage.py plugins   # (--json for the machine view)
+   ```
 
-This runs without Django and confirms manifest, paths, edge files, and directory structure. Fix any failures before proceeding.
-
-Before making the plugin public, strongly recommend that the author also run the future `loads` and `runs` validation levels once those capabilities are available and the plugin is integrated into a real TAP installation.
-
-Remember that structure-level validation confirms manifest, import, and path correctness, but it does not yet prove that plugin-backed database tables or migration state are present.
+Fix any gate failure before proceeding — they fail closed by design. Structure-level validation confirms manifest/import/path correctness but does not prove DB tables/migration state; the report + a `migrate` do.
 
 ## Step 11: Update Plugin Documentation
 
@@ -321,30 +393,31 @@ Update root `README.md` so it is useful to a future developer or AI agent landin
 - Collector, receiver, emitter, or schedule behavior, if any
 - GRIFT seed data and import expectations, if any
 - Important specs and source files to read before editing
-- How to install (`git submodule add`, `INSTALLED_APPS`, `migrate`)
-- How to validate (`python manage.py validate_plugin plugins/<slug> --level runs`)
+- How to install (add to a boot profile `install` section as an editable source; `uv pip install --editable`; `migrate`) — not submodules, not `INSTALLED_APPS`
+- How to validate (`python -m tap.preboot --profile <profile>` for the gates; `manage.py plugins` for the report)
 - Pointer to `specs/` for detailed documentation
 
 Create or update `docs/` files for operational setup, runbooks, generated inventories, and longer implementation notes. The root README should point into those docs rather than absorbing all details.
 
-## Step 12: Commit And Push Progress
+## Step 12: Wire Into A Boot Profile And Commit
 
-```bash
-cd plugins/<slug>
-git add .
-git commit -m "Initial <Display Name> plugin"
-git push -u origin main
-```
+Package-mode plugins load via the boot profile's `install` section, **not** `INSTALLED_APPS` and **not** a submodule. To integrate:
 
-Then add as submodule from the TAP repo root:
+1. Add an `install` entry to the relevant boot profile(s) — including any profile the test/dev container boots (e.g. `boot/base.boot.json`, and this session's profile), so pre-boot's reconciliation guard doesn't fail closed on an installed-but-undeclared plugin:
+   ```json
+   { "slug": "<slug>", "enabled": true, "source": { "type": "editable", "path": "plugins/<slug>" },
+     "note": "<what it is; install-only vs seeded>" }
+   ```
+   If the plugin ships GRIFT seed data, also add a `population` `seed-plugin` step. If it declares Tier-1 `depends_on`, list it in the `install` section **after** its dependencies (deps before dependents — the gate checks this).
+2. Commit the plugin in the monorepo (it is not a separate repo during the monorepo phase):
+   ```bash
+   git add plugins/<slug> boot/<profile>.boot.json
+   git commit -m "feat(plugins): add <Display Name> plugin (package-mode)"
+   ```
 
-```bash
-git submodule add <repo-url> plugins/<slug>
-```
+Do NOT hardcode the plugin in `settings.INSTALLED_APPS` — that is the legacy build-baked path (`BUILD_BAKED_PLUGIN_SLUGS` is now empty; every plugin is package-mode). The pre-boot stage splices installed plugins into `INSTALLED_APPS` via `TAP_PLUGINS`.
 
-Do NOT add the plugin to `INSTALLED_APPS`. The plugin author does that when they're ready to integrate, and the validation system confirms correctness.
-
-This step is intentionally late in the workflow, but the author may commit and push partial progress earlier, especially once the initial spec exists.
+This step is intentionally late, but the author may commit partial progress earlier, especially once the initial spec exists.
 
 ## Step 13: Update Specification
 
