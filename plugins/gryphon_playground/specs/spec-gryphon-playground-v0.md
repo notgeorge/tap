@@ -11,22 +11,30 @@ path has already surfaced blocking executor bugs and regressions; the playground
 exists to turn that class of failure into something a hand-authored test catches
 before it ships.
 
-The plugin hosts three things:
+The plugin hosts two things:
 
-1. **A bespoke playground vocabulary** of node and edge types (`pg_*` / `PG_*`)
-   designed *only* to exercise query patterns — cycles, self-loops, multi-edges,
-   sparse/dense regions, optional relationships, dimension partitions.
-2. **The Gridkin scenario corpus** and its backing graph fixtures. Gridkin is the
+1. **The Gridkin scenario corpus** and its backing graph fixtures. Gridkin is the
    scenario-driven test format for Gryphon; the format itself is specified
    separately in the companion [spec-gridkin-v0.md](spec-gridkin-v0.md).
-3. **A pytest-discoverable Gridkin runner** that drives the scenarios.
+2. **A pytest-discoverable Gridkin runner** that drives the scenarios.
 
-Keeping the playground decoupled from real domain models (`lotr`, `aws_core`,
+The **graph vocabulary** the fixtures build from — the abstract node types
+(`grid_fixtures__node` / `__hub` / `__leaf` / `__cycle_node`) and wildcard edge
+types (`PG_LINKS` / `PG_NESTS` / `PG_LOOPS` / `PG_OPTIONAL`) designed *only* to
+exercise query patterns (cycles, self-loops, multi-edges, sparse/dense regions,
+optional relationships, dimension partitions) — **no longer lives here**. It was
+extracted into the neutral [`grid_fixtures`](../../grid_fixtures/README.md) plugin
+so it can be shared by the core suites, and `gryphon_playground` now simply
+`depends_on` it (see [req-gryphon-playground-scope](#plugin-scope)). This lets the
+playground be dropped from any profile without redding the core suites — it is,
+literally, a playground.
+
+Keeping the vocabulary decoupled from real domain models (`lotr`, `aws_core`,
 `samsite`) means Gridkin scenarios don't accidentally constrain real-world graph
 shapes, and real-world graph evolution doesn't accidentally break Gridkin tests.
 
 This spec is the **top-level, governing** specification for the plugin: its
-purpose, scope, and playground vocabulary. The Gridkin scenario file format,
+purpose, scope, and the `grid_fixtures` vocabulary it consumes. The Gridkin scenario file format,
 runner contract, oracle discipline, snapshot discipline, requirement traceability,
 and JSON Schema are specified in [spec-gridkin-v0.md](spec-gridkin-v0.md). Where
 the two specs touch the same surface, this spec governs *what the plugin
@@ -54,7 +62,7 @@ extending Gryphon or adding scenarios.
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
 | req-gryphon-playground-scope | [Plugin Scope](#plugin-scope) | Implemented | What the plugin contains and what it does not |
-| req-gryphon-playground-vocabulary | [Playground Node and Edge Types](#playground-node-and-edge-types) | Implemented | Bespoke `pg_*` / `PG_*` vocabulary for query-pattern testing |
+| req-gryphon-playground-vocabulary | [Playground Node and Edge Types](#playground-node-and-edge-types) | Implemented | The `grid_fixtures__*` / `PG_*` vocabulary for query-pattern testing — extracted to the `grid_fixtures` plugin; consumed here via `depends_on` |
 | req-gryphon-playground-fixtures | [Two-Tier Fixture Structure](#two-tier-fixture-structure) | In Development | Tier-1 fixtures grow with features; the Tier-2 canonical playground fixture is pending |
 | req-gryphon-playground-gridkin | [Gridkin Format Specified Separately](#gridkin-format-specified-separately) | Implemented | The scenario format, runner contract, and disciplines are governed by `spec-gridkin-v0.md` |
 
@@ -64,16 +72,21 @@ RID: `req-gryphon-playground-scope`
 Status: `Implemented`
 
 The `gryphon_playground` plugin exists to host Gryphon test scenarios, their
-backing graph fixtures, the playground vocabulary they use, and the runner that
-drives them.
+backing graph fixtures, and the runner that drives them. The graph vocabulary the
+fixtures build from lives in the `grid_fixtures` plugin, which this plugin
+`depends_on`.
 
 #### Implementation
 
 The plugin contains:
 
-- A bespoke set of playground node and edge types (see
-  [req-gryphon-playground-vocabulary](#playground-node-and-edge-types)), used only
-  by Gridkin fixtures
+- **No node or edge types of its own.** Its fixtures build from the
+  `grid_fixtures__*` / `PG_*` vocabulary (see
+  [req-gryphon-playground-vocabulary](#playground-node-and-edge-types)), which lives
+  in the `grid_fixtures` plugin declared as a `depends_on` in this plugin's
+  `tap-plugin.toml`. The Gridkin corpus references those types by string, so
+  `grid_fixtures` must be installed + migrated before this plugin loads (the
+  pre-boot consistency gate enforces the install order)
 - A directory of shape-targeted GRIFT fixtures (`fixtures/<shape>.grift.json`) —
   each fixture seeds one specific graph topology corner
 - One canonical multi-shape playground fixture (`fixtures/playground.grift.json`)
@@ -92,23 +105,27 @@ The plugin does **not** contain:
   collected
 - Pages, panels, searches, layouts, or any user-facing surface — the playground is
   a developer artifact
-- Domain vocabulary — playground node types are deliberately abstract (`pg_node`,
-  `pg_hub`, etc.)
+- Node or edge types — the abstract vocabulary its fixtures use (`grid_fixtures__*`
+  / `PG_*`) lives in the `grid_fixtures` plugin, a `depends_on`; this plugin
+  registers none of its own
 
-Because its models must be migrated and its scenarios run under pytest,
-`gryphon_playground` IS registered in `INSTALLED_APPS` — unlike a standalone-repo
-plugin awaiting integration. It is, alongside `lotr`, a load-bearing test-fixture
-plugin: de-registering it would red the test suite.
+Because its scenarios run under pytest against the `grid_fixtures` vocabulary,
+`gryphon_playground` IS installed (editable) + registered in `INSTALLED_APPS` in any
+env that runs the Gridkin lane — unlike a standalone-repo plugin awaiting
+integration. But it is now a pure **leaf**: nothing outside it imports it, so it can
+be dropped from a profile and only the Gridkin lane drops — the core suites stay
+green (they reach for `grid_fixtures`, not this plugin). That leaf status is exactly
+what the extraction bought.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-gryphon-playground-scope-1 | Hosts Scenario Corpus | Implemented | The plugin is the canonical home for Gridkin scenario files and their expected side files. | |
-| req-gryphon-playground-scope-2 | Hosts Playground Vocabulary | Implemented | The plugin registers playground node and edge types used only by Gridkin fixtures. | |
+| req-gryphon-playground-scope-2 | Depends On Grid-Fixtures Vocabulary | Implemented | The plugin registers no node/edge types of its own; its fixtures build from the `grid_fixtures` vocabulary, declared as a `depends_on`. | Vocabulary lives in the `grid_fixtures` plugin |
 | req-gryphon-playground-scope-3 | Excludes Executor Source | Implemented | The plugin does not contain Gryphon executor, parser, or grammar source. | Lives in `tap_grid/gryphon/` |
 | req-gryphon-playground-scope-4 | Excludes User-Facing Surface | Implemented | The plugin registers no pages, panels, searches, or layouts. | |
-| req-gryphon-playground-scope-5 | Registered For Test Execution | Implemented | The plugin is in `INSTALLED_APPS` so its models migrate and its runner is collected by pytest. | |
+| req-gryphon-playground-scope-5 | Registered For Test Execution | Implemented | The plugin is installed + in `INSTALLED_APPS` so its runner is collected by pytest; it carries no models of its own to migrate. | |
 
 ### Playground Node and Edge Types
 ----
@@ -116,25 +133,35 @@ RID: `req-gryphon-playground-vocabulary`
 Status: `Implemented`
 
 Gridkin fixtures use a small, abstract vocabulary of node and edge types that
-exist only to exercise query patterns.
+exist only to exercise query patterns. **This vocabulary lives in the neutral
+[`grid_fixtures`](../../grid_fixtures/README.md) plugin** — it was extracted out of
+`gryphon_playground` so the core `tap_grid` / `tap_api` suites can build fixtures
+from the same neutral types (the role `lotr` also fills), and so this plugin can be
+a droppable leaf. `gryphon_playground` declares `grid_fixtures` as a `depends_on`
+and its corpus references the types below by string. The description here is the
+authoritative scenario-author reference; `grid_fixtures` owns the models.
 
 #### Implementation
 
-Initial node types:
+Node types (entity-type slug → intended shape):
 
-- `pg_node` — generic playground node, no special semantics; the default building
+- `grid_fixtures__node` — generic node, no special semantics; the default building
   block
-- `pg_hub` — semantically marked as a hub (graph patterns where one node has many
-  neighbors)
-- `pg_leaf` — semantically marked as a leaf (terminal in a chain)
-- `pg_cycle_node` — used to construct cycles, self-loops, and multi-cycles
+- `grid_fixtures__hub` — semantically marked as a hub (graph patterns where one node
+  has many neighbors)
+- `grid_fixtures__leaf` — semantically marked as a leaf (terminal in a chain)
+- `grid_fixtures__cycle_node` — used to construct cycles, self-loops, and
+  multi-cycles
 
 The semantic distinction between the four types is **convention expressed through
 the `entity_type` slug**, not through differing fields — the executor does not
 care, but a scenario can target a type to construct an intended shape, and
-label / type-scan patterns need distinct labels to match against.
+label / type-scan patterns need distinct labels to match against. (The backing
+Python classes retain their origin names `PgNode` / `PgHub` / `PgLeaf` /
+`PgCycleNode`; only the entity-type namespace moved from `gryphon_playground__pg_*`
+to `grid_fixtures__*`.)
 
-Initial edge types:
+Edge types:
 
 - `PG_LINKS` — generic directional edge
 - `PG_NESTS` — used to construct compound / nested graph shapes
@@ -142,13 +169,17 @@ Initial edge types:
 - `PG_OPTIONAL` — used to construct sparse fan-outs where some nodes have the edge
   and some don't (for `OPTIONAL MATCH` testing once that feature is implemented)
 
-Playground edge types declare **no `sources` / `targets` constraints** (wildcard).
-Fixtures must be free to build any topology — self-loops, multi-edges, cross-type
-links — without fighting edge-constraint validation.
+Each edge type's registered slug is namespaced `<TYPE>__grid_fixtures` (e.g.
+`PG_LINKS__grid_fixtures`), matching the owning plugin.
 
-Naming convention: `pg_*` for node types, `PG_*` for edge types. The `pg_` prefix
-is unambiguous against any real domain plugin (no production vocabulary starts
-with `pg_`) and short enough to read in queries without noise.
+Edge types declare **no `sources` / `targets` constraints** (wildcard). Fixtures
+must be free to build any topology — self-loops, multi-edges, cross-type links —
+without fighting edge-constraint validation.
+
+Naming convention: `grid_fixtures__*` for node types, `PG_*` for edge types. The
+`grid_fixtures__` namespace is unambiguous against any real domain plugin (no
+production vocabulary uses it), and the edge `PG_` prefix is short enough to read in
+queries without noise.
 
 **Field set.** Every playground node model carries an identical typed-field set,
 chosen so that fixtures and scenarios can exercise each scalar predicate type the
@@ -174,7 +205,7 @@ fixed here.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-gryphon-playground-vocabulary-1 | Decoupled From Domain Vocabulary | Implemented | No playground node or edge type collides with any production plugin's vocabulary. | `pg_*` / `PG_*` prefix |
+| req-gryphon-playground-vocabulary-1 | Decoupled From Domain Vocabulary | Implemented | No fixture node or edge type collides with any production plugin's vocabulary. | `grid_fixtures__*` / `PG_*` namespace (owned by the `grid_fixtures` plugin) |
 | req-gryphon-playground-vocabulary-2 | Typed Fields Cover Predicate Surface | Implemented | Playground BaseModels carry typed fields covering each scalar predicate type the executor supports (string, int, bool, datetime, JSON). | |
 | req-gryphon-playground-vocabulary-3 | Edge Types Are Wildcard | Implemented | Playground edge types declare no source / target constraints, so fixtures can build any topology. | |
 | req-gryphon-playground-vocabulary-4 | Vocabulary Documented Inline | Implemented | The plugin README lists the playground node and edge types and their intended use, so scenario authors don't reinvent. | |

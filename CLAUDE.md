@@ -142,8 +142,12 @@ Development Commands
     # Run Django management commands
     docker compose exec web uv run python manage.py <command>
 
-    # Run tests
-    docker compose exec web uv run pytest
+    # Run tests — use the parallel lanes (scripts/test), NOT bare pytest.
+    scripts/test              # FULL lane (-n auto, incl. gryphon corpus + coverage guards); the promote gate, ~9-10 min
+    scripts/test --fast       # INNER-LOOP lane (skips the gryphon corpus)
+    scripts/test <args...>    # extra args pass through to pytest, e.g. scripts/test --fast tap_web
+    # Single-test debugging: bare (serial) pytest avoids the xdist worker/DB startup tax:
+    scripts/dc exec web uv run pytest tap/tests/test_x.py::test_y
 
     # Linting and formatting
     docker compose exec web uv run black .

@@ -2,7 +2,7 @@
   "nodes": [
     {
       "entity_id": "019e6eab-d14d-7144-845c-2d48d4cc2edb",
-      "entity_type": "gryphon_playground__pg_node",
+      "entity_type": "grid_fixtures__node",
       "name": "Reading One",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -15,7 +15,7 @@
     },
     {
       "entity_id": "019e6eab-d14d-7144-845c-2d49aac6c4f4",
-      "entity_type": "gryphon_playground__pg_node",
+      "entity_type": "grid_fixtures__node",
       "name": "Reading Two",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -28,7 +28,7 @@
     },
     {
       "entity_id": "019e6eab-d14d-7144-845c-2d4af229bba6",
-      "entity_type": "gryphon_playground__pg_node",
+      "entity_type": "grid_fixtures__node",
       "name": "Reading Three",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -41,7 +41,7 @@
     },
     {
       "entity_id": "019e6eab-d14d-7144-845c-2d4be9843ce6",
-      "entity_type": "gryphon_playground__pg_node",
+      "entity_type": "grid_fixtures__node",
       "name": "Reading Three-Tied",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -54,7 +54,7 @@
     },
     {
       "entity_id": "019e6eab-d14d-7144-845c-2d4c0112d84e",
-      "entity_type": "gryphon_playground__pg_node",
+      "entity_type": "grid_fixtures__node",
       "name": "Reading Null",
       "dimensions": {
         "tap.playground": "gridkin"

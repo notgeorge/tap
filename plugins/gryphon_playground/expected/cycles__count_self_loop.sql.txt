@@ -5,4 +5,4 @@ INNER JOIN "tap_entity" ON ("tap_edge"."entity_id" = "tap_entity"."id")
 WHERE ("tap_entity"."deleted_at" IS NULL AND "tap_edge"."edge_type" = %s)
 GROUP BY 1
 ORDER BY 1 ASC
--- params: ['PG_LINKS__gryphon_playground']
+-- params: ['PG_LINKS__grid_fixtures']

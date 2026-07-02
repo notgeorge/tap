@@ -2,7 +2,7 @@
   "nodes": [
     {
       "entity_id": "019e4da0-8a10-7418-b229-c1b9f005bd94",
-      "entity_type": "gryphon_playground__pg_hub",
+      "entity_type": "grid_fixtures__hub",
       "name": "Source",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -15,7 +15,7 @@
     },
     {
       "entity_id": "019e4da0-8a10-7418-b229-c1bbd717ddbc",
-      "entity_type": "gryphon_playground__pg_node",
+      "entity_type": "grid_fixtures__node",
       "name": "Target Two",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -28,7 +28,7 @@
     },
     {
       "entity_id": "019e4da0-8a10-7418-b229-c1bc929c357e",
-      "entity_type": "gryphon_playground__pg_node",
+      "entity_type": "grid_fixtures__node",
       "name": "Target Three",
       "dimensions": {
         "tap.playground": "gridkin"
@@ -44,7 +44,7 @@
     {
       "entity_id": "019e4da0-8a11-77ca-9976-97d77b4064a1",
       "entity_type": "edge",
-      "name": "019e4da0-8a10-7418-b229-c1b9f005bd94 --[PG_LINKS__gryphon_playground]--> 019e4da0-8a10-7418-b229-c1bbd717ddbc",
+      "name": "019e4da0-8a10-7418-b229-c1b9f005bd94 --[PG_LINKS__grid_fixtures]--> 019e4da0-8a10-7418-b229-c1bbd717ddbc",
       "dimensions": {
         "tap.playground": "gridkin"
       },
@@ -57,7 +57,7 @@
     {
       "entity_id": "019e4da0-8a11-77ca-9976-97d84f97d818",
       "entity_type": "edge",
-      "name": "019e4da0-8a10-7418-b229-c1b9f005bd94 --[PG_LINKS__gryphon_playground]--> 019e4da0-8a10-7418-b229-c1bc929c357e",
+      "name": "019e4da0-8a10-7418-b229-c1b9f005bd94 --[PG_LINKS__grid_fixtures]--> 019e4da0-8a10-7418-b229-c1bc929c357e",
       "dimensions": {
         "tap.playground": "gridkin"
       },

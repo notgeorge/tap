@@ -99,7 +99,7 @@ class TestCollectorShape:
 
     def test_registered_dual_existence(self):
         # apps.py ready() registered it during Django setup.
-        assert collector_registry.get("boto3", scope=Boto3Collector.__module__) is Boto3Collector
+        assert collector_registry.get("boto3", scope="aws_core") is Boto3Collector
 
 
 class TestSelfTest:

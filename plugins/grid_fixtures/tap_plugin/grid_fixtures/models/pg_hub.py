@@ -1,4 +1,4 @@
-"""PgNode — generic playground node for Gryphon query-pattern testing."""
+"""PgHub — playground node marked as a hub."""
 
 from typing import Any, ClassVar
 
@@ -19,18 +19,18 @@ _FIELD_CRUD_SCHEMA: dict[str, Any] = {
 }
 
 
-class PgNode(BaseModel):
-    """Generic playground node — the default building block for Gridkin fixtures.
+class PgHub(BaseModel):
+    """Playground node marked as a hub — one node with many neighbors.
 
-    Carries the playground typed-field set (string / int / bool / datetime / JSON)
-    so scenarios can exercise every scalar predicate type the executor supports.
-    Declares no edge constraints — fixtures must be free to build any topology.
-    See plugins/gryphon_playground/specs/spec-gryphon-playground-v0.md.
+    Identical in fields to PgNode; the hub semantics are convention carried by
+    the `pg_hub` entity_type slug, so a scenario can target the type to set up
+    hub-and-spoke shapes. The executor does not treat it specially.
+    See plugins/grid_fixtures/README.md.
     """
 
-    ENTITY_TYPE: ClassVar[str] = "gryphon_playground__pg_node"
-    ENTITY_NAME: ClassVar[str] = "Playground Node"
-    ENTITY_DESCRIPTION: ClassVar[str] = "Generic playground node for Gryphon query-pattern testing."
+    ENTITY_TYPE: ClassVar[str] = "grid_fixtures__hub"
+    ENTITY_NAME: ClassVar[str] = "Playground Hub"
+    ENTITY_DESCRIPTION: ClassVar[str] = "Playground node marked as a hub — one node with many neighbors."
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.playground": "gridkin"}
 
     FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = _FIELD_CRUD_SCHEMA
@@ -50,7 +50,7 @@ class PgNode(BaseModel):
     tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "gryphon_playground__pg_node"
+        db_table = "grid_fixtures__hub"
 
     def get_name(self) -> str:
         return self.name

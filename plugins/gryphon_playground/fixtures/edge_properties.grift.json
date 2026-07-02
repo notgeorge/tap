@@ -18,7 +18,7 @@
         {
           "entity": {
             "entity_id": "019e4dbd-db9c-7713-b0fd-22b965d69b53",
-            "entity_type": "gryphon_playground__pg_node",
+            "entity_type": "grid_fixtures__node",
             "name": "Property Hub",
             "dimensions": { "tap.playground": "gridkin" },
             "created_at": "2026-05-21T15:10:00Z",
@@ -37,7 +37,7 @@
         {
           "entity": {
             "entity_id": "019e4dbd-db9c-7713-b0fd-22ba8f88eb06",
-            "entity_type": "gryphon_playground__pg_node",
+            "entity_type": "grid_fixtures__node",
             "name": "Gold Target",
             "dimensions": { "tap.playground": "gridkin" },
             "created_at": "2026-05-21T15:10:01Z",
@@ -56,7 +56,7 @@
         {
           "entity": {
             "entity_id": "019e4dbd-db9c-7713-b0fd-22bb5b0c61fc",
-            "entity_type": "gryphon_playground__pg_node",
+            "entity_type": "grid_fixtures__node",
             "name": "Silver Target",
             "dimensions": { "tap.playground": "gridkin" },
             "created_at": "2026-05-21T15:10:02Z",
@@ -86,7 +86,7 @@
           "edge": {
             "from_entity_id": "019e4dbd-db9c-7713-b0fd-22b965d69b53",
             "to_entity_id": "019e4dbd-db9c-7713-b0fd-22ba8f88eb06",
-            "edge_type": "PG_LINKS__gryphon_playground",
+            "edge_type": "PG_LINKS__grid_fixtures",
             "properties": { "tier": "gold" }
           }
         },
@@ -102,7 +102,7 @@
           "edge": {
             "from_entity_id": "019e4dbd-db9c-7713-b0fd-22b965d69b53",
             "to_entity_id": "019e4dbd-db9c-7713-b0fd-22bb5b0c61fc",
-            "edge_type": "PG_LINKS__gryphon_playground",
+            "edge_type": "PG_LINKS__grid_fixtures",
             "properties": { "tier": "silver" }
           }
         }

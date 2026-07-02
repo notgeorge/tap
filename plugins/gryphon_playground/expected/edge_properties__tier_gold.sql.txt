@@ -6,7 +6,7 @@ INNER JOIN "tap_entity" T3 ON ("tap_edge"."from_entity_id" = T3."id")
 INNER JOIN "tap_entity" T4 ON ("tap_edge"."to_entity_id" = T4."id")
 WHERE ("tap_entity"."deleted_at" IS NULL AND "tap_edge"."edge_type" = %s AND T3."entity_type" = %s AND ("tap_edge"."properties" -> %s) = %s AND T4."entity_type" = %s)
 ORDER BY "tap_entity"."created_at" DESC
--- params: ['PG_LINKS__gryphon_playground', 'gryphon_playground__pg_node', 'tier', Jsonb('gold'), 'gryphon_playground__pg_node']
+-- params: ['PG_LINKS__grid_fixtures', 'grid_fixtures__node', 'tier', Jsonb('gold'), 'grid_fixtures__node']
 
 -- statement 2 · stage: single-hop
 SELECT "tap_entity"."id", "tap_entity"."entity_type", "tap_entity"."name", "tap_entity"."dimensions", "tap_entity"."originating_grid_id", "tap_entity"."version", "tap_entity"."deleted_at", "tap_entity"."created_at", "tap_entity"."updated_at"

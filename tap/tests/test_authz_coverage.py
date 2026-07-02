@@ -18,15 +18,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tap.authz_coverage import scan_authz_coverage
-from tap.logging import CallSite, discover_scan_roots
+from tap.authz_coverage import SinkSite, scan_authz_coverage
+from tap.logging import discover_scan_roots
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _BASELINE_PATH = Path(__file__).resolve().parent / "_authz_coverage_baseline.txt"
 
 
-def _key(site: CallSite) -> str:
-    return f"{site.path.relative_to(_REPO_ROOT)}:{site.lineno}"
+def _key(site: SinkSite) -> str:
+    # Stable identity: <relpath>::<enclosing qualname>::<sink>, NOT the line number
+    # (unrelated edits move lines; the baseline must not churn for that).
+    return site.key(_REPO_ROOT)
 
 
 def _read_baseline() -> set[str]:

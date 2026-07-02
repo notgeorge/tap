@@ -1,11 +1,16 @@
 # Authz-coverage scanner baseline — req-tap-auth-policy-9.
 #
-# Each non-comment line is <relative-path>:<lineno> identifying a call to a
-# privileged graph sink (write_batch / grift_import / the Search+Gryphon
-# executors / the _*_internal write helpers) whose enclosing function is NOT
-# gated by @requires_capability or an authorized() block — the build-time dual of
-# the stateless enforcement backstop (tap/authz_coverage.py). It catches the
+# Each non-comment line is a STABLE key `<relative-path>::<enclosing-qualname>::<sink>`
+# identifying a call to a privileged graph sink (write_batch / grift_import / the
+# Search+Gryphon executors / the _*_internal write helpers) whose enclosing function
+# is NOT gated by @requires_capability or an authorized() block — the build-time dual
+# of the stateless enforcement backstop (tap/authz_coverage.py). It catches the
 # forgotten-gate-by-a-privileged-actor case the runtime backstop cannot.
+#
+# The key is line-number-independent BY DESIGN: unrelated edits that move a sink up
+# or down its file do NOT churn this baseline. Only gating/deleting the sink, or
+# renaming its enclosing function, changes a key. (Prior format was <path>:<lineno>,
+# which drifted on every unrelated edit above a grandfathered sink.)
 #
 # These are grandfathered so the gate is green on day one; the set ratchets to
 # ZERO as the rest of the authZ build-out lands — this file is that worklist.
@@ -24,40 +29,39 @@
 #   plugins/*/collectors/*   — collector-runtime actor binding
 #   tap_api/routers/*        — authorize-before-lookup / make the executor self-gate explicit
 #   tap_grid/* tap_plugins/* — read-helper classification + the import command's boot actor
-plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/panels/compliance_view/__init__.py:108
-plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/panels/compliance_view/__init__.py:44
-plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/panels/finding_profile/__init__.py:152
-plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/panels/finding_strip/__init__.py:60
-plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/panels/findings_by_ksi/__init__.py:54
-plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/panels/findings_by_system/__init__.py:52
-plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/panels/indicator_profile/__init__.py:113
-plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/panels/indicator_profile/__init__.py:223
-plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/panels/instance_findings/__init__.py:86
-plugins/genericom/tap_plugin/genericom/panels/instance_hero/__init__.py:75
-plugins/genericom/tap_plugin/genericom/panels/open_alerts/__init__.py:67
-plugins/github_core/tap_plugin/github_core/collectors/github_collector/enrichment.py:223
-plugins/samsite/tap_plugin/samsite/collectors/compliance_collector/boundary_membership.py:82
-plugins/samsite/tap_plugin/samsite/collectors/compliance_collector/kev_process.py:64
-plugins/samsite/tap_plugin/samsite/collectors/compliance_collector/sigstore_link.py:84
-plugins/samsite/tap_plugin/samsite/panels/ksi_scoreboard/__init__.py:100
-plugins/samsite/tap_plugin/samsite/panels/ksi_scoreboard/__init__.py:76
-plugins/samsite/tap_plugin/samsite/panels/ksi_signal_workbench/__init__.py:39
-plugins/samsite/tap_plugin/samsite/panels/vdr_report_workbench/__init__.py:34
-tap_api/routers/gryphon.py:34
-tap_api/routers/searches.py:47
-tap_grid/batch.py:254
-tap_grid/gryphon/executor.py:107
-tap_grid/services/__init__.py:941
-tap_grid/services/__init__.py:960
-tap_plugins/seeding.py:119
-tap_plugins/validate/service.py:809
-tap_viz/panels/graph_panel/__init__.py:188
-tap_viz/panels/graph_panel/__init__.py:245
-tap_web/panels/batch_viewer/__init__.py:40
-tap_web/panels/entity_resolution.py:50
-tap_web/panels/entity_resolution.py:68
-tap_web/panels/table_panel/__init__.py:245
-tap_web/synthetic.py:218
-tap_web/views.py:474
-tap_web/views.py:679
-tap_web/views.py:680
+plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/panels/compliance_view/__init__.py::KsiCompliancePanelType.get_view_context::execute_search
+plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/panels/compliance_view/__init__.py::_resolve_default_class::execute_gryphon_raw
+plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/panels/finding_profile/__init__.py::KsiFindingProfilePanelType.get_view_context::execute_search
+plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/panels/finding_strip/__init__.py::FindingStripPanelType.get_view_context::execute_gryphon_raw
+plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/panels/findings_by_ksi/__init__.py::FindingsByKsiPanelType.get_view_context::execute_search
+plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/panels/findings_by_system/__init__.py::FindingsBySystemPanelType.get_view_context::execute_search
+plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/panels/indicator_profile/__init__.py::KsiIndicatorProfilePanelType.get_view_context::execute_search
+plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/panels/indicator_profile/__init__.py::_load_findings_rows::execute_search
+plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/panels/instance_findings/__init__.py::KsiInstanceFindingsPanelType.get_view_context::execute_search
+plugins/genericom/tap_plugin/genericom/panels/instance_hero/__init__.py::GenericomInstanceHeroPanelType.get_view_context::execute_search
+plugins/genericom/tap_plugin/genericom/panels/open_alerts/__init__.py::GenericomOpenAlertsPanelType.get_view_context::execute_search
+plugins/github_core/tap_plugin/github_core/collectors/github_collector/enrichment.py::_gryphon_nodes::execute_search
+plugins/samsite/tap_plugin/samsite/collectors/compliance_collector/boundary_membership.py::fetch_aws_account_entity_ids::execute_gryphon_raw
+plugins/samsite/tap_plugin/samsite/collectors/compliance_collector/kev_process.py::resolve_kev_catalog_entity_id::execute_search
+plugins/samsite/tap_plugin/samsite/collectors/compliance_collector/sigstore_link.py::resolve_workflow_entity_id::execute_search
+plugins/samsite/tap_plugin/samsite/panels/ksi_scoreboard/__init__.py::_load_indicators::execute_search
+plugins/samsite/tap_plugin/samsite/panels/ksi_scoreboard/__init__.py::_load_themes::execute_search
+plugins/samsite/tap_plugin/samsite/panels/ksi_signal_workbench/__init__.py::_children::execute_gryphon_raw
+plugins/samsite/tap_plugin/samsite/panels/vdr_report_workbench/__init__.py::_findings::execute_gryphon_raw
+tap_api/routers/gryphon.py::execute_gryphon_endpoint::execute_gryphon_raw
+tap_api/routers/searches.py::execute_search_endpoint::execute_search
+tap_grid/batch.py::batch_counts._added::execute_gryphon_raw
+tap_grid/gryphon/executor.py::execute_gryphon::execute_gryphon_raw
+tap_grid/services/__init__.py::_create_node_internal_for_test::_create_node_internal
+tap_grid/services/__init__.py::_patch_node_internal_for_test::_patch_node_internal
+tap_plugins/seeding.py::seed_plugin::grift_import
+tap_plugins/validate/service.py::_check_grift_import::grift_import
+tap_viz/panels/graph_panel/__init__.py::GraphPanelType._projection_context::execute_search
+tap_viz/panels/graph_panel/__init__.py::GraphPanelType.get_view_context::execute_search
+tap_web/panels/batch_viewer/__init__.py::_nodes_by_batch::execute_gryphon_raw
+tap_web/panels/entity_resolution.py::_lookup_by_entity_id::execute_gryphon_raw
+tap_web/panels/entity_resolution.py::_run_fallback_query::execute_gryphon_raw
+tap_web/panels/table_panel/__init__.py::TablePanelType.get_view_context::execute_search
+tap_web/synthetic.py::_render_graph_panel_context::execute_search
+tap_web/views.py::_get_neighborhood_context::execute_search
+tap_web/views.py::_render_grid_placeholder::execute_search

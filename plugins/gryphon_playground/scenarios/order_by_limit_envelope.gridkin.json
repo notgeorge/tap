@@ -16,7 +16,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/return-skip-limit (LIMIT 1 latest by field)",
       "layer": "lite",
-      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.data.severity_score > 0 ORDER BY n.data.observed_at DESC LIMIT 1",
+      "query": "MATCH (n:grid_fixtures__node) WHERE n.data.severity_score > 0 ORDER BY n.data.observed_at DESC LIMIT 1",
       "expected_envelope": "expected/order_by_limit_envelope__latest_limit_1.expected.json",
       "expected_sql_snapshot": "expected/order_by_limit_envelope__latest_limit_1.sql.txt"
     },
@@ -29,7 +29,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/return-skip-limit (top-N descending)",
       "layer": "lite",
-      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.data.severity_score > 0 ORDER BY n.data.observed_at DESC LIMIT 3",
+      "query": "MATCH (n:grid_fixtures__node) WHERE n.data.severity_score > 0 ORDER BY n.data.observed_at DESC LIMIT 3",
       "expected_envelope": "expected/order_by_limit_envelope__top3_desc.expected.json",
       "expected_sql_snapshot": "expected/order_by_limit_envelope__top3_desc.sql.txt"
     },
@@ -41,7 +41,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/return-orderby (tie-break determinism on equal keys)",
       "layer": "lite",
-      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.data.severity_score = 30 ORDER BY n.data.observed_at DESC LIMIT 1",
+      "query": "MATCH (n:grid_fixtures__node) WHERE n.data.severity_score = 30 ORDER BY n.data.observed_at DESC LIMIT 1",
       "expected_envelope": "expected/order_by_limit_envelope__tiebreak_lowest_id.expected.json",
       "expected_sql_snapshot": "expected/order_by_limit_envelope__tiebreak_lowest_id.sql.txt"
     },
@@ -53,7 +53,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/return-orderby (NULL ordering under ASC)",
       "layer": "lite",
-      "query": "MATCH (n:gryphon_playground__pg_node) ORDER BY n.data.observed_at ASC LIMIT 1",
+      "query": "MATCH (n:grid_fixtures__node) ORDER BY n.data.observed_at ASC LIMIT 1",
       "expected_envelope": "expected/order_by_limit_envelope__nulls_last_asc.expected.json",
       "expected_sql_snapshot": "expected/order_by_limit_envelope__nulls_last_asc.sql.txt"
     },
@@ -65,7 +65,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/return-orderby (NULL ordering under DESC)",
       "layer": "lite",
-      "query": "MATCH (n:gryphon_playground__pg_node) ORDER BY n.data.observed_at DESC LIMIT 1",
+      "query": "MATCH (n:grid_fixtures__node) ORDER BY n.data.observed_at DESC LIMIT 1",
       "expected_envelope": "expected/order_by_limit_envelope__nulls_first_desc.expected.json",
       "expected_sql_snapshot": "expected/order_by_limit_envelope__nulls_first_desc.sql.txt"
     },
@@ -77,7 +77,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/return-orderby (order by a spine field descending)",
       "layer": "lite",
-      "query": "MATCH (n:gryphon_playground__pg_node) ORDER BY n.name DESC LIMIT 1",
+      "query": "MATCH (n:grid_fixtures__node) ORDER BY n.name DESC LIMIT 1",
       "expected_envelope": "expected/order_by_limit_envelope__spine_name_desc.expected.json",
       "expected_sql_snapshot": "expected/order_by_limit_envelope__spine_name_desc.sql.txt"
     },
@@ -89,7 +89,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/return-orderby (ORDER BY independent of RETURN projection)",
       "layer": "lite",
-      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.data.severity_score > 0 RETURN n ORDER BY n.data.observed_at DESC LIMIT 1",
+      "query": "MATCH (n:grid_fixtures__node) WHERE n.data.severity_score > 0 RETURN n ORDER BY n.data.observed_at DESC LIMIT 1",
       "expected_envelope": "expected/order_by_limit_envelope__return_n_explicit.expected.json",
       "expected_sql_snapshot": "expected/order_by_limit_envelope__return_n_explicit.sql.txt"
     },
@@ -101,7 +101,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/return-skip-limit",
       "layer": "lite",
-      "query": "MATCH (n:gryphon_playground__pg_node) ORDER BY n.name LIMIT 0",
+      "query": "MATCH (n:grid_fixtures__node) ORDER BY n.name LIMIT 0",
       "expected_envelope": "expected/order_by_limit_envelope__limit_zero.expected.json",
       "expected_sql_snapshot": "expected/order_by_limit_envelope__limit_zero.sql.txt"
     },
@@ -113,7 +113,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/return-skip-limit",
       "layer": "lite",
-      "query": "MATCH (n:gryphon_playground__pg_node) ORDER BY n.name LIMIT 999",
+      "query": "MATCH (n:grid_fixtures__node) ORDER BY n.name LIMIT 999",
       "expected_envelope": "expected/order_by_limit_envelope__limit_oversize.expected.json",
       "expected_sql_snapshot": "expected/order_by_limit_envelope__limit_oversize.sql.txt"
     },
@@ -126,7 +126,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/return-orderby",
       "layer": "lite",
-      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.data.severity_score > 0 ORDER BY n.data.observed_at DESC",
+      "query": "MATCH (n:grid_fixtures__node) WHERE n.data.severity_score > 0 ORDER BY n.data.observed_at DESC",
       "expected_envelope": "expected/order_by_limit_envelope__order_no_limit.expected.json",
       "expected_sql_snapshot": "expected/order_by_limit_envelope__order_no_limit.sql.txt"
     },
@@ -139,7 +139,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/return-orderby",
       "layer": "lite",
-      "query": "MATCH (n:gryphon_playground__pg_node) ORDER BY n.data.severity_score ASC, n.data.observed_at DESC LIMIT 3",
+      "query": "MATCH (n:grid_fixtures__node) ORDER BY n.data.severity_score ASC, n.data.observed_at DESC LIMIT 3",
       "expected_envelope": "expected/order_by_limit_envelope__multi_key_mixed_dir.expected.json",
       "expected_sql_snapshot": "expected/order_by_limit_envelope__multi_key_mixed_dir.sql.txt"
     },
@@ -152,7 +152,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/return-orderby (ORDER BY with no ASC/DESC defaults to ascending)",
       "layer": "lite",
-      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.data.severity_score > 0 ORDER BY n.data.severity_score",
+      "query": "MATCH (n:grid_fixtures__node) WHERE n.data.severity_score > 0 ORDER BY n.data.severity_score",
       "expected_envelope": "expected/order_by_limit_envelope__default_ascending.expected.json",
       "expected_sql_snapshot": "expected/order_by_limit_envelope__default_ascending.sql.txt"
     },
@@ -164,7 +164,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/return-orderby (ORDER BY references a RETURN projection alias)",
       "layer": "lite",
-      "query": "MATCH (n:gryphon_playground__pg_node) RETURN n.data.severity_score AS sev ORDER BY sev",
+      "query": "MATCH (n:grid_fixtures__node) RETURN n.data.severity_score AS sev ORDER BY sev",
       "expected_envelope": "expected/order_by_limit_envelope__order_by_alias.expected.json",
       "expected_sql_snapshot": "expected/order_by_limit_envelope__order_by_alias.sql.txt"
     }

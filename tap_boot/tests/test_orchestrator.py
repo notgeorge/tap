@@ -16,7 +16,7 @@ from tap_boot.profile import BootProfile, FireCollectorStep, SeedPluginStep
 # A real registered collector key, fired with no credentials in these tests by
 # mocking the fire op — pre-resolution still resolves it against the grid node
 # that the population phase reconciles.
-_KSI_COLLECTOR = "tap_plugin.fedramp_20x_ksi.collectors.ksi_catalog:ksi-catalog"
+_KSI_COLLECTOR = "fedramp_20x_ksi:ksi-catalog"
 
 
 def _profile(*steps, on_failure="abort") -> BootProfile:
