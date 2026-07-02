@@ -67,6 +67,10 @@ dev = [
     # pytest-django integrates pytest with Django's test utilities
     "pytest>=8.3",
     "pytest-django>=4.9",
+    # Parallel test execution — per-worker test DBs (does not violate the
+    # shared-DB single-invocation rule); the highest-ROI lever for the
+    # DB-bound suite (req-dev-validation-suite-tiers).
+    "pytest-xdist>=3.6",
     # Test Data Generation
     # Factory Boy creates test fixtures declaratively (better than raw fixtures)
     "factory-boy>=3.3",
