@@ -87,7 +87,7 @@ def _fingerprint(oc: fuzz.QueryOutcome) -> str:
     shape = re.sub(r'"[^"]*"', '"S"', shape)  # string literals / needles
     shape = re.sub(r"\$[A-Za-z_][A-Za-z0-9_]*", "$P", shape)  # params
     shape = re.sub(r"\b\d+\b", "N", shape)  # numeric literals
-    shape = re.sub(r"gryphon_playground__pg_\w+", "L", shape)  # node type labels
+    shape = re.sub(r"grid_fixtures__\w+", "L", shape)  # node type labels
     shape = re.sub(r"\s+", " ", shape).strip()
     sig = f"{oc.status}|{shape}"
     if oc.status == "crashed":

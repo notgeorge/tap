@@ -25,7 +25,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/match (untyped relationship constrained by endpoint labels)",
       "layer": "lite",
-      "query": "MATCH (a:gryphon_playground__pg_hub)-[e]->(b:gryphon_playground__pg_node)",
+      "query": "MATCH (a:grid_fixtures__hub)-[e]->(b:grid_fixtures__node)",
       "expected_envelope": "expected/edge_typeless__typed_endpoints.expected.json",
       "expected_sql_snapshot": "expected/edge_typeless__typed_endpoints.sql.txt"
     },
@@ -51,7 +51,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/match (undirected relationship matches both endpoint orderings, deduplicated in the graph envelope)",
       "layer": "lite",
-      "query": "MATCH (a)-[e:PG_OPTIONAL__gryphon_playground]-(b)",
+      "query": "MATCH (a)-[e:PG_OPTIONAL__grid_fixtures]-(b)",
       "expected_envelope": "expected/edge_typeless__undirected_typed.expected.json",
       "expected_sql_snapshot": "expected/edge_typeless__undirected_typed.sql.txt"
     }

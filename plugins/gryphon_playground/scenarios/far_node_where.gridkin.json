@@ -15,7 +15,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/match (multi-hop WHERE on a node beyond the anchor)",
       "layer": "lite",
-      "query": "MATCH (a:gryphon_playground__pg_node)-[:PG_LINKS__gryphon_playground]->(b:gryphon_playground__pg_node)-[:PG_LINKS__gryphon_playground]->(c:gryphon_playground__pg_node) WHERE c.data.kind = \"tail\"",
+      "query": "MATCH (a:grid_fixtures__node)-[:PG_LINKS__grid_fixtures]->(b:grid_fixtures__node)-[:PG_LINKS__grid_fixtures]->(c:grid_fixtures__node) WHERE c.data.kind = \"tail\"",
       "expected_envelope": "expected/far_node_where__envelope.expected.json",
       "expected_sql_snapshot": "expected/far_node_where__envelope.sql.txt"
     },
@@ -31,7 +31,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/match (multi-hop COUNT with a far-node WHERE, no row inflation)",
       "layer": "lite",
-      "query": "MATCH (a:gryphon_playground__pg_node)-[:PG_LINKS__gryphon_playground]->(b:gryphon_playground__pg_node)-[:PG_LINKS__gryphon_playground]->(c:gryphon_playground__pg_node) WHERE c.data.kind = \"tail\" RETURN a.entity_id AS root_id, COUNT(c) AS tail_count",
+      "query": "MATCH (a:grid_fixtures__node)-[:PG_LINKS__grid_fixtures]->(b:grid_fixtures__node)-[:PG_LINKS__grid_fixtures]->(c:grid_fixtures__node) WHERE c.data.kind = \"tail\" RETURN a.entity_id AS root_id, COUNT(c) AS tail_count",
       "expected_envelope": "expected/far_node_where__count.expected.json",
       "expected_sql_snapshot": "expected/far_node_where__count.sql.txt"
     },
@@ -45,7 +45,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/match-where (negated predicate on a node beyond the anchor)",
       "layer": "lite",
-      "query": "MATCH (a:gryphon_playground__pg_node)-[:PG_LINKS__gryphon_playground]->(b:gryphon_playground__pg_node)-[:PG_LINKS__gryphon_playground]->(c:gryphon_playground__pg_node) WHERE NOT (c.data.kind = \"tail\")",
+      "query": "MATCH (a:grid_fixtures__node)-[:PG_LINKS__grid_fixtures]->(b:grid_fixtures__node)-[:PG_LINKS__grid_fixtures]->(c:grid_fixtures__node) WHERE NOT (c.data.kind = \"tail\")",
       "expected_error": {
         "type": "SearchExecutionError",
         "message_contains": "beyond the root edge of a multi-hop pattern"

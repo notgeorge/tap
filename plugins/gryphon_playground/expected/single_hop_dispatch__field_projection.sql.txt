@@ -1,10 +1,10 @@
 -- statement 1 · stage: advanced
-SELECT "tap_edge"."from_entity_id" AS "_g_col_0", "gryphon_playground__pg_node"."kind" AS "_g_col_1"
+SELECT "tap_edge"."from_entity_id" AS "_g_col_0", "grid_fixtures__node"."kind" AS "_g_col_1"
 FROM "tap_edge"
 INNER JOIN "tap_entity" ON ("tap_edge"."entity_id" = "tap_entity"."id")
 INNER JOIN "tap_entity" T3 ON ("tap_edge"."from_entity_id" = T3."id")
 INNER JOIN "tap_entity" T4 ON ("tap_edge"."to_entity_id" = T4."id")
-LEFT OUTER JOIN "gryphon_playground__pg_node" ON (T4."id" = "gryphon_playground__pg_node"."entity_id")
+LEFT OUTER JOIN "grid_fixtures__node" ON (T4."id" = "grid_fixtures__node"."entity_id")
 WHERE ("tap_entity"."deleted_at" IS NULL AND "tap_edge"."edge_type" = %s AND T3."entity_type" = %s AND T4."entity_type" = %s)
 ORDER BY "tap_entity"."created_at" DESC
--- params: ['PG_LINKS__gryphon_playground', 'gryphon_playground__pg_hub', 'gryphon_playground__pg_node']
+-- params: ['PG_LINKS__grid_fixtures', 'grid_fixtures__hub', 'grid_fixtures__node']

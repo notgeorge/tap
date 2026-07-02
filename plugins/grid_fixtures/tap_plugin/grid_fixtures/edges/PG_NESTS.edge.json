@@ -1,5 +1,5 @@
 {
-  "slug": "PG_NESTS__gryphon_playground",
+  "slug": "PG_NESTS__grid_fixtures",
   "name": "PG Nests",
   "description": "Playground edge for constructing compound / nested graph shapes. Wildcard endpoints (no source/target constraints).",
   "default_dimensions": {"tap.playground": "gridkin"}

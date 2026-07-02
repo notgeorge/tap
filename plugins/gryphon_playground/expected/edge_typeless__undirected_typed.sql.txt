@@ -4,7 +4,7 @@ FROM "tap_edge"
 INNER JOIN "tap_entity" ON ("tap_edge"."entity_id" = "tap_entity"."id")
 WHERE ("tap_entity"."deleted_at" IS NULL AND "tap_edge"."edge_type" = %s)
 ORDER BY "tap_entity"."created_at" DESC
--- params: ['PG_OPTIONAL__gryphon_playground']
+-- params: ['PG_OPTIONAL__grid_fixtures']
 
 -- statement 2 · stage: single-hop
 SELECT "tap_entity"."id", "tap_entity"."entity_type", "tap_entity"."name", "tap_entity"."dimensions", "tap_entity"."originating_grid_id", "tap_entity"."version", "tap_entity"."deleted_at", "tap_entity"."created_at", "tap_entity"."updated_at"
@@ -27,7 +27,7 @@ FROM "tap_edge"
 INNER JOIN "tap_entity" ON ("tap_edge"."entity_id" = "tap_entity"."id")
 WHERE ("tap_entity"."deleted_at" IS NULL AND "tap_edge"."edge_type" = %s)
 ORDER BY "tap_entity"."created_at" DESC
--- params: ['PG_OPTIONAL__gryphon_playground']
+-- params: ['PG_OPTIONAL__grid_fixtures']
 
 -- statement 5 · stage: single-hop
 SELECT "tap_entity"."id", "tap_entity"."entity_type", "tap_entity"."name", "tap_entity"."dimensions", "tap_entity"."originating_grid_id", "tap_entity"."version", "tap_entity"."deleted_at", "tap_entity"."created_at", "tap_entity"."updated_at"

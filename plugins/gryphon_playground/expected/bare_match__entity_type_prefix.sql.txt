@@ -3,4 +3,4 @@ SELECT "tap_entity"."id", "tap_entity"."entity_type", "tap_entity"."name", "tap_
 FROM "tap_entity"
 WHERE ("tap_entity"."entity_type" IN (<entity-type-registry>) AND "tap_entity"."entity_type"::text LIKE %s)
 ORDER BY "tap_entity"."created_at" DESC
--- params: ['<entity-type-registry>', 'gryphon\\_playground\\_\\_pg\\_%']
+-- params: ['<entity-type-registry>', 'grid\\_fixtures\\_\\_%']

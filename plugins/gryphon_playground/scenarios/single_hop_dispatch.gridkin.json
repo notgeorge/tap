@@ -13,7 +13,7 @@
       ],
       "inspired_by": "opencypher TCK — no applicable feature folder (property-fuzzer regression, req-gridkin-property-fuzz: anonymous edge collected into a bare-variable envelope)",
       "layer": "lite",
-      "query": "MATCH (a:gryphon_playground__pg_hub)-[]->(b:gryphon_playground__pg_node) RETURN a, b",
+      "query": "MATCH (a:grid_fixtures__hub)-[]->(b:grid_fixtures__node) RETURN a, b",
       "expected_envelope": "expected/single_hop_dispatch__bare_var_anon_edge.expected.json",
       "expected_sql_snapshot": "expected/single_hop_dispatch__bare_var_anon_edge.sql.txt"
     },
@@ -26,7 +26,7 @@
       ],
       "inspired_by": "opencypher TCK — no applicable feature folder (property-fuzzer regression, req-gridkin-property-fuzz: single-hop field projection routes to the row executor)",
       "layer": "lite",
-      "query": "MATCH (h:gryphon_playground__pg_hub)-[:PG_LINKS__gryphon_playground]->(n:gryphon_playground__pg_node) RETURN h.entity_id AS hub_id, n.data.kind AS neighbor_kind",
+      "query": "MATCH (h:grid_fixtures__hub)-[:PG_LINKS__grid_fixtures]->(n:grid_fixtures__node) RETURN h.entity_id AS hub_id, n.data.kind AS neighbor_kind",
       "expected_envelope": "expected/single_hop_dispatch__field_projection.expected.json",
       "expected_sql_snapshot": "expected/single_hop_dispatch__field_projection.sql.txt"
     }

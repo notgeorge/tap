@@ -18,7 +18,7 @@
         {
           "entity": {
             "entity_id": "019e4e07-9975-7501-8d81-0fd1935265b4",
-            "entity_type": "gryphon_playground__pg_hub",
+            "entity_type": "grid_fixtures__hub",
             "name": "Nest Root",
             "dimensions": { "tap.playground": "gridkin" },
             "created_at": "2026-05-21T16:40:00Z",
@@ -37,7 +37,7 @@
         {
           "entity": {
             "entity_id": "019e4e07-9975-7501-8d81-0fd20676235e",
-            "entity_type": "gryphon_playground__pg_node",
+            "entity_type": "grid_fixtures__node",
             "name": "Branch One",
             "dimensions": { "tap.playground": "gridkin" },
             "created_at": "2026-05-21T16:40:01Z",
@@ -56,7 +56,7 @@
         {
           "entity": {
             "entity_id": "019e4e07-9975-7501-8d81-0fd3d45d838f",
-            "entity_type": "gryphon_playground__pg_node",
+            "entity_type": "grid_fixtures__node",
             "name": "Branch Two",
             "dimensions": { "tap.playground": "gridkin" },
             "created_at": "2026-05-21T16:40:02Z",
@@ -75,7 +75,7 @@
         {
           "entity": {
             "entity_id": "019e4e07-9975-7501-8d81-0fd4000cdc11",
-            "entity_type": "gryphon_playground__pg_leaf",
+            "entity_type": "grid_fixtures__leaf",
             "name": "Leaf One A",
             "dimensions": { "tap.playground": "gridkin" },
             "created_at": "2026-05-21T16:40:03Z",
@@ -94,7 +94,7 @@
         {
           "entity": {
             "entity_id": "019e4e07-9975-7501-8d81-0fd5ff1349c3",
-            "entity_type": "gryphon_playground__pg_leaf",
+            "entity_type": "grid_fixtures__leaf",
             "name": "Leaf One B",
             "dimensions": { "tap.playground": "gridkin" },
             "created_at": "2026-05-21T16:40:04Z",
@@ -124,7 +124,7 @@
           "edge": {
             "from_entity_id": "019e4e07-9975-7501-8d81-0fd1935265b4",
             "to_entity_id": "019e4e07-9975-7501-8d81-0fd20676235e",
-            "edge_type": "PG_NESTS__gryphon_playground",
+            "edge_type": "PG_NESTS__grid_fixtures",
             "properties": {}
           }
         },
@@ -140,7 +140,7 @@
           "edge": {
             "from_entity_id": "019e4e07-9975-7501-8d81-0fd1935265b4",
             "to_entity_id": "019e4e07-9975-7501-8d81-0fd3d45d838f",
-            "edge_type": "PG_NESTS__gryphon_playground",
+            "edge_type": "PG_NESTS__grid_fixtures",
             "properties": {}
           }
         },
@@ -156,7 +156,7 @@
           "edge": {
             "from_entity_id": "019e4e07-9975-7501-8d81-0fd20676235e",
             "to_entity_id": "019e4e07-9975-7501-8d81-0fd4000cdc11",
-            "edge_type": "PG_NESTS__gryphon_playground",
+            "edge_type": "PG_NESTS__grid_fixtures",
             "properties": {}
           }
         },
@@ -172,7 +172,7 @@
           "edge": {
             "from_entity_id": "019e4e07-9975-7501-8d81-0fd20676235e",
             "to_entity_id": "019e4e07-9975-7501-8d81-0fd5ff1349c3",
-            "edge_type": "PG_NESTS__gryphon_playground",
+            "edge_type": "PG_NESTS__grid_fixtures",
             "properties": {}
           }
         }

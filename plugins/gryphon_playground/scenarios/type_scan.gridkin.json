@@ -14,7 +14,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/match (full label scan)",
       "layer": "full",
-      "query": "MATCH (n:gryphon_playground__pg_node)",
+      "query": "MATCH (n:grid_fixtures__node)",
       "expected_envelope": "expected/type_scan__all_pg_nodes.expected.json",
       "expected_sql_snapshot": "expected/type_scan__all_pg_nodes.sql.txt"
     },
@@ -28,7 +28,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/match (label scan with property equality)",
       "layer": "full",
-      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.data.kind = \"island\"",
+      "query": "MATCH (n:grid_fixtures__node) WHERE n.data.kind = \"island\"",
       "expected_envelope": "expected/type_scan__kind_island.expected.json",
       "expected_sql_snapshot": "expected/type_scan__kind_island.sql.txt"
     },
@@ -41,7 +41,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/match (bare-variable RETURN of matched nodes)",
       "layer": "full",
-      "query": "MATCH (n:gryphon_playground__pg_node) RETURN n",
+      "query": "MATCH (n:grid_fixtures__node) RETURN n",
       "expected_envelope": "expected/type_scan__return_bare_var.expected.json",
       "expected_sql_snapshot": "expected/type_scan__return_bare_var.sql.txt"
     },
@@ -54,7 +54,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/match (projection of aliased field paths)",
       "layer": "full",
-      "query": "MATCH (n:gryphon_playground__pg_node) RETURN n.entity_id AS id, n.name AS label",
+      "query": "MATCH (n:grid_fixtures__node) RETURN n.entity_id AS id, n.name AS label",
       "expected_envelope": "expected/type_scan__projection.expected.json",
       "expected_sql_snapshot": "expected/type_scan__projection.sql.txt"
     },
@@ -67,7 +67,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/match (label scan with numeric comparison)",
       "layer": "full",
-      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.data.severity_score > 15",
+      "query": "MATCH (n:grid_fixtures__node) WHERE n.data.severity_score > 15",
       "expected_envelope": "expected/type_scan__severity_gt.expected.json",
       "expected_sql_snapshot": "expected/type_scan__severity_gt.sql.txt"
     },
@@ -80,7 +80,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/match (label scan with AND of predicates)",
       "layer": "full",
-      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.data.kind = \"neighbor\" AND n.data.severity_score > 15",
+      "query": "MATCH (n:grid_fixtures__node) WHERE n.data.kind = \"neighbor\" AND n.data.severity_score > 15",
       "expected_envelope": "expected/type_scan__kind_and_severity.expected.json",
       "expected_sql_snapshot": "expected/type_scan__kind_and_severity.sql.txt"
     },
@@ -93,7 +93,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/match (label scan with boolean predicate)",
       "layer": "full",
-      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.data.is_open = true",
+      "query": "MATCH (n:grid_fixtures__node) WHERE n.data.is_open = true",
       "expected_envelope": "expected/type_scan__is_open.expected.json",
       "expected_sql_snapshot": "expected/type_scan__is_open.sql.txt"
     },
@@ -103,7 +103,7 @@
       "covers": ["req-grid-traversal-lang-filters"],
       "inspired_by": "opencypher TCK — clauses/match-where",
       "layer": "full",
-      "query": "MATCH (n:gryphon_playground__pg_node) WHERE n.data.severity_score > 9999",
+      "query": "MATCH (n:grid_fixtures__node) WHERE n.data.severity_score > 9999",
       "expected_envelope": "expected/type_scan__where_empty.expected.json",
       "expected_sql_snapshot": "expected/type_scan__where_empty.sql.txt"
     }

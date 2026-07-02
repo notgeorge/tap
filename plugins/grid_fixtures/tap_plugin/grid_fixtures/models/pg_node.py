@@ -1,4 +1,4 @@
-"""PgCycleNode — playground node for constructing cycles and self-loops."""
+"""PgNode — generic playground node for Gryphon query-pattern testing."""
 
 from typing import Any, ClassVar
 
@@ -19,18 +19,18 @@ _FIELD_CRUD_SCHEMA: dict[str, Any] = {
 }
 
 
-class PgCycleNode(BaseModel):
-    """Playground node for constructing cycles, self-loops, and multi-cycles.
+class PgNode(BaseModel):
+    """Generic playground node — the default building block for Gridkin fixtures.
 
-    Identical in fields to PgNode; the cycle semantics are convention carried by
-    the `pg_cycle_node` entity_type slug, so a scenario can target the type to
-    set up cyclic topologies. The executor does not treat it specially.
-    See plugins/gryphon_playground/specs/spec-gryphon-playground-v0.md.
+    Carries the playground typed-field set (string / int / bool / datetime / JSON)
+    so scenarios can exercise every scalar predicate type the executor supports.
+    Declares no edge constraints — fixtures must be free to build any topology.
+    See plugins/grid_fixtures/README.md.
     """
 
-    ENTITY_TYPE: ClassVar[str] = "gryphon_playground__pg_cycle_node"
-    ENTITY_NAME: ClassVar[str] = "Playground Cycle Node"
-    ENTITY_DESCRIPTION: ClassVar[str] = "Playground node for constructing cycles, self-loops, and multi-cycles."
+    ENTITY_TYPE: ClassVar[str] = "grid_fixtures__node"
+    ENTITY_NAME: ClassVar[str] = "Playground Node"
+    ENTITY_DESCRIPTION: ClassVar[str] = "Generic playground node for Gryphon query-pattern testing."
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.playground": "gridkin"}
 
     FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = _FIELD_CRUD_SCHEMA
@@ -50,7 +50,7 @@ class PgCycleNode(BaseModel):
     tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "gryphon_playground__pg_cycle_node"
+        db_table = "grid_fixtures__node"
 
     def get_name(self) -> str:
         return self.name

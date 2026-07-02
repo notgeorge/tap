@@ -13,7 +13,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/match (anchored multi-hop chain)",
       "layer": "lite",
-      "query": "MATCH (a:gryphon_playground__pg_node)-[e1:PG_LINKS__gryphon_playground]->(b:gryphon_playground__pg_node)-[e2:PG_LINKS__gryphon_playground]->(c:gryphon_playground__pg_node) WHERE a.entity_id = $root_id",
+      "query": "MATCH (a:grid_fixtures__node)-[e1:PG_LINKS__grid_fixtures]->(b:grid_fixtures__node)-[e2:PG_LINKS__grid_fixtures]->(c:grid_fixtures__node) WHERE a.entity_id = $root_id",
       "params": {
         "root_id": "019e4d9b-00a6-7210-918f-7cada1264813"
       },
@@ -29,7 +29,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/match (unanchored multi-hop chain)",
       "layer": "lite",
-      "query": "MATCH (a:gryphon_playground__pg_node)-[e1:PG_LINKS__gryphon_playground]->(b:gryphon_playground__pg_node)-[e2:PG_LINKS__gryphon_playground]->(c:gryphon_playground__pg_node)",
+      "query": "MATCH (a:grid_fixtures__node)-[e1:PG_LINKS__grid_fixtures]->(b:grid_fixtures__node)-[e2:PG_LINKS__grid_fixtures]->(c:grid_fixtures__node)",
       "expected_envelope": "expected/multi_hop__unanchored.expected.json",
       "expected_sql_snapshot": "expected/multi_hop__unanchored.sql.txt"
     },
@@ -44,7 +44,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/match (multi-hop COUNT without row inflation)",
       "layer": "lite",
-      "query": "MATCH (a:gryphon_playground__pg_node)-[:PG_LINKS__gryphon_playground]->(b:gryphon_playground__pg_node)-[:PG_LINKS__gryphon_playground]->(c:gryphon_playground__pg_node) RETURN a.entity_id AS root_id, COUNT(c) AS tail_count",
+      "query": "MATCH (a:grid_fixtures__node)-[:PG_LINKS__grid_fixtures]->(b:grid_fixtures__node)-[:PG_LINKS__grid_fixtures]->(c:grid_fixtures__node) RETURN a.entity_id AS root_id, COUNT(c) AS tail_count",
       "expected_envelope": "expected/multi_hop__count.expected.json",
       "expected_sql_snapshot": "expected/multi_hop__count.sql.txt"
     },
@@ -57,7 +57,7 @@
       ],
       "inspired_by": "opencypher TCK — clauses/match (multi-hop with anonymous relationships)",
       "layer": "lite",
-      "query": "MATCH (a:gryphon_playground__pg_node)-[:PG_LINKS__gryphon_playground]->(b:gryphon_playground__pg_node)-[:PG_LINKS__gryphon_playground]->(c:gryphon_playground__pg_node)",
+      "query": "MATCH (a:grid_fixtures__node)-[:PG_LINKS__grid_fixtures]->(b:grid_fixtures__node)-[:PG_LINKS__grid_fixtures]->(c:grid_fixtures__node)",
       "expected_envelope": "expected/multi_hop__anonymous_edges.expected.json",
       "expected_sql_snapshot": "expected/multi_hop__anonymous_edges.sql.txt"
     }
