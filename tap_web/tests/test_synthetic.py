@@ -227,10 +227,10 @@ class TestRenderSyntheticPage:
         from tap_grid.models import Entity
         from tap_web.synthetic import render_synthetic_page
 
-        entity = Entity.objects.create(entity_type="character", name="Test Entity")
+        entity = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name="Test Entity")
 
         factory = RequestFactory()
-        request = factory.get("/object/character/test--" + str(entity.pk) + "/")
+        request = factory.get("/object/grid_fixtures__constrained_source/test--" + str(entity.pk) + "/")
 
         subgraph = load_subgraph("entity-viewer")
         response = render_synthetic_page(
@@ -238,7 +238,7 @@ class TestRenderSyntheticPage:
             subgraph,
             extra_query_params={
                 "entity_id": str(entity.pk),
-                "entity_type": "character",
+                "entity_type": "grid_fixtures__constrained_source",
                 "subject_entity_id": str(entity.pk),
             },
         )
@@ -247,24 +247,24 @@ class TestRenderSyntheticPage:
 
     def test_editor_page_renders(self):
         from django.test import RequestFactory
+        from tap_plugin.grid_fixtures.models import ConstrainedSource
 
-        from tap_plugin.lotr.models import Character
         from tap_grid.batch import create_batch
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.models import Entity
         from tap_web.synthetic import render_synthetic_page
 
-        entity = Entity.objects.create(entity_type="character", name="Gandalf")
+        entity = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name="Gandalf")
         batch = create_batch(source="test")
         prev = get_caller_context()
         set_caller_context(CallerContext(user=get_caller_context().user, batch_id=str(batch.entity.id)))
         try:
-            Character.objects.create(entity=entity, name="Gandalf", bio="A wizard.")
+            ConstrainedSource.objects.create(entity=entity, name="Gandalf", description="A wizard.")
         finally:
             set_caller_context(prev)
 
         factory = RequestFactory()
-        request = factory.get("/object/character/gandalf--" + str(entity.pk) + "/edit/")
+        request = factory.get("/object/grid_fixtures__constrained_source/gandalf--" + str(entity.pk) + "/edit/")
 
         subgraph = load_subgraph("entity-editor")
         response = render_synthetic_page(
@@ -272,7 +272,7 @@ class TestRenderSyntheticPage:
             subgraph,
             extra_query_params={
                 "entity_id": str(entity.pk),
-                "entity_type": "character",
+                "entity_type": "grid_fixtures__constrained_source",
                 "subject_entity_id": str(entity.pk),
             },
         )
@@ -285,7 +285,7 @@ class TestRenderSyntheticPage:
         from tap_grid.models import Entity
         from tap_web.synthetic import render_synthetic_page
 
-        entity = Entity.objects.create(entity_type="character", name="Test")
+        entity = Entity.objects.create(entity_type="grid_fixtures__constrained_source", name="Test")
         factory = RequestFactory()
         request = factory.get("/")
 
@@ -295,7 +295,7 @@ class TestRenderSyntheticPage:
             subgraph,
             extra_query_params={
                 "entity_id": str(entity.pk),
-                "entity_type": "character",
+                "entity_type": "grid_fixtures__constrained_source",
                 "subject_entity_id": str(entity.pk),
             },
         )

@@ -164,10 +164,10 @@ INSTALLED_APPS = [
     # (tap_plugin.administrivia); loads via TAP_PLUGINS_APPS from the profile
     # `install` section.
     # LOTR plugin — migrated to package-mode 2026-07-01 (tap_plugin.lotr).
-    # Still the load-bearing test-fixture vocabulary for the core tap_grid/
-    # tap_api constraint/edge/validation suites (~20 modules import
-    # tap_plugin.lotr.models), so it MUST be installed (editable) in any env
-    # that runs those suites. Loads via TAP_PLUGINS_APPS from a profile
+    # Install-only, kept as test-fixture/nostalgia vocabulary and for its own
+    # self-testing; it is being retired from any load-bearing role — the core
+    # tap_grid/tap_api constraint/edge/validation suites now use the neutral
+    # grid_fixtures plugin instead. Loads via TAP_PLUGINS_APPS from a profile
     # `install` section + the test-settings entry-point discovery-fallback;
     # its Middle-earth *seed data* remains instance clutter decoupled from the
     # app registration. See the lotr-vs-genericom note.
@@ -207,7 +207,7 @@ INSTALLED_APPS = [
     # (tap_plugin.gryphon_playground); the LAST build-baked plugin, closing the
     # initial plugin migration (BUILD_BAKED_PLUGIN_SLUGS now empty). pg_* playground
     # vocabulary + the Gridkin scenario corpus (a load-bearing test-fixture plugin,
-    # like lotr). Loads via TAP_PLUGINS_APPS from a profile `install` section
+    # like grid_fixtures). Loads via TAP_PLUGINS_APPS from a profile `install` section
     # (install-only — the corpus carries no GRIFT population seed).
     # Package-mode plugins installed by the pre-boot stage (TAP_PLUGINS). Spliced in
     # here — after build-baked plugins, before tap_api — so tap_api's ready() still

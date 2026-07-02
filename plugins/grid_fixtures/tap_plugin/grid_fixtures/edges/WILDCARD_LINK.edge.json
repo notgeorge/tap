@@ -1,0 +1,5 @@
+{
+  "slug": "WILDCARD_LINK__grid_fixtures",
+  "name": "Wildcard Link",
+  "description": "Fully unconstrained fixture edge \u2014 no source/target restrictions (tests wildcard endpoints)."
+}

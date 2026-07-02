@@ -107,29 +107,30 @@ class TestHistoryServiceRawRecords:
 
     def test_all_concrete_subclasses_have_history(self):
         """All concrete BaseModel subclasses inherit HistoricalRecords from BaseModel."""
-        from tap_plugin.lotr.models import Character, Location
+        from tap_plugin.grid_fixtures.models import ConstrainedSource, ConstrainedTarget
 
-        assert is_history_enabled(Character) is True
-        assert is_history_enabled(Location) is True
+        assert is_history_enabled(ConstrainedSource) is True
+        assert is_history_enabled(ConstrainedTarget) is True
 
     def test_character_has_history_manager(self):
-        """Character has the history manager from django-simple-history."""
-        from tap_plugin.lotr.models import Character
+        """ConstrainedSource has the history manager from django-simple-history."""
+        from tap_plugin.grid_fixtures.models import ConstrainedSource
 
-        assert hasattr(Character, "history")
+        assert hasattr(ConstrainedSource, "history")
 
     def test_location_has_history_manager(self):
-        """Location also has history (inherited from BaseModel)."""
-        from tap_plugin.lotr.models import Location
+        """ConstrainedTarget also has history (inherited from BaseModel)."""
+        from tap_plugin.grid_fixtures.models import ConstrainedTarget
 
-        assert hasattr(Location, "history")
+        assert hasattr(ConstrainedTarget, "history")
 
     def test_new_character_has_creation_record(self):
-        """New Character instance has at least one history record (creation)."""
+        """New ConstrainedSource instance has at least one history record (creation)."""
         from collections.abc import Generator
         from contextlib import contextmanager
 
-        from tap_plugin.lotr.models import Character
+        from tap_plugin.grid_fixtures.models import ConstrainedSource
+
         from tap_grid.batch import create_batch
         from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
         from tap_grid.services import create_entity
@@ -146,8 +147,8 @@ class TestHistoryServiceRawRecords:
                 set_caller_context(prev)
 
         with _batch_ctx(source="test:history"):
-            entity = create_entity("character", name="Test Character")
-            character = Character.objects.create(entity=entity, bio="Initial bio")
+            entity = create_entity("grid_fixtures__constrained_source", name="Test ConstrainedSource")
+            character = ConstrainedSource.objects.create(entity=entity, description="Initial bio")
 
         svc = get_history_service(character)
         assert svc.is_enabled() is True
@@ -157,11 +158,12 @@ class TestHistoryServiceRawRecords:
 
     def test_history_service_timeline_raises_not_implemented(self):
         """HistoryService.timeline() is backlogged — raises NotImplementedError."""
-        from tap_plugin.lotr.models import Location
+        from tap_plugin.grid_fixtures.models import ConstrainedTarget
+
         from tap_grid.services import create_entity
 
-        entity = create_entity("location", name="Timeline Test")
-        location = Location.objects.create(entity=entity, description="A place")
+        entity = create_entity("grid_fixtures__constrained_target", name="Timeline Test")
+        location = ConstrainedTarget.objects.create(entity=entity, description="A place")
 
         svc = get_history_service(location)
         with pytest.raises(NotImplementedError):

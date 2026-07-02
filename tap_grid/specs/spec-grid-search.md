@@ -226,7 +226,7 @@ A `module` search stores exactly one module-specific field in `definition`: `run
 
 ```json
 {
-  "runner_key": "tap_plugins.lotr.searches:character-artifacts"
+  "runner_key": "tap_plugins.grid_fixtures.searches:node-neighbors"
 }
 ```
 
@@ -241,7 +241,7 @@ Complete example:
   "search_type": "module",
   "root": "node",
   "definition": {
-    "runner_key": "tap_plugins.lotr.searches:character-artifacts"
+    "runner_key": "tap_plugins.grid_fixtures.searches:node-neighbors"
   }
 }
 ```

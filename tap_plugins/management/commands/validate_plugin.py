@@ -1,11 +1,11 @@
 """Validate a TAP plugin's correctness at structure, loads, or runs level.
 
 Usage:
-    docker compose exec web uv run python manage.py validate_plugin plugins/lotr
-    docker compose exec web uv run python manage.py validate_plugin plugins/lotr --level loads
-    docker compose exec web uv run python manage.py validate_plugin plugins/lotr --level runs
-    docker compose exec web uv run python manage.py validate_plugin plugins/lotr --json
-    docker compose exec web uv run python manage.py validate_plugin plugins/lotr --strict
+    docker compose exec web uv run python manage.py validate_plugin plugins/grid_fixtures
+    docker compose exec web uv run python manage.py validate_plugin plugins/grid_fixtures --level loads
+    docker compose exec web uv run python manage.py validate_plugin plugins/grid_fixtures --level runs
+    docker compose exec web uv run python manage.py validate_plugin plugins/grid_fixtures --json
+    docker compose exec web uv run python manage.py validate_plugin plugins/grid_fixtures --strict
 """
 
 from __future__ import annotations

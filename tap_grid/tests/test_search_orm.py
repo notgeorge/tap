@@ -13,7 +13,7 @@ def _orm_search(**kwargs):
         "name": "ORM Test",
         "search_type": "orm",
         "root": "node",
-        "definition": {"filters": {"entity_type": "character"}},
+        "definition": {"filters": {"entity_type": "grid_fixtures__constrained_source"}},
     }
     defaults.update(kwargs)
     return Search(**defaults)
@@ -44,17 +44,17 @@ def _edge_type(edge):
     return edge["data"]["edge_type"]
 
 
-def _make_character(bio="Test"):
-    from tap_plugin.lotr.models import Character
+def _make_character(description="Test"):
+    from tap_plugin.grid_fixtures.models import ConstrainedSource
 
-    return Character.objects.create(bio=bio)
+    return ConstrainedSource.objects.create(description=description)
 
 
-def _make_wanderer(journey="Test"):
-    """Wanderer has no edge constraints — safe for tests with arbitrary edge types."""
-    from tap_plugin.lotr.models import Wanderer
+def _make_wanderer(description="Test"):
+    """Unconstrained has no edge constraints — safe for tests with arbitrary edge types."""
+    from tap_plugin.grid_fixtures.models import Unconstrained
 
-    return Wanderer.objects.create(journey=journey)
+    return Unconstrained.objects.create(description=description)
 
 
 def _make_edge(from_entity, to_entity, edge_type="RELATED_TO", properties=None):
@@ -118,11 +118,11 @@ class TestConjunctiveFilters:
             name="Filter Test",
             search_type="orm",
             root="node",
-            definition={"filters": {"entity_type": "character"}},
+            definition={"filters": {"entity_type": "grid_fixtures__constrained_source"}},
         )
         result = execute_search(s)
         entity_types = {_node_entity_type(n) for n in result["nodes"]}
-        assert entity_types == {"character"}
+        assert entity_types == {"grid_fixtures__constrained_source"}
 
     def test_no_filters_returns_all_non_edge_entities(self):
         """Empty filters dict returns all non-edge entities."""
@@ -149,18 +149,18 @@ class TestConjunctiveFilters:
 
     def test_multiple_filters_applied_conjunctively(self):
         """Multiple filters are combined as AND."""
-        from tap_plugin.lotr.models import Character
+        from tap_plugin.grid_fixtures.models import ConstrainedSource
 
-        Character.objects.create(bio="alpha")
-        Character.objects.create(bio="beta")
+        ConstrainedSource.objects.create(description="alpha")
+        ConstrainedSource.objects.create(description="beta")
         s = Search.objects.create(
             name="Multi Filter",
             search_type="orm",
             root="node",
-            definition={"filters": {"entity_type": "character", "name": ""}},
+            definition={"filters": {"entity_type": "grid_fixtures__constrained_source", "name": ""}},
         )
         result = execute_search(s)
-        assert all(_node_entity_type(n) == "character" for n in result["nodes"])
+        assert all(_node_entity_type(n) == "grid_fixtures__constrained_source" for n in result["nodes"])
 
 
 # ---------------------------------------------------------------------------
@@ -182,7 +182,7 @@ class TestHopTraversal:
             search_type="orm",
             root="node",
             definition={
-                "filters": {"entity_type": "wanderer", "id": str(w1.entity_id)},
+                "filters": {"entity_type": "grid_fixtures__unconstrained", "id": str(w1.entity_id)},
                 "hops": [{"direction": "out", "edge_type": "CONNECTS_TO"}],
             },
         )
@@ -204,7 +204,7 @@ class TestHopTraversal:
             search_type="orm",
             root="node",
             definition={
-                "filters": {"entity_type": "wanderer", "id": str(w2.entity_id)},
+                "filters": {"entity_type": "grid_fixtures__unconstrained", "id": str(w2.entity_id)},
                 "hops": [{"direction": "in", "edge_type": "POINTS_TO"}],
             },
         )
@@ -246,7 +246,7 @@ class TestHopTraversal:
             name="No Hop",
             search_type="orm",
             root="node",
-            definition={"filters": {"entity_type": "character"}},
+            definition={"filters": {"entity_type": "grid_fixtures__constrained_source"}},
         )
         result = execute_search(s)
         assert result["edges"] == []
@@ -261,15 +261,15 @@ class TestHopTraversal:
 class TestOrdering:
     def test_default_ordering_is_deterministic(self):
         """Without order_by, results are ordered by id (deterministic)."""
-        from tap_plugin.lotr.models import Character
+        from tap_plugin.grid_fixtures.models import ConstrainedSource
 
-        Character.objects.create(bio="first")
-        Character.objects.create(bio="second")
+        ConstrainedSource.objects.create(description="first")
+        ConstrainedSource.objects.create(description="second")
         s = Search.objects.create(
             name="Default Order",
             search_type="orm",
             root="node",
-            definition={"filters": {"entity_type": "character"}},
+            definition={"filters": {"entity_type": "grid_fixtures__constrained_source"}},
         )
         result1 = execute_search(s)
         result2 = execute_search(s)
@@ -277,15 +277,15 @@ class TestOrdering:
 
     def test_explicit_order_by_applied(self):
         """order_by field is applied to the queryset."""
-        from tap_plugin.lotr.models import Character
+        from tap_plugin.grid_fixtures.models import ConstrainedSource
 
-        Character.objects.create(bio="z_character")
-        Character.objects.create(bio="a_character")
+        ConstrainedSource.objects.create(description="z_character")
+        ConstrainedSource.objects.create(description="a_character")
         s = Search.objects.create(
             name="Ordered",
             search_type="orm",
             root="node",
-            definition={"filters": {"entity_type": "character"}, "order_by": ["id"]},
+            definition={"filters": {"entity_type": "grid_fixtures__constrained_source"}, "order_by": ["id"]},
         )
         result = execute_search(s)
         ids = [_node_entity_id(n) for n in result["nodes"]]
@@ -328,7 +328,7 @@ class TestOrmResultEnvelope:
             name="Envelope",
             search_type="orm",
             root="node",
-            definition={"filters": {"entity_type": "character"}},
+            definition={"filters": {"entity_type": "grid_fixtures__constrained_source"}},
         )
         result = execute_search(s)
         assert "nodes" in result
@@ -343,7 +343,7 @@ class TestOrmResultEnvelope:
             name="Info Count",
             search_type="orm",
             root="node",
-            definition={"filters": {"entity_type": "character"}},
+            definition={"filters": {"entity_type": "grid_fixtures__constrained_source"}},
         )
         result = execute_search(s)
         assert "total_count" in result["info"]
@@ -358,7 +358,7 @@ class TestOrmResultEnvelope:
             name="Paginated",
             search_type="orm",
             root="node",
-            definition={"filters": {"entity_type": "character"}},
+            definition={"filters": {"entity_type": "grid_fixtures__constrained_source"}},
         )
         result = execute_search(s, limit=2)
         assert "count" in result
@@ -375,7 +375,7 @@ class TestOrmResultEnvelope:
             name="Offset",
             search_type="orm",
             root="node",
-            definition={"filters": {"entity_type": "character"}, "order_by": ["id"]},
+            definition={"filters": {"entity_type": "grid_fixtures__constrained_source"}, "order_by": ["id"]},
         )
         all_result = execute_search(s)
         all_ids = [_node_entity_id(n) for n in all_result["nodes"]]

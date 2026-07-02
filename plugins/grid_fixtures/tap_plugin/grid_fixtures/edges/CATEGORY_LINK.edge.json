@@ -1,0 +1,5 @@
+{
+  "slug": "CATEGORY_LINK__grid_fixtures",
+  "name": "Category Link",
+  "description": "Edge into an outbound-blocked node (tests an edge whose target permits no outbound edges of its own)."
+}

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "Base standup — install the package-mode plugin set, seed every seedable plugin's GRIFT (INSTALLED_APPS order), fire no collectors. The default profile for a plain spawn: a full local instance that reaches out to nothing. The `install` section MUST cover every plugin the population seeds (pre-boot's coherence guard aborts otherwise) PLUS samsite's import-time deps (roscale, sigstore_core) even though those carry no grift seed. Add a profile with fire-collector steps (e.g. samsite) to pull the live world in.",
+  "description": "Base standup — install the package-mode plugin set, seed the seedable plugins' GRIFT (INSTALLED_APPS order), fire no collectors. The default profile for a plain spawn: a full local instance that reaches out to nothing. Deliberate exception: lotr is installed but NOT seeded in base — it is the test-fixture/demo vocabulary (core suites build fixtures from grid_fixtures, not lotr), so its Middle-earth GRIFT belongs in a demo profile, not base. The `install` section MUST cover every plugin the population seeds (pre-boot's coherence guard aborts otherwise) PLUS install-only plugins: samsite's import-time deps (roscale, sigstore_core), the test-fixture vocabularies (lotr, grid_fixtures), and the gryphon_playground corpus — none of which carry a base grift seed. Add a profile with fire-collector steps (e.g. samsite) to pull the live world in.",
   "install": {
     "plugins": [
       {
@@ -13,7 +13,7 @@
         "slug": "lotr",
         "enabled": true,
         "source": { "type": "editable", "path": "plugins/lotr" },
-        "note": "Package-mode (tap_plugin.lotr). Load-bearing test-fixture vocabulary the core suites import; seeded in population. Safe to drop from a customer profile."
+        "note": "Package-mode (tap_plugin.lotr). Install-only in base: the demo/test-fixture vocabulary for lotr's OWN suites (plugins/lotr/tests) + tap_web/tap_grid feature tests that still use lotr as a concrete plugin example. NO LONGER seeded in base population (its Middle-earth GRIFT is demo clutter — core suites now build fixtures from grid_fixtures, not lotr). Must stay installed (editable) so the entry-point discovery fallback keeps tap_plugin.lotr importable in the test suite. Add a seed-plugin lotr population step to a demo profile to populate Middle-earth."
       },
       {
         "slug": "computing_core",
@@ -75,7 +75,6 @@
     "on_failure": "abort",
     "steps": [
       {"type": "seed-plugin", "plugin": "administrivia", "enabled": true},
-      {"type": "seed-plugin", "plugin": "lotr", "enabled": true},
       {"type": "seed-plugin", "plugin": "computing_core", "enabled": true},
       {"type": "seed-plugin", "plugin": "aws_core", "enabled": true},
       {"type": "seed-plugin", "plugin": "github_core", "enabled": true},

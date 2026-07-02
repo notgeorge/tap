@@ -157,7 +157,7 @@ def test_context_kwargs_ride_message_data(captured_logger):
 
 
 def test_flaw_class_for_path_plugin_is_app():
-    assert flaw_class_for_path("/app/plugins/lotr/editors/character.py") is AppFlaw
+    assert flaw_class_for_path("/app/plugins/grid_fixtures/models/constrained_source.py") is AppFlaw
 
 
 def test_flaw_class_for_path_first_party_is_code():

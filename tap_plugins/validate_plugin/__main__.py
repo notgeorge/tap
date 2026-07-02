@@ -36,10 +36,10 @@ exit status:
   2   usage or configuration error
 
 examples:
-  %(prog)s plugins/lotr
-  %(prog)s plugins/lotr --json
-  %(prog)s plugins/lotr --strict
-  %(prog)s plugins/lotr --level structure --json
+  %(prog)s plugins/grid_fixtures
+  %(prog)s plugins/grid_fixtures --json
+  %(prog)s plugins/grid_fixtures --strict
+  %(prog)s plugins/grid_fixtures --level structure --json
 """
 
 
@@ -89,8 +89,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.level not in KNOWN_LEVELS:
         print(
-            f"Error: unknown validation level {args.level!r}. "
-            f"Known levels: {', '.join(sorted(KNOWN_LEVELS))}",
+            f"Error: unknown validation level {args.level!r}. " f"Known levels: {', '.join(sorted(KNOWN_LEVELS))}",
             file=sys.stderr,
         )
         return EXIT_USAGE_ERROR
