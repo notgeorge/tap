@@ -36,6 +36,7 @@ Plugins may be developed as standalone git repositories and integrated into TAP 
 | req-plugin-arch-sources | [Multi-Path Source Resolution](#multi-path-source-resolution) | Proposed | Design locked 2026-07-01; `wheelhouse` offline path added 2026-07-02 (design locked, build **not critical path** — demand-gated). Source-type strategy registry (`git` bootstrap → `index` durable = private-bucket+dumb-pypi → `wheelhouse` offline/airgapped = mounted pre-built-wheel directory → future `grid`); credentials resolved from `TAP_SECRETS_ROOT`, never in the profile (the `wheelhouse` path needs none). All migrated plugins currently use `editable` local sources during the monorepo transition |
 | req-plugin-arch-source-secret | [Plugin-Source Credential](#plugin-source-credential) | Implemented | The authed-git-source install credential (built 2026-07-03, `tap/plugin_source_auth.py`): `kind` `github_pat`, boot-specific `data_schema`, consumer-first `scope` `tap_plugins/source`, resolved in **pre-boot** via app-neutral `tap/runtime_secrets`; fed via `GIT_ASKPASS` never token-in-URL; conditional necessity + per-source `credential` selection (`-6`) |
 | req-plugin-arch-source-least-priv | [Least-Privilege Source Self-Check](#least-privilege-source-self-check) | Backlog | Warn (non-dev) if the instance can *write* its plugin source (git token has push / mounted source is `W_OK`) — an over-scoped credential/mount. A per-source health probe |
+| req-plugin-arch-install-security | [Package Security Guard Integration](#package-security-guard-integration) | Backlog | Plugin preboot installs consume the platform package-security policy (`spec-tap-package-security-v0`): full-closure known-malicious guard before `uv pip install`, wheel-only/no-build non-dev posture, package-security projection in the plugin report |
 | req-plugin-arch-versioning | [Version Naming & Integrity](#version-naming--integrity) | Implemented | VCS-derived PEP 440 via `hatch-vcs` (`source = "vcs"`, `root = "../.."` monorepo-transition override, `fallback_version`) applied to all 9 migrated plugins (-1, -2). Index byte-integrity / append-only / signing (-3/-4/-5) stay deferred (no index yet) |
 | req-plugin-arch-dependencies | [Plugin Dependencies](#plugin-dependencies) | Partially Implemented | Tier 0 (package deps → uv/pyproject, -1) built across the set. Tier 1/2 (-2/-3/-4) built 2026-07-02: manifest `depends_on` schema (slug + min-version + optional + note), the import-graph AST scanner (`tap/plugin_deps.py`), and the pre-boot `dependency_consistency_guard` (declared ⊇ observed, order, min-version — fail closed) are live; `samsite` declares its real edges. Only the topological-sort resolver stays deferred (declare-now, resolver-later — hand-ordering fine at N=10) |
 | req-plugin-arch-skills | [Plugin Skills](#plugin-skills) | Implemented | Plugins may ship Claude Code skills for plugin-specific automation |
@@ -727,6 +728,47 @@ misconfiguration (an operator grabbing a broad token because it was easy).
 | req-plugin-arch-source-least-priv-1 | Write Access Is A Warning | Backlog | If the instance can write its plugin source, emit a warning (over-scoped credential/mount). | |
 | req-plugin-arch-source-least-priv-2 | Per-Source Probe | Backlog | `git` → repo `permissions.push`; `wheelhouse`/`path` → directory `W_OK`. One principle, per-type probe. | |
 | req-plugin-arch-source-least-priv-3 | Non-Dev, Warn-Only | Backlog | Gated off developer mode; a warning, never fail-closed. | |
+
+### Package Security Guard Integration
+----
+RID: `req-plugin-arch-install-security`
+Status: `Backlog`
+
+Plugin preboot installs consume the platform package-security policy defined in
+[`spec-tap-package-security-v0-BACKLOG.md`](../../specs/spec-tap-package-security-v0-BACKLOG.md).
+This plugin spec owns the integration point only: every enabled profile install
+entry is a package-security scan target before TAP invokes `uv pip install`.
+The classifier, policy modes, OSV behavior, health probes, report schema, and
+scheduled rechecks are owned by the platform package-security spec, not duplicated
+here.
+
+#### Implementation Direction
+
+The pre-Django install flow becomes:
+
+1. resolve enabled plugin install entries from the boot profile
+2. resolve source credentials where needed
+3. build a package-security plan for each plugin and its dependency closure
+4. apply the package-security policy
+5. only then invoke `uv pip install` for entries that passed
+6. include each plugin's package-security summary in the plugin report after boot
+
+The guard applies to every plugin source type (`git`, `index`, `wheelhouse`,
+`path`, `editable`) rather than treating local/dev sources as categorically safe.
+For non-dev package sources, plugin installs follow the platform no-build /
+wheel-only posture. Local dev sources may use relaxed policy only through the
+platform package-security policy, and the effective relaxation is reported.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-plugin-arch-install-security-1 | Preboot Calls Guard | Backlog | `tap/preboot.py` runs the package-security guard for every enabled plugin install entry before invoking `uv pip install`. | |
+| req-plugin-arch-install-security-2 | Full Closure Target | Backlog | The plugin package and all transitive dependencies are included in the scan target with `plugin:<slug>` attribution. | |
+| req-plugin-arch-install-security-3 | All Source Types Covered | Backlog | `git`, `index`, `wheelhouse`, `path`, and `editable` sources are all sent through the guard; unsupported safe planning fails under enforce mode. | |
+| req-plugin-arch-install-security-4 | Non-Dev Wheel-Only | Backlog | Non-dev plugin package installs use no-build / wheel-only posture as required by the platform package-security spec. | |
+| req-plugin-arch-install-security-5 | Plugin Report Projection | Backlog | `manage.py plugins --json` includes each plugin's package-security summary once the platform report/schema exists. | |
+| req-plugin-arch-install-security-6 | Platform Policy Is Canonical | Backlog | Plugin architecture does not define a parallel malware/CVE policy; it links to `spec-tap-package-security-v0`. | |
 
 ### Version Naming & Integrity
 ----
