@@ -92,7 +92,7 @@ For the plugin-refactor additions (pre-boot stage, install section, snapshot, va
 | req-boot-secrets | [Secret References Only](#secret-references-only) | Implemented | **v0.** Profiles reference `TAP_SECRETS_ROOT` keys / env, never embed secrets; missing secret fails loud at apply |
 | req-boot-spawn-bridge | [Spawn Bridge](#spawn-bridge) | Implemented | **v0.** `spawn-session.sh` calls the bootloader; dev == customer standup |
 | req-boot-report | [Boot Logging](#boot-logging) | Implemented | **v0.** Boot logs actions with secrets redacted; durable report deferred |
-| req-boot-abort-signal | [Standard Abort Signal](#standard-abort-signal) | Proposed | One machine-detectable `TAP-ABORT:` sentinel on fatal standup failure so watchers fast-fail instead of timing out |
+| req-boot-abort-signal | [Standup Abort Signal](#standup-abort-signal) | Proposed | Boot is the first consumer of the logging `ABORT` signal (`req-tap-logging-abort-signal`): fatal standup paths emit it so watchers fast-fail instead of timing out |
 
 ---
 
@@ -624,27 +624,27 @@ Boot logs what it did. A durable boot-report artifact is deferred.
 | req-boot-report-1 | Actions Logged | Proposed | Each boot action is logged with the standard conventions. | |
 | req-boot-report-2 | Secrets Redacted | Proposed | Boot logs never contain secret values. | |
 
-### Standard Abort Signal
+### Standup Abort Signal
 ----
 RID: `req-boot-abort-signal`
 Status: `Proposed`
 
-The standup pipeline (`docker/entrypoint.sh` → `tap.preboot` → `migrate` → `manage.py boot`) must emit **one standard, machine-detectable sentinel** on any **fatal, unrecoverable** failure, so a watcher can react the instant it happens instead of inferring failure from an *absence* (a readiness probe that never goes green).
+Boot standup is the **first consumer** of the app-wide `ABORT` logging signal (`req-tap-logging-abort-signal`, [spec-tap-logging.md](spec-tap-logging.md)). This requirement is that consumption, not a competing standard: the standup pipeline (`docker/entrypoint.sh` → `tap.preboot` → `migrate` → `manage.py boot`) emits an `ABORT` record on any **fatal, unrecoverable** failure, so a watcher reacts the instant it happens instead of inferring failure from an *absence* (a readiness probe that never goes green).
 
-**The problem it solves.** Today a fatal standup failure is announced by inconsistent, human-only strings — `docker/entrypoint.sh` prints `FATAL: pre-boot stage failed …` to stderr, `tap.preboot` logs `[8ed8] pre-boot ABORT: …`, `tap_boot.orchestrator` logs `[ac13] boot population aborting …` — with no common token. So `scripts/spawn-session.sh` Step 5 (and `scripts/gate-lean`) can only poll "is runserver listening?" and, when the answer is permanently *no* (the entrypoint `exit 1`'d, or `runserver` is crash-looping on a `ModuleNotFoundError`), they wait out the full **300s readiness timeout** before failing. The failure is caught (RED) but slowly — see `req-dev-validation-lean-boot` Future.
+**The problem it solves.** Today a fatal standup failure is announced by inconsistent, human-only strings — `docker/entrypoint.sh` prints `FATAL: pre-boot stage failed …` to stderr, `tap.preboot` logs `[8ed8] pre-boot ABORT: …`, `tap_boot.orchestrator` logs `[ac13] boot population aborting …` — with no common signal. So `scripts/spawn-session.sh` Step 5 (and `scripts/gate-lean`) can only poll "is runserver listening?" and, when the answer is permanently *no* (the entrypoint `exit 1`'d, or `runserver` is crash-looping on a `ModuleNotFoundError`), they wait out the full **300s readiness timeout** before failing. The failure is caught (RED) but slowly — see `req-dev-validation-lean-boot` Future.
 
-**The standard.** A single sentinel line on **stdout** (the container-log stream every watcher already tails): `TAP-ABORT: <stage>: <reason>` — `<stage>` ∈ `preboot | migrate | boot | health`. It is a deliberate, greppable **affordance for "something has gone horribly wrong, stop waiting"**, complementary to (not a replacement for) the structured `[hex]` logging conventions (`spec-tap-logging.md`) — the human-readable reason still logs through the normal path; the sentinel is the stable machine contract. Every fatal exit in the standup pipeline emits it exactly once before exiting non-zero.
+**The signal (owned by the logging spec).** Each fatal standup path emits one `ABORT` record via `tap.logging.abort(logger, domain, reason)` — `domain` ∈ `preboot | migrate | boot | health` — replacing the ad-hoc `FATAL:` / `ABORT` strings. It is a structured record (`message_code = ABORT`, `message_data = {domain, reason}`), **not** an in-band string; the `console` handler renders it as the greppable `TAP-ABORT: <domain>: <reason>` line every shell watcher already tails, and the JSON sink emits the field. The descriptive detail still logs through the normal path; the `ABORT` record is the terminal signal, once, before non-zero exit.
 
-**Consumers.** `spawn-session.sh` Step 5 tails the web log during its readiness wait and **fast-fails** on a `TAP-ABORT:` line (or on the `web` container having exited) — surfacing the captured reason immediately instead of at the timeout. `scripts/gate-lean` inherits that fast-fail transitively (it drives the same spawn). CI and the `/diagnose-failed-session-spawn` skill key off the same token.
+**Consumers.** `spawn-session.sh` Step 5 tails the web log during its readiness wait and **fast-fails** on the rendered `TAP-ABORT:` line (or on the `web` container having exited) — surfacing the reason immediately instead of at the timeout. `scripts/gate-lean` inherits that fast-fail transitively (it drives the same spawn). CI and the `/diagnose-failed-session-spawn` skill key off the same signal (`message_code == ABORT` in JSON, the sentinel in text).
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-boot-abort-signal-1 | One standard token | Proposed | A single documented sentinel (`TAP-ABORT: <stage>: <reason>`) is emitted to stdout on every fatal standup failure, exactly once, before non-zero exit. | Replaces the ad-hoc `FATAL:` / `ABORT` strings with a common token; the descriptive log line stays. |
-| req-boot-abort-signal-2 | All stages covered | Proposed | preboot, migrate, boot, and the health gate each emit it on their fatal paths. | The four failure-prone standup stages. |
-| req-boot-abort-signal-3 | Watchers fast-fail | Proposed | `spawn-session.sh` (and thus `gate-lean`) abort within seconds of the sentinel — or of the container exiting — not at the readiness timeout. | Closes the 300s-timeout latency in `req-dev-validation-lean-boot`. |
-| req-boot-abort-signal-4 | Reason preserved | Proposed | The `<reason>` (and the fuller log context) is captured for diagnosis, not swallowed by the fast-fail. | Feeds `spec-dev-multisession-diagnose.md`. |
+| req-boot-abort-signal-1 | Emits the ABORT signal | Proposed | Every fatal standup failure emits one `ABORT` record (`req-tap-logging-abort-signal`) via `tap.logging.abort(...)`, before non-zero exit — not an ad-hoc string. | Replaces the `FATAL:` / `ABORT` strings with the reserved signal; the descriptive log line stays. |
+| req-boot-abort-signal-2 | All stages covered | Proposed | preboot, migrate, boot, and the health gate each emit it (`domain` set accordingly) on their fatal paths. | The four failure-prone standup stages. |
+| req-boot-abort-signal-3 | Watchers fast-fail | Proposed | `spawn-session.sh` (and thus `gate-lean`) abort within seconds of the rendered sentinel — or of the container exiting — not at the readiness timeout. | Closes the 300s-timeout latency in `req-dev-validation-lean-boot`. |
+| req-boot-abort-signal-4 | Reason preserved | Proposed | The `reason` (and the fuller log context) is captured for diagnosis, not swallowed by the fast-fail. | Feeds `spec-dev-multisession-diagnose.md`. |
 
 ---
 
