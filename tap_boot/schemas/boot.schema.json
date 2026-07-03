@@ -108,6 +108,26 @@
                         "minLength": 1
                       }
                     }
+                  },
+                  {
+                    "additionalProperties": false,
+                    "required": ["type", "dir", "version"],
+                    "properties": {
+                      "type": {
+                        "description": "wheelhouse: offline/airgapped install by version from a mounted directory of pre-built wheels (req-plugin-arch-sources-6). `uv pip install --no-index --find-links <dir> tap-plugin-<slug>==<version>` — no network, no credential. The dir must also hold the plugins' Tier-0 PyPI dep wheels so --no-index resolves the full closure offline.",
+                        "const": "wheelhouse"
+                      },
+                      "dir": {
+                        "description": "Directory of pre-built wheels. Absolute = a mounted volume (e.g. /run/tap-wheelhouse); relative = under the repo root (dev/local).",
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "version": {
+                        "description": "Immutable version to install (tap-plugin-<slug>==<version>) — the reproducibility + idempotency oracle (is_satisfied = installed version matches).",
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
                   }
                 ]
               }

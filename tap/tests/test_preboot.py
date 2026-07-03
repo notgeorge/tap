@@ -77,6 +77,29 @@ def test_uv_install_args_editable() -> None:
     assert args[4].endswith("plugins/genericom")
 
 
+def test_uv_install_args_wheelhouse_relative_dir() -> None:
+    entry = {
+        "slug": "fedramp_20x_ksi",
+        "source": {"type": "wheelhouse", "dir": "wheelhouse", "version": "0.1.1"},
+    }
+    args = preboot.uv_install_args(entry)
+    assert args[:5] == ["uv", "pip", "install", "--no-index", "--find-links"]
+    assert args[5].endswith("/wheelhouse")  # resolved under the repo root
+    assert args[6] == "tap-plugin-fedramp-20x-ksi==0.1.1"
+
+
+def test_uv_install_args_wheelhouse_absolute_dir_used_as_is() -> None:
+    entry = {
+        "slug": "fedramp_20x_ksi",
+        "source": {"type": "wheelhouse", "dir": "/run/tap-wheelhouse", "version": "0.1.1"},
+    }
+    args = preboot.uv_install_args(entry)
+    assert args == [
+        "uv", "pip", "install", "--no-index", "--find-links",
+        "/run/tap-wheelhouse", "tap-plugin-fedramp-20x-ksi==0.1.1",
+    ]
+
+
 def test_uv_install_args_unknown_source_raises() -> None:
     entry = {"slug": "x", "source": {"type": "svn"}}
     with pytest.raises(preboot.PrebootError):

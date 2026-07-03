@@ -200,7 +200,9 @@ def is_satisfied(entry: dict[str, Any]) -> bool:
     """True if the plugin is already installed to the requested source (`req-boot-preboot-3`).
 
     git: satisfied when the installed VCS commit matches the pinned rev (reboot no-op,
-    no re-pull). editable/path: satisfied when the distribution is present — an editable
+    no re-pull). wheelhouse: satisfied when the installed distribution is at the pinned
+    version (install-by-version from immutable wheels — the filesystem twin of `index`).
+    editable/path: satisfied when the distribution is present — an editable
     install is a live source link, so it needs no reinstall to pick up code changes.
     """
     slug = entry["slug"]
@@ -210,6 +212,8 @@ def is_satisfied(entry: dict[str, Any]) -> bool:
         return False
     if source["type"] == "git":
         return bool(_installed_git_rev(dist) == source["rev"])
+    if source["type"] == "wheelhouse":
+        return bool(dist.version == source["version"])
     return True  # editable / path: presence is enough
 
 
@@ -224,7 +228,25 @@ def uv_install_args(entry: dict[str, Any]) -> list[str]:
         return ["uv", "pip", "install", "--editable", str(REPO_ROOT / source["path"])]
     if stype == "path":
         return ["uv", "pip", "install", str(REPO_ROOT / source["path"])]
+    if stype == "wheelhouse":
+        # Offline / airgapped (req-plugin-arch-sources-6): install by version from a
+        # mounted directory of pre-built wheels. --no-index forbids PyPI so a missing
+        # wheel (plugin or its Tier-0 deps) fails loud instead of silently fetching;
+        # no network, no credential. The filesystem twin of the `index` path.
+        find_links = _resolve_wheelhouse_dir(source["dir"])
+        spec = f"{dist_name_for_slug(entry['slug'])}=={source['version']}"
+        return ["uv", "pip", "install", "--no-index", "--find-links", str(find_links), spec]
     raise PrebootError(f"plugin '{entry['slug']}': unknown source type '{stype}'")
+
+
+def _resolve_wheelhouse_dir(raw: str) -> Path:
+    """Resolve a wheelhouse ``dir``: an absolute mount path as-is, else repo-relative.
+
+    A real airgapped wheelhouse is an attached volume at an absolute path
+    (e.g. ``/run/tap-wheelhouse``); a dev/local one can sit under the repo root.
+    """
+    candidate = Path(raw)
+    return candidate if candidate.is_absolute() else REPO_ROOT / candidate
 
 
 def _secrets_root() -> Path | None:

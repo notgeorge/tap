@@ -100,3 +100,5 @@ console-current.log
 .coverage.*
 coverage.json
 htmlcov/
+tmp-build/
+wheelhouse/
