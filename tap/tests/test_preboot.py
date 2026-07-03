@@ -92,7 +92,14 @@ def test_read_profile_missing_raises() -> None:
 
 
 def test_read_genericom_install_profile() -> None:
-    profile = preboot.read_profile("genericom-install")
+    # genericom's profile is a plugin-owned standalone profile (req-plugin-arch-layout-6):
+    # it lives at plugins/genericom/genericom.boot.json, NOT in boot/, so read_profile
+    # (which resolves boot/ by id) does not find it — read the plugin-owned path directly.
+    import json
+
+    path = preboot.REPO_ROOT / "plugins" / "genericom" / "genericom.boot.json"
+    with open(path, "rb") as fh:
+        profile = json.load(fh)
     entries = preboot.install_plugin_specs(profile)
     assert [e["slug"] for e in entries] == ["genericom"]
     assert entries[0]["source"]["type"] == "editable"
