@@ -112,27 +112,27 @@
       },
       {
         "type": "fire-collector",
-        "key": "tap_plugin.aws_core.collectors.boto3_collector.collector:boto3",
+        "key": "aws_core:boto3",
         "enabled": true,
         "timeout_seconds": 300,
         "note": "AWS resource graph (Route53/CloudFront/S3/Lambda/IAM/...) + the aws_account node the boundary membership depends on. A full multi-region pull can run well past the 90s default."
       },
       {
         "type": "fire-collector",
-        "key": "tap_plugin.github_core.collectors.github_collector.collector:github_core",
+        "key": "github_core:github_core",
         "enabled": true,
         "timeout_seconds": 180,
         "note": "GitHub repository / Actions data behind the repo landing page."
       },
       {
         "type": "fire-collector",
-        "key": "tap_plugin.fedramp_20x_ksi.collectors.ksi_catalog:ksi-catalog",
+        "key": "fedramp_20x_ksi:ksi-catalog",
         "enabled": true,
         "note": "Refresh the FedRAMP 20x KSI catalog (HTTPS, no credentials)."
       },
       {
         "type": "fire-collector",
-        "key": "tap_plugin.samsite.collectors.compliance_collector.collector:samsite-compliance",
+        "key": "samsite:samsite-compliance",
         "enabled": true,
         "timeout_seconds": 300,
         "note": "Signed /.well-known/ compliance artifacts (OSCAL SSP/POA&M, KSI signal, VDR). Fetches 5 artifacts + verifies sigstore signatures, so it gets a generous timeout. MUST run after boto3 (synthesizes SCOPED_TO_BOUNDARY membership from the aws_account nodes) AND after github_core (sigstore_link resolves the signing github_workflow by content-match; if the workflow node isn't on the grid yet those edges are silently omitted)."

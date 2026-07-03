@@ -1,0 +1,66 @@
+"""Unit tests for the shared ratchet core (`tap.ratchet`).
+
+The compare-and-report is now load-bearing for every migrated ratchet, so its two
+directions are tested directly: a ceiling fails on a NEW item and on a STALE
+baseline entry (and only passes when they match); a floor fails on regression,
+reports on improvement, and is silent exactly at the floor.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from tap.ratchet import RatchetError, ratchet_ceiling, ratchet_floor, read_baseline_set
+
+_HINT = "fix it"
+
+
+def _ceiling(current, baseline):
+    ratchet_ceiling(current=set(current), baseline=set(baseline), surface="test", baseline_path="b.txt", new_hint=_HINT)
+
+
+def test_ceiling_passes_when_equal():
+    _ceiling({"a", "b"}, {"a", "b"})  # no raise
+
+
+def test_ceiling_fails_on_new_item():
+    with pytest.raises(RatchetError, match="new item"):
+        _ceiling({"a", "b", "c"}, {"a", "b"})
+
+
+def test_ceiling_fails_on_stale_entry():
+    with pytest.raises(RatchetError, match="ratchets toward zero"):
+        _ceiling({"a"}, {"a", "b"})
+
+
+def test_ceiling_empty_both_passes():
+    _ceiling(set(), set())  # strict, clean
+
+
+def test_floor_passes_at_floor():
+    assert ratchet_floor(current=73.0, floor=73, surface="t", baseline_path="b") is None
+
+
+def test_floor_fails_below():
+    with pytest.raises(RatchetError, match="regressed below"):
+        ratchet_floor(current=72.9, floor=73, surface="t", baseline_path="b")
+
+
+def test_floor_reports_improvement():
+    msg = ratchet_floor(current=75.4, floor=73, surface="t", baseline_path="b")
+    assert msg is not None and "bump the floor" in msg.lower()
+
+
+def test_floor_lock_gains_raises_on_improvement():
+    with pytest.raises(RatchetError, match="lock the gain"):
+        ratchet_floor(current=75.0, floor=73, surface="t", baseline_path="b", lock_gains=True)
+
+
+def test_read_baseline_set_ignores_comments_and_blanks(tmp_path):
+    p = tmp_path / "base.txt"
+    p.write_text("# a comment\n\nfoo.py:10\n  bar.py:20  \n# another\n")
+    assert read_baseline_set(p) == {"foo.py:10", "bar.py:20"}
+
+
+def test_read_baseline_set_missing_is_empty(tmp_path):
+    assert read_baseline_set(tmp_path / "nope.txt") == set()

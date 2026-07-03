@@ -13,9 +13,13 @@ Implements `specs/spec-tap-logging.md`. Two halves share this module:
 Public API:
     build_logging_config(installed_apps, env) -> dict
     plugin_logger_config(installed_apps) -> dict
-    discover_scan_roots(project_root) -> list[Path]
     scan_log_sites(roots) -> ScanResult
     find_within_file_duplicates(well_formed) -> dict
+
+`CallSite` and the first-party-root discovery moved to `tap.source_scan`
+(`first_party_source_roots`) — they are shared by every tree-scanner, not
+logging-specific. `scan_log_sites` takes the roots as an argument; callers pass
+`first_party_source_roots(project_root)`.
 
 Builder merge order (`req-tap-logging-config-location-5`):
     1. First-party app loggers — req-tap-logging-app-loggers
@@ -40,6 +44,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+from tap.source_scan import CallSite
 
 _FORMAT = "%(asctime)s %(levelname)-8s %(name)s %(pathname)s:%(lineno)d — %(message)s"
 _DATEFMT = "%Y-%m-%dT%H:%M:%S%z"
@@ -308,14 +314,6 @@ _NOQA_TOKEN = "noqa: TAP-LOG-ID"
 
 
 @dataclass(frozen=True)
-class CallSite:
-    """A log call site without (or with malformed) ID."""
-
-    path: Path
-    lineno: int
-
-
-@dataclass(frozen=True)
 class WellFormedSite:
     """A log call site whose message starts with a well-formed `[<hex>]` token."""
 
@@ -334,40 +332,6 @@ class ScanResult:
     noqa_skipped: list[CallSite] = field(default_factory=list)
     # (site, reason) — captures both getLogger-not-using-__name__ and f-string messages.
     convention_violations: list[tuple[CallSite, str]] = field(default_factory=list)
-
-
-def discover_scan_roots(project_root: Path) -> list[Path]:
-    """Discover first-party app roots (`tap_*` with `apps.py`) and plugin roots
-    (a `tap-plugin.toml`-bearing directory under `plugins/<slug>`) by filesystem inspection.
-
-    Two in-repo plugin layouts are recognized so package-mode migration does not
-    silently drop a plugin from the security (authz-coverage) and log-site scanners:
-      - build-baked / legacy:  `plugins/<slug>/tap-plugin.toml`               → root `plugins/<slug>`
-      - package-mode namespace: `plugins/<slug>/tap_plugin/<slug>/tap-plugin.toml` → root that package dir
-    (A fully extracted package-mode plugin installed from site-packages is out of the
-    in-repo scanners' scope by construction; its scanning moves with its own repo.)
-
-    Independent of Django's runtime app registry so the scanner runs at pytest
-    collection time without needing settings to be loaded.
-    """
-    roots: list[Path] = []
-    for child in sorted(project_root.iterdir()):
-        if child.is_dir() and child.name.startswith("tap_") and (child / "apps.py").exists():
-            roots.append(child)
-    plugins_dir = project_root / "plugins"
-    if plugins_dir.is_dir():
-        for child in sorted(plugins_dir.iterdir()):
-            if not child.is_dir():
-                continue
-            if (child / "tap-plugin.toml").exists():
-                roots.append(child)  # legacy flat layout
-                continue
-            # Package-mode: manifest sits inside the PEP 420 namespace at
-            # plugins/<slug>/tap_plugin/<pkg>/tap-plugin.toml (req-plugin-arch-identity-3).
-            namespace_dir = child / "tap_plugin"
-            if namespace_dir.is_dir():
-                roots.extend(sorted(m.parent for m in namespace_dir.glob("*/tap-plugin.toml")))
-    return roots
 
 
 def _is_getlogger_call(call: ast.Call) -> bool:
@@ -451,8 +415,8 @@ def scan_log_sites(roots: list[Path]) -> ScanResult:
     """Walk each root and classify `logger.<level>(...)` call sites (Option A).
 
     Files that fail to parse are silently skipped (pytest's own collection will
-    catch real syntax errors elsewhere). Use `discover_scan_roots()` to derive
-    the first-party-app + plugin roots from the project root.
+    catch real syntax errors elsewhere). Use `tap.source_scan.first_party_source_roots()`
+    to derive the first-party-app + plugin roots from the project root.
     """
     result = ScanResult()
     for root in roots:

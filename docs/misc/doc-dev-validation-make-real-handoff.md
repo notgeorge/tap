@@ -1,5 +1,23 @@
 # Handoff — make the dev-validation system real
 
+> **BUILT (2026-07-02, session/validation-creation).** The gate-v0 MVP this note
+> primed is implemented and verified live: `manage.py cold_boot_gate` (in
+> `tap_boot`) driven by `scripts/gate` (fresh scratch DB), the 6-step ordered
+> cold-boot cycle (migrate-from-zero → `makemigrations --check` → per-profile
+> resolve → strict `base` boot → real-backend collector cycle + PRODUCED_BATCH →
+> health), the known-broken manifest (`tap_boot.cold_boot_gate_known_broken.json`,
+> seeded empty), and the promote-hook wiring in `scripts/promote-to-main.sh`
+> (full pytest lane + cold-boot gate, hard-block, before the atomic push).
+> Measured wall-clock ~66–107s. The gate fires a **deterministic offline canary
+> collector** (`grid_fixtures:canary`, in the neutral grid_fixtures plugin —
+> emits a fixed two-node/one-edge batch with no network/credentials), so the
+> real-backend cycle never flakes on an upstream. Deferred (named): `tap/ratchet.py`
+> extraction, suite-tiers affected lane, canary-set (`-m smoke`) governance.
+> Building it caught + fixed a live break: the collector-identity refactor's stale
+> module-path keys survived in `boot/samsite.boot.json` (the demo profile) *and*
+> `test_orchestrator.py` (4 red tests on main) — both fixed, both now guarded.
+> `specs/spec-dev-validation.md` is authoritative for as-built detail.
+
 Session-priming note for the fresh session that picks up the validation build.
 Not authoritative spec (`specs/spec-dev-validation.md` is). Versioning is git.
 

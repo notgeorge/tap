@@ -252,6 +252,8 @@ def _run_structure_checks(plugin_root: Path, result: ValidationResult) -> Any:
         _check_grift_paths(manifest, result)
         _check_undeclared_files(manifest, result)
         _check_tests_dir(plugin_root, result)
+        _check_identity_coherence(plugin_root, package_root, manifest, result)
+        _check_declared_dependencies(package_root, manifest, result)
     return manifest
 
 
@@ -409,6 +411,145 @@ def _check_tests_dir(plugin_root: Path, result: ValidationResult) -> None:
         check.info("tests/ exists")
     else:
         check.warn("Missing tests/ directory", path="tests")
+    result.checks.append(check)
+
+
+def _check_identity_coherence(
+    plugin_root: Path,
+    package_root: Path,
+    manifest: Any,
+    result: ValidationResult,
+) -> None:
+    """Verify the package-mode identity chain agrees end to end.
+
+    req-plugin-arch-identity requires a single identity to run unbroken across four
+    surfaces: the manifest slug, the namespace package segment (``tap_plugin/<slug>/``),
+    the distribution name (``tap-plugin-<slug>``), and the ``tap.plugins`` entry-point key.
+    The pre-boot conformance gate enforces this from *installed* metadata; this check
+    enforces the same chain from the *on-disk source tree* so a drift is caught at author
+    time — before the plugin is ever built or installed. See req-plugin-validate-identity.
+
+    Legacy flat plugins (manifest at the plugin root, no ``tap_plugin/`` namespace and no
+    ``pyproject.toml``) predate the identity chain; the check is reported as inapplicable
+    rather than failing them.
+    """
+    import tomllib
+
+    from tap.preboot import NAMESPACE_PACKAGE, TAP_PLUGINS_ENTRY_POINT_GROUP, dist_name_for_slug
+
+    check = CheckResult(id="identity-coherence", name="Package identity chain agrees (slug/namespace/dist/entry-point)")
+    slug = manifest.slug
+
+    # Legacy flat layout: the package dir IS the plugin root, so there is no namespace
+    # segment or pyproject to cross-check. Nothing to verify — report and return.
+    if package_root == plugin_root:
+        check.info(f"Legacy flat layout — package identity chain not applicable (slug={slug})")
+        result.checks.append(check)
+        return
+
+    # 1) Namespace segment: tap_plugin/<segment>/ dir name must equal the slug.
+    segment = package_root.name
+    expected_parent = plugin_root / NAMESPACE_PACKAGE
+    if package_root.parent != expected_parent:
+        check.fail(
+            f"Package dir {package_root} is not under {expected_parent} — "
+            f"package-mode plugins live at {NAMESPACE_PACKAGE}/<slug>/ (req-plugin-arch-identity-3)"
+        )
+    elif segment != slug:
+        check.fail(
+            f"Namespace segment {NAMESPACE_PACKAGE}.{segment} does not match manifest slug {slug!r} "
+            f"— rename the package dir to {slug}"
+        )
+    else:
+        check.info(f"Namespace: {NAMESPACE_PACKAGE}.{slug}")
+
+    # 2) Distribution name + entry-point key from pyproject.toml.
+    pyproject_path = plugin_root / "pyproject.toml"
+    if not pyproject_path.is_file():
+        check.fail("Package-mode plugin missing pyproject.toml", path="pyproject.toml")
+        result.checks.append(check)
+        return
+
+    try:
+        with pyproject_path.open("rb") as fh:
+            pyproject = tomllib.load(fh)
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        check.fail(f"pyproject.toml could not be parsed: {exc}", path="pyproject.toml")
+        result.checks.append(check)
+        return
+
+    project = pyproject.get("project", {})
+    expected_dist = dist_name_for_slug(slug)
+    dist_name = project.get("name")
+    if dist_name != expected_dist:
+        check.fail(
+            f"[project].name is {dist_name!r} but slug {slug!r} requires distribution "
+            f"{expected_dist!r} (req-plugin-arch-identity)",
+            path="pyproject.toml",
+        )
+    else:
+        check.info(f"Distribution: {expected_dist}")
+
+    entry_points = project.get("entry-points", {}).get(TAP_PLUGINS_ENTRY_POINT_GROUP)
+    if not isinstance(entry_points, dict) or not entry_points:
+        check.fail(
+            f'No [project.entry-points."{TAP_PLUGINS_ENTRY_POINT_GROUP}"] entry declared',
+            path="pyproject.toml",
+        )
+    else:
+        keys = sorted(entry_points)
+        if keys != [slug]:
+            check.fail(
+                f"Entry-point group '{TAP_PLUGINS_ENTRY_POINT_GROUP}' declares {keys} — "
+                f"expected exactly one key equal to the slug {slug!r}",
+                path="pyproject.toml",
+            )
+        else:
+            target = entry_points[slug]
+            expected_prefix = f"{NAMESPACE_PACKAGE}.{slug}"
+            if not isinstance(target, str) or not target.startswith(expected_prefix):
+                check.fail(
+                    f"Entry point '{slug}' points at {target!r} — expected a target under "
+                    f"{expected_prefix} (its AppConfig)",
+                    path="pyproject.toml",
+                )
+            else:
+                check.info(f"Entry point: {slug} = {target}")
+
+    result.checks.append(check)
+
+
+def _check_declared_dependencies(package_root: Path, manifest: Any, result: ValidationResult) -> None:
+    """Verify every cross-plugin ``tap_plugin.<other>`` import is declared in ``depends_on``.
+
+    req-plugin-arch-dependencies requires each plugin's manifest ``depends_on`` to cover
+    every OTHER plugin it imports, so the boot install order can satisfy them. The pre-boot
+    dependency-consistency guard enforces ``declared ⊇ observed`` across the whole profile;
+    this check applies the same rule to a single plugin at author time. Declared-but-unimported
+    edges (pure data/vocabulary dependencies, e.g. one plugin seeding another's node types) are
+    legitimate and not flagged. See req-plugin-validate-deps.
+    """
+    from tap import plugin_deps
+
+    check = CheckResult(id="declared-dependencies", name="Cross-plugin imports are declared in depends_on")
+
+    observed = plugin_deps.scan_observed_imports(package_root, manifest.slug)
+    declared = {dep.slug for dep in plugin_deps.read_declared_depends_on(package_root)}
+
+    undeclared = sorted(observed - declared)
+    for missing in undeclared:
+        check.fail(
+            f"imports 'tap_plugin.{missing}' but does not declare it in depends_on — "
+            f'add {{ slug = "{missing}" }} to depends_on (req-plugin-arch-dependencies)'
+        )
+
+    for dep in sorted(observed & declared):
+        check.info(f"declared + imported: {dep}")
+    for dep in sorted(declared - observed):
+        check.info(f"declared (data/vocabulary dependency, not imported): {dep}")
+    if not observed and not declared:
+        check.info("No cross-plugin dependencies")
+
     result.checks.append(check)
 
 
@@ -806,7 +947,9 @@ def _check_grift_import(manifest: Any, result: ValidationResult) -> None:
         try:
             with open(grift_path) as fh:
                 document = json_mod.load(fh)
-            import_result = grift_import(document, dangling_edge_mode="warn", actor=None)
+            import_result = grift_import(  # TAP-AUTHZ-COV: validate_plugin CLI conformance dry-run (actor=None); not request-reachable
+                document, dangling_edge_mode="warn", actor=None
+            )
         except Exception as exc:
             check.fail(
                 f"GRIFT bundle '{entry.name}' import raised: {exc}",

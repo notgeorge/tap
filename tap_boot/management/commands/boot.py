@@ -26,7 +26,7 @@ from typing import Any
 from django.core.management.base import BaseCommand, CommandError
 
 from tap_auth.sync import AuthSyncError
-from tap_boot.orchestrator import BootError, run_boot
+from tap_boot.orchestrator import BootError, check_profile, run_boot
 from tap_boot.profile import BootProfileError, load_profile
 
 logger = logging.getLogger(__name__)
@@ -48,6 +48,15 @@ class Command(BaseCommand):
             help="Permit an auth-only standup with no profile (req-boot-profile-4). "
             "Without it, a missing profile fails loud (req-boot-profile-5).",
         )
+        parser.add_argument(
+            "--check",
+            action="store_true",
+            default=False,
+            help="Resolve-only preflight: validate every enabled step against the "
+            "registries (seed-plugin slugs/bundles, fire-collector keys) and exit — "
+            "no auth sync, no DB writes, no collector firing. The per-profile "
+            "cold-boot smoke uses this to catch a rotted profile offline.",
+        )
 
     def handle(self, *args: Any, **options: Any) -> None:
         profile_id = (options["profile"] or os.environ.get("TAP_BOOT_PROFILE") or "").strip()
@@ -65,6 +74,15 @@ class Command(BaseCommand):
                 "To stand up auth-only with no profile on purpose, pass --allow-empty "
                 "(refusing to start empty-but-apparently-healthy by default — req-boot-profile-5)."
             )
+
+        if options["check"]:
+            try:
+                check_profile(profile, echo=self.stdout.write)
+            except BootError as exc:
+                logger.error("[0db7] boot --check failed: %s", exc)
+                raise CommandError(str(exc)) from exc
+            self.stdout.write(self.style.SUCCESS("boot --check ok (profile resolves)"))
+            return
 
         try:
             run_boot(profile, echo=self.stdout.write)
