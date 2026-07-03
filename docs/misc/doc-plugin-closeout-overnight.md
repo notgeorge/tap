@@ -19,10 +19,17 @@ test/promote workflow — human eyes wanted).
 
 Do **not** start until ALL of:
 
-1. Every other session is concluded/promoted (`~/tap-sessions/.registry` shows only this session; no
-   sibling branches with unpromoted work that would collide).
-2. This session is genuinely last-standing — the type sweep (Phase 2) is a wide string-rewrite that
-   collides catastrophically with any concurrent edit to tests/fixtures/GRIFT.
+1. No sibling session will **land colliding edits on `main`**. The real bar is not "the registry is
+   empty" — it is "nothing else will promote a conflicting change." The Phase 2 collision risk is a
+   git/merge concern (a wide string-rewrite across tests/fixtures/GRIFT vs. a concurrent edit to the
+   same lines, both promoting), NOT a runtime one. A sibling that is **read-only and will be scrapped
+   (never promoted)** does not count as a blocker — its changes never reach `main`, so the sweep's
+   merge base stays clean. (Confirmed non-blocker 2026-07-02: the `codex-security` session is an
+   overnight security scan against its own isolated stack, to be discarded — it does not gate this run.)
+2. Resource contention is acceptable. Worktrees are isolated Compose stacks (own DB/ports), so a
+   sibling scan can't corrupt the full-lane DB — but both stacks share host CPU/RAM, so a heavy scan
+   running concurrently can make the Phase 2/3 lanes slower or flakier (timeouts, not corruption). For
+   the cleanest signal, run the heavy lanes when no sibling is peaking; otherwise proceed.
 3. George has said go.
 
 ## Standing guardrails (apply to every phase)
