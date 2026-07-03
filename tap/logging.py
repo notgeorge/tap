@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import ast
 import importlib
+import logging
 import os
 import re
 import sys
@@ -49,6 +50,52 @@ from tap.source_scan import CallSite
 
 _FORMAT = "%(asctime)s %(levelname)-8s %(name)s %(pathname)s:%(lineno)d — %(message)s"
 _DATEFMT = "%Y-%m-%dT%H:%M:%S%z"
+
+
+# =============================================================================
+# Reserved ABORT signal — req-tap-logging-abort-signal
+# =============================================================================
+# The machine-detectable "fatal, unrecoverable, a watcher should stop waiting and
+# act" signal — the second reserved cross-cutting code after FLAW. A supervising
+# process (a spawn readiness loop, scripts/gate-lean, CI, the
+# /diagnose-failed-session-spawn skill) keys off it to fast-fail the instant a
+# terminal failure happens instead of inferring it from a readiness timeout.
+
+#: Stable console rendering of the signal — the token watchers grep for in the
+#: container log stream. The helper's log format literal MUST keep this exact
+#: prefix; scripts/spawn-session.sh and scripts/gate-lean tail for it.
+ABORT_SENTINEL = "TAP-ABORT"
+
+
+def abort(logger: logging.Logger, domain: str, reason: str, *, exc_info: bool = False) -> None:
+    """Emit the reserved ABORT signal (``req-tap-logging-abort-signal``).
+
+    A fatal, unrecoverable "give up" event that a watcher should act on. Emits
+    exactly one record and does **not** itself exit — the caller raises/exits, so
+    control flow stays explicit at the call site.
+
+    Args:
+        logger: the caller's module logger (``logging.getLogger(__name__)``), so the
+            record is attributed to the failing component.
+        domain: the failing subsystem/stage — ``preboot`` / ``migrate`` / ``boot`` /
+            ``health`` / ``collector`` / … (extensible as consumers appear).
+        reason: short, machine-and-human legible cause. Keep secret-free.
+        exc_info: pass ``True`` inside an ``except`` to attach the traceback.
+
+    Rendering (``req-tap-logging-format``): the ``console`` handler renders this as
+    the greppable ``TAP-ABORT: <domain>: <reason>`` line every shell watcher tails.
+
+    v0 interim: the structured message object (``req-tap-logging-message-object``)
+    is not yet built, so this centralizes the rendering into the message string.
+    When the object/formatter layer lands, this helper becomes
+    ``message_code=ABORT`` + ``message_data={domain, reason}`` and the console
+    formatter renders the same sentinel — **call sites do not change.**
+    """
+    # stacklevel=2 → the record's pathname:lineno points at abort()'s caller, not
+    # this helper. The [2ace] token is the helper's single site id (the emission
+    # site is here); `domain` names the true source for diagnosis.
+    logger.error("[2ace] TAP-ABORT: %s: %s", domain, reason, exc_info=exc_info, stacklevel=2)
+
 
 # req-tap-logging-app-loggers — first-party apps with default levels.
 # tap_flip and tap_ai are reserved (no app exists yet); inert until they do.

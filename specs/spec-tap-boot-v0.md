@@ -92,7 +92,7 @@ For the plugin-refactor additions (pre-boot stage, install section, snapshot, va
 | req-boot-secrets | [Secret References Only](#secret-references-only) | Implemented | **v0.** Profiles reference `TAP_SECRETS_ROOT` keys / env, never embed secrets; missing secret fails loud at apply |
 | req-boot-spawn-bridge | [Spawn Bridge](#spawn-bridge) | Implemented | **v0.** `spawn-session.sh` calls the bootloader; dev == customer standup |
 | req-boot-report | [Boot Logging](#boot-logging) | Implemented | **v0.** Boot logs actions with secrets redacted; durable report deferred |
-| req-boot-abort-signal | [Standup Abort Signal](#standup-abort-signal) | Proposed | Boot is the first consumer of the logging `ABORT` signal (`req-tap-logging-abort-signal`): fatal standup paths emit it so watchers fast-fail instead of timing out |
+| req-boot-abort-signal | [Standup Abort Signal](#standup-abort-signal) | Implemented | **Landed 2026-07-03.** Boot is the first consumer of the logging `ABORT` signal (`req-tap-logging-abort-signal`): preboot/migrate/boot fatal paths emit it and `spawn-session.sh` fast-fails on it (or on the container exiting) instead of the 300s readiness timeout |
 
 ---
 
@@ -627,9 +627,11 @@ Boot logs what it did. A durable boot-report artifact is deferred.
 ### Standup Abort Signal
 ----
 RID: `req-boot-abort-signal`
-Status: `Proposed`
+Status: `Implemented`
 
 Boot standup is the **first consumer** of the app-wide `ABORT` logging signal (`req-tap-logging-abort-signal`, [spec-tap-logging.md](spec-tap-logging.md)). This requirement is that consumption, not a competing standard: the standup pipeline (`docker/entrypoint.sh` → `tap.preboot` → `migrate` → `manage.py boot`) emits an `ABORT` record on any **fatal, unrecoverable** failure, so a watcher reacts the instant it happens instead of inferring failure from an *absence* (a readiness probe that never goes green).
+
+**As built (2026-07-03).** The Python fatal exits emit via `tap.logging.abort(logger, domain, reason)`: `tap.preboot` (`domain=preboot`, replacing the old `[8ed8]` string) and the `manage.py boot` command's `BootError`/`AuthSyncError`/profile-load handlers (`domain=boot`, replacing `[916b]`/`[f750]`). The entrypoint's bash-driven steps emit the same sentinel via an `emit_abort` shell helper on `createcachetable`/`migrate` failure (`domain=migrate`) — `migrate` being where a core→plugin-dep import leak (`req-dev-validation-lean-boot`) actually crashes, since it runs `django.setup()`. `scripts/spawn-session.sh` Step 5 tails the web log for the rendered `TAP-ABORT:` line **and** checks the container state (`exited`/`dead`/`restarting`), fast-failing on either — so a fatal standup reds in seconds with its reason instead of at the timeout. `scripts/gate-lean` inherits it (it drives the same spawn). Health failures are already fast-failed by the post-readiness Step 6.5 health gate, so they need no readiness-loop emit.
 
 **The problem it solves.** Today a fatal standup failure is announced by inconsistent, human-only strings — `docker/entrypoint.sh` prints `FATAL: pre-boot stage failed …` to stderr, `tap.preboot` logs `[8ed8] pre-boot ABORT: …`, `tap_boot.orchestrator` logs `[ac13] boot population aborting …` — with no common signal. So `scripts/spawn-session.sh` Step 5 (and `scripts/gate-lean`) can only poll "is runserver listening?" and, when the answer is permanently *no* (the entrypoint `exit 1`'d, or `runserver` is crash-looping on a `ModuleNotFoundError`), they wait out the full **300s readiness timeout** before failing. The failure is caught (RED) but slowly — see `req-dev-validation-lean-boot` Future.
 
@@ -641,10 +643,10 @@ Boot standup is the **first consumer** of the app-wide `ABORT` logging signal (`
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-boot-abort-signal-1 | Emits the ABORT signal | Proposed | Every fatal standup failure emits one `ABORT` record (`req-tap-logging-abort-signal`) via `tap.logging.abort(...)`, before non-zero exit — not an ad-hoc string. | Replaces the `FATAL:` / `ABORT` strings with the reserved signal; the descriptive log line stays. |
-| req-boot-abort-signal-2 | All stages covered | Proposed | preboot, migrate, boot, and the health gate each emit it (`domain` set accordingly) on their fatal paths. | The four failure-prone standup stages. |
-| req-boot-abort-signal-3 | Watchers fast-fail | Proposed | `spawn-session.sh` (and thus `gate-lean`) abort within seconds of the rendered sentinel — or of the container exiting — not at the readiness timeout. | Closes the 300s-timeout latency in `req-dev-validation-lean-boot`. |
-| req-boot-abort-signal-4 | Reason preserved | Proposed | The `reason` (and the fuller log context) is captured for diagnosis, not swallowed by the fast-fail. | Feeds `spec-dev-multisession-diagnose.md`. |
+| req-boot-abort-signal-1 | Emits the ABORT signal | Implemented | Every fatal standup failure emits one `ABORT` record (`req-tap-logging-abort-signal`) via `tap.logging.abort(...)` (Python) or `emit_abort` (entrypoint bash), before non-zero exit — not an ad-hoc string. | Replaces the `FATAL:` / `[8ed8]` / `[916b]` / `[f750]` strings with the reserved signal; the descriptive log line stays. |
+| req-boot-abort-signal-2 | Readiness-phase stages covered | Implemented | The readiness-phase fatal stages — preboot, migrate (incl. createcachetable), boot — each emit it with the right `domain`. Health failures are caught by the post-readiness Step 6.5 health gate, so they need no readiness-loop emit. | The stages that would otherwise hang the readiness poll. |
+| req-boot-abort-signal-3 | Watchers fast-fail | Implemented | `spawn-session.sh` (and thus `gate-lean`) abort within seconds of the rendered sentinel — or of the container exiting/restarting — not at the readiness timeout. | Closes the 300s-timeout latency in `req-dev-validation-lean-boot`. |
+| req-boot-abort-signal-4 | Reason preserved | Implemented | The `reason` is surfaced in the fast-fail message and the full log context stays in `scripts/dc logs web`, not swallowed. | Feeds `spec-dev-multisession-diagnose.md`. |
 
 ---
 

@@ -413,7 +413,7 @@ This is the second half of `req-boot-minimal-baseline-5` (spec-tap-boot-v0.md): 
 
 #### Future
 
-- **Fast-fail on crash-loop.** A leak currently surfaces via the spawn's 300s readiness timeout, not an immediate abort. Acceptable for a rare-event gate; the tightening is `req-boot-abort-signal` (spec-tap-boot-v0.md) — a standard `TAP-ABORT:` sentinel the standup pipeline emits on fatal failure, which `spawn-session.sh` tails and fast-fails on (and the container-exited state), so a leak reds in seconds instead of at the timeout.
+- **Fast-fail on crash-loop — resolved 2026-07-03** (`req-boot-abort-signal`, spec-tap-boot-v0.md). A leak no longer waits out the 300s readiness timeout: the standup pipeline emits the `ABORT` signal (`req-tap-logging-abort-signal`) on fatal failure, and `spawn-session.sh` Step 5 tails for the rendered `TAP-ABORT:` line and checks the container-exited/restarting state — so a leak reds in seconds with its reason. `gate-lean` inherits it.
 - **Profile matrix.** Today the gate boots `core` (strictest signal). A follow-on could sweep `core` + `core_dev` (and, once plugins are evicted, a representative lean customer profile) if a leak class emerges that only a non-empty lean set exposes.
 
 ### Promote-Path Enforcement

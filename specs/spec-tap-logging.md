@@ -29,7 +29,7 @@ Logging is read-only by construction. Nothing in this spec describes capturing a
 | req-tap-logging-message-object | [Structured Message Object](#structured-message-object) | Proposed | Canonical record object: `v`/`ts`/`level`/`site` envelope, `message`/`message_code`/`message_data` cluster, optional `entity_id`/`task_result_id`; `message_code` discriminates `message_data` |
 | req-tap-logging-entity-ref | [Grid Entity Reference](#grid-entity-reference) | Proposed | Optional `entity_id` envelope field — the record's grid subject (run/job node), not every entity touched |
 | req-tap-logging-task-ref | [Task Result Reference](#task-result-reference) | Proposed | Optional `task_result_id` envelope field — the executing task's `TaskResult.id` for records emitted within a task |
-| req-tap-logging-abort-signal | [Abort Signal](#abort-signal) | Proposed | Reserved cross-cutting `message_code = ABORT` (`message_data = {domain, reason}`) — the machine-detectable "fatal, stop waiting" signal; second reserved code after `FLAW` |
+| req-tap-logging-abort-signal | [Abort Signal](#abort-signal) | Partially Implemented | Reserved cross-cutting `message_code = ABORT` (`message_data = {domain, reason}`) — the machine-detectable "fatal, stop waiting" signal; second reserved code after `FLAW`. **`tap.logging.abort()` helper + console sentinel + watcher fast-fail built 2026-07-03; the structured `message_code`/JSON form lands with `req-tap-logging-message-object`** |
 | req-tap-logging-format | [Object Rendering](#object-rendering) | Proposed | Per-handler rendering of the message object — text on `console`, JSON on a structured sink |
 | req-tap-logging-app-loggers | [First-Party App Loggers](#first-party-app-loggers) | Proposed | One logger per `tap_*` app with a sensible default level |
 | req-tap-logging-plugin-loggers | [Plugin Loggers](#plugin-loggers) | Proposed | `plugins.<slug>` namespace; per-plugin level + wildcard default |
@@ -174,7 +174,9 @@ Status: `Proposed`
 ### Abort Signal
 ----
 RID: `req-tap-logging-abort-signal`
-Status: `Proposed`
+Status: `Partially Implemented`
+
+> **Build status (2026-07-03).** The `tap.logging.abort(logger, domain, reason)` helper, its greppable `console` rendering, and the first consumers (boot standup via `req-boot-abort-signal`; the `spawn-session.sh` / `gate-lean` fast-fail) are **built and live**. Because the structured message object (`req-tap-logging-message-object`) is itself still `Proposed`, the helper's **v0 interim** renders the signal into the message string rather than populating a literal `message_code = ABORT` field with a JSON sink emitting it. That structured form — and the JSON-side of AC-4 — land with the message object; the **call sites do not change** when it does. AC statuses below mark the split.
 
 `ABORT` is a reserved, cross-cutting `message_code` — the second after `FLAW` — for the machine-detectable **"fatal, unrecoverable, a watcher should stop waiting and act"** signal. It exists so a supervising process (a spawn readiness loop, `gate-lean`, CI, a prod monitor, the `/diagnose-failed-session-spawn` skill) learns of a terminal failure the instant it happens, rather than *inferring* it from an absence — a readiness probe that never goes green, waited out to a timeout.
 
@@ -190,11 +192,11 @@ Status: `Proposed`
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-logging-abort-signal-1 | Reserved Code + Payload | Proposed | A fatal give-up condition is emitted as `message_code = ABORT` with `message_data = {domain, reason}`; no new envelope field, object stays the fixed nine. | Parallel to `FLAW`. |
-| req-tap-logging-abort-signal-2 | Emitted Once, Then Exit | Proposed | Exactly one `ABORT` record per terminal failure, immediately before the non-zero exit / give-up; the record does not itself force the exit. | |
-| req-tap-logging-abort-signal-3 | Helper, Not In-Band | Proposed | Producers emit via `tap.logging.abort(...)`; the reserved code and payload are never hand-assembled, and the sentinel is never authored as an in-band string. | Honors the no-micro-syntax principle. |
-| req-tap-logging-abort-signal-4 | Two Renderings | Proposed | `console` renders a stable `TAP-ABORT: <domain>: <reason>` line; the JSON sink emits the object with `message_code == ABORT`. Both are renderings of one record. | Shell watchers grep; aggregators field-match. |
-| req-tap-logging-abort-signal-5 | Signal, Not Level/Flaw | Proposed | `ABORT` is orthogonal to `level` and distinct from `FLAW`; a happening may emit both a `FLAW` and an `ABORT`. | |
+| req-tap-logging-abort-signal-1 | Reserved Code + Payload | Partially Implemented | A fatal give-up condition carries `domain` + `reason` and adds no new envelope field (object stays the fixed nine). **Interim:** rendered in the message string; the literal `message_code = ABORT` field lands with `req-tap-logging-message-object`. | Parallel to `FLAW`. |
+| req-tap-logging-abort-signal-2 | Emitted Once, Then Exit | Implemented | Exactly one `ABORT` record per terminal failure, immediately before the non-zero exit / give-up; the record does not itself force the exit. | `tap.logging.abort()` emits + returns; the caller raises/exits. |
+| req-tap-logging-abort-signal-3 | Helper, Not In-Band | Implemented | Producers emit via `tap.logging.abort(...)`; call sites never hand-assemble the code or the sentinel — it is authored once, in the helper. | Honors the no-micro-syntax principle at the call site. |
+| req-tap-logging-abort-signal-4 | Two Renderings | Partially Implemented | `console` renders the stable `TAP-ABORT: <domain>: <reason>` line (built). The JSON sink emitting `message_code == ABORT` lands with the message object + its JSON formatter (`req-tap-logging-format`). | Shell watchers grep today; aggregators field-match once the sink exists. |
+| req-tap-logging-abort-signal-5 | Signal, Not Level/Flaw | Implemented | `ABORT` is `ERROR`-level plus the reserved signal, orthogonal to `level` and distinct from `FLAW`; a happening may emit both a `FLAW` and an `ABORT`. | |
 
 ### Object Rendering
 ----

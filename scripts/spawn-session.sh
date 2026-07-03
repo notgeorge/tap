@@ -545,14 +545,38 @@ scripts/dc up -d --build
 # ============================================================================
 bold "Step 5: Waiting for entrypoint (uv sync + migrate + runserver)"
 info "First-time uv sync downloads ~50MB of wheels — typically 1-3 minutes."
-WAIT_TIMEOUT=300   # 5 minutes
+WAIT_TIMEOUT=300   # 5 minutes — the backstop; a fatal standup fast-fails long before it.
 WAIT_START=$(date +%s)
 while true; do
-  # Use Python's urllib (always present — the base image is python:3.14-slim,
-  # which doesn't ship curl). The check passes if anything HTTP responds at
-  # all — the goal is "is runserver listening?", not "does the page load
-  # cleanly?". 500s are fine here; we just need to know uv sync + migrate
-  # finished and the dev server bound the port.
+  # (a) Fatal ABORT signal (req-boot-abort-signal): the standup pipeline emits a
+  #     `TAP-ABORT: <domain>: <reason>` line (tap.logging.abort() for Python steps,
+  #     emit_abort for the entrypoint's bash steps) the instant it gives up. Tail
+  #     for it and fast-fail with the reason instead of waiting out WAIT_TIMEOUT —
+  #     the exact 300s-black-box this replaces (e.g. a core->plugin-dep import leak
+  #     crashing `migrate`). See spec-tap-logging.md / spec-dev-multisession-diagnose.md.
+  abort_line="$(scripts/dc logs web 2>&1 | grep -a 'TAP-ABORT:' | tail -n1 || true)"
+  if [[ -n "$abort_line" ]]; then
+    fail "Standup ABORTED (fast-fail — not waiting out the ${WAIT_TIMEOUT}s timeout).
+    Reason: ${abort_line#*TAP-ABORT: }
+    Diagnose: the /diagnose-failed-session-spawn skill, or: scripts/dc logs web  (in $WORKTREE)"
+  fi
+
+  # (b) The web container has exited / is crash-looping: a dead entrypoint never
+  #     becomes 'ready', so without this we would poll to the timeout. `exec` into a
+  #     stopped container just fails and reads as 'not ready yet' — hence the explicit
+  #     state check.
+  web_state="$(scripts/dc ps --all --format '{{.State}}' web 2>/dev/null | head -n1 || true)"
+  case "$web_state" in
+    exited|dead|restarting)
+      fail "The web container is not running (state=${web_state}) — standup crashed before serving.
+    Diagnose: the /diagnose-failed-session-spawn skill, or: scripts/dc logs web  (in $WORKTREE)" ;;
+  esac
+
+  # (c) Readiness. Use Python's urllib (always present — the base image is
+  #     python:3.14-slim, which doesn't ship curl). The check passes if anything
+  #     HTTP responds at all — the goal is "is runserver listening?", not "does the
+  #     page load cleanly?". 500s are fine here; we just need to know uv sync +
+  #     migrate finished and the dev server bound the port.
   if scripts/dc exec -T web python -c "
 import urllib.request, sys
 try:
@@ -568,7 +592,7 @@ except Exception:
   fi
   elapsed=$(($(date +%s) - WAIT_START))
   if [[ $elapsed -gt $WAIT_TIMEOUT ]]; then
-    fail "Web did not become ready in ${WAIT_TIMEOUT}s. Check 'scripts/dc logs web' in $WORKTREE."
+    fail "Web did not become ready in ${WAIT_TIMEOUT}s (no ABORT signal seen). Check 'scripts/dc logs web' in $WORKTREE."
   fi
   printf "    waiting... %ds\r" "$elapsed"
   sleep 3

@@ -25,6 +25,7 @@ from typing import Any
 
 from django.core.management.base import BaseCommand, CommandError
 
+from tap.logging import abort
 from tap_auth.sync import AuthSyncError
 from tap_boot.orchestrator import BootError, check_profile, run_boot
 from tap_boot.profile import BootProfileError, load_profile
@@ -66,7 +67,7 @@ class Command(BaseCommand):
             try:
                 profile = load_profile(profile_id)
             except BootProfileError as exc:
-                logger.error("[f750] boot profile load failed: %s", exc)
+                abort(logger, "boot", f"profile load failed: {exc}")
                 raise CommandError(str(exc)) from exc
         elif not options["allow_empty"]:
             raise CommandError(
@@ -87,7 +88,7 @@ class Command(BaseCommand):
         try:
             run_boot(profile, echo=self.stdout.write)
         except (BootError, AuthSyncError) as exc:
-            logger.error("[916b] boot failed: %s", exc)
+            abort(logger, "boot", str(exc))
             raise CommandError(str(exc)) from exc
 
         self.stdout.write(self.style.SUCCESS("boot complete"))

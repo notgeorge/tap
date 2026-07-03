@@ -38,6 +38,7 @@ from typing import Any
 from urllib.parse import unquote, urlparse
 
 from tap import plugin_deps
+from tap.logging import abort
 
 logger = logging.getLogger(__name__)
 
@@ -609,7 +610,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         app_configs = run_preboot(args.profile)
     except PrebootError as exc:
-        logger.error("[8ed8] pre-boot ABORT: %s", exc)
+        abort(logger, "preboot", str(exc))
         return 1
 
     # stdout carries ONLY the TAP_PLUGINS value (space-separated) for the entrypoint.
