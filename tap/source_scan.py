@@ -15,7 +15,9 @@ collection time, inside a pre-boot gate, or from a bare script.
 
 from __future__ import annotations
 
+import ast
 import hashlib
+from collections.abc import Callable, Collection, Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -122,3 +124,145 @@ def first_party_source_roots(project_root: Path) -> list[Path]:
             if namespace_dir.is_dir():
                 roots.extend(sorted(m.parent for m in namespace_dir.glob("*/tap-plugin.toml")))
     return roots
+
+
+# =============================================================================
+# Tree-scanner parse substrate — spec-tap-tree-scanner.md
+# =============================================================================
+# The low-level `ast` mechanics every tree-scanner used to hand-roll: one parse
+# driver (was five copy-pasted "for each .py, parse it" loops), one decorator
+# resolver (was written twice), one call-name resolver, and one enclosing-scope
+# walk (was copy-pasted between scanners). Written once here so a fix to any of
+# them is inherited by every scanner (`req-tap-tree-scanner-substrate`). Stdlib
+# `ast` only, Django-free, so it runs pre-boot alongside the rest of this module
+# (`req-tap-tree-scanner-preboot`).
+
+
+@dataclass(frozen=True)
+class ParsedSource:
+    """One first-party source file, read and parsed once by the shared driver.
+
+    ``lines`` is the source split on line boundaries — the 1-indexed material a
+    scanner needs to look for an exemption comment on a finding's physical span.
+    """
+
+    path: Path
+    tree: ast.Module
+    source: str
+
+    @property
+    def lines(self) -> list[str]:
+        return self.source.splitlines()
+
+
+def parse_file(path: Path) -> ParsedSource | None:
+    """Read + parse one `.py` file, tolerantly. ``None`` when unreadable/unparseable.
+
+    Skips the file (rather than raising) on an OS/decoding error or a syntax
+    error — the shared, permissive stance every scanner already took by hand
+    (real syntax errors surface at pytest collection / import time elsewhere).
+    ``ValueError`` (e.g. source containing a NUL byte) is treated the same as a
+    ``SyntaxError`` — the union of what the individual scanners tolerated.
+    """
+    try:
+        source = path.read_text(encoding="utf-8")
+    except OSError, UnicodeDecodeError:
+        return None
+    try:
+        tree = ast.parse(source, filename=str(path))
+    except SyntaxError, ValueError:
+        return None
+    return ParsedSource(path, tree, source)
+
+
+def iter_parsed_sources(
+    roots: Iterable[Path],
+    *,
+    skip: Callable[[Path], bool] | None = None,
+) -> Iterator[ParsedSource]:
+    """Walk `roots`, parse each `.py` once, yield the ones that read+parse.
+
+    The single parse driver that replaces the five per-scanner loops. Recurses
+    each root (`rglob`), always skips `__pycache__`, and applies the optional
+    `skip(path) -> bool` a scanner uses to drop its own out-of-scope files (test
+    files for authz, sanctioned modules for direct-write). Files that fail to read
+    or parse are silently dropped via :func:`parse_file`.
+    """
+    for root in roots:
+        for path in sorted(root.rglob("*.py")):
+            if "__pycache__" in path.parts:
+                continue
+            if skip is not None and skip(path):
+                continue
+            parsed = parse_file(path)
+            if parsed is not None:
+                yield parsed
+
+
+def decorator_name(node: ast.expr) -> str | None:
+    """Resolve a decorator node to its callable name; ``None`` if not a name.
+
+    Handles ``@x`` (``Name``), ``@x(...)`` (``Call``), and ``@a.b.c`` /
+    ``@a.b.c(...)`` (``Attribute``) — returning the final attribute/name in each.
+    The single resolver that replaces the two former ``_decorator_name`` copies
+    (which returned ``str | None`` and ``str``); ``None`` collapses to "no gate"
+    for both call sites just as the empty string did (`req-tap-tree-scanner-substrate`).
+    """
+    target = node.func if isinstance(node, ast.Call) else node
+    if isinstance(target, ast.Attribute):
+        return target.attr
+    if isinstance(target, ast.Name):
+        return target.id
+    return None
+
+
+def has_decorator(
+    node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef,
+    names: Collection[str],
+) -> bool:
+    """True if any of `node`'s decorators resolves to a name in `names`."""
+    return any(decorator_name(d) in names for d in node.decorator_list)
+
+
+def call_name(node: ast.Call) -> str | None:
+    """The called function's name — ``foo`` from ``foo(...)`` or ``x.foo(...)``."""
+    func = node.func
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    if isinstance(func, ast.Name):
+        return func.id
+    return None
+
+
+class ScopeStackVisitor(ast.NodeVisitor):
+    """`NodeVisitor` base that tracks the enclosing `def`/`class` qualname.
+
+    The single enclosing-scope walk that replaces the copy-pasted per-scanner
+    versions (`req-tap-tree-scanner-substrate`). A subclass overrides `visit_Call`
+    (or another node) and reads :meth:`current_qualname` for the drift-proof
+    ``qualname`` half of a finding's anchor (`spec-tap-callsite-identity`). A
+    subclass that needs extra per-scope bookkeeping (e.g. authz's gated-depth)
+    overrides the relevant ``visit_*`` and calls ``super().visit_*`` so the stack
+    push/pop still happens around its own logic.
+    """
+
+    def __init__(self) -> None:
+        self.scope_stack: list[str] = []
+
+    def current_qualname(self) -> str:
+        return ".".join(self.scope_stack) if self.scope_stack else "<module>"
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self.scope_stack.append(node.name)
+        self.generic_visit(node)
+        self.scope_stack.pop()
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self.scope_stack.append(node.name)
+        self.generic_visit(node)
+        self.scope_stack.pop()
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        self.scope_stack.append(node.name)
+        self.generic_visit(node)
+        self.scope_stack.pop()

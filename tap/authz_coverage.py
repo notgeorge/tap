@@ -29,7 +29,13 @@ import ast
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from tap.source_scan import semantic_hash
+from tap.source_scan import (
+    ScopeStackVisitor,
+    call_name,
+    has_decorator,
+    iter_parsed_sources,
+    semantic_hash,
+)
 
 # Privileged graph sinks that are NOT gated at their own definition — a call to one
 # must be reached through a gate, else it is ungated. `write_batch` is the
@@ -114,19 +120,9 @@ class AuthzScanResult:
     exempt_skipped: list[SinkSite] = field(default_factory=list)
 
 
-def _decorator_name(decorator: ast.expr) -> str | None:
-    """Resolve a decorator expression to its callable name (handles `@x` and `@x(...)`)."""
-    target = decorator.func if isinstance(decorator, ast.Call) else decorator
-    if isinstance(target, ast.Attribute):
-        return target.attr
-    if isinstance(target, ast.Name):
-        return target.id
-    return None
-
-
 def _is_gated_function(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
     """True if the function carries a `@requires_capability(...)` decorator."""
-    return any(_decorator_name(d) == _GATE_DECORATOR for d in node.decorator_list)
+    return has_decorator(node, {_GATE_DECORATOR})
 
 
 def _with_is_authorized(node: ast.With | ast.AsyncWith) -> bool:
@@ -141,56 +137,38 @@ def _with_is_authorized(node: ast.With | ast.AsyncWith) -> bool:
     return False
 
 
-def _call_name(node: ast.Call) -> str | None:
-    """The called function's name (`foo` from `foo(...)` or `x.foo(...)`)."""
-    func = node.func
-    if isinstance(func, ast.Attribute):
-        return func.attr
-    if isinstance(func, ast.Name):
-        return func.id
-    return None
-
-
-class _AuthzVisitor(ast.NodeVisitor):
+class _AuthzVisitor(ScopeStackVisitor):
     """Track the gated-context depth and flag sink calls reached at depth 0.
 
     Entering a `@requires_capability` function or an `authorized(...)` block
     increments the depth; a sink call seen while depth is 0 is ungated. A nested
     function inside a gated one stays covered (the outer gate authorizes the whole
     synchronous call), which matches the runtime semantics.
+
+    The enclosing-scope (`qualname`) walk is inherited from `ScopeStackVisitor`;
+    the function/`with` visitors are overridden only to layer the scanner-specific
+    `gated_depth` bookkeeping around that shared push/pop. `gated_depth` counts
+    *gated* frames and is distinct from the scope stack (which tracks every frame).
     """
 
     def __init__(self, path: Path, source_lines: list[str]) -> None:
+        super().__init__()
         self.path = path
         self.source_lines = source_lines
         self.gated_depth = 0
-        # Enclosing def/class names, for the stable `qualname` half of the key.
-        # Pushed unconditionally (name tracking) — distinct from `gated_depth`,
-        # which only counts *gated* frames.
-        self.scope_stack: list[str] = []
         self.result = AuthzScanResult()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         gated = _is_gated_function(node)
         self.gated_depth += int(gated)
-        self.scope_stack.append(node.name)
-        self.generic_visit(node)
-        self.scope_stack.pop()
+        super().visit_FunctionDef(node)
         self.gated_depth -= int(gated)
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
         gated = _is_gated_function(node)
         self.gated_depth += int(gated)
-        self.scope_stack.append(node.name)
-        self.generic_visit(node)
-        self.scope_stack.pop()
+        super().visit_AsyncFunctionDef(node)
         self.gated_depth -= int(gated)
-
-    def visit_ClassDef(self, node: ast.ClassDef) -> None:
-        # Track the class name for method qualnames; classes do not gate.
-        self.scope_stack.append(node.name)
-        self.generic_visit(node)
-        self.scope_stack.pop()
 
     def visit_With(self, node: ast.With) -> None:
         gated = _with_is_authorized(node)
@@ -205,11 +183,11 @@ class _AuthzVisitor(ast.NodeVisitor):
         self.gated_depth -= int(gated)
 
     def visit_Call(self, node: ast.Call) -> None:
-        sink = _call_name(node)
+        sink = call_name(node)
         if sink in SINK_CALLS and self.gated_depth == 0:
             lineno = node.lineno
             line = self.source_lines[lineno - 1] if 0 < lineno <= len(self.source_lines) else ""
-            qualname = ".".join(self.scope_stack) if self.scope_stack else "<module>"
+            qualname = self.current_qualname()
             site = SinkSite(self.path, lineno, qualname, sink, ast.dump(node, include_attributes=False))
             if _EXEMPT_TOKEN in line:
                 self.result.exempt_skipped.append(site)
@@ -233,20 +211,9 @@ def scan_authz_coverage(roots: list[Path]) -> AuthzScanResult:
     plugin roots.
     """
     result = AuthzScanResult()
-    for root in roots:
-        for path in sorted(root.rglob("*.py")):
-            if "__pycache__" in path.parts or _is_test_path(path):
-                continue
-            try:
-                source = path.read_text(encoding="utf-8")
-            except OSError, UnicodeDecodeError:
-                continue
-            try:
-                tree = ast.parse(source, filename=str(path))
-            except SyntaxError:
-                continue
-            visitor = _AuthzVisitor(path, source.splitlines())
-            visitor.visit(tree)
-            result.ungated_sinks.extend(visitor.result.ungated_sinks)
-            result.exempt_skipped.extend(visitor.result.exempt_skipped)
+    for parsed in iter_parsed_sources(roots, skip=_is_test_path):
+        visitor = _AuthzVisitor(parsed.path, parsed.lines)
+        visitor.visit(parsed.tree)
+        result.ungated_sinks.extend(visitor.result.ungated_sinks)
+        result.exempt_skipped.extend(visitor.result.exempt_skipped)
     return result

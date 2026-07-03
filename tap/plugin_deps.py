@@ -28,7 +28,7 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
-from tap.source_scan import first_party_source_roots
+from tap.source_scan import first_party_source_roots, iter_parsed_sources
 
 # The PEP 420 namespace every package-mode plugin imports under (req-plugin-arch-identity-3).
 NAMESPACE = "tap_plugin"
@@ -64,12 +64,8 @@ def scan_observed_imports(package_dir: Path, own_slug: str) -> set[str]:
     excluded. Unparseable files are skipped (they surface elsewhere), never fatal here.
     """
     observed: set[str] = set()
-    for py in sorted(package_dir.rglob("*.py")):
-        try:
-            tree = ast.parse(py.read_text(encoding="utf-8"))
-        except SyntaxError, UnicodeDecodeError, ValueError:
-            continue
-        for node in ast.walk(tree):
+    for parsed in iter_parsed_sources([package_dir]):
+        for node in ast.walk(parsed.tree):
             dotted_names: list[str] = []
             if isinstance(node, ast.Import):
                 dotted_names = [alias.name for alias in node.names]

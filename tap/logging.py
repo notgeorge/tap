@@ -46,7 +46,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from tap.source_scan import CallSite, semantic_hash
+from tap.source_scan import CallSite, ScopeStackVisitor, iter_parsed_sources, semantic_hash
 
 _FORMAT = "%(asctime)s %(levelname)-8s %(name)s %(pathname)s:%(lineno)d — %(message)s"
 _DATEFMT = "%Y-%m-%dT%H:%M:%S%z"
@@ -444,37 +444,23 @@ def _is_logger_level_call(call: ast.Call) -> tuple[bool, str | None]:
     return True, func.attr
 
 
-class _LogSiteVisitor(ast.NodeVisitor):
+class _LogSiteVisitor(ScopeStackVisitor):
     """Classify `logger.<level>(...)` and `getLogger(...)` calls, tracking enclosing
     scope so a violation carries a drift-proof qualname (`spec-tap-callsite-identity`).
 
-    Detection is unchanged from the previous flat `ast.walk`; the scope stack is the
-    only addition, so well-formed/malformed/noqa/missing classification is identical.
+    The enclosing-scope walk is inherited from `ScopeStackVisitor`; only `visit_Call`
+    is overridden. Detection is unchanged from the previous flat `ast.walk`, so
+    well-formed/malformed/noqa/missing classification is identical.
     """
 
     def __init__(self, path: Path, source_lines: list[str], result: ScanResult) -> None:
+        super().__init__()
         self.path = path
         self.source_lines = source_lines
         self.result = result
-        self.scope_stack: list[str] = []
 
     def _qualname(self) -> str:
-        return ".".join(self.scope_stack) if self.scope_stack else "<module>"
-
-    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
-        self.scope_stack.append(node.name)
-        self.generic_visit(node)
-        self.scope_stack.pop()
-
-    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
-        self.scope_stack.append(node.name)
-        self.generic_visit(node)
-        self.scope_stack.pop()
-
-    def visit_ClassDef(self, node: ast.ClassDef) -> None:
-        self.scope_stack.append(node.name)
-        self.generic_visit(node)
-        self.scope_stack.pop()
+        return self.current_qualname()
 
     def visit_Call(self, node: ast.Call) -> None:
         self._classify(node)
@@ -538,15 +524,6 @@ def _dump(node: ast.AST) -> str:
     return ast.dump(node, include_attributes=False)
 
 
-def _scan_file(path: Path, source: str, result: ScanResult) -> None:
-    """Scan one Python file, appending findings into `result`."""
-    try:
-        tree = ast.parse(source, filename=str(path))
-    except SyntaxError:
-        return
-    _LogSiteVisitor(path, source.splitlines(), result).visit(tree)
-
-
 def scan_log_sites(roots: list[Path]) -> ScanResult:
     """Walk each root and classify `logger.<level>(...)` call sites (Option A).
 
@@ -555,15 +532,8 @@ def scan_log_sites(roots: list[Path]) -> ScanResult:
     to derive the first-party-app + plugin roots from the project root.
     """
     result = ScanResult()
-    for root in roots:
-        for path in sorted(root.rglob("*.py")):
-            if "__pycache__" in path.parts:
-                continue
-            try:
-                source = path.read_text(encoding="utf-8")
-            except OSError, UnicodeDecodeError:
-                continue
-            _scan_file(path, source, result)
+    for parsed in iter_parsed_sources(roots):
+        _LogSiteVisitor(parsed.path, parsed.lines, result).visit(parsed.tree)
     return result
 
 

@@ -38,7 +38,7 @@ import ast
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from tap.source_scan import semantic_hash
+from tap.source_scan import ScopeStackVisitor, iter_parsed_sources, semantic_hash
 
 # Manager writes: `<Model>.objects.<method>(...)`.
 _MANAGER_WRITES: frozenset[str] = frozenset(
@@ -166,37 +166,23 @@ def _direct_write_target(call: ast.Call, names: frozenset[str]) -> tuple[str, st
     return None
 
 
-class _DirectWriteVisitor(ast.NodeVisitor):
+class _DirectWriteVisitor(ScopeStackVisitor):
+    """Flag class-level direct writes to TAP-managed models, carrying the enclosing
+    `qualname` from the shared `ScopeStackVisitor` (`req-tap-callsite-identity-anchor`)."""
+
     def __init__(self, path: Path, source_lines: list[str], names: frozenset[str]) -> None:
+        super().__init__()
         self.path = path
         self.source_lines = source_lines
         self.names = names
-        # Enclosing def/class names, for the stable `qualname` half of the anchor
-        # (`req-tap-callsite-identity-anchor`) — the same scope walk authz does.
-        self.scope_stack: list[str] = []
         self.result = DirectWriteScanResult()
-
-    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
-        self.scope_stack.append(node.name)
-        self.generic_visit(node)
-        self.scope_stack.pop()
-
-    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
-        self.scope_stack.append(node.name)
-        self.generic_visit(node)
-        self.scope_stack.pop()
-
-    def visit_ClassDef(self, node: ast.ClassDef) -> None:
-        self.scope_stack.append(node.name)
-        self.generic_visit(node)
-        self.scope_stack.pop()
 
     def visit_Call(self, node: ast.Call) -> None:
         target = _direct_write_target(node, self.names)
         if target is not None:
             model, op = target
             lineno = node.lineno
-            qualname = ".".join(self.scope_stack) if self.scope_stack else "<module>"
+            qualname = self.current_qualname()
             site = DirectWriteSite(
                 self.path,
                 lineno,
@@ -239,20 +225,9 @@ def scan_direct_writes(roots: list[Path], tap_model_names: frozenset[str]) -> Di
     that fail to parse are skipped (real syntax errors surface elsewhere).
     """
     result = DirectWriteScanResult()
-    for root in roots:
-        for path in sorted(root.rglob("*.py")):
-            if "__pycache__" in path.parts or _is_out_of_scope(path):
-                continue
-            try:
-                source = path.read_text(encoding="utf-8")
-            except OSError, UnicodeDecodeError:
-                continue
-            try:
-                tree = ast.parse(source, filename=str(path))
-            except SyntaxError:
-                continue
-            visitor = _DirectWriteVisitor(path, source.splitlines(), tap_model_names)
-            visitor.visit(tree)
-            result.direct_writes.extend(visitor.result.direct_writes)
-            result.exempt_skipped.extend(visitor.result.exempt_skipped)
+    for parsed in iter_parsed_sources(roots, skip=_is_out_of_scope):
+        visitor = _DirectWriteVisitor(parsed.path, parsed.lines, tap_model_names)
+        visitor.visit(parsed.tree)
+        result.direct_writes.extend(visitor.result.direct_writes)
+        result.exempt_skipped.extend(visitor.result.exempt_skipped)
     return result
