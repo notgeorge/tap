@@ -17,6 +17,7 @@ This design follows mature UI extension patterns without copying code:
 - WordPress `add_menu_page` treats menu visibility capability as separate from the target page's own authorization. TAP keeps the same invariant: showing a chrome entry is UX; activating its target still authorizes normally. Source: <https://developer.wordpress.org/reference/functions/add_menu_page/>
 - Turbo and Inertia both establish persistent app-shell patterns where layout/chrome can survive page visits. TAP adapts the lifecycle shape while retaining server-rendered Django templates. Sources: <https://turbo.hotwired.dev/handbook/building>, <https://inertiajs.com/docs/v3/the-basics/layouts>
 - HTMX supports fragment refresh via triggers such as periodic polling and out-of-band swaps. TAP uses that for chrome signals/badges instead of introducing a push channel in v1. Sources: <https://htmx.org/attributes/hx-trigger/>, <https://htmx.org/attributes/hx-swap-oob/>
+- WAI-ARIA Authoring Practices and WCAG define the accessibility floor for navigation, breadcrumbs, menu buttons, dialogs, keyboard access, focus visibility, status updates, contrast, and target size. TAP adapts those patterns directly rather than inventing custom ARIA behavior. Sources: <https://www.w3.org/WAI/ARIA/apg/patterns/breadcrumb/>, <https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/>, <https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/>, <https://www.w3.org/WAI/WCAG22/quickref/>
 
 ## Goals
 
@@ -28,6 +29,7 @@ This design follows mature UI extension patterns without copying code:
 | 4. | Secure | Graph-backed chrome is absent before Page/chrome read authorization; visibility never replaces target authorization. |
 | 5. | Explicit | Entry placement, activation, shortcut bindings, and live signal refresh are separate contracts. |
 | 6. | Conservative | V1 uses server-rendered fragments, Django/static assets, and HTMX-compatible refresh; no new dependency is required. |
+| 7. | Accessible | Chrome entries are keyboard-operable, screen-reader legible, and aligned with WAI-ARIA/WCAG patterns. |
 
 ## Requirement Status
 
@@ -37,6 +39,7 @@ This design follows mature UI extension patterns without copying code:
 | req-web-chrome-authz | [Chrome Authorization Boundary](#chrome-authorization-boundary) | Proposed | Graph-backed chrome activates only after Page/chrome read authorization |
 | req-web-chrome-entry | [Chrome Entry Objects](#chrome-entry-objects) | Proposed | Panel-like graph objects mounted into chrome regions |
 | req-web-chrome-entry-types | [Chrome Entry Type Registry](#chrome-entry-type-registry) | Proposed | Registered entry types own rendering, assets, and activation interpretation |
+| req-web-chrome-accessibility | [Chrome Accessibility](#chrome-accessibility) | Proposed | Chrome surfaces and entries follow native HTML, WAI-ARIA, WCAG, and keyboard/focus contracts |
 | req-web-chrome-placement | [Chrome Entry Placement](#chrome-entry-placement) | Proposed | Surface layout plus hotlink-style edges bind entries to slots |
 | req-web-chrome-activation | [Chrome Entry Activation](#chrome-entry-activation) | Proposed | Activation is optional and explicit; `null` means inert |
 | req-web-chrome-shortcuts | [Chrome Shortcuts](#chrome-shortcuts) | Proposed | Optional shortcut bindings dispatch entry activation through one central listener |
@@ -191,6 +194,67 @@ This mirrors the Panel asset decision: instance-level asset overrides invite dri
 | req-web-chrome-entry-types-2 | Type Owns Assets | Proposed | Static assets come from the entry type, not the entry instance. | |
 | req-web-chrome-entry-types-3 | Local Assets Only | Proposed | Entry assets resolve through local Django static paths. | |
 | req-web-chrome-entry-types-4 | Config Validation | Proposed | Type-specific config is validated before render. | |
+
+
+### Chrome Accessibility
+----
+RID: `req-web-chrome-accessibility`
+Status: `Proposed`
+
+Chrome surfaces and entries must be accessible by construction. Every built-in and plugin-provided `ChromeEntryType` must define the semantic, keyboard, focus, and announcement behavior needed for disabled users, following native HTML first and WAI-ARIA/WCAG patterns where native elements are insufficient.
+
+#### Implementation
+
+- Prefer native HTML controls and landmarks before ARIA:
+  - use `<a>` for navigation;
+  - use `<button>` for actions;
+  - use `<header>`, `<nav>`, and `<main>` for shell landmarks;
+  - use standard form controls for interactive inputs.
+- ARIA is additive, not decorative. Entry types must not add ARIA roles/states that contradict native semantics.
+- `ChromeSurface` rendering provides:
+  - a labelled application/header navigation landmark where appropriate;
+  - a stable `<main>` or equivalent page-host landmark for Page content;
+  - a route for keyboard users to move from persistent chrome to page content without traversing every chrome control on every page transition.
+- Breadcrumb navigation follows the WAI-ARIA breadcrumb pattern:
+  - the breadcrumb is inside a labelled `nav`;
+  - the current page segment uses `aria-current="page"` when it is represented in the breadcrumb;
+  - separators are not exposed as misleading interactive content unless they are actual controls.
+- Menu/disclosure-style entries, such as the user menu and breadcrumb popovers, follow menu-button/disclosure semantics:
+  - the trigger is a button or native disclosure control;
+  - expanded/collapsed state is communicated;
+  - Escape closes the popup;
+  - focus behavior is predictable and returns to the trigger when appropriate.
+- Overlay entries, such as the command palette, follow modal dialog behavior:
+  - focus moves into the overlay on open;
+  - Tab and Shift-Tab stay within the overlay while modal;
+  - Escape closes the overlay;
+  - focus returns to the invoker on close.
+- Every activation reachable by pointer must be reachable by keyboard, except activation explicitly marked non-interactive (`activation: null`).
+- Focus indicators must be visible and must not be obscured by sticky chrome.
+- Text, icons conveying meaning, badges, and focus indicators must meet WCAG contrast expectations.
+- Interactive chrome targets must be sized and spaced to meet WCAG 2.2 target-size expectations unless an explicit exception applies.
+- Chrome signals/badges must not spam assistive technology:
+  - routine polling updates are quiet by default;
+  - important state changes may use a polite status/live region;
+  - urgent interruptions require a deliberately specified reason.
+- `ChromeEntryType` definitions document their accessible name source, role/landmark behavior, state attributes, keyboard interactions, focus behavior, and live-announcement behavior when applicable.
+
+#### Development
+
+Chrome is persistent and shared by every Page, so accessibility defects here multiply across the application. The right time to specify this is before entry types proliferate. This is not a full accessibility program or certification claim; it is the platform contract that prevents custom chrome entries from silently bypassing keyboard and screen-reader basics.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-web-chrome-accessibility-1 | Native First | Proposed | Entry renderers use native semantic elements before ARIA roles. | |
+| req-web-chrome-accessibility-2 | Entry Type Contract | Proposed | Each `ChromeEntryType` declares accessible name, role/state, keyboard, focus, and live-announcement behavior as applicable. | |
+| req-web-chrome-accessibility-3 | Landmarks | Proposed | The surface exposes labelled chrome/navigation landmarks and a stable page host landmark. | |
+| req-web-chrome-accessibility-4 | Keyboard Operable | Proposed | Interactive chrome entries are operable by keyboard and protect typing contexts. | Cross-ref `req-web-chrome-shortcuts`. |
+| req-web-chrome-accessibility-5 | Focus Managed | Proposed | Popovers/overlays manage focus predictably and return focus to the invoker when appropriate. | |
+| req-web-chrome-accessibility-6 | Current Location Communicated | Proposed | Breadcrumb/current-location entries communicate current state with `aria-current` or an equivalent pattern. | |
+| req-web-chrome-accessibility-7 | Signals Announce Deliberately | Proposed | Signal refreshes are quiet by default and use live/status regions only for deliberate user-facing changes. | |
+| req-web-chrome-accessibility-8 | Contrast And Target Size | Proposed | Chrome controls, meaningful icons, badges, and focus indicators meet WCAG contrast and target-size expectations. | |
 
 
 ### Chrome Entry Placement
