@@ -146,7 +146,6 @@ tap_grid/hotlink.py:type-arg:2
 tap_grid/management/commands/purge_entities.py:no-untyped-def:2
 tap_grid/management/commands/runserver_nocache.py:no-untyped-def:2
 tap_grid/models.py:attr-defined:3
-tap_grid/models.py:import-untyped:4
 tap_grid/models.py:no-any-return:2
 tap_grid/models.py:type-arg:25
 tap_grid/models.py:unused-ignore:2
@@ -189,7 +188,6 @@ tap_grid/tests/test_hotlink.py:no-untyped-call:23
 tap_grid/tests/test_hotlink.py:type-arg:3
 tap_grid/tests/test_hotlink.py:var-annotated:1
 tap_grid/tests/test_icon.py:attr-defined:1
-tap_grid/tests/test_models.py:attr-defined:2
 tap_grid/tests/test_models.py:misc:5
 tap_grid/tests/test_models.py:no-untyped-call:9
 tap_grid/tests/test_observation_writes.py:return-value:1

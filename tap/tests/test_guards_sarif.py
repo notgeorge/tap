@@ -9,6 +9,7 @@ on the real discovered guards.
 from __future__ import annotations
 
 import json
+from typing import Any
 
 import pytest
 
@@ -62,7 +63,7 @@ def stub_guard(tmp_path):
 
 def test_sarif_envelope(stub_guard):
     guard, _suppressed, _active = stub_guard
-    doc = render_sarif([guard])
+    doc: Any = render_sarif([guard])  # SARIF is JSON-shaped; navigate loosely in tests
 
     assert doc["version"] == "2.1.0"
     assert "sarif-schema-2.1.0" in str(doc["$schema"])
@@ -78,7 +79,8 @@ def test_sarif_envelope(stub_guard):
 
 def test_sarif_result_field_mapping(stub_guard):
     guard, suppressed, active = stub_guard
-    results = render_sarif([guard])["runs"][0]["results"]
+    doc: Any = render_sarif([guard])
+    results = doc["runs"][0]["results"]
     assert len(results) == 2
     by_fp = {r["partialFingerprints"][_FINGERPRINT_KEY]: r for r in results}
 
@@ -97,7 +99,8 @@ def test_sarif_result_field_mapping(stub_guard):
 
 def test_sarif_baselined_is_suppressed(stub_guard):
     guard, suppressed, active = stub_guard
-    results = render_sarif([guard])["runs"][0]["results"]
+    doc: Any = render_sarif([guard])
+    results = doc["runs"][0]["results"]
     by_fp = {r["partialFingerprints"][_FINGERPRINT_KEY]: r for r in results}
 
     supp = by_fp[suppressed.occurrence_key]
@@ -113,7 +116,7 @@ def test_sarif_baselined_is_suppressed(stub_guard):
 def test_sarif_over_real_guards_is_wellformed():
     """The real discovered guards render a valid envelope; the two migrated callsite
     scanners appear as rules (results are empty on a green tree)."""
-    doc = render_sarif()
+    doc: Any = render_sarif()
     assert doc["version"] == "2.1.0"
     run = doc["runs"][0]
     rule_ids = {r["id"] for r in run["tool"]["driver"]["rules"]}
