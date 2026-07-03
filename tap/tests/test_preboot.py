@@ -268,7 +268,7 @@ def test_build_baked_matches_installed_apps() -> None:
 
 def test_shipped_profiles_exist() -> None:
     """Sanity: the enumeration found the real boot/ profiles (not an empty glob)."""
-    assert "base" in _SHIPPED_PROFILE_IDS
+    assert "test_all" in _SHIPPED_PROFILE_IDS
     assert "samsite" in _SHIPPED_PROFILE_IDS
 
 

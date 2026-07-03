@@ -38,8 +38,8 @@ uv sync --all-packages
 # aborts here, before any schema mutation, leaving the DB untouched (req-boot-preboot).
 # It is the Kubernetes initContainers shape: a run-to-completion stage before the
 # main process. `manage.py boot` (population) still runs at spawn time.
-echo "==> Pre-boot: installing declared plugins + pre-migrate snapshot (profile: ${TAP_BOOT_PROFILE:-base})..."
-if ! TAP_PLUGINS="$(uv run python -m tap.preboot --profile "${TAP_BOOT_PROFILE:-base}")"; then
+echo "==> Pre-boot: installing declared plugins + pre-migrate snapshot (profile: ${TAP_BOOT_PROFILE:-core_dev})..."
+if ! TAP_PLUGINS="$(uv run python -m tap.preboot --profile "${TAP_BOOT_PROFILE:-core_dev}")"; then
     echo "FATAL: pre-boot stage failed; aborting standup before migrate (DB untouched)." >&2
     exit 1
 fi

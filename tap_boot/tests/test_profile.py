@@ -37,8 +37,8 @@ def test_load_real_samsite_profile_parses_steps():
     assert profile.has_population
 
 
-def test_base_profile_is_seed_only():
-    profile = load_profile("base")
+def test_test_all_profile_is_seed_only():
+    profile = load_profile("test_all")
     assert all(isinstance(s, SeedPluginStep) for s in profile.steps)
     assert profile.has_population
 

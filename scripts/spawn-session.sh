@@ -99,7 +99,8 @@ Spawn a new isolated TAP dev session. The positional args, in order, are:
                   If omitted, the script prompts for it interactively.
   <boot-profile>  which boot/<profile>.boot.json \`manage.py boot\` applies to
                   this session (e.g. \`samsite\`). Optional — omit it and the
-                  session boots the \`base\` profile. What a profile declares and
+                  session boots the \`core_dev\` profile (core + grid_fixtures,
+                  the minimal inner-loop baseline). What a profile declares and
                   how boot applies it lives in spec-tap-boot-v0.md, not here.
 The launch target (cli|codex|vscode) is recognized by value, so it may sit
 anywhere among the positionals; the two free-form words are <name> then
@@ -442,8 +443,10 @@ PY
 )"
 # TAP_BOOT_PROFILE names which boot/<id>.boot.json `manage.py boot` applies in Step 6.
 # It is chosen explicitly per spawn via `--boot <profile>`; an empty value means
-# Step 6 falls back to the seed-all, no-collectors `base` profile — a plain spawn
-# seeds every plugin but reaches out to nothing. See specs/spec-tap-boot-v0.md.
+# Step 6 falls back to the minimal `core_dev` profile (core + grid_fixtures) — a
+# plain spawn stands up the lean inner-loop baseline and reaches out to nothing.
+# `core` is the zero-plugin product baseline; `test_all` is the test union. See
+# specs/spec-tap-boot-v0.md (req-boot-minimal-baseline).
 # TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE=false disables the pre-boot pre-migrate
 # snapshot in dev worktrees (req-boot-snapshot-2): dev DBs reset freely, so the
 # restore point is pure overhead. The env override wins over the profile's
@@ -577,13 +580,13 @@ echo
 # resolved password is written to .dev-credentials (gitignored) — the runtime
 # interface the attached Claude / developer reads on demand.
 #
-# Profile default: the explicit `--boot` profile if given, else `base`
-# (seed-all / no-collectors) — a plain spawn seeds every plugin but reaches out
-# to nothing.
+# Profile default: the explicit `--boot` profile if given, else `core_dev`
+# (core + grid_fixtures) — a plain spawn stands up the lean inner-loop baseline
+# and reaches out to nothing.
 # ============================================================================
 bold "Step 6: Standing the instance up (manage.py boot)"
 
-BOOT_PROFILE_EFFECTIVE="${BOOT_PROFILE:-base}"
+BOOT_PROFILE_EFFECTIVE="${BOOT_PROFILE:-core_dev}"
 
 # Resolution order matches req-dev-multisession-admin-bootstrap.
 # (--admin-password CLI flag isn't supported in v1; add later if needed.)

@@ -26,8 +26,10 @@ known-broken manifest):
   3. profiles:resolve          every shipped boot profile resolves against the
                                registries (the per-profile cold-boot smoke; catches
                                the module-path→slug fire-collector rot class).
-  4. seed:boot-base            run the real `base` boot (auth → strict seed →
-                               collector-node reconcile). A failed bundle fails.
+  4. seed:boot-test_all        run the real `test_all` boot (auth → strict seed →
+                               collector-node reconcile) — the union superset, so
+                               the seed path is exercised across every plugin. A
+                               failed bundle fails.
   5. collector:cycle           one real collector reaches a terminal CollectionJob
                                state through the REAL DB-backed backend + in-process
                                drain (never ImmediateBackend), the scheduler queue is
@@ -120,7 +122,11 @@ class Command(BaseCommand):
             GateStep("schema:migrate", "Fresh DB → createcachetable → migrate from zero", self._step_migrate),
             GateStep("schema:makemigrations", "makemigrations --check (no model drift)", self._step_makemigrations),
             GateStep("profiles:resolve", "Every shipped boot profile resolves", self._step_profiles_resolve),
-            GateStep("seed:boot-base", "Real `base` boot (auth → strict seed → reconcile)", self._step_boot_base),
+            GateStep(
+                "seed:boot-test_all",
+                "Real `test_all` (union) boot (auth → strict seed → reconcile)",
+                self._step_boot_test_all,
+            ),
             GateStep("collector:cycle", "One real collector cycle via the real backend", self._step_collector_cycle),
             GateStep("health", "Assembled-instance health (db / cache / queue / secrets)", self._step_health),
         ]
@@ -253,15 +259,15 @@ class Command(BaseCommand):
                 raise GateStepFailed(f"profile '{profile_id}' does not resolve against the registries: {exc}") from exc
         return f"{len(ids)} profile(s) resolved: {', '.join(ids)}"
 
-    def _step_boot_base(self, _cmd: Command) -> str:
+    def _step_boot_test_all(self, _cmd: Command) -> str:
         from tap_boot.orchestrator import BootError, run_boot
         from tap_boot.profile import load_profile
 
         try:
-            run_boot(load_profile("base"), echo=lambda _m: None)
+            run_boot(load_profile("test_all"), echo=lambda _m: None)
         except BootError as exc:
-            raise GateStepFailed(f"base boot failed: {exc}") from exc
-        return "base profile booted (auth + strict seed + collector reconcile)"
+            raise GateStepFailed(f"test_all boot failed: {exc}") from exc
+        return "test_all (union) profile booted (auth + strict seed + collector reconcile)"
 
     def _step_collector_cycle(self, _cmd: Command) -> str:
         from tap_auth.actors import BOOTLOADER, acting_as, get_builtin_actor
