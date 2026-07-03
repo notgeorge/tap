@@ -36,7 +36,7 @@ The validator is a TAP feature, not a third-party lint layer. It should live ins
 | req-plugin-validate-strict | [Strict Mode](#strict-mode) | Implemented | Warnings may be promoted to failure |
 | req-plugin-validate-help | [Help Output](#help-output) | Implemented | `-h` and `--help` provide a man-page-style help screen |
 | req-plugin-validate-exit | [Exit Codes](#exit-codes) | Implemented | Stable process exit behavior |
-| req-plugin-validate-future | [Future Work](#future-work) | Proposed | Directory-of-plugins mode and richer output deferred |
+| req-plugin-validate-future | [Future Work](#future-work) | Proposed | Directory-of-plugins mode, richer output, and unifying validate/pre-boot enforcement deferred |
 
 ### Validation Scope
 ----
@@ -233,6 +233,8 @@ The `identity-coherence` check (structure level, no Django) verifies, for a pack
 
 The check reuses `dist_name_for_slug`, `NAMESPACE_PACKAGE`, and `TAP_PLUGINS_ENTRY_POINT_GROUP` from `tap/preboot.py` rather than re-deriving the conventions. Legacy flat plugins (manifest at the plugin root, no `tap_plugin/` namespace and no `pyproject.toml`) predate the identity chain and are reported as *not applicable* (pass) rather than failed.
 
+This check and the pre-boot `conformance_gate` currently enforce the identity chain in parallel (source tree vs installed metadata). Unifying them onto one implementation is a named, deliberate deferral — see req-plugin-validate-future.
+
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
@@ -260,6 +262,8 @@ The `declared-dependencies` check (structure level, no Django) computes:
 - `declared` — the slugs in the manifest's `depends_on` (`tap.plugin_deps.read_declared_depends_on`).
 
 The check fails for each slug in `observed - declared` (an undeclared import). Declared-but-unimported edges (pure data/vocabulary dependencies — e.g. one plugin seeding another plugin's node types by string reference, never importing it) are legitimate and reported as informational, not flagged. The check reuses `tap.plugin_deps` — the same scanner the pre-boot guard uses.
+
+This check and the pre-boot `dependency_consistency_guard` currently enforce declared-dependency coverage in parallel (single plugin at author time vs whole profile at boot). Unifying them onto one implementation is a named, deliberate deferral — see req-plugin-validate-future.
 
 #### Acceptance Criteria
 
@@ -468,5 +472,6 @@ The following items are explicitly deferred:
 - validating a directory of plugins in one invocation
 - validating that manifest-declared model types have corresponding database tables and migration state required for plugin load
 - richer machine-readable output variants beyond the v0 result schema
+- **unifying enforcement across the source-tree and installed-metadata surfaces.** The `identity-coherence` (req-plugin-validate-identity) and `declared-dependencies` (req-plugin-validate-deps) checks enforce the same conventions that the pre-boot `conformance_gate` and `dependency_consistency_guard` (`tap/preboot.py`) enforce — the validator from the on-disk source tree at author time, the gates from installed distribution metadata at boot. Today the two surfaces re-derive those rules in parallel. The deliberate next step is to have the pre-boot gates *call* the validator's per-plugin checks (adding only the cross-plugin, whole-profile layer — install order, version bounds, profile-set membership — on top) so a single implementation is the source of truth and the two surfaces cannot drift. This is intentionally deferred, not overlooked: the parallel enforcement is cheap and correct for now, and both surfaces already share the lower-level primitives (`dist_name_for_slug`, `NAMESPACE_PACKAGE`, `tap.plugin_deps`), which bounds the drift risk.
 
 These are future expansions of the validator, not requirements for the initial authoring workflow.
