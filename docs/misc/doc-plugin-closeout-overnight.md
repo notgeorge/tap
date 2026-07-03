@@ -42,7 +42,18 @@ Do **not** start until ALL of:
 1. Confirm last-standing (registry + `git branch -r` / sibling worktrees).
 2. Merge fresh `origin/main` into `session/plugins`; resolve conflicts.
 3. Rebuild + reset: `scripts/dc up -d --build web`, drop stale `test_*` DBs, `scripts/dc exec web uv sync`.
-4. Run the FULL lane (`scripts/test`) on the merged base. **Must be green before touching anything.**
+4. **Merge gotchas — main now carries the validation session's dev-validation harness.** Expect and handle:
+   - **mypy ratchet trips on merge.** Merging the (un-mypy-gated) `main` history into the gated tree
+     reliably flags this session's new files (test-fixture / skill / doc-adjacent noise). Confirm the
+     NEW-key diff is noise (`no-untyped-call` in tests, `import-not-found` for un-vendored libs), then
+     re-baseline: `scripts/dc exec web uv run python manage.py guards --sync-mypy`.
+   - **Validation Map is generated.** If any step below adds/changes a validation surface (a gate step,
+     a lane), add its guard (`tap.guards`, one file, carries `slug`/`map_row`/`rid`/`cadence`/`status`/
+     `description`) or `DECLARED_SURFACES` entry, then `manage.py guards --sync-map`; the `rid` must
+     resolve to a defined requirement. `test_spec_map_in_sync` + `test_guard_rid_resolves` enforce it.
+   - **The promote path may now run more.** Cold-boot gate + known-broken manifest + promote-hook are on
+     main; check `scripts/promote-to-main.sh` behavior after the merge (it may cold-boot / gate before push).
+5. Run the FULL lane (`scripts/test`) on the merged base. **Must be green before touching anything.**
    If red on merge (someone else's breakage), stop and report — do not build on red.
 
 ## Phase 1 — Bank the staged work (low risk, do first)
@@ -86,23 +97,51 @@ sigstore `sigstore_`/`rekor_` kept). No ratification step remains.
 Sizing: ~90 node + ~77 edge types across 6 plugins, dominated by string-reference substitution the
 suite validates. A full night's execute-and-validate — provided it runs uncontended.
 
-## Phase 3 — Minimal-baseline follow-on (SUPERVISED — out of autonomous scope)
+## Phase 3 — Minimal baseline flip + lean-boot independence gate
 
-`req-boot-minimal-baseline` ACs 3/4/5. **Not** part of the overnight run: it rewires the test/promote
-workflow (the FULL lane's "one container, everything imported" model), which wants human review. Left
-here so the full close-out set is captured. When picked up (supervised):
+`req-boot-minimal-baseline` ACs 3/4/5. **Decisions ratified 2026-07-02:** default spawn → `core_dev`;
+`base` → `test_all` (the union). **No per-plugin profiles, no tiered test runner** — the validation
+session's suite-tiers handoff (`~/tap-sessions/validation-creation/docs/misc/doc-dev-validation-suite-tiers-handoff.md`)
+establishes why lean *test lanes* are infeasible: pytest discovery is pure file-path (an absent plugin's
+test files **hard-error at collection**, no `importorskip`), `test_settings` sees the *installed venv*
+not a profile, and some core suites still hardcode plugin fixtures. Conclusion (theirs, and now ours):
+**tests = superset (`test_all`), production profiles minimal, bridge via the cold-boot gate.** A
+plugin's standalone-test profile is a *plugin-owned* artifact (`plugins/<slug>/*.boot.json`, booted via
+`spawn --boot-file`) created only when that plugin needs standalone testing — **zero created now**.
 
-1. Repoint the default spawn/entrypoint profile `base → core` (`spawn-session.sh`, `docker-entrypoint`
-   default, docs, the `test_shipped_profiles_exist`/tap_boot tests that reference `"base"`).
-2. Retire `base`: rename → `test_all` (the transitional union); point the FULL-lane/promote-gate test
-   invocation at `test_all` explicitly (it can no longer rely on the default, which is now empty `core`).
-3. Tier plugin tests into per-plugin profiles (`core` + `grid_fixtures` + one plugin each — the
-   `gryphon` profile is the pattern); reclassify fleet-asserting tests (e.g.
-   `tap_plugins/tests/test_report.py`) to the `test_all` tier. Restructure `scripts/test` to run the
-   tiers (core_dev / per-plugin / test_all).
-4. Remove `base`/`test_all` once every tier has a home. Mark the ACs Implemented.
+### The high-value piece: lean-boot independence in the cold-boot gate
 
-Pairs with `req-dev-validation-suite-tiers`.
+The cold-boot gate (built, on main — `tap_boot/management/commands/cold_boot_gate.py`) today
+`profiles:resolve`s *every* shipped profile but only **full-boots `base`** (`seed:boot-base`). Resolve
+does not install+import, and `base` has every plugin — so the gate **would not have caught tonight's
+`requests`/`jwt`** import leakage. The precise, cheap, high-value change:
+
+- **Full-boot a LEAN profile on the scratch DB** — add a step (or repoint `seed:boot-base`) that stands
+  up `core` (or `core_dev`) with no plugins present, exercising the core import path in isolation. That
+  is exactly what catches the `requests`/`jwt` class. Keep a full-profile boot too for seed-path coverage.
+- This **touches the validation surface** → follow the handoff's rules: add/adjust the guard
+  (`tap.guards` — one file, carries `slug`/`map_row`/`rid`/`cadence`/`status`/`description`) or a
+  `DECLARED_SURFACES` entry (`tap/guards/surfaces.py`), then `manage.py guards --sync-map`; the `rid`
+  must resolve to a defined requirement. Meta-tests (`test_spec_map_in_sync`, `test_guard_rid_resolves`)
+  enforce it. **Coordinate — the gate + Map are the validation session's; extend, don't duplicate.**
+
+### The flip
+
+1. Rename `base → test_all` (the union; its install set is the superset, so pytest discovery finds
+   every plugin's tests). Keep `base` as a momentary copy/alias only if needed to avoid mid-flight breakage.
+2. Repoint the default spawn/entrypoint `base → core_dev`; update every `"base"` reference
+   (`spawn-session.sh` default, `docker/entrypoint.sh` `TAP_BOOT_PROFILE:-base`, the tap_boot tests that
+   load/assert `"base"`, docs). The full lane / promote gate runs against a `test_all`-booted container.
+3. `scripts/test` is otherwise **unchanged** (still runs the union in one container — the tiered runner
+   is deliberately NOT built). Promote; mark `req-boot-minimal-baseline` ACs Implemented.
+
+### Optional stretch — gryphon as its own lane (`req-dev-validation-suite-tiers-1`)
+
+The dominant full-lane time sink is the `gryphon_playground` corpus; `--fast` already excludes it by
+path. The principled version = named `core`/`gryphon`/full lanes. The handoff flagged this as blocked on
+gryphon being build-baked — **stale**: `BUILD_BAKED_PLUGIN_SLUGS` is empty, gryphon is package-mode, so
+it may now be free. Touches the validation surface (guard + Map). Do only if Phases 2–3 land clean with
+time to spare. Pairs with `req-dev-validation-suite-tiers`.
 
 ## Explicitly NOT in this close-out
 
@@ -111,9 +150,24 @@ Pairs with `req-dev-validation-suite-tiers`.
   app-interdependency reduction.
 - Slim-install / airgapped wheelhouse — backlog, demand-gated.
 
-## Definition of done (overnight = Phases 0–2)
+## Definition of done
 
-`origin/main` carries: the gryphon/core/core_dev profiles + the auth-deps fix + the specs (Phase 1),
-and the completed type-ownership sweep with the collision lint flipped to fail-CI (Phase 2) — all
-behind green FULL lanes, each phase atomically promoted. Phase 3 remains open as a supervised
-follow-on with a clear status note if anything stuck.
+Sequenced, each phase atomically promoted behind a green FULL lane:
+
+- **Phases 0–1:** the gryphon/core/core_dev profiles + the auth-deps fix + the specs on `origin/main`.
+- **Phase 2 (flagship):** the type-ownership sweep complete, collision lint flipped to fail-CI.
+- **Phase 3:** default → `core_dev`, `base` → `test_all`, and the cold-boot gate full-boots a lean
+  profile (the `requests`/`jwt` independence check) — coordinated with the validation conventions.
+
+Phases are ordered by risk/value: bank the staged work, then the sweep, then the baseline flip. If a
+phase can't converge, **stop, reset to last green, leave the tree clean, and report** — later phases
+run only if their preconditions still hold. Phase 3's flip must not land without the merged tree green.
+
+## Wishlist / smaller follow-ons (not blocking; do if convenient)
+
+- **Shell tab-completion** for `spawn-session.sh` (boot-profile arg → complete against `boot/*.boot.json`
+  ids) and `despawn-session.sh` (session-name arg → complete against the `~/tap-sessions/.registry`
+  rows). A bash/zsh completion script under `scripts/`, sourced from the shell profile.
+- **Move `boot/gryphon.boot.json` into `plugins/gryphon_playground/`** as that plugin's standalone-test
+  profile (booted via `spawn --boot-file`), if we adopt the plugin-owned-profile convention uniformly —
+  or leave it top-level as the "play" profile. Minor; a judgment call.

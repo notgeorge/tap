@@ -87,6 +87,7 @@ trap on_failure EXIT
 # ---------------------------------------------------------------------------
 LAUNCH_TARGET=""
 BOOT_PROFILE=""
+BOOT_FILE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help)
@@ -116,6 +117,13 @@ The launch target auto-attaches an editor after spawn completes:
 (handy in scripts / to avoid positional ambiguity). See
 specs/spec-tap-boot-v0.md.
 
+\`--boot-file <path>\` boots an arbitrary \`*.boot.json\` file that need NOT live in
+the repo's boot/ dir — it is staged into the new worktree's boot/ under its
+basename id and booted. Use it to stand up a profile that lives anywhere: a
+plugin's own standalone-test profile (\`plugins/<slug>/<name>.boot.json\`), or a
+scratch/experimental profile, without committing it to boot/. Mutually
+exclusive with --boot / the positional boot-profile.
+
 Examples:
   $0                              # interactive, plain boot, no auto-launch
   $0 fix-arrangements             # named, plain boot
@@ -123,6 +131,8 @@ Examples:
   $0 samsite-boot cli samsite     # named + Claude + fire the samsite collectors
   $0 samsite-boot samsite         # named + fire the samsite collectors (no editor)
   $0 demo cli --boot samsite      # same, explicit-flag form
+  $0 aws-standalone --boot-file plugins/aws_core/standalone.boot.json
+                                  # boot a plugin's own profile from its directory
 
 Spec: req-dev-multisession-spawn-script in specs/spec-dev-multisession.md
 EOF
@@ -136,6 +146,16 @@ EOF
       ;;
     --boot=*)
       BOOT_PROFILE="${1#--boot=}"
+      shift
+      ;;
+    --boot-file)
+      shift
+      [[ $# -gt 0 ]] || fail "--boot-file requires a path to a *.boot.json file."
+      BOOT_FILE="$1"
+      shift
+      ;;
+    --boot-file=*)
+      BOOT_FILE="${1#--boot-file=}"
       shift
       ;;
     -*) fail "Unknown flag: $1" ;;
@@ -158,6 +178,22 @@ EOF
       ;;
   esac
 done
+
+# --boot-file: validate + resolve the path NOW (before any `cd`), while relative
+# paths still resolve against the invocation CWD. The file is staged into the new
+# worktree's boot/ in Step 2 so both pre-boot and `manage.py boot` read it by id.
+# Lets a profile that lives anywhere (a plugin's own standalone-test profile, a
+# scratch file) boot without being committed to the repo's boot/ dir.
+BOOT_FILE_ID=""
+if [[ -n "$BOOT_FILE" ]]; then
+  [[ -z "$BOOT_PROFILE" ]] || fail "--boot-file and --boot/<boot-profile> are mutually exclusive."
+  [[ -f "$BOOT_FILE" ]] || fail "--boot-file: no such file: '$BOOT_FILE'"
+  [[ "$BOOT_FILE" == *.boot.json ]] || fail "--boot-file: expected a '*.boot.json' file, got: '$BOOT_FILE'"
+  BOOT_FILE="$(cd "$(dirname "$BOOT_FILE")" && pwd)/$(basename "$BOOT_FILE")"
+  BOOT_FILE_ID="$(basename "$BOOT_FILE" .boot.json)"
+  [[ "$BOOT_FILE_ID" =~ ^[a-zA-Z0-9._-]+$ ]] \
+    || fail "--boot-file: profile id derived from the filename is invalid: '$BOOT_FILE_ID' (use [A-Za-z0-9._-])."
+fi
 
 cd "$REPO"
 
@@ -361,6 +397,18 @@ bold "Step 2: Creating worktree at $WORKTREE"
 git worktree add "$WORKTREE" -b "session/$SESSION_NAME" main
 cd "$WORKTREE"
 info "Created. Now on branch session/$SESSION_NAME (branched from main)."
+
+# --boot-file: stage the provided profile into this worktree's boot/ under its
+# basename id, then boot it like any named profile. The staged copy is a local,
+# uncommitted file in the throwaway worktree (fine — it goes away on despawn).
+if [[ -n "$BOOT_FILE" ]]; then
+  if [[ -f "$WORKTREE/boot/$BOOT_FILE_ID.boot.json" ]]; then
+    warn "--boot-file id '$BOOT_FILE_ID' shadows an existing boot/ profile in this worktree; using the provided file."
+  fi
+  cp "$BOOT_FILE" "$WORKTREE/boot/$BOOT_FILE_ID.boot.json"
+  BOOT_PROFILE="$BOOT_FILE_ID"
+  info "Staged --boot-file -> boot/$BOOT_FILE_ID.boot.json; booting profile '$BOOT_FILE_ID'."
+fi
 
 # ============================================================================
 # Step 3: Write .env.local

@@ -234,8 +234,8 @@ Test tiering is the corollary: the FULL lane's "one container, everything import
 | req-boot-minimal-baseline-1 | Core Is Zero-Plugin | Implemented | `boot/core.boot.json` declares no plugins and boots healthy (reconciliation `0==0`, `TAP_PLUGINS` empty). | Live-verified via throwaway spawn. |
 | req-boot-minimal-baseline-2 | Core-Dev Test Tier | Implemented | `boot/core_dev.boot.json` = `core` + `grid_fixtures` only; the profile the core suites boot against. | |
 | req-boot-minimal-baseline-3 | Additive Profiles | Proposed | Every non-core profile is `core` + an explicit plugin set; no profile installs "everything" by default. | |
-| req-boot-minimal-baseline-4 | Default Repoint | Proposed | The default spawn / entrypoint profile is repointed from `base` to `core`. | Needs the test invocation to explicitly boot the union/tier instead of relying on the default. |
-| req-boot-minimal-baseline-5 | Retire Base | Proposed | `base` is retired: renamed to `test_all` as the transitional union while plugin tests are tiered, then removed once every tier has a home. | Blocked on test tiering (`req-dev-validation-suite-tiers`). |
+| req-boot-minimal-baseline-4 | Default Repoint | Proposed | The default spawn / entrypoint profile is repointed from `base` to `core_dev` (fast inner-loop: core + grid_fixtures). `core` is the explicit product baseline. | The full lane / promote gate explicitly boots `test_all`, not the default. |
+| req-boot-minimal-baseline-5 | Retire Base → test_all | Proposed | `base` is renamed to `test_all`: the **permanent union** the suite runs against. Lean per-profile *test lanes* are infeasible (pytest discovery is file-path — an absent plugin's tests hard-error at collection; `test_settings` sees the installed venv, not a profile), so the union stays. Core independence is bridged by the cold-boot gate **full-booting a lean profile** (`core`/`core_dev`) on a scratch DB — the `requests`/`jwt` class. A plugin's standalone-test profile is plugin-owned (`plugins/<slug>/*.boot.json`, `spawn --boot-file`), created only on demand. | Coordinate with `req-dev-validation-suite-tiers` (the gate + Map are the validation session's). |
 
 ---
 
