@@ -176,7 +176,7 @@ class _FakeSession:
 @pytest.fixture
 def _stub_aws(monkeypatch):
     secret = Secret(
-        ref=SecretRef(scope="aws", key="boto_collector"),
+        ref=SecretRef(scope="aws_core", key="boto_collector"),
         kind="aws_static_access_key",
         description="test",
         data={

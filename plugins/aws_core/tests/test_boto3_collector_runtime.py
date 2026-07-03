@@ -26,7 +26,7 @@ from tap_cares.exceptions import SecretNotFoundError
 from tap_cares.registry import collector_registry
 from tap_cares.secrets.models import Secret, SecretRef
 
-_REF = SecretRef(scope="aws", key="boto_collector")
+_REF = SecretRef(scope="aws_core", key="boto_collector")
 
 
 def _secret(kind: str, data: dict) -> Secret:

@@ -17,9 +17,11 @@ from tap_cares.secrets import SecretRef, require_secret_kind, resolve_secret
 from tap_cares.secrets.models import Secret
 
 # The well-known SecretRef for the github_core collector. v0 has no per-
-# instance config; the operator drops `github/collector.secret.json` under
+# instance config; the operator drops `github_core/collector.secret.json` under
 # TAP_SECRETS_ROOT (no plugin config in core infra — operator-owned, off-grid).
-GITHUB_SECRET_REF = SecretRef(scope="github", key="collector")
+# `scope` names the consuming plugin's slug, not the credential provider
+# (req-tap-cares-secrets-consumer-scoping).
+GITHUB_SECRET_REF = SecretRef(scope="github_core", key="collector")
 GITHUB_SECRET_KIND = "github_pat"
 
 # github_core owns this schema for the kind's `data` (req-github-core-secret-2).

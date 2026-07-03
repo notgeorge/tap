@@ -270,7 +270,7 @@ class TestSelfTest:
         from tap_cares.exceptions import SecretNotFoundError
 
         def _raise(_ref):
-            raise SecretNotFoundError("github/collector secret not found")
+            raise SecretNotFoundError("github_core/collector secret not found")
 
         monkeypatch.setattr(mod, "resolve_github_secret", _raise)
         result = mod.GithubCollector.self_test()
@@ -300,7 +300,7 @@ class TestSelfTest:
 
         def _good_secret(_ref):
             return Secret(
-                ref=SecretRef(scope="github", key="collector"),
+                ref=SecretRef(scope="github_core", key="collector"),
                 kind="github_pat",
                 description="test",
                 data={"token": "ghp_x", "repos": ["good/repo", "bad/repo"]},

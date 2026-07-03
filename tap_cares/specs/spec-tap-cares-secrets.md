@@ -30,7 +30,7 @@ The grid may eventually know about secret references, health, usage, policy, and
 | req-tap-cares-secrets-validation | [Consumer Validation](#consumer-validation) | Implemented | Consumers validate kind-specific secret data |
 | req-tap-cares-secrets-redaction | [Redaction And Failure Behavior](#redaction-and-failure-behavior) | Implemented | Secret material must not leak into logs or run records |
 | req-tap-cares-secrets-consumer-kinds | [Consumer-Defined Secret Kinds](#consumer-defined-secret-kinds) | Implemented | Kind `data` shapes are owned by consuming plugin/collector specs, not here |
-| req-tap-cares-secrets-consumer-scoping | [Consumer-First Scoping](#consumer-first-scoping) | Proposed | `scope` names *who consumes* the secret (owner namespace), not the provider; `kind` carries the type. Directories stay non-semantic |
+| req-tap-cares-secrets-consumer-scoping | [Consumer-First Scoping](#consumer-first-scoping) | Implemented | `scope` names *who consumes* the secret (owner namespace = plugin `<slug>` / app / install-system label), not the provider; `kind` carries the type. Directories stay non-semantic |
 | req-tap-cares-secrets-conditional-validation | [Conditional Validation Lives In Health Probes](#conditional-validation-lives-in-health-probes) | Implemented | Whether a secret is *needed* is per-consumer conditional logic owned by health probes, not a static declaration; tap_cares owns only generic file-level load/format |
 | req-tap-cares-secrets-rotation | [Rotation Semantics](#rotation-semantics) | Implemented | v0 is restart-to-rotate; atomic reload / staleness / rotation-due are named-deferred |
 | req-tap-cares-secrets-leak-guard | [Source-Control Leak Guard](#source-control-leak-guard) | Implemented | A committed `*.secret.json` (or an envelope-shaped file outside the mount) fails a CI-guarded scan — push-protection beyond `.gitignore` |
@@ -213,10 +213,10 @@ structural load failure. Absent, the default applies.
 
 ```json
 {
-  "scope": "aws",
+  "scope": "aws_core",
   "key": "prod-readonly",
   "kind": "aws_static_access_key",
-  "description": "Read-only AWS credentials used by the TAP AWS inventory collector.",
+  "description": "Read-only AWS credentials used by the TAP aws_core collector.",
   "data": {
     "access_key_id": "AKIA...",
     "secret_access_key": "...",
@@ -251,7 +251,7 @@ tap-cares exposes an internal `secret_registry` backed by TAP's existing `Scoped
 Consumers should use typed helpers rather than raw strings:
 
 ```python
-ref = SecretRef(scope="aws", key="prod-readonly")
+ref = SecretRef(scope="aws_core", key="prod-readonly")
 secret = resolve_secret(ref)
 ```
 
@@ -337,7 +337,7 @@ generic subsystem carries no AWS-specific shape.
 ## Consumer-First Scoping
 ----
 RID: `req-tap-cares-secrets-consumer-scoping`
-Status: `Proposed`
+Status: `Implemented`
 
 The `scope` field names **who consumes** a secret — the owning plugin/service — **not** which
 provider issued the credential. The store is organized by consumer, not by credential type. This is
@@ -345,39 +345,43 @@ the axis-separation that keeps the store legible as it grows: a single provider 
 several consumers, and one consumer can hold credentials from several providers, so keying by
 consumer is stable where keying by provider is not.
 
-- **`scope` = the consumer's canonical namespace.** For a plugin, that is `tap_plugin/<slug>` — which
+- **`scope` = the consumer's canonical namespace.** For a plugin, that is its **`<slug>`** — which
   rides the slug's conformance-gated uniqueness (`req-plugin-arch-slug-register`,
-  `doc-plugin-slug-load-bearing`), so the secret namespace inherits collision-freedom for free. For a
-  core app, it is the app label (`tap_auth`, `tap_plugins`, `tap_cares`). `scope` may be
-  **multi-segment** (`tap_plugin/aws_core`).
+  `doc-plugin-slug-load-bearing`), so the secret namespace inherits collision-freedom for free. The
+  slug alone is already globally unique, so the `tap_plugin/` Python-package prefix is redundant in the
+  secret namespace and is omitted (`github_core`, not `tap_plugin/github_core`). For a core app or an
+  install *system*, it is the app/system label (`tap_auth`, `tap_cares`, `tap_plugins/source`). `scope`
+  may be **multi-segment** (`tap_plugins/source`).
 - **`kind` still carries the credential *type*** (`github_pat`, `aws_static_access_key`). Location and
   type are orthogonal axes: **the `scope` says who uses it; the `kind` says what it is.** So two
   consumers can hold the same `kind` under different `scope`s, each validating with its own
   `data_schema` (`req-tap-cares-secrets-consumer-kinds`).
 - **Infrastructure credentials belong to the app that consumes them, not to a plugin.** The plugin
   *source-install* credential (the git PAT the pre-boot installer uses) is owned by the install
-  system, so its `scope` is `tap_plugins/source` — **not** `tap_plugin/<slug>/…`. A plugin must never
+  system, so its `scope` is `tap_plugins/source` — **not** under a plugin's `<slug>`. A plugin must never
   be able to resolve the credential that installs its siblings.
 - **This is a convention on the `scope` *value*, not a change to `req-tap-cares-secrets-files-4`.**
   Directories stay non-semantic: the `scope`/`key` *fields* remain authoritative (recursively
   discovered), and the directory layout only mirrors `scope` for human navigation. `key` still
   matches the basename (`req-tap-cares-secrets-files-5`).
 
-**Legacy.** The existing `github/collector` and `aws/boto_collector` secrets are *provider-first*
-(`scope` = provider). They migrate to consumer-first (`github_core/collector`,
-`aws_core/boto_collector`) — non-urgent, and cheap because directories are non-semantic: update the
-file's `scope`/`key` fields, its `SecretRef` callsite, and move the file.
+**Legacy — migrated 2026-07-03.** The former `github/collector` and `aws/boto_collector` secrets were
+*provider-first* (`scope` = provider). They are now consumer-first (`github_core/collector`,
+`aws_core/boto_collector`): the file's `scope` field, its `SecretRef` callsite, and the file location
+were updated together. There is no dual-support window — `scope` is authoritative (recursively
+discovered), so code and envelope move atomically. `auth` (an app, not a plugin) and
+`tap_plugins/source` (infra, not a plugin) were deliberately left as-is.
 
 ### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-secrets-consumer-scoping-1 | Scope Is The Consumer | Proposed | `scope` names the owning consumer's canonical namespace, not the issuing provider. | |
-| req-tap-cares-secrets-consumer-scoping-2 | Namespace Form | Proposed | Plugins scope under `tap_plugin/<slug>` (rides slug uniqueness); core apps under the app label; `scope` may be multi-segment. | |
-| req-tap-cares-secrets-consumer-scoping-3 | Kind Carries The Type | Proposed | The credential type stays in `kind`; it is orthogonal to `scope`. Same `kind`, different `scope`s, per-consumer `data_schema`. | |
-| req-tap-cares-secrets-consumer-scoping-4 | Infra Is App-Owned | Proposed | An infrastructure credential is scoped to the app that consumes it (e.g. `tap_plugins/source`), never under a plugin's namespace. | Least privilege: a plugin cannot resolve its siblings' install credential. |
-| req-tap-cares-secrets-consumer-scoping-5 | Directory Stays Non-Semantic | Proposed | This is a convention on the `scope` value; `req-tap-cares-secrets-files-4`/`-5` are unchanged (fields authoritative, basename==key). | |
-| req-tap-cares-secrets-consumer-scoping-6 | Legacy Migration | Proposed | Existing provider-scoped secrets (`github/collector`, `aws/boto_collector`) migrate to consumer-first; non-urgent. | Cheap: fields + `SecretRef` callsite + file move. |
+| req-tap-cares-secrets-consumer-scoping-1 | Scope Is The Consumer | Implemented | `scope` names the owning consumer's canonical namespace, not the issuing provider. | |
+| req-tap-cares-secrets-consumer-scoping-2 | Namespace Form | Implemented | Plugins scope under their `<slug>` (bare — the slug is already globally unique, so the `tap_plugin/` package prefix is omitted); core apps / install systems under the app/system label; `scope` may be multi-segment (`tap_plugins/source`). | |
+| req-tap-cares-secrets-consumer-scoping-3 | Kind Carries The Type | Implemented | The credential type stays in `kind`; it is orthogonal to `scope`. Same `kind`, different `scope`s, per-consumer `data_schema`. | |
+| req-tap-cares-secrets-consumer-scoping-4 | Infra Is App-Owned | Implemented | An infrastructure credential is scoped to the app that consumes it (e.g. `tap_plugins/source`), never under a plugin's namespace. | Least privilege: a plugin cannot resolve its siblings' install credential. |
+| req-tap-cares-secrets-consumer-scoping-5 | Directory Stays Non-Semantic | Implemented | This is a convention on the `scope` value; `req-tap-cares-secrets-files-4`/`-5` are unchanged (fields authoritative, basename==key). | |
+| req-tap-cares-secrets-consumer-scoping-6 | Legacy Migration | Implemented | The former provider-scoped `github/collector`, `aws/boto_collector` are now consumer-first (`github_core/collector`, `aws_core/boto_collector`), migrated 2026-07-03. | Fields + `SecretRef` callsites + file moves; `auth`/`tap_plugins/source` left as-is (app/infra, not plugins). |
 
 ## Conditional Validation Lives In Health Probes
 ----
