@@ -51,13 +51,9 @@ logger = logging.getLogger(__name__)
 # external module genuinely imports (settings → discover_entry_points; tap_plugins →
 # dist_name_for_slug / NAMESPACE_PACKAGE / TAP_PLUGINS_ENTRY_POINT_GROUP) plus the CLI
 # orchestration entry (run_preboot / main) and the fatal-condition contract
-# (PrebootError). Every other helper is `_`-sealed.
-#
-# COORDINATION RESIDUAL: `is_satisfied` and `uv_install_args` are internal helpers
-# that *should* be sealed too, but the plugins session is actively editing both in
-# d90f5886 (wheelhouse source type). Sealing them now would collide on exactly that
-# edit surface, so they are left public and the ceiling ratchet tracks them as the two
-# known leaked defs — sealed in a follow-up once d90f5886 lands on main.
+# (PrebootError). Every other helper — install, is-satisfied, uv-install-args, the
+# identity / reconciliation / dependency / coherence guards, snapshot — is `_`-sealed.
+# Leaked surface is zero; the ceiling ratchet holds it there.
 __all__ = [
     "PrebootError",
     "NAMESPACE_PACKAGE",
@@ -221,7 +217,7 @@ def _installed_git_rev(dist: importlib.metadata.Distribution) -> str | None:
     return vcs.get("commit_id") or vcs.get("requested_revision")
 
 
-def is_satisfied(entry: dict[str, Any]) -> bool:
+def _is_satisfied(entry: dict[str, Any]) -> bool:
     """True if the plugin is already installed to the requested source (`req-boot-preboot-3`).
 
     git: satisfied when the installed VCS commit matches the pinned rev (reboot no-op,
@@ -242,7 +238,7 @@ def is_satisfied(entry: dict[str, Any]) -> bool:
     return True  # editable / path: presence is enough
 
 
-def uv_install_args(entry: dict[str, Any]) -> list[str]:
+def _uv_install_args(entry: dict[str, Any]) -> list[str]:
     """Build the ``uv pip install`` argument list for one plugin source."""
     source = entry["source"]
     stype = source["type"]
@@ -303,7 +299,7 @@ def _install_plugins(entries: list[dict[str, Any]]) -> None:
     secrets_root = _secrets_root()
     for entry in entries:
         slug = entry["slug"]
-        if is_satisfied(entry):
+        if _is_satisfied(entry):
             logger.info("[a245] pre-boot install: '%s' already satisfied — no-op", slug)
             continue
         try:
@@ -313,7 +309,7 @@ def _install_plugins(entries: list[dict[str, Any]]) -> None:
             raise PrebootError(f"plugin '{slug}' source credential could not be resolved: {exc}") from exc
         if cred is not None:
             logger.info("[9934] pre-boot install: '%s' authenticating to %s as %s", slug, cred.host, cred.username)
-        args = uv_install_args(entry)
+        args = _uv_install_args(entry)
         logger.info("[a83c] pre-boot install: '%s' via %s", slug, " ".join(args))
         result = _run_install(args, cred)
         if result.returncode != 0:

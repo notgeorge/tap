@@ -66,13 +66,13 @@ def test_dist_name_for_slug() -> None:
 
 def test_uv_install_args_git() -> None:
     entry = {"slug": "genericom", "source": {"type": "git", "url": "https://x/y.git", "rev": "abc123"}}
-    args = preboot.uv_install_args(entry)
+    args = preboot._uv_install_args(entry)
     assert args == ["uv", "pip", "install", "tap-plugin-genericom @ git+https://x/y.git@abc123"]
 
 
 def test_uv_install_args_editable() -> None:
     entry = {"slug": "genericom", "source": {"type": "editable", "path": "plugins/genericom"}}
-    args = preboot.uv_install_args(entry)
+    args = preboot._uv_install_args(entry)
     assert args[:4] == ["uv", "pip", "install", "--editable"]
     assert args[4].endswith("plugins/genericom")
 
@@ -82,7 +82,7 @@ def test_uv_install_args_wheelhouse_relative_dir() -> None:
         "slug": "fedramp_20x_ksi",
         "source": {"type": "wheelhouse", "dir": "wheelhouse", "version": "0.1.1"},
     }
-    args = preboot.uv_install_args(entry)
+    args = preboot._uv_install_args(entry)
     assert args[:5] == ["uv", "pip", "install", "--no-index", "--find-links"]
     assert args[5].endswith("/wheelhouse")  # resolved under the repo root
     assert args[6] == "tap-plugin-fedramp-20x-ksi==0.1.1"
@@ -93,17 +93,22 @@ def test_uv_install_args_wheelhouse_absolute_dir_used_as_is() -> None:
         "slug": "fedramp_20x_ksi",
         "source": {"type": "wheelhouse", "dir": "/run/tap-wheelhouse", "version": "0.1.1"},
     }
-    args = preboot.uv_install_args(entry)
+    args = preboot._uv_install_args(entry)
     assert args == [
-        "uv", "pip", "install", "--no-index", "--find-links",
-        "/run/tap-wheelhouse", "tap-plugin-fedramp-20x-ksi==0.1.1",
+        "uv",
+        "pip",
+        "install",
+        "--no-index",
+        "--find-links",
+        "/run/tap-wheelhouse",
+        "tap-plugin-fedramp-20x-ksi==0.1.1",
     ]
 
 
 def test_uv_install_args_unknown_source_raises() -> None:
     entry = {"slug": "x", "source": {"type": "svn"}}
     with pytest.raises(preboot.PrebootError):
-        preboot.uv_install_args(entry)
+        preboot._uv_install_args(entry)
 
 
 # --- Profile reading (req-boot-install-section-2) ----------------------------

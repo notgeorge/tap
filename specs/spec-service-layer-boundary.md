@@ -475,12 +475,13 @@ The defense is therefore *surface minimization*, mechanically enforced:
   over `tap/preboot.py`, `tap_boot/orchestrator.py`, `tap_boot/profile.py`. AST-only (these
   modules run pre-Django, so the guard must read them without importing). Baseline
   `tap/guards/baselines/public_surface.txt`.
-- **Sealed:** pre-boot's ~16 internal orchestration helpers are `_`-prefixed; its `__all__`
+- **Sealed:** all of pre-boot's internal orchestration helpers are `_`-prefixed; its `__all__`
   is the 4 genuinely-imported names + CLI entry + `PrebootError`. `tap_boot.orchestrator`
   exports only `BootError`/`check_profile`/`run_boot`; `tap_boot.profile` exports its profile
-  contract. Leaked surface at adoption: two pre-boot helpers (`is_satisfied`,
-  `uv_install_args`) held public as a **named coordination residual** (a parallel session is
-  editing both) — to be sealed once that lands, shrinking the baseline to zero.
+  contract. **Leaked surface is zero** — the baseline is empty and the ratchet holds it there.
+  (The two helpers a parallel session was editing, `is_satisfied` / `uv_install_args`, were
+  briefly held as a named baseline residual; once that work was consolidated onto this branch
+  they were sealed with the rest.)
 
 #### Acceptance Criteria
 
@@ -488,7 +489,7 @@ The defense is therefore *surface minimization*, mechanically enforced:
 | --- | --- | :---: | --- | --- |
 | req-service-boundary-family-b-surface-1 | Minimal Declared Surface | Proposed | Each un-gateable Family-B module declares an `__all__` limited to genuinely-imported API, its CLI/orchestration entry, and its error contract; all other helpers are `_`-sealed. | pre-boot, `tap_boot.orchestrator`, `tap_boot.profile`. |
 | req-service-boundary-family-b-surface-2 | Surface Ratchets To Zero | Proposed | A ceiling ratchet freezes the public (non-`_`) top-level def/class NOT in `__all__` (leaked surface) and permits only shrink; a new public helper fails. | `tap/guards/public_surface.py`. |
-| req-service-boundary-family-b-surface-3 | Named Residual, Not Hidden | Proposed | Any helper left public for coordination is recorded in the baseline with the reason, not silently exempted. | `is_satisfied`/`uv_install_args` (d90f5886). |
+| req-service-boundary-family-b-surface-3 | Named Residual, Not Hidden | Proposed | Any helper left public for coordination is recorded in the baseline with the reason, not silently exempted. | None currently; the mechanism was exercised for `is_satisfied`/`uv_install_args` then cleared to zero. |
 
 ---
 

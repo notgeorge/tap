@@ -2,9 +2,7 @@
 # One entry per public (non-_) top-level def/class NOT in its module's __all__.
 # See tap/guards/public_surface.py (req-service-boundary-family-b-surface).
 #
-# These two are the deliberate d90f5886 COORDINATION RESIDUAL: internal pre-boot
-# helpers that should be `_`-sealed, but the plugins session is actively editing both
-# in d90f5886 (wheelhouse source type). Sealing them now would collide on exactly that
-# edit surface. Seal them (delete these two lines) once d90f5886 lands on main.
-tap/preboot.py:is_satisfied
-tap/preboot.py:uv_install_args
+# EMPTY: the pre-boot / boot public surface is fully sealed. Every non-`_` top-level
+# def/class in tap/preboot.py, tap_boot/orchestrator.py, tap_boot/profile.py is in its
+# module's __all__. A new public helper on these un-gateable layers must appear here
+# (last resort) or, far more likely, be `_`-sealed — the ratchet permits only shrink.
