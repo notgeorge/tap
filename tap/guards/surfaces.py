@@ -131,6 +131,13 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
         enforced_by="`tap_boot/management/commands/cold_boot_gate.py`",
     ),
     DeclaredSurface(
+        surface="Lean-boot core independence (import-leakage class)",
+        rid="req-dev-validation-lean-boot",
+        cadence="Pre-push (`scripts/gate-lean`, wired into `promote-to-main.sh`)",
+        status="Gate-guarded",
+        enforced_by="`scripts/gate-lean` (isolated `tap_leanboot` stack, core-only venv; catches core→plugin-dep imports the full-venv cold-boot gate cannot)",
+    ),
+    DeclaredSurface(
         surface="Migration completeness (`makemigrations --check`)",
         rid="req-dev-validation-smoke-gate",
         cadence="Pre-push (`cold_boot_gate` step `schema:makemigrations`)",

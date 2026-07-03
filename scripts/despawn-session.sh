@@ -86,7 +86,10 @@ fi
 
 [[ -n "$SESSION_NAME" ]] || { err "Session name required"; exit 1; }
 
-WORKTREE="$HOME/tap-sessions/$SESSION_NAME"
+# WORKTREE_BASE mirrors spawn-session.sh: a session spawned into an alternate
+# base (e.g. the lean-boot gate's tmp dir) is torn down by name from that same
+# base. Default ~/tap-sessions preserves existing behaviour.
+WORKTREE="${WORKTREE_BASE:-$HOME/tap-sessions}/$SESSION_NAME"
 PROJECT="tap_${SESSION_NAME}"
 
 # ---------------------------------------------------------------------------

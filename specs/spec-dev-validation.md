@@ -25,6 +25,7 @@ The discipline running through every requirement here is honest coverage account
 | req-dev-validation-map | [Validation Map](#validation-map) | Implemented | The spine: authoritative inventory of every validation surface |
 | req-dev-validation-smoke-gate | [Cold-Boot Smoke Gate](#cold-boot-smoke-gate) | Implemented | Ordered cold-boot-one-cycle, halt-on-failure (`manage.py cold_boot_gate` / `scripts/gate`) |
 | req-dev-validation-real-backend | [Real-Backend Fidelity](#real-backend-fidelity) | Implemented | Gate runs the real task backend, never `ImmediateBackend` |
+| req-dev-validation-lean-boot | [Lean-Boot Independence Gate](#lean-boot-independence-gate) | Implemented | Fresh, isolated, lean-installed stack boots `core`; catches core→plugin-dep import leakage (`scripts/gate-lean`) |
 | req-dev-validation-canary-tier | [Canary Test Tier](#canary-test-tier) | Proposed | `-m smoke` blast-radius subset; does not substitute for the gate |
 | req-dev-validation-known-broken | [Known-Broken Manifest](#known-broken-manifest) | Implemented | In-repo, ratchets down; named here as the house convention |
 | req-dev-validation-collection-complete | [Collection Completeness](#collection-completeness) | Implemented | Every test file on disk is collected by the gate run; discovery not an allow-list; validates the validator |
@@ -83,6 +84,7 @@ block. Rich per-surface rationale lives in each owning spec and in each guard's
 | Gryphon fuzz-campaign ledger | `req-gridkin-fuzz-campaign` | On-demand script, loopable for hours | Manual (CI-unguarded by design) — trend instrument, not a gate | `scripts/gryphon-fuzz-campaign`; ledger `gridkin/fuzz-campaign-log.jsonl` |
 | Gryphon metamorphic TLP | `req-gridkin-metamorphic-tlp` | Per-commit (`pytest`) | CI-guarded | `plugins/gryphon_playground/tests/test_gryphon_metamorphic.py` |
 | JSON-file naming | `req-tap-json-naming` | Per-commit (`pytest`) | CI-guarded | `tap.guards.json_naming` (via `tap/tests/test_guards.py`) |
+| Lean-boot core independence (import-leakage class) | `req-dev-validation-lean-boot` | Pre-push (`scripts/gate-lean`, wired into `promote-to-main.sh`) | Gate-guarded | `scripts/gate-lean` (isolated `tap_leanboot` stack, core-only venv; catches core→plugin-dep imports the full-venv cold-boot gate cannot) |
 | Log-site tokens | `req-tap-logging-site-id-scanner` | Per-commit (`pytest`) | CI-guarded | `tap.guards.log_site_baseline`, `tap.guards.log_site_format`, `tap.guards.log_site_uniqueness` (via `tap/tests/test_guards.py`) |
 | Migration completeness (`makemigrations --check`) | `req-dev-validation-smoke-gate` | Pre-push (`cold_boot_gate` step `schema:makemigrations`) | Gate-guarded | `cold_boot_gate` step `schema:makemigrations` |
 | Per-profile boot resolution | `req-dev-validation-smoke-gate` | Per-commit (`pytest`) + pre-push (`cold_boot_gate`) | CI-guarded + Gate-guarded | `tap_boot.guards.profile_resolution` (via `tap/tests/test_guards.py`) |
@@ -388,12 +390,38 @@ at the promote gate and not on every save.
 | req-dev-validation-suite-tiers-3 | Profiled, not guessed | Proposed | `slow` designations follow from `--durations` evidence, not intuition. | |
 | req-dev-validation-suite-tiers-4 | Impact lane is not a gate | Proposed | Any test-impact/affected selection accelerates the inner loop only; the pre-push gate always runs the full lane. | Counters the substitution-backend blind spot. |
 
+### Lean-Boot Independence Gate
+----
+RID: `req-dev-validation-lean-boot`
+Status: `Implemented`
+
+The cold-boot gate ([Cold-Boot Smoke Gate](#cold-boot-smoke-gate)) runs inside the **already-running stack's venv** — a per-compose-project named volume (`venv:/app/.venv`) that holds whatever the container's boot profile installed (the full `test_all` union under the promote gate). That venv-sharing is a **structural blind spot** for one failure class: a **core** (`tap_*`) module that imports a **plugin-only** dependency (e.g. `requests`, `jwt`, `boto3`). In a full venv the leaked package is already importable, so the import silently succeeds and the leak stays invisible — yet a real **lean deployment** (the `core` product baseline, a customer with a minimal plugin set, or a plugin evicted to its own repo) would fail to boot with `ModuleNotFoundError`. Booting `core` *in-process* inside the full-venv gate has **zero teeth** here; only a genuinely separate, lean-**installed** environment catches it.
+
+**As built.** `scripts/gate-lean` stands up a **throwaway session in its own compose project** (`tap_leanboot`) — which gives it its **own `venv` named volume**, i.e. a **core-only virtualenv** — via the real spawn-off-`main` path (`scripts/spawn-session.sh --boot core`, worktree written under `WORKTREE_BASE` in system tmp, non-interactive). It boots the zero-plugin `core` profile and gates on `manage.py health`. Because the venv is core-only, any core module that reaches for a plugin-only dependency fails at pre-boot / migrate / boot — exactly the class the in-container gate cannot see. On **any** exit the throwaway is nuked (containers, volumes, networks, worktree, branch, registry row) via `despawn-session.sh --yes` (a commitless throwaway is always CLEAN); on **failure** diagnostics (`compose ps` + web logs) are captured to a sibling `*-diag.log` **before** teardown so a red gate is debuggable — deeper post-mortem via the `/diagnose-failed-session-spawn` skill. Proven both directions on build: `core` boots healthy in isolation (GREEN, ~clean teardown, zero residue), and an injected core `import boto3` is caught RED with the `ModuleNotFoundError` captured to the diag log.
+
+This is the second half of `req-boot-minimal-baseline-5` (spec-tap-boot-v0.md): the baseline flip made `core` the product baseline and the union a test-only tier; this gate is what keeps `core` **honestly** bootable in isolation as the code evolves.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-dev-validation-lean-boot-1 | Isolated lean venv | Implemented | The gate boots in a separate compose project so the venv is a fresh, core-only install — not the running stack's full venv. | `scripts/gate-lean` → `tap_leanboot` project → own `venv` volume. The venv-sharing blind spot is the whole reason it exists. |
+| req-dev-validation-lean-boot-2 | Real spawn standup path | Implemented | The gate exercises the actual `spawn-session.sh` standup (build → pre-boot → migrate → boot → health), not a bespoke reimplementation. | Faithful to the path a real spawn / customer standup takes; also transitively smoke-tests `spawn-session.sh`. Branches the throwaway from the invoking worktree's **HEAD** (`TAP_SPAWN_BASE_REF`), so under a promote it tests the just-merged tree — the exact tree about to become `origin/main`, which local `main` does not yet point at. |
+| req-dev-validation-lean-boot-3 | Catches import leakage | Implemented | A core module importing a plugin-only dependency fails the gate. | Verified: an injected `import boto3` in a core module → RED with `ModuleNotFoundError: No module named 'boto3'` captured. |
+| req-dev-validation-lean-boot-4 | Bulletproof teardown | Implemented | On any exit (success, failure, interrupt) the throwaway is fully nuked; no containers/volumes/worktree/branch/registry residue. | Trap → `despawn-session.sh --yes` with an inline `compose down -v` + `worktree remove` fallback. Throwaway lives in system tmp, never `~/tap-sessions`. |
+| req-dev-validation-lean-boot-5 | Diagnose before nuke | Implemented | On failure, diagnostics are captured to a durable log before teardown so a red gate is debuggable. | Sibling `*-diag.log` (survives the worktree nuke); `/diagnose-failed-session-spawn` skill for the post-mortem. |
+
+#### Future
+
+- **Fast-fail on crash-loop.** A leak currently surfaces via the spawn's 300s readiness timeout, not an immediate abort. Acceptable for a rare-event gate; a fast-fail on repeated container crash would tighten the red-path latency.
+- **Profile matrix.** Today the gate boots `core` (strictest signal). A follow-on could sweep `core` + `core_dev` (and, once plugins are evicted, a representative lean customer profile) if a leak class emerges that only a non-empty lean set exposes.
+
 ### Promote-Path Enforcement
 ----
 RID: `req-dev-validation-promote-hook`
 Status: `Implemented`
 
-The promote path MUST run the gate before advancing `origin/main` and refuse to push on red. This covers `scripts/promote-to-main.sh`, `scripts/promote-all-sessions.sh` (via the per-session script), and the documented manual fallback sequence. **As built the promote path composes two validation surfaces** (Step 2.5): the **full pytest lane** (`scripts/test`) — which catches unit/functional regressions the cold-boot cycle structurally cannot (e.g. a stale collector key red'ing a unit test — the exact class that shipped to `main` red *because no promote gate existed yet*: the 2026-07-02 collector-identity refactor left the module-path key in `test_orchestrator.py`'s `_KSI_COLLECTOR` fixture, and the ungated promote published it) — then the **cold-boot gate** (`scripts/gate`). Both must be green; either red aborts before the atomic push. This is the reciprocal of `req-dev-multisession-promote-gate` in [spec-dev-multisession.md](spec-dev-multisession.md): that spec owns the requirement *on the promote workflow*; this requirement owns the gate *contract it invokes*. The two cross-reference and MUST stay consistent.
+The promote path MUST run the gate before advancing `origin/main` and refuse to push on red. This covers `scripts/promote-to-main.sh`, `scripts/promote-all-sessions.sh` (via the per-session script), and the documented manual fallback sequence. **As built the promote path composes three validation surfaces** (Step 2.5): the **full pytest lane** (`scripts/test`) — which catches unit/functional regressions the cold-boot cycle structurally cannot (e.g. a stale collector key red'ing a unit test — the exact class that shipped to `main` red *because no promote gate existed yet*: the 2026-07-02 collector-identity refactor left the module-path key in `test_orchestrator.py`'s `_KSI_COLLECTOR` fixture, and the ungated promote published it) — then the **cold-boot gate** (`scripts/gate`), then the **lean-boot independence gate** (`scripts/gate-lean`, [above](#lean-boot-independence-gate)) which catches the core→plugin-dep import-leakage class the full-venv cold-boot gate structurally cannot. All three must be green; any red aborts before the atomic push. This is the reciprocal of `req-dev-multisession-promote-gate` in [spec-dev-multisession.md](spec-dev-multisession.md): that spec owns the requirement *on the promote workflow*; this requirement owns the gate *contract it invokes*. The two cross-reference and MUST stay consistent.
 
 The gate runs after the pre-push merge (so it validates the exact tree that will become `origin/main`) and before the atomic dual-refspec push. On red, the push does not happen and the failure is reported; `origin/main` is never advanced past a tree that failed the gate. This is the mechanical enforcement of the otherwise prose-only "no messy/broken state to main" discipline that protects every spawned session.
 
@@ -401,7 +429,7 @@ The gate runs after the pre-push merge (so it validates the exact tree that will
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-dev-validation-promote-hook-1 | Gate before push | Implemented | The promote path runs the gate after the pre-push merge and before the atomic push. | `scripts/promote-to-main.sh` Step 2.5 (after merge, before atomic push). Validates the exact tree that becomes `origin/main`. |
+| req-dev-validation-promote-hook-1 | Gate before push | Implemented | The promote path runs the gate after the pre-push merge and before the atomic push. | `scripts/promote-to-main.sh` Step 2.5 (after merge, before atomic push): full lane → cold-boot gate → lean-boot gate. Validates the exact tree that becomes `origin/main`. |
 | req-dev-validation-promote-hook-2 | Red blocks the push | Implemented | A failing gate aborts the promote; `origin/main` is not advanced. | `scripts/gate` non-zero → `fail` before Step 3. |
 | req-dev-validation-promote-hook-3 | Covers script and fallback | Implemented | Enforcement applies to `promote-to-main.sh`, the all-sessions orchestrator, and the documented manual sequence. | `promote-all-sessions.sh` calls `promote-to-main.sh` per session (transitive). |
 | req-dev-validation-promote-hook-4 | Reciprocal consistency | Implemented | This requirement and `req-dev-multisession-promote-gate` cross-reference and stay consistent; neither restates the other's substance. | |

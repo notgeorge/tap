@@ -212,6 +212,10 @@ if [[ "$(uname)" != "Darwin" ]]; then
   info "Not macOS — Keychain step skipped. Falling back to env var or random per session."
 elif security find-generic-password -s tap-dev-default -a admin >/dev/null 2>&1; then
   info "Already set in Keychain (tap-dev-default / admin). Skipping."
+elif [[ -n "${TAP_DEV_ADMIN_PASSWORD:-}" ]]; then
+  info "TAP_DEV_ADMIN_PASSWORD set in env — env wins the resolution ladder; skipping the Keychain stash prompt."
+elif [[ ! -t 0 ]]; then
+  info "Non-interactive (no TTY on stdin) — skipping the Keychain stash prompt; a random per-session password is generated."
 else
   info "No 'tap-dev-default' Keychain entry found."
   info "Stash a stable admin password? Skipping is fine — a random one will be generated"
@@ -311,7 +315,12 @@ done
 
 info "Allocated: tap_$SESSION_NAME / web=$WEB_PORT / db=$POSTGRES_PORT"
 
-WORKTREE="$HOME/tap-sessions/$SESSION_NAME"
+# WORKTREE_BASE overrides where the worktree is written (default: ~/tap-sessions).
+# A throwaway consumer (e.g. the lean-boot independence gate) points this at the
+# system tmp dir so a disposable session never clutters ~/tap-sessions. Registry
+# keys by unique name, so tmp + home spawns coexist. despawn-session.sh honours
+# the SAME override, so a tmp-dir session stays teardownable by name.
+WORKTREE="${WORKTREE_BASE:-$HOME/tap-sessions}/$SESSION_NAME"
 [[ ! -e "$WORKTREE" ]] || fail "Worktree already exists at $WORKTREE. Despawn first."
 
 # Catch stale Docker state from a previous failed spawn whose `dc down -v`
@@ -395,9 +404,15 @@ fi
 #       the local `main` ref that Step 1.5 just refreshed from origin.
 # ============================================================================
 bold "Step 2: Creating worktree at $WORKTREE"
-git worktree add "$WORKTREE" -b "session/$SESSION_NAME" main
+# Base ref the new session branches from. Default `main` (a normal spawn starts a
+# fresh session from the canonical baseline). TAP_SPAWN_BASE_REF overrides it — the
+# lean-boot gate (scripts/gate-lean) sets it to the invoking worktree's HEAD so the
+# throwaway validates the exact (possibly just-merged, not-yet-pushed) tree, not
+# whatever `main` happens to point at.
+BASE_REF="${TAP_SPAWN_BASE_REF:-main}"
+git worktree add "$WORKTREE" -b "session/$SESSION_NAME" "$BASE_REF"
 cd "$WORKTREE"
-info "Created. Now on branch session/$SESSION_NAME (branched from main)."
+info "Created. Now on branch session/$SESSION_NAME (branched from $BASE_REF)."
 
 # --boot-file: stage the provided profile into this worktree's boot/ under its
 # basename id, then boot it like any named profile. The staged copy is a local,
