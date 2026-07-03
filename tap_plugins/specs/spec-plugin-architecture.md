@@ -208,6 +208,7 @@ The plugin directory is the complete, self-contained unit. Everything needed to 
 | req-plugin-arch-layout-3 | Conventions Do Not Auto-Load | Implemented | Directory presence alone does not define plugin load behavior. | |
 | req-plugin-arch-layout-4 | Self-Contained Unit | Implemented | The plugin directory contains everything needed to understand, validate, test, and maintain the plugin. | |
 | req-plugin-arch-layout-5 | Specs Directory Expected | Implemented | Plugins should include a `specs/` directory with plugin-specific specifications. | |
+| req-plugin-arch-layout-6 | Plugin-Owned Standalone-Test Profile | Implemented | A plugin MAY ship a standalone-test boot profile at `plugins/<slug>/<slug>.boot.json` (named for the slug) that stands up just that plugin on the `core` floor for standalone testing. It is plugin-owned (travels with the plugin at extraction), NOT a top-level `boot/` profile, and boots via `spawn-session.sh --boot-file <path>`. First instance: `plugins/gryphon_playground/gryphon_playground.boot.json`. | Reinforces `req-plugin-arch-layout-4` (self-contained). See `spec-tap-boot-v0` `req-boot-minimal-baseline`. |
 
 ### Repository Structure
 ----

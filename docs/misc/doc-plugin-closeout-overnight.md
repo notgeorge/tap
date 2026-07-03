@@ -60,7 +60,7 @@ Do **not** start until ALL of:
 
 Six commits are already staged + individually verified on `session/plugins`:
 
-- `gryphon` playground profile; dropped from samsite
+- gryphon_playground's plugin-owned standalone-test profile (`plugins/gryphon_playground/gryphon_playground.boot.json`); dropped from samsite
 - headless surface-disable backlog (tap_web + tap_api)
 - core auth dependency chain fix (`requests` + `django-allauth[socialaccount]`) — surfaced by the
   minimal boot; a real latent-dep fix
@@ -154,7 +154,7 @@ time to spare. Pairs with `req-dev-validation-suite-tiers`.
 
 Sequenced, each phase atomically promoted behind a green FULL lane:
 
-- **Phases 0–1:** the gryphon/core/core_dev profiles + the auth-deps fix + the specs on `origin/main`.
+- **Phases 0–1:** the core/core_dev profiles + gryphon_playground's plugin-owned profile + the auth-deps fix + the specs on `origin/main`.
 - **Phase 2 (flagship):** the type-ownership sweep complete, collision lint flipped to fail-CI.
 - **Phase 3:** default → `core_dev`, `base` → `test_all`, and the cold-boot gate full-boots a lean
   profile (the `requests`/`jwt` independence check) — coordinated with the validation conventions.
@@ -168,6 +168,6 @@ run only if their preconditions still hold. Phase 3's flip must not land without
 - **Shell tab-completion** for `spawn-session.sh` (boot-profile arg → complete against `boot/*.boot.json`
   ids) and `despawn-session.sh` (session-name arg → complete against the `~/tap-sessions/.registry`
   rows). A bash/zsh completion script under `scripts/`, sourced from the shell profile.
-- **Move `boot/gryphon.boot.json` into `plugins/gryphon_playground/`** as that plugin's standalone-test
-  profile (booted via `spawn --boot-file`), if we adopt the plugin-owned-profile convention uniformly —
-  or leave it top-level as the "play" profile. Minor; a judgment call.
+- ~~Move `boot/gryphon.boot.json` into `plugins/gryphon_playground/`~~ — **done** (now
+  `plugins/gryphon_playground/gryphon_playground.boot.json`, the first plugin-owned standalone-test
+  profile; boot via `spawn --boot-file`).
