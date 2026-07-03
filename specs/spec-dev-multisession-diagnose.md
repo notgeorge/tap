@@ -30,6 +30,7 @@ This composes with two neighbours rather than duplicating them: the spawn **fail
 | req-dev-multisession-diagnose-verdict | [Verdict](#verdict) | Implemented | Output = failing step + root cause + proof line + fix + nuke-or-not |
 | req-dev-multisession-diagnose-self-evolving | [Self-Evolving Procedure](#self-evolving-procedure) | Implemented | The skill amends itself each run on a new class / weak evidence step |
 | req-dev-multisession-diagnose-composition | [Composition](#composition) | Implemented | Composes with the spawn failure trap + the lean-boot gate's diagnose-before-nuke |
+| req-dev-multisession-fix-spawn | [Proactive Session Repair](#proactive-session-repair) | Backlog | A `/fix-spawn-session` skill that acts on the verdict to bring a broken session back to life |
 
 The procedure is implemented as a skill, not code; its "acceptance" is that a diagnostician (agent or developer) following it top-to-bottom reaches a correct verdict. The skill is the authoritative procedure — this spec states *what it must establish*, the SKILL.md states *how*.
 
@@ -119,9 +120,29 @@ The procedure is the **why** that complements two existing surfaces: the spawn *
 | req-dev-multisession-diagnose-composition-1 | Reads gate-lean diagnostics | Implemented | When invoked on a `gate-lean` RED, the procedure diagnoses from the captured `*-diag.log` (the live stack is already nuked). |
 | req-dev-multisession-diagnose-composition-2 | No duplication | Implemented | The procedure does not re-implement teardown (`despawn-session.sh`) or the gate; it consumes their outputs. |
 
+### Proactive Session Repair
+----
+RID: `req-dev-multisession-fix-spawn`
+Status: `Backlog`
+
+Diagnosis (above) produces a **verdict**; repair acts on it. A `/fix-spawn-session` skill takes a diagnosed failure and **proactively attempts to bring the broken session back to life** rather than only reporting + nuking — the remediation counterpart to `/diagnose-failed-session-spawn`, strictly downstream of its verdict (diagnose first, then fix).
+
+The intent is to recover the *common, safe, idempotent* cases without a full despawn/respawn: e.g. re-provision a missing cache table and re-run the health gate; re-run `migrate` after a transient DB hiccup; re-run `manage.py boot` population after a fixed profile/GRIFT; rebuild with `--purge-image` on a poisoned image cache; free a colliding port. It is **bounded** — it only applies recoveries that are safe and idempotent, and **escalates rather than guesses** on ambiguous state (a code-level import leak, a real migration conflict, unpushed work) where the right action is a human fix or a clean respawn, never a blind retry loop. It never destroys uncommitted work (it honours the same teardown hard-stop as despawn).
+
+Sequenced **behind** the fast-fail ABORT signal (`req-boot-abort-signal`, spec-tap-boot-v0.md): repair is far more tractable once a fatal standup failure is a clean, categorized signal rather than a 300s-timeout black box.
+
+#### Acceptance Criteria (Backlog — shape, not yet built)
+
+| ACID | Title | Status | Description |
+| --- | --- | :---: | --- |
+| req-dev-multisession-fix-spawn-1 | Verdict-driven | Backlog | Repair consumes a diagnosis verdict; it never acts without first localizing the failing step + root cause. |
+| req-dev-multisession-fix-spawn-2 | Safe + idempotent only | Backlog | Only known-safe, idempotent recoveries are auto-applied; re-running one changes nothing when already healthy. |
+| req-dev-multisession-fix-spawn-3 | Escalate on ambiguity | Backlog | Ambiguous / code-level / unpushed-work states are escalated for a human fix or clean respawn, not retried blindly. |
+| req-dev-multisession-fix-spawn-4 | Re-verify after repair | Backlog | A repair is only declared successful when the health gate (and, for a gate context, a re-boot) passes afterward. |
+
 ---
 
 ## Out Of Scope
 
-- **Automated remediation.** The procedure diagnoses and recommends; it does not auto-apply fixes (a fix to a core import, a migration, a profile) — that is a human/agent decision after the verdict.
-- **Live-crash fast-fail in the spawn.** That a leak currently surfaces via the spawn's 300s readiness timeout rather than an immediate crash-loop abort is a `spawn-session.sh` / `gate-lean` latency concern, tracked in `req-dev-validation-lean-boot` (Future), not here — this spec reads whatever the spawn produced.
+- **Automated remediation in *this* procedure.** Diagnosis diagnoses and recommends; it does not auto-apply fixes. Proactive repair is a **separate** skill, tracked as `req-dev-multisession-fix-spawn` (Backlog, above), strictly downstream of the verdict.
+- **Live-crash fast-fail in the spawn.** That a fatal standup failure currently surfaces via the spawn's 300s readiness timeout rather than an immediate abort is tracked as `req-boot-abort-signal` (spec-tap-boot-v0.md — the standard `TAP-ABORT:` sentinel the spawn tails and fast-fails on). Not this spec's concern — diagnosis reads whatever the spawn produced.
