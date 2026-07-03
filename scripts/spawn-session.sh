@@ -543,34 +543,50 @@ scripts/dc up -d --build
 # inside the container, we know uv sync + migrate are both done. Migrate is
 # already applied by the entrypoint, so we don't re-run it here.
 # ============================================================================
+# --- standup death detection (req-boot-abort-signal) -------------------------
+# The standup pipeline emits `TAP-ABORT: <domain>: <reason>` into the web container
+# log the instant it gives up (tap.logging.abort() for the Python steps, the
+# entrypoint's emit_abort for its bash steps). These two checks let ANY spawn phase
+# fail fast on "something died" — with the reason and a diagnosis pointer — instead
+# of hanging on a poll or dying under `set -e` with only the generic recovery trap.
+# Reused by Step 5 (readiness wait) and Step 6 (bootloader).
+
+# Fail with the ABORT reason if the standup emitted the signal. Returns 0 (no-op)
+# when there is none, so it is safe to call speculatively after any phase.
+abort_check() {
+  local line
+  line="$(scripts/dc logs web 2>&1 | grep -a 'TAP-ABORT:' | tail -n1 || true)"
+  [[ -z "$line" ]] && return 0
+  fail "Standup ABORTED (fast-fail).
+    Reason: ${line#*TAP-ABORT: }
+    Diagnose: the /diagnose-failed-session-spawn skill, or: scripts/dc logs web  (in $WORKTREE)"
+}
+
+# Fail if the web container has died / is crash-looping — a dead entrypoint never
+# becomes 'ready', and `exec` into a stopped container just reads as 'not ready
+# yet', so without this an exited container polls to the timeout. Prefers the
+# specific ABORT reason when one was emitted.
+web_container_dead_check() {
+  local state
+  state="$(scripts/dc ps --all --format '{{.State}}' web 2>/dev/null | head -n1 || true)"
+  case "$state" in
+    exited|dead|restarting)
+      abort_check
+      fail "The web container is not running (state=${state}) — standup crashed before serving.
+    Diagnose: the /diagnose-failed-session-spawn skill, or: scripts/dc logs web  (in $WORKTREE)" ;;
+  esac
+}
+
 bold "Step 5: Waiting for entrypoint (uv sync + migrate + runserver)"
 info "First-time uv sync downloads ~50MB of wheels — typically 1-3 minutes."
 WAIT_TIMEOUT=300   # 5 minutes — the backstop; a fatal standup fast-fails long before it.
 WAIT_START=$(date +%s)
 while true; do
-  # (a) Fatal ABORT signal (req-boot-abort-signal): the standup pipeline emits a
-  #     `TAP-ABORT: <domain>: <reason>` line (tap.logging.abort() for Python steps,
-  #     emit_abort for the entrypoint's bash steps) the instant it gives up. Tail
-  #     for it and fast-fail with the reason instead of waiting out WAIT_TIMEOUT —
-  #     the exact 300s-black-box this replaces (e.g. a core->plugin-dep import leak
-  #     crashing `migrate`). See spec-tap-logging.md / spec-dev-multisession-diagnose.md.
-  abort_line="$(scripts/dc logs web 2>&1 | grep -a 'TAP-ABORT:' | tail -n1 || true)"
-  if [[ -n "$abort_line" ]]; then
-    fail "Standup ABORTED (fast-fail — not waiting out the ${WAIT_TIMEOUT}s timeout).
-    Reason: ${abort_line#*TAP-ABORT: }
-    Diagnose: the /diagnose-failed-session-spawn skill, or: scripts/dc logs web  (in $WORKTREE)"
-  fi
-
-  # (b) The web container has exited / is crash-looping: a dead entrypoint never
-  #     becomes 'ready', so without this we would poll to the timeout. `exec` into a
-  #     stopped container just fails and reads as 'not ready yet' — hence the explicit
-  #     state check.
-  web_state="$(scripts/dc ps --all --format '{{.State}}' web 2>/dev/null | head -n1 || true)"
-  case "$web_state" in
-    exited|dead|restarting)
-      fail "The web container is not running (state=${web_state}) — standup crashed before serving.
-    Diagnose: the /diagnose-failed-session-spawn skill, or: scripts/dc logs web  (in $WORKTREE)" ;;
-  esac
+  # Fatal-standup fast-paths (before the readiness probe, which would otherwise
+  # poll a dead/aborted container to the timeout — the 300s black-box this replaces,
+  # e.g. a core->plugin-dep import leak crashing `migrate`):
+  abort_check                 # (a) an emitted TAP-ABORT signal → fail with the reason
+  web_container_dead_check    # (b) the container exited / is crash-looping → fail
 
   # (c) Readiness. Use Python's urllib (always present — the base image is
   #     python:3.14-slim, which doesn't ship curl). The check passes if anything
@@ -651,11 +667,18 @@ GENERATED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 EOF
 
 info "Booting with profile '$BOOT_PROFILE_EFFECTIVE'."
-scripts/dc exec \
+# The bootloader emits `TAP-ABORT: boot: <reason>` on a fatal population/auth
+# failure (req-boot-abort-signal). Guard the exec so that surfaces as a clean
+# fast-fail with the reason + diagnosis pointer, rather than a bare `set -e` death
+# into the generic recovery trap.
+if ! scripts/dc exec \
   -e DJANGO_SUPERUSER_USERNAME=admin \
   -e DJANGO_SUPERUSER_PASSWORD="$ADMIN_PASSWORD" \
   -e DJANGO_SUPERUSER_EMAIL="$ADMIN_EMAIL" \
-  web uv run python manage.py boot --profile "$BOOT_PROFILE_EFFECTIVE"
+  web uv run python manage.py boot --profile "$BOOT_PROFILE_EFFECTIVE"; then
+  abort_check   # surface the specific TAP-ABORT: boot reason if one was emitted
+  fail "manage.py boot failed (profile '$BOOT_PROFILE_EFFECTIVE') — see the output above, or scripts/dc logs web (in $WORKTREE). Diagnose: the /diagnose-failed-session-spawn skill."
+fi
 
 info "Instance booted via manage.py boot. Credentials saved to $WORKTREE/.dev-credentials (gitignored)."
 
