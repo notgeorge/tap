@@ -70,6 +70,46 @@ from tap_grid.write_guard import service_write_scope
 
 logger = logging.getLogger(__name__)
 
+# The gateway's public export manifest: the reviewable list of gated operations, and
+# nothing else (spec-service-layer-boundary.md req-service-boundary-contract-surface).
+# Every name here is a `def` carrying @requires_capability(...) / @gates_per_operation —
+# the service-boundary guard fails the build on any entry that is not gated, and on any
+# ungated public function defined in this module whether or not it is listed (the union
+# invariant: __all__ advertises the surface, it can never shrink what is enforced).
+# Non-operation exports (WriteOperation, BatchWriteResult, the Service* types, the
+# exception taxonomy) are NOT listed here — callers import those from tap_grid.service_types.
+__all__ = [
+    # Write API (grid.write / grid.delete / grid.purge)
+    "write_batch",
+    "create_node",
+    "patch_node",
+    "replace_node",
+    "delete_node",
+    "patch_edge",
+    "replace_edge",
+    "delete_edge_by_entity",
+    "purge_node",
+    "purge_edge",
+    # Read API (grid.read)
+    "resolve_entity",
+    "get_node",
+    "get_edge",
+    "get_object",
+    # Discovery API (grid.discover)
+    "list_node_types",
+    "describe_node_type",
+    "list_edge_types",
+    "describe_edge_type",
+    "describe_service_capabilities",
+    # Backward-compatible low-level helpers (grid.write / grid.delete)
+    "create_entity",
+    "update_entity",
+    "delete_entity",
+    "create_edge",
+    "update_edge_properties",
+    "delete_edge",
+]
+
 # ---------------------------------------------------------------------------
 # Internal sentinel for dry-run rollback
 # ---------------------------------------------------------------------------

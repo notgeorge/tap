@@ -95,7 +95,7 @@ block. Rich per-surface rationale lives in each owning spec and in each guard's
 | Recurring-task uniqueness | `req-tap-cares-task-backend-recurring-scope-4` | Per-commit (`pytest`) | CI-guarded | `tap_cares.guards.recurring` (via `tap/tests/test_guards.py`) |
 | Schedule grift target integrity | `req-tap-cares-collector-model-10` | Per-commit (`pytest`) | CI-guarded | `tap_cares.guards.schedule_grift` (via `tap/tests/test_guards.py`) |
 | Secret leak guard | `req-tap-cares-secrets-leak-guard` | Per-commit (`pytest`) | CI-guarded | `tap.guards.secret_leak` (via `tap/tests/test_guards.py`) |
-| Service-gateway capability coverage | `req-grid-service-gateway-gated` | Per-commit (`pytest`) | CI-guarded | `tap_grid.guards.service_gateway` (via `tap/tests/test_guards.py`) |
+| Service-layer boundary coverage | `req-service-boundary-guard` | Per-commit (`pytest`) | CI-guarded | `tap.guards.service_boundary` (via `tap/tests/test_guards.py`) |
 | Spawn-env health | `req-dev-multisession-smoketest-runtime` | Per-spawn | Manual (CI-unguarded by design) | `spec-dev-multisession-smoketest.md` documented procedure |
 | Static typing (mypy) | `req-dev-validation-mypy-ratchet` | Per-commit (`pytest`) | CI-guarded | `tap.guards.mypy` (via `tap/tests/test_guards.py`) |
 | Teardown correctness | `req-dev-multisession-teardown-cleanup` | Per-despawn | Manual (CI-unguarded by design) | `spec-dev-multisession-teardown.md` documented procedure |
