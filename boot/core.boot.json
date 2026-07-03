@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "description": "Core baseline — the minimal TAP standup: the core tap_* apps (grid + auth + web + api + cares + boot + health) and NOTHING else. Zero plugins: no domain node/edge vocabulary, no seeded data, no collectors — a bare grid carrying only the core-owned types (entity, edge, batch, keystone, dimension, search), reaching out to nothing. This is the product/deployment baseline a real instance starts from and adds plugins to per profile, and what a plain spawn should boot once the default is repointed here. It replaces the old seed-everything `base` as the canonical baseline: 'install every plugin' does not scale — and becomes literally unwritable once plugins live in their own repos — so the baseline is minimal-by-construction and every other profile is additive. Test tiers layer on top: core_dev adds grid_fixtures for the core suites; per-plugin profiles add one plugin each. The install section is intentionally empty (no plugins), so reconciliation expects zero package-mode plugins discovered.",
+  "install": {
+    "plugins": []
+  },
+  "population": {
+    "on_failure": "abort",
+    "steps": []
+  }
+}
