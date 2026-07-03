@@ -38,7 +38,7 @@ import ast
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from tap.source_scan import CallSite
+from tap.source_scan import semantic_hash
 
 # Manager writes: `<Model>.objects.<method>(...)`.
 _MANAGER_WRITES: frozenset[str] = frozenset(
@@ -60,62 +60,110 @@ _SANCTIONED_SUFFIXES: tuple[str, ...] = (
 _EXEMPT_TOKEN = "TAP-WRITE-COV"
 
 
+@dataclass(frozen=True)
+class DirectWriteSite:
+    """One class-level direct-write call site on a TAP-managed model.
+
+    Keyed stably by enclosing scope + ``Model.op`` — never the line number —
+    mirroring authz's `SinkSite`, so a flagged write does not drift in the baseline
+    when unrelated edits move it (the `path:lineno` churn this replaces,
+    `req-tap-callsite-identity-anchor`). ``lineno`` is retained for navigation and
+    messages only. ``node_dump`` is the positions-stripped AST serialization that
+    discriminates two writes sharing an anchor (`req-tap-callsite-identity-discriminator`).
+    """
+
+    path: Path
+    lineno: int
+    qualname: str
+    model: str
+    op: str
+    node_dump: str
+
+    def anchor(self, repo_root: Path) -> str:
+        """The drift-proof anchor `path::qualname::Model.op` (no line number)."""
+        return f"{self.path.relative_to(repo_root).as_posix()}::{self.qualname}::{self.model}.{self.op}"
+
+    def discriminator(self, repo_root: Path) -> str:
+        """Semantic hash over location-free canonical material — tells apart two
+        distinct writes at the same anchor. Byte-identical writes collide here and
+        fall back to an ordinal in `tap.guards.callsite.disambiguate`."""
+        return semantic_hash(
+            self.path.relative_to(repo_root).as_posix(),
+            self.qualname,
+            "direct-write",
+            f"{self.model}.{self.op}",
+            self.node_dump,
+        )
+
+
 @dataclass
 class DirectWriteScanResult:
     """Direct-write call sites on TAP-managed models found by the scan."""
 
-    direct_writes: list[CallSite] = field(default_factory=list)
-    exempt_skipped: list[CallSite] = field(default_factory=list)
+    direct_writes: list[DirectWriteSite] = field(default_factory=list)
+    exempt_skipped: list[DirectWriteSite] = field(default_factory=list)
+
+
+def _model_ref_name(node: ast.expr, names: frozenset[str]) -> str | None:
+    """The model class name if `node` names a TAP-managed model (`Model` / `pkg.Model`)."""
+    if isinstance(node, ast.Name) and node.id in names:
+        return node.id
+    if isinstance(node, ast.Attribute) and node.attr in names:
+        return node.attr
+    return None
 
 
 def _is_model_ref(node: ast.expr, names: frozenset[str]) -> bool:
     """True if `node` names a TAP-managed model — `Model` or `pkg.Model`."""
-    if isinstance(node, ast.Name):
-        return node.id in names
-    if isinstance(node, ast.Attribute):
-        return node.attr in names
-    return False
+    return _model_ref_name(node, names) is not None
 
 
-def _is_objects_of_model(node: ast.expr, names: frozenset[str]) -> bool:
-    """True if `node` is `<Model>.objects` (or `<Model>.all_objects`)."""
-    return (
-        isinstance(node, ast.Attribute) and node.attr in ("objects", "all_objects") and _is_model_ref(node.value, names)
-    )
+def _model_of_manager(node: ast.expr, names: frozenset[str]) -> str | None:
+    """The model name if `node` is `<Model>.objects` (or `<Model>.all_objects`), else None."""
+    if isinstance(node, ast.Attribute) and node.attr in ("objects", "all_objects"):
+        return _model_ref_name(node.value, names)
+    return None
 
 
-def _chain_rooted_at_model_manager(node: ast.expr, names: frozenset[str]) -> bool:
-    """True if the attribute/call chain roots at `<Model>.objects` — e.g.
+def _model_of_chain(node: ast.expr, names: frozenset[str]) -> str | None:
+    """The model name if the attribute/call chain roots at `<Model>.objects` — e.g.
     `<Model>.objects.filter(...).exclude(...)`, so a terminal `.delete()`/`.update()`
-    on it is a queryset write to a TAP model."""
+    on it is a queryset write to that TAP model."""
     while True:
-        if _is_objects_of_model(node, names):
-            return True
+        model = _model_of_manager(node, names)
+        if model is not None:
+            return model
         if isinstance(node, ast.Call):
             node = node.func
         elif isinstance(node, ast.Attribute):
             node = node.value
         else:
-            return False
+            return None
 
 
-def _is_direct_tap_write(call: ast.Call, names: frozenset[str]) -> bool:
-    """True if `call` is a statically-resolvable direct write to a TAP model class."""
+def _direct_write_target(call: ast.Call, names: frozenset[str]) -> tuple[str, str] | None:
+    """`(model, op)` if `call` is a statically-resolvable direct write to a TAP model, else None."""
     func = call.func
     if not isinstance(func, ast.Attribute):
-        return False
+        return None
     method = func.attr
 
     # <Model>.objects.create(...) / bulk_create / update / ...
-    if method in _MANAGER_WRITES and _is_objects_of_model(func.value, names):
-        return True
+    if method in _MANAGER_WRITES:
+        model = _model_of_manager(func.value, names)
+        if model is not None:
+            return (model, method)
     # <Model>.objects.filter(...)....delete() / .update()
-    if method in _TERMINAL_WRITES and _chain_rooted_at_model_manager(func.value, names):
-        return True
+    if method in _TERMINAL_WRITES:
+        model = _model_of_chain(func.value, names)
+        if model is not None:
+            return (model, method)
     # <Model>(...).save(...)
-    return bool(
-        method in ("save", "asave") and isinstance(func.value, ast.Call) and _is_model_ref(func.value.func, names)
-    )
+    if method in ("save", "asave") and isinstance(func.value, ast.Call):
+        model = _model_ref_name(func.value.func, names)
+        if model is not None:
+            return (model, method)
+    return None
 
 
 class _DirectWriteVisitor(ast.NodeVisitor):
@@ -123,12 +171,42 @@ class _DirectWriteVisitor(ast.NodeVisitor):
         self.path = path
         self.source_lines = source_lines
         self.names = names
+        # Enclosing def/class names, for the stable `qualname` half of the anchor
+        # (`req-tap-callsite-identity-anchor`) — the same scope walk authz does.
+        self.scope_stack: list[str] = []
         self.result = DirectWriteScanResult()
 
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self.scope_stack.append(node.name)
+        self.generic_visit(node)
+        self.scope_stack.pop()
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self.scope_stack.append(node.name)
+        self.generic_visit(node)
+        self.scope_stack.pop()
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        self.scope_stack.append(node.name)
+        self.generic_visit(node)
+        self.scope_stack.pop()
+
     def visit_Call(self, node: ast.Call) -> None:
-        if _is_direct_tap_write(node, self.names):
+        target = _direct_write_target(node, self.names)
+        if target is not None:
+            model, op = target
             lineno = node.lineno
-            site = CallSite(self.path, lineno)
+            qualname = ".".join(self.scope_stack) if self.scope_stack else "<module>"
+            site = DirectWriteSite(
+                self.path,
+                lineno,
+                qualname,
+                model,
+                op,
+                # Positions-stripped structural dump: the drift-proof discriminator
+                # material (`req-tap-callsite-identity-discriminator-4`).
+                ast.dump(node, include_attributes=False),
+            )
             # Scan the call's full physical span for the exemption token, not just
             # its start line — black may wrap a chained write across several lines,
             # landing the trailing `# TAP-WRITE-COV:` comment below `node.lineno`.

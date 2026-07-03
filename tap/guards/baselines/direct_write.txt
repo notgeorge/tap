@@ -1,8 +1,10 @@
 # Direct-write scanner baseline — req-tap-auth-policy-9 Rule B (write half).
 #
-# Repo-relative `path:lineno` of class-level direct writes to TAP-managed models
-# (BaseModel subclasses + Entity) that do NOT route through the service layer and
-# are grandfathered for now. The scanner (tap/direct_write_coverage.py) flags any
+# Drift-proof occurrence keys `path::qualname::Model.op#<disc>` of class-level direct
+# writes to TAP-managed models (BaseModel subclasses + Entity) that do NOT route
+# through the service layer and are grandfathered for now. The key is per-call and
+# carries no line number, so a baselined write does not churn when unrelated edits
+# move it (spec-tap-callsite-identity). The scanner (tap/direct_write_coverage.py) flags any
 # NEW such write and any STALE entry, so this file ratchets toward ZERO as each
 # call migrates onto the service layer (write_batch / create_node / create_edge /
 # delete_* / patch_node). Do not add rows except as a reviewed last resort — prefer

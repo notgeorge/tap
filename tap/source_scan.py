@@ -15,6 +15,7 @@ collection time, inside a pre-boot gate, or from a bare script.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -26,10 +27,63 @@ class CallSite:
     The shared currency of the tree-scanners — a finding is "this thing, here".
     Scanners layer their own richer result types on top (e.g. the log-site
     scanner's `WellFormedSite` adds the hex token).
+
+    In the callsite-identity model (`spec-tap-callsite-identity`) this is the
+    **location** role — the navigable, freely-drifting part of a finding. It is
+    never part of the drift-proof anchor or either derived key.
     """
 
     path: Path
     lineno: int
+
+
+@dataclass(frozen=True)
+class CallsiteIdentity:
+    """A tree-scanner finding's three-role identity (`spec-tap-callsite-identity`).
+
+    Separates the drift-proof structural **anchor** (`path::qualname::construct`,
+    never a line number) from the physical **location** (navigation only, drifts)
+    and an optional occurrence **discriminator** (present only when an anchor can
+    cover more than one physical offense). Two keys compose from these:
+
+    - ``occurrence_key`` — ``anchor`` (+ ``#<discriminator>``): exactly one physical
+      offense; the SARIF fingerprint. Computed here.
+    - the *baseline key* — the ratchet's entry identity, at remediation-unit
+      granularity (anchor for per-function scanners, occurrence_key for per-call
+      ones). NOT computed here: it is the ratchet's choice, so it lives on
+      ``CallsiteRatchet`` (`req-tap-callsite-identity-remediation-unit`), not on the
+      identity.
+
+    The anchor is the single drift-proof *root* both keys derive from; it is not
+    itself either key.
+    """
+
+    location: CallSite
+    anchor: str
+    discriminator: str | None = None
+
+    @property
+    def occurrence_key(self) -> str:
+        """The anchor, plus ``#<discriminator>`` when one is present — one per offense."""
+        if self.discriminator is None:
+            return self.anchor
+        return f"{self.anchor}#{self.discriminator}"
+
+
+def semantic_hash(*parts: str) -> str:
+    """A short, stable digest over **location-free** canonical material.
+
+    The shared discriminator recipe (`req-tap-callsite-identity-discriminator`), so
+    the tree-scanners do not each invent their own hash. Callers pass their
+    scanner-owned canonical parts — the repo-relative POSIX path, the enclosing
+    qualname, the construct kind, `Model.op`, and a positions-stripped
+    ``ast.dump(node, include_attributes=False)`` — and **never** a raw line or
+    column, which is what keeps the digest drift-proof. Byte-identical constructs
+    collide by design; the caller applies an ordinal fallback (see
+    `tap.guards.callsite.disambiguate`).
+    """
+    joined = "\x1f".join(parts)
+    return hashlib.sha256(joined.encode("utf-8")).hexdigest()[:12]
 
 
 def first_party_source_roots(project_root: Path) -> list[Path]:

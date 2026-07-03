@@ -7,8 +7,11 @@ authorization, and history. The scanner flags them at authoring time; the runtim
 write backstop (`tap_grid.write_guard`) catches the same class — including instance
 writes the static tool cannot resolve — at execution time.
 
-Migrated onto the shared ratchet harness (`tap.ratchet` via `CeilingRatchet`): the
-flagged set must equal `_direct_write_baseline.txt`, which ratchets toward zero.
+Migrated onto the shared ratchet harness (`tap.ratchet` via `CallsiteRatchet`): the
+flagged set must equal `baselines/direct_write.txt`, which ratchets toward zero.
+Remediation is **per-call** (each write is individually rerouted), so the baseline
+keys on the drift-proof occurrence_key `path::qualname::Model.op#<disc>`, not the
+line number — see `spec-tap-callsite-identity` (`req-tap-callsite-identity-remediation-unit`).
 """
 
 from __future__ import annotations
@@ -16,10 +19,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import ClassVar
 
-from tap.guards.base import REPO_ROOT, CeilingRatchet
+from tap.guards.base import REPO_ROOT
+from tap.guards.callsite import CallsiteRatchet, RemediationUnit, disambiguate
+from tap.source_scan import CallSite, CallsiteIdentity
 
 
-class DirectWriteRatchet(CeilingRatchet):
+class DirectWriteRatchet(CallsiteRatchet):
     slug = "direct-write-coverage"
     map_row = "Direct-write coverage"
     rid = "req-tap-auth-policy-9"
@@ -30,18 +35,29 @@ class DirectWriteRatchet(CeilingRatchet):
         "It is the write half of the authz-coverage story and ratchets toward zero."
     )
     baseline_path: ClassVar[Path] = Path(__file__).resolve().parent / "baselines" / "direct_write.txt"
+    #: Per-call: each write is rerouted independently, so the baseline keys on the
+    #: occurrence_key (two identical writes in one function are two entries).
+    remediation_unit: ClassVar[RemediationUnit] = RemediationUnit.PER_OCCURRENCE
     new_hint = (
         "Node/edge mutations must route through the service layer (write_batch / create_node / "
         "create_edge / delete_* / patch_node), never direct ORM. Fix the call; if it is a "
         "sanctioned below-service write (admin/infra) annotate it `# TAP-WRITE-COV: <reason>`."
     )
 
-    def measure(self) -> set[str]:
+    def collect(self) -> list[CallsiteIdentity]:
         from tap.direct_write_coverage import scan_direct_writes
         from tap.source_scan import first_party_source_roots
 
         result = scan_direct_writes(first_party_source_roots(REPO_ROOT), _tap_model_names())
-        return {f"{s.path.relative_to(REPO_ROOT)}:{s.lineno}" for s in result.direct_writes}
+        identities = [
+            CallsiteIdentity(
+                location=CallSite(s.path, s.lineno),
+                anchor=s.anchor(REPO_ROOT),
+                discriminator=s.discriminator(REPO_ROOT),
+            )
+            for s in result.direct_writes
+        ]
+        return disambiguate(identities)
 
 
 def _tap_model_names() -> frozenset[str]:
