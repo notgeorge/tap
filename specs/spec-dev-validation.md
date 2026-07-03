@@ -76,6 +76,7 @@ block. Rich per-surface rationale lives in each owning spec and in each guard's
 | Cold-boot system cycle | `req-dev-validation-smoke-gate` | Pre-push (`scripts/gate`, wired into `promote-to-main.sh`) | Gate-guarded | `tap_boot/management/commands/cold_boot_gate.py` |
 | Collection completeness | `req-dev-validation-collection-complete` | Per-commit (`pytest`) | CI-guarded | `tap.guards.collection_addopts`, `tap.guards.collection_completeness` (via `tap/tests/test_guards.py`) |
 | Direct-write coverage | `req-tap-auth-policy-9` | Per-commit (`pytest`) | CI-guarded | `tap.guards.direct_write` (via `tap/tests/test_guards.py`) |
+| Family-B public surface (pre-boot/boot) | `req-service-boundary-family-b-surface` | Per-commit (`pytest`) | CI-guarded | `tap.guards.public_surface` (via `tap/tests/test_guards.py`) |
 | Gryphon branch-coverage floor (well-formedness) | `req-gridkin-executor-branch-coverage` | Per-commit (`pytest`) | CI-guarded | `tap_grid.guards.gryphon_coverage_floor` (via `tap/tests/test_guards.py`) |
 | Gryphon differential property fuzzer | `req-gridkin-property-fuzz` | Per-commit (`pytest`, committed 12×15; env-tunable soak) | CI-guarded | `plugins/gryphon_playground/tests/test_gryphon_fuzz.py` |
 | Gryphon executor branch coverage (ratchet comparison) | `req-gridkin-executor-branch-coverage` | On-demand script (~10–15 min instrumented run) | Manual (CI-unguarded by design) | `scripts/gryphon-coverage-ratchet` (shared `tap.ratchet.ratchet_floor`); floor well-formedness is the CI guard |

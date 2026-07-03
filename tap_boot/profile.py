@@ -20,6 +20,22 @@ from django.conf import settings
 
 from tap.jsonfiles import JsonFileError, discover_json_files, instance_id, load_json_file
 
+# Declared public surface. tap_boot.profile is the boot-profile *contract* (the
+# schema types + loaders) that the boot commands and orchestrator consume — a small,
+# legitimately-public API. Declared explicitly and frozen by the Family-B public-surface
+# ceiling ratchet (tap/guards/public_surface.py); `_parse` and friends stay sealed.
+__all__ = [
+    "BootProfileError",
+    "SeedPluginStep",
+    "FireCollectorStep",
+    "BootProfile",
+    "PopulationStep",
+    "DEFAULT_ON_FAILURE",
+    "boot_dir",
+    "profile_ids",
+    "load_profile",
+]
+
 _SCHEMA_PATH = Path(__file__).resolve().parent / "schemas" / "boot.schema.json"
 
 # Profile-level default when the population section omits `on_failure`. Abort is

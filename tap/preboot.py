@@ -43,6 +43,31 @@ from tap.plugin_source_auth import GitCredential, SourceAuthError, git_askpass_e
 
 logger = logging.getLogger(__name__)
 
+# Narrow, declared public surface. pre-boot is an un-gateable Family-B layer
+# (spec-service-layer-boundary): it runs before Django/settings and before the
+# capability system exists, so it cannot be gated — its defense is a small, explicit
+# public surface. `__all__` is that surface; the public-surface ceiling ratchet
+# (tap/guards/public_surface.py) freezes it and only lets it shrink. It lists what an
+# external module genuinely imports (settings → discover_entry_points; tap_plugins →
+# dist_name_for_slug / NAMESPACE_PACKAGE / TAP_PLUGINS_ENTRY_POINT_GROUP) plus the CLI
+# orchestration entry (run_preboot / main) and the fatal-condition contract
+# (PrebootError). Every other helper is `_`-sealed.
+#
+# COORDINATION RESIDUAL: `is_satisfied` and `uv_install_args` are internal helpers
+# that *should* be sealed too, but the plugins session is actively editing both in
+# d90f5886 (wheelhouse source type). Sealing them now would collide on exactly that
+# edit surface, so they are left public and the ceiling ratchet tracks them as the two
+# known leaked defs — sealed in a follow-up once d90f5886 lands on main.
+__all__ = [
+    "PrebootError",
+    "NAMESPACE_PACKAGE",
+    "TAP_PLUGINS_ENTRY_POINT_GROUP",
+    "dist_name_for_slug",
+    "discover_entry_points",
+    "run_preboot",
+    "main",
+]
+
 # Repo root = the directory that holds `tap/` and `boot/`. tap/preboot.py lives at
 # <root>/tap/preboot.py, so two parents up is the root. Settings-free — no BASE_DIR.
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -79,14 +104,14 @@ class PrebootError(Exception):
 
 
 @dataclass(frozen=True)
-class ResolvedVar:
+class _ResolvedVar:
     """A resolved boot variable plus the provenance of the winning value."""
 
     value: Any
     source: str  # "env" | "profile" | "default"  (flag layer reserved)
 
 
-def env_var_name(section: str, key: str) -> str:
+def _env_var_name(section: str, key: str) -> str:
     """Systematic env mapping ``TAP_BOOT_<SECTION>__<KEY>`` (`req-boot-variable-resolution-2`)."""
     return f"TAP_BOOT_{section.upper()}__{key.upper()}"
 
@@ -95,14 +120,14 @@ def _coerce_bool(raw: str) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def resolve_var(
+def _resolve_var(
     section: str,
     key: str,
     *,
     profile_section: dict[str, Any] | None,
     default: Any,
     is_bool: bool = False,
-) -> ResolvedVar:
+) -> _ResolvedVar:
     """Resolve a boot variable by the precedence ladder (`req-boot-variable-resolution-1`).
 
     Precedence: flag > env > profile > default. The flag layer is reserved for the
@@ -110,7 +135,7 @@ def resolve_var(
     Resolve-once: this returns a single effective value plus its source so the caller
     records it (no silent profile divergence, `req-boot-variable-resolution-3`).
     """
-    env_name = env_var_name(section, key)
+    env_name = _env_var_name(section, key)
     raw_env = os.environ.get(env_name)
     # An empty/whitespace-only env value means "unset" — docker-compose materializes
     # an unmapped ${VAR:-} as "" in the container, and that must NOT read as a real
@@ -118,12 +143,12 @@ def resolve_var(
     # and silently disable the snapshot). Fall through to profile/default.
     if raw_env is not None and raw_env.strip() != "":
         value = _coerce_bool(raw_env) if is_bool else raw_env
-        return ResolvedVar(value, "env")
+        return _ResolvedVar(value, "env")
 
     if profile_section is not None and key in profile_section:
-        return ResolvedVar(profile_section[key], "profile")
+        return _ResolvedVar(profile_section[key], "profile")
 
-    return ResolvedVar(default, "default")
+    return _ResolvedVar(default, "default")
 
 
 # =============================================================================
@@ -131,18 +156,18 @@ def resolve_var(
 # =============================================================================
 
 
-def boot_dir() -> Path:
+def _boot_dir() -> Path:
     return REPO_ROOT / "boot"
 
 
-def read_profile(profile_id: str) -> dict[str, Any]:
+def _read_profile(profile_id: str) -> dict[str, Any]:
     """Read ``boot/<profile_id>.boot.json`` as plain JSON (no Django, no schema).
 
     Pre-boot only needs the ``install`` section; it is consumed here as plain JSON
     before settings exist, not by a ``req-boot-sections`` handler (`req-boot-install-section-2`).
     Schema validation is the Django-side ``tap_boot.profile`` reader's job at boot.
     """
-    path = boot_dir() / f"{profile_id}.boot.json"
+    path = _boot_dir() / f"{profile_id}.boot.json"
     if not path.is_file():
         raise PrebootError(f"boot profile '{profile_id}' not found at {path}")
     try:
@@ -153,13 +178,13 @@ def read_profile(profile_id: str) -> dict[str, Any]:
     return data
 
 
-def install_plugin_specs(profile: dict[str, Any]) -> list[dict[str, Any]]:
+def _install_plugin_specs(profile: dict[str, Any]) -> list[dict[str, Any]]:
     """Return the enabled plugin entries from the ``install`` section (order preserved)."""
     install = profile.get("install") or {}
     return [p for p in install.get("plugins", []) if p.get("enabled", False)]
 
 
-def population_seed_slugs(profile: dict[str, Any]) -> list[str]:
+def _population_seed_slugs(profile: dict[str, Any]) -> list[str]:
     """Return enabled ``seed-plugin`` slugs from ``population`` (for the coherence guard)."""
     population = profile.get("population") or {}
     return [
@@ -233,7 +258,7 @@ def _secrets_root() -> Path | None:
     Settings-free (`req-boot-preboot`): reads the same env var ``settings.py`` reads,
     since Django is not configured yet. Absent ⇒ no source-credential store, so only
     public/editable/path sources can install (git sources that *declare* a credential
-    then fail loud in :func:`install_plugins`).
+    then fail loud in :func:`_install_plugins`).
     """
     raw = os.environ.get("TAP_SECRETS_ROOT")
     return Path(raw) if raw else None
@@ -251,7 +276,7 @@ def _run_install(args: list[str], cred: GitCredential | None) -> subprocess.Comp
         return subprocess.run(args, cwd=str(REPO_ROOT), capture_output=True, text=True, env={**os.environ, **overlay})
 
 
-def install_plugins(entries: list[dict[str, Any]]) -> None:
+def _install_plugins(entries: list[dict[str, Any]]) -> None:
     """Install each enabled plugin, skipping any already satisfied (idempotent)."""
     secrets_root = _secrets_root()
     for entry in entries:
@@ -293,7 +318,7 @@ def discover_entry_points() -> dict[str, str]:
     return discovered
 
 
-def resolve_tap_plugins(entries: list[dict[str, Any]], discovered: dict[str, str]) -> list[str]:
+def _resolve_tap_plugins(entries: list[dict[str, Any]], discovered: dict[str, str]) -> list[str]:
     """Return the AppConfig paths for the installed plugins, enforcing key == slug.
 
     Identity mismatch (a plugin whose entry-point key does not equal its declared
@@ -358,7 +383,7 @@ def _manifest_slug(entry: dict[str, Any], dist: importlib.metadata.Distribution)
     return _read_manifest_slug(_manifest_path_for(entry, dist))
 
 
-def conformance_gate(entries: list[dict[str, Any]], discovered: dict[str, str]) -> None:
+def _conformance_gate(entries: list[dict[str, Any]], discovered: dict[str, str]) -> None:
     """Fail closed unless every plugin's four identities agree (`req-plugin-arch-identity-5`).
 
     Distribution name (``tap-plugin-<slug>``), entry-point key, import namespace segment
@@ -366,7 +391,7 @@ def conformance_gate(entries: list[dict[str, Any]], discovered: dict[str, str]) 
     set the namespace/dist/entry-point in their own package; TAP enforces agreement here —
     the "verify declared matches actual" backstop against typosquat/confusion for
     hand-authored or third-party plugins (the plugin-creation skill emits conformant ones).
-    Runs after ``resolve_tap_plugins`` (which already guarantees entry-point key == slug).
+    Runs after ``_resolve_tap_plugins`` (which already guarantees entry-point key == slug).
     """
     for entry in entries:
         slug = entry["slug"]
@@ -403,12 +428,12 @@ def conformance_gate(entries: list[dict[str, Any]], discovered: dict[str, str]) 
 # =============================================================================
 
 
-def reconciliation_guard(entries: list[dict[str, Any]], discovered: dict[str, str]) -> None:
+def _reconciliation_guard(entries: list[dict[str, Any]], discovered: dict[str, str]) -> None:
     """Fail closed if a package-mode plugin is installed on disk but not declared+enabled.
 
     Reconciles DECLARED (the profile's enabled ``install`` set) against ACTUAL (the
     ``tap.plugins`` entry points discovered in the venv). The *missing* direction —
-    declared but not installed — is already fatal in ``resolve_tap_plugins`` (identity
+    declared but not installed — is already fatal in ``_resolve_tap_plugins`` (identity
     mismatch). This closes the *other* direction: an installed package-mode distribution
     that NO enabled ``install`` entry declares — a stale install left from a prior profile,
     a plugin the profile ``enabled: false``-d but never got uninstalled, or an undeclared /
@@ -450,10 +475,10 @@ def _installed_version(slug: str) -> str | None:
     return dist.version if dist is not None else None
 
 
-def dependency_consistency_guard(entries: list[dict[str, Any]]) -> None:
+def _dependency_consistency_guard(entries: list[dict[str, Any]]) -> None:
     """Fail closed on plugin dependency divergence (declared vs observed vs install order).
 
-    The Tier-1 sibling of ``reconciliation_guard`` (spec ``req-plugin-arch-dependencies-4``).
+    The Tier-1 sibling of ``_reconciliation_guard`` (spec ``req-plugin-arch-dependencies-4``).
     Cross-checks three facts already in hand — each plugin's manifest ``depends_on``
     (declared intent), the AST-observed ``tap_plugin.<other>`` imports (derived code graph,
     ``tap.plugin_deps``), and the profile install order — and raises ``PrebootError`` on:
@@ -499,10 +524,10 @@ def dependency_consistency_guard(entries: list[dict[str, Any]]) -> None:
 # =============================================================================
 
 
-def static_coherence_guard(profile: dict[str, Any], install_slugs: set[str]) -> None:
+def _static_coherence_guard(profile: dict[str, Any], install_slugs: set[str]) -> None:
     """Fail loud (pre-migrate) if a population seed-plugin slug is neither installed nor build-baked."""
     available = install_slugs | BUILD_BAKED_PLUGIN_SLUGS
-    missing = [s for s in population_seed_slugs(profile) if s not in available]
+    missing = [s for s in _population_seed_slugs(profile) if s not in available]
     if missing:
         raise PrebootError(
             f"static coherence guard: population seed-plugin(s) {missing} are neither in the "
@@ -517,7 +542,7 @@ def static_coherence_guard(profile: dict[str, Any], install_slugs: set[str]) -> 
 # =============================================================================
 
 
-def snapshot_dir() -> Path:
+def _snapshot_dir() -> Path:
     return Path(os.environ.get("TAP_SNAPSHOT_DIR", str(REPO_ROOT / ".tap-snapshots")))
 
 
@@ -543,7 +568,7 @@ def _pg_conn_args() -> tuple[list[str], dict[str, str]]:
     return flags, env_overlay
 
 
-def take_snapshot() -> Path:
+def _take_snapshot() -> Path:
     """Take a verified full-DB snapshot (`pg_dump -Fc`) and return its path.
 
     Callable primitive (`req-boot-snapshot-6`): a future periodic snapshot system
@@ -552,7 +577,7 @@ def take_snapshot() -> Path:
     action, never automatic (`req-boot-snapshot-4`).
     """
     flags, env_overlay = _pg_conn_args()
-    out_dir = snapshot_dir()
+    out_dir = _snapshot_dir()
     out_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     out_path = out_dir / f"pre-migrate-{stamp}.dump"
@@ -578,14 +603,14 @@ def take_snapshot() -> Path:
     return out_path
 
 
-def maybe_snapshot(profile: dict[str, Any]) -> Path | None:
+def _maybe_snapshot(profile: dict[str, Any]) -> Path | None:
     """Resolve the snapshot switch and take a snapshot unless disabled.
 
     Switch defaults true on absence (`req-boot-snapshot-2`); a disabled snapshot logs
     loud (WARNING) — a disabled safety net must announce itself.
     """
     install_section = profile.get("install") or {}
-    resolved = resolve_var(
+    resolved = _resolve_var(
         "install",
         "snapshot_before_migrate",
         profile_section=install_section,
@@ -599,7 +624,7 @@ def maybe_snapshot(profile: dict[str, Any]) -> Path | None:
             resolved.source,
         )
         return None
-    return take_snapshot()
+    return _take_snapshot()
 
 
 # =============================================================================
@@ -614,21 +639,21 @@ def run_preboot(profile_id: str) -> list[str]:
     raises PrebootError; the caller aborts before migrate (`req-boot-preboot-4`).
     """
     logger.info("[43c1] pre-boot stage starting for profile '%s'", profile_id)
-    profile = read_profile(profile_id)
+    profile = _read_profile(profile_id)
 
-    entries = install_plugin_specs(profile)
-    install_plugins(entries)
+    entries = _install_plugin_specs(profile)
+    _install_plugins(entries)
 
     discovered = discover_entry_points()
-    app_configs = resolve_tap_plugins(entries, discovered)
-    conformance_gate(entries, discovered)
-    reconciliation_guard(entries, discovered)
-    dependency_consistency_guard(entries)
+    app_configs = _resolve_tap_plugins(entries, discovered)
+    _conformance_gate(entries, discovered)
+    _reconciliation_guard(entries, discovered)
+    _dependency_consistency_guard(entries)
     install_slugs = {e["slug"] for e in entries}
 
-    static_coherence_guard(profile, install_slugs)
+    _static_coherence_guard(profile, install_slugs)
 
-    maybe_snapshot(profile)
+    _maybe_snapshot(profile)
 
     logger.info("[70b4] pre-boot stage complete: %d package-mode plugin(s) -> TAP_PLUGINS", len(app_configs))
     return app_configs

@@ -84,6 +84,7 @@ analogs, and where TAP diverges:
 | req-service-boundary-discovery | [Boundary Discovery](#boundary-discovery) | Proposed | How the guard computes its protected set — filesystem convention, fail-closed, not an opt-in list |
 | req-service-boundary-inviolability | [Boundary Inviolability](#boundary-inviolability) | Proposed | Detecting *bypass* — the outward dual: import-encapsulation (owned here) + resource-reach (delegated to the resource owner) |
 | req-service-boundary-adoption | [Consumers And Composition](#consumers-and-composition) | Proposed | Consumers instantiate the pattern; capabilities compose upward, never migrate down |
+| req-service-boundary-family-b-surface | [Un-Gateable Family-B Surface](#un-gateable-family-b-surface) | Proposed | Pre-boot/boot run before the gate exists — no gating possible; defense is a minimal `__all__` frozen by a ceiling ratchet that only shrinks |
 
 ---
 
@@ -436,6 +437,58 @@ own vocabulary — and never migrate down into a lower layer.
 | --- | --- | :---: | --- | --- |
 | req-service-boundary-adoption-1 | Consumers Cite, Not Copy | Proposed | A service layer's spec references this convention for the separation structure rather than re-specifying it. | |
 | req-service-boundary-adoption-2 | Compose Up, Not Down | Proposed | A higher layer gates its own capability above a lower guarded layer; no capability's enforcement migrates down. | Detailed in `req-tap-auth-service-boundary`. |
+
+---
+
+### Un-Gateable Family-B Surface
+----
+RID: `req-service-boundary-family-b-surface`
+Status: `Proposed`
+
+The convention so far governs **Family A** — gate-able runtime boundaries, where the risk
+is "public *but ungated*" and the fix is a gateway `__all__` of gated operations. There is
+a second family. **Family B** is the *un-gateable* layers: pre-boot (`tap/preboot.py`) and
+boot (`tap_boot`). They run *before the capability system exists* — pre-boot before Django
+and settings, boot as the process that mints the capabilities themselves — so there is no
+gate to put in front of them ("can't gate before the gate exists"). For these layers the
+risk is not "public but ungated"; it is **public at all**. A large public surface on a
+pre-auth layer is exactly the out-of-band reach an attacker or an accidental caller would
+use, and no gate can intervene.
+
+The defense is therefore *surface minimization*, mechanically enforced:
+
+- Each un-gateable module declares a **minimal `__all__`** — only what an external module
+  genuinely imports, plus the layer's CLI/orchestration entry and its error contract. Every
+  other helper is `_`-sealed (a private module member).
+- A **public-surface ceiling ratchet** (the inverse of the Family-A coverage guard) freezes
+  the set of public (non-`_`) top-level `def`/`class` **not** listed in `__all__` — the
+  *leaked surface* — and allows it only to shrink. A new public helper on these layers fails
+  the guard; sealing one with a `_` prefix is the only motion. "Shrink first, then freeze":
+  the baseline starts at the known residual, never a fresh debt ceiling.
+- This is the static complement to the boot layer's **runtime** context self-check
+  (`tap_boot.orchestrator`, a confirmed-positive tripwire): the ratchet keeps the surface
+  small; the tripwire records any out-of-band call to what surface remains. Neither gates —
+  because neither can — but together they shrink and observe the un-gateable reach.
+
+#### Implementation
+- **Guard:** `tap/guards/public_surface.py` (`PublicSurfaceCeilingGuard`), a `CeilingRatchet`
+  over `tap/preboot.py`, `tap_boot/orchestrator.py`, `tap_boot/profile.py`. AST-only (these
+  modules run pre-Django, so the guard must read them without importing). Baseline
+  `tap/guards/baselines/public_surface.txt`.
+- **Sealed:** pre-boot's ~16 internal orchestration helpers are `_`-prefixed; its `__all__`
+  is the 4 genuinely-imported names + CLI entry + `PrebootError`. `tap_boot.orchestrator`
+  exports only `BootError`/`check_profile`/`run_boot`; `tap_boot.profile` exports its profile
+  contract. Leaked surface at adoption: two pre-boot helpers (`is_satisfied`,
+  `uv_install_args`) held public as a **named coordination residual** (a parallel session is
+  editing both) — to be sealed once that lands, shrinking the baseline to zero.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-service-boundary-family-b-surface-1 | Minimal Declared Surface | Proposed | Each un-gateable Family-B module declares an `__all__` limited to genuinely-imported API, its CLI/orchestration entry, and its error contract; all other helpers are `_`-sealed. | pre-boot, `tap_boot.orchestrator`, `tap_boot.profile`. |
+| req-service-boundary-family-b-surface-2 | Surface Ratchets To Zero | Proposed | A ceiling ratchet freezes the public (non-`_`) top-level def/class NOT in `__all__` (leaked surface) and permits only shrink; a new public helper fails. | `tap/guards/public_surface.py`. |
+| req-service-boundary-family-b-surface-3 | Named Residual, Not Hidden | Proposed | Any helper left public for coordination is recorded in the baseline with the reason, not silently exempted. | `is_satisfied`/`uv_install_args` (d90f5886). |
 
 ---
 

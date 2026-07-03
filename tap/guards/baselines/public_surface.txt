@@ -1,0 +1,10 @@
+# Family-B (pre-boot/boot) leaked public surface — ratchets to zero.
+# One entry per public (non-_) top-level def/class NOT in its module's __all__.
+# See tap/guards/public_surface.py (req-service-boundary-family-b-surface).
+#
+# These two are the deliberate d90f5886 COORDINATION RESIDUAL: internal pre-boot
+# helpers that should be `_`-sealed, but the plugins session is actively editing both
+# in d90f5886 (wheelhouse source type). Sealing them now would collide on exactly that
+# edit surface. Seal them (delete these two lines) once d90f5886 lands on main.
+tap/preboot.py:is_satisfied
+tap/preboot.py:uv_install_args

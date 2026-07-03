@@ -7,7 +7,7 @@ silent coupling that bites when a plugin is extracted to a standalone repo — a
 is a fact of the source tree, checkable without booting.
 
 The *full* check (install-set presence + ordering + min-version against a concrete
-profile) stays in the pre-boot gate (`tap.preboot.dependency_consistency_guard`),
+profile) stays in the pre-boot gate (`tap.preboot._dependency_consistency_guard`),
 which has the profile's install order in hand. This guard is the authoring-time
 catch that fires in CI before a spawn ever runs; the two are complementary, not
 duplicative. Filesystem-based (reuses `tap.plugin_deps`), so it needs no DB or boot.

@@ -9,7 +9,7 @@ guard makes, applied to plugin dependencies (spec-plugin-architecture.md
   ``tap_plugin.<other>`` imports. The cross-plugin *code* dependency graph is not
   authored; it *is* the set of imports, so we observe it rather than trust a
   declaration. (Reuses the filesystem discovery muscle in ``tap.logging``.)
-- **Cross-check** — ``tap.preboot.dependency_consistency_guard`` compares the two
+- **Cross-check** — ``tap.preboot._dependency_consistency_guard`` compares the two
   plus the profile install order and fails closed on divergence.
 
 HONEST BOUNDARY (do not conflate): the import graph is the **code** dependency only.
