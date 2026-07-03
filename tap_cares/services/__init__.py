@@ -41,6 +41,17 @@ from tap_grid.services import _create_node_internal, _patch_node_internal, creat
 
 logger = logging.getLogger(__name__)
 
+# Gateway export manifest (spec-service-layer-boundary.md req-service-boundary-contract-surface):
+# the reviewable list of gated collector-execution operations, and nothing else. Every name
+# here carries a capability gate — the service-boundary guard fails the build on any ungated
+# entry, and on any ungated public function defined in this gateway whether or not it is listed.
+# (Scheduler/registry grid operations join the gateway in a follow-on increment.)
+__all__ = [
+    "run_collection",
+    "self_test_collector",
+    "fire_collector_and_await",
+]
+
 # Loud, self-diagnosing detail for the RUNNER_UNAVAILABLE readiness failure.
 # This failure is most often NOT a real misconfiguration: the Steady Queue
 # supervisor is long-lived and forks workers from its boot-time memory image,
@@ -69,7 +80,12 @@ _RUNNER_UNAVAILABLE_SUMMARY = (
 )
 
 
-def self_test_collector(collector: Collector) -> CollectorSelfTestResult:
+@requires_capability("cares.self_test_collectors")
+def self_test_collector(
+    collector: Collector,
+    *,
+    caller_context: CallerContext | None = None,
+) -> CollectorSelfTestResult:
     """Run a collector's readiness self-test and return a normalized result.
 
     Single caller-facing entry point (req-tap-cares-collector-self-test-11).
@@ -303,9 +319,11 @@ def run_collection(
     return job
 
 
+@requires_capability("cares.run_collectors")
 def fire_collector_and_await(
     collector: Collector,
     *,
+    caller_context: CallerContext | None = None,
     run_mode: str = CollectionJobRunMode.FULL,
     manual_run_source: str = "boot",
     timeout_seconds: float = 600.0,
@@ -326,6 +344,7 @@ def fire_collector_and_await(
     """
     job = run_collection(
         collector,
+        caller_context=caller_context,
         manual_run=True,
         manual_run_source=manual_run_source,
         run_mode=run_mode,

@@ -16,6 +16,7 @@
     { "name": "plugins.read", "description": "Read the plugin registry/report — installed plugins, versions, sources, install mode, declared vs loaded surfaces, load health, and cross-plugin dependency edges (the instance's plugin software bill of materials). Read-only inspection; the read half of plugins.manage.", "risk": "low" },
     { "name": "plugins.manage", "description": "Install, enable, disable, or configure plugins.", "risk": "high" },
     { "name": "cares.run_collectors", "description": "Run collectors and ingestion jobs.", "risk": "medium" },
+    { "name": "cares.self_test_collectors", "description": "Run a collector's read-only readiness self-test (no grid write). Strictly less privileged than cares.run_collectors — a caller may probe a collector's health without being able to trigger a run that writes CollectionJob rows.", "risk": "low" },
     { "name": "ai.delegate", "description": "Delegate bounded authority to AI actors acting on a user's behalf.", "risk": "high" }
   ]
 }

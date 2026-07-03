@@ -33,7 +33,8 @@
         "grid.read",
         "grid.write",
         "grid.import_grift",
-        "cares.run_collectors"
+        "cares.run_collectors",
+        "cares.self_test_collectors"
       ],
       "assignable_to": ["program"]
     },

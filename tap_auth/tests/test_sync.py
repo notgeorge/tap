@@ -76,7 +76,13 @@ class TestSyncGroupsAndActors:
         collector_caps = set(
             Group.objects.get(name="tap_cares.collector").permissions.values_list("codename", flat=True)
         )
-        assert collector_caps == {"grid_read", "grid_write", "grid_import_grift", "cares_run_collectors"}
+        assert collector_caps == {
+            "grid_read",
+            "grid_write",
+            "grid_import_grift",
+            "cares_run_collectors",
+            "cares_self_test_collectors",
+        }
 
     def test_group_bundle_is_hard_synced(self):
         sync.sync_capabilities()
