@@ -33,6 +33,7 @@ from typing import Final
 from django.core.exceptions import ImproperlyConfigured
 
 from tap.registry import ScopedRegistry
+from tap_auth.enforcement import requires_capability
 from tap_cares.collectors.base import CollectorBase
 from tap_cares.exceptions import (
     CollectorNotFoundError,
@@ -128,6 +129,7 @@ def register_collector(
     _COLLECTOR_NODE_METADATA[qualified_key] = {"name": name, "description": description}
 
 
+@requires_capability("cares.reconcile_collectors")
 def reconcile_collector_nodes() -> dict[str, int]:
     """Materialize the on-grid Collector node for every registered collector, in one batch.
 

@@ -2,7 +2,7 @@
 
 Replaces the prior `tap_cares/huey_tasks.py`. The single recurring task
 declared here is the once-per-minute scheduler tick that calls
-`tap_cares.scheduler.evaluate_tick()`. The Steady Queue supervisor's
+`tap_cares.services.evaluate_tick()`. The Steady Queue supervisor's
 scheduler dispatches it on the `scheduler` queue, which is served by a
 dedicated worker process so a backed-up collector pool cannot starve the
 clock (see `tap_cares/specs/spec-tap-cares-task-backend.md`
@@ -35,15 +35,22 @@ logger = logging.getLogger(__name__)
 def scheduler_tick() -> None:
     """Once-per-minute scheduler evaluation tick.
 
-    Defers all logic to `tap_cares.scheduler.evaluate_tick()`. Exceptions
+    Defers all logic to `tap_cares.services.evaluate_tick()`. Exceptions
     are logged and swallowed — one bad tick must not stop the next one.
     """
     # Import lazily so the module is importable in Django startup contexts
     # where the tap_cares app graph isn't fully ready yet.
-    from tap_cares.scheduler import evaluate_tick
+    from tap_auth.actors import SCHEDULER, acting_as, get_builtin_actor
+    from tap_cares.services import evaluate_tick
 
+    # The tick is a background task with no request/ambient actor. It declares its
+    # identity — the tap_cares.scheduler program actor — so evaluate_tick's capability
+    # gate (cares.run_scheduler) authorizes a real caller, rather than the boundary
+    # inventing its own identity (spec-service-layer-boundary.md; the caller-binds model
+    # run_collection already uses for its trigger gate).
     try:
-        fires = evaluate_tick()
+        with acting_as(get_builtin_actor(SCHEDULER)):
+            fires = evaluate_tick()
     except Exception:  # noqa: BLE001
         logger.exception("[5985] scheduler_tick: evaluate_tick raised")
         return

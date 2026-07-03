@@ -17,6 +17,10 @@
     { "name": "plugins.manage", "description": "Install, enable, disable, or configure plugins.", "risk": "high" },
     { "name": "cares.run_collectors", "description": "Run collectors and ingestion jobs.", "risk": "medium" },
     { "name": "cares.self_test_collectors", "description": "Run a collector's read-only readiness self-test (no grid write). Strictly less privileged than cares.run_collectors — a caller may probe a collector's health without being able to trigger a run that writes CollectionJob rows.", "risk": "low" },
+    { "name": "cares.manage_schedules", "description": "Create schedules and their SCHEDULED_TARGET edges (structural changes to WHEN a collector runs). Deliberately separate from cares.toggle_schedules — creating new automation is a higher bar than pausing existing automation.", "risk": "medium" },
+    { "name": "cares.toggle_schedules", "description": "Enable or disable an existing schedule (pause/resume). The operational 'banhammer' for a runaway schedule — deliberately separable from cares.manage_schedules (mirrors auth.manage_sessions vs auth.manage_users) so an incident-response actor can pause automation without being able to create it.", "risk": "medium" },
+    { "name": "cares.run_scheduler", "description": "Advance the scheduler: evaluate the current minute slot and fire due schedules (creates ScheduleFire nodes and triggers collection runs). The scheduler heartbeat capability, held by the tap_cares.scheduler program actor; distinct from managing schedules.", "risk": "medium" },
+    { "name": "cares.reconcile_collectors", "description": "Materialize on-grid Collector nodes from the in-memory collector registry (the deferred grid-side half of dual-existence registration). Held by the boot orchestrator's tap_bootloader; distinct from running collectors.", "risk": "medium" },
     { "name": "ai.delegate", "description": "Delegate bounded authority to AI actors acting on a user's behalf.", "risk": "high" }
   ]
 }

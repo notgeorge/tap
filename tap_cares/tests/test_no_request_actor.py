@@ -1,12 +1,15 @@
 """Production-realism auth tests for the tap_cares no-request boundaries.
 
 The bug class these guard against is "green in CI, denied in prod": a Django-Tasks
-worker (`run_collector`) or a scheduler tick (`evaluate_tick`) runs on a bare
+worker (`run_collector`) or a scheduler tick (`scheduler_tick`) runs on a bare
 thread with **no ambient `CallerContext`** — CI binds an ambient `tap_test` actor
-(conftest autouse), a real worker thread binds none. Unless each boundary binds
-its own named program actor, every graph write fails closed at the stateless
-backstop. These tests clear the ambient actor and assert the path still
-self-binds and its writes commit.
+(conftest autouse), a real worker thread binds none. Unless each background task
+binds a named program actor, every graph write fails closed at the stateless
+backstop. `run_collector` self-binds `tap_cares.collector` in its own body; the
+scheduler tick declares `tap_cares.scheduler` and calls the *gated* `evaluate_tick`
+(which, under the boundary convention, no longer invents its own trigger identity).
+These tests clear the ambient actor and assert each path either binds correctly and
+commits, or — for the gated tick — is denied up front when nothing is bound.
 
 The complementary surface is the `run_collection` trigger gate
 (`@requires_capability("cares.run_collectors")`): the *triggering* actor — the
@@ -26,7 +29,8 @@ from django.contrib.auth.models import Group, Permission
 from django.contrib.contenttypes.models import ContentType
 
 from tap_auth import capabilities as caps
-from tap_auth.errors import CapabilityDenied
+from tap_auth.actors import SCHEDULER, acting_as, get_builtin_actor
+from tap_auth.errors import CapabilityDenied, MissingActor
 from tap_auth.models import Capability
 from tap_cares.models import (
     CollectionJob,
@@ -37,8 +41,7 @@ from tap_cares.models import (
     ScheduleFireStatus,
 )
 from tap_cares.registry import collector_registry, reconcile_collector_nodes, register_collector
-from tap_cares.scheduler import create_schedule, evaluate_tick
-from tap_cares.services import run_collection
+from tap_cares.services import create_schedule, evaluate_tick, run_collection
 from tap_cares.tasks import run_collector
 from tap_cares.tests.fakes import HappyCollector
 from tap_grid.caller_context import CallerContext, set_caller_context
@@ -115,11 +118,16 @@ def _pin_enabled_at_before(schedule: Schedule, slot: datetime) -> None:
 
 @pytest.mark.django_db(transaction=True)
 class TestNoAmbientActorSelfBinds:
-    """A no-request boundary binds its own program actor when nothing is ambient.
+    """Background boundaries bind a named program actor so their writes commit.
 
-    This is the regression guard for the prod break: the assertions only hold if
-    the boundary self-binds, because an unbound graph write fails closed at the
-    backstop (UnguardedOperation) and the job/fire never reaches a written state.
+    The regression guard for the prod break (an unbound graph write fails closed at the
+    backstop). Two shapes, both with the *task* owning the binding:
+      - `run_collector` (the collection task) self-binds `tap_cares.collector` in its body.
+      - the scheduler tick (`scheduler_tick` in task_backend) declares `tap_cares.scheduler`
+        via `acting_as` and calls the *gated* `evaluate_tick`. Under the boundary convention
+        `evaluate_tick` no longer self-binds its trigger — the caller must present an
+        authorized actor (cares.run_scheduler), which the tick task does. The case below
+        exercises that gated path with the scheduler bound, as the tick task binds it.
     """
 
     def test_run_collector_self_binds_collector(self, isolate_collector_registry):
@@ -138,23 +146,42 @@ class TestNoAmbientActorSelfBinds:
         assert job.status == CollectionJobStatus.SUCCESSFUL
         assert HappyCollector.runs == [job_id]
 
-    def test_scheduler_tick_self_binds_scheduler(self, isolate_collector_registry):
+    def test_scheduler_tick_runs_as_bound_scheduler(self, isolate_collector_registry):
         col = _collector()
         slot = datetime(2026, 5, 14, 12, 0, tzinfo=UTC)
         schedule = create_schedule(name="due-every-minute", cron_expression="* * * * *", collector=col)
         _pin_enabled_at_before(schedule, slot)
 
-        # Bare scheduler tick: clear the ambient actor before evaluating.
-        set_caller_context(None)
-        fires = evaluate_tick(now=slot)
+        # Option X (spec-service-layer-boundary): the tick task declares its identity
+        # rather than the boundary inventing one. Bind tap_cares.scheduler exactly as
+        # scheduler_tick does, then evaluate — its cares.run_scheduler gate authorizes that
+        # actor and the writes commit as the scheduler.
+        with acting_as(get_builtin_actor(SCHEDULER)):
+            fires = evaluate_tick(now=slot)
 
-        # A claimed fire (Schedule/ScheduleFire writes) AND a triggered collection
-        # are produced only if `_scheduler_ctx` bound tap_cares.scheduler and the
-        # tick→run_collection trigger gate passed for that actor.
+        # A claimed fire (Schedule/ScheduleFire writes) AND a triggered collection are
+        # produced only if the scheduler actor was bound, its cares.run_scheduler gate
+        # passed, and the writes committed as that actor.
         assert len(fires) == 1
         fires[0].refresh_from_db()
         assert fires[0].status == ScheduleFireStatus.TRIGGERED
         assert CollectionJob.objects.count() == 1
+
+    def test_scheduler_tick_denied_without_bound_actor(self, isolate_collector_registry):
+        """The fail-closed dual: with no authorized actor, the gated tick is denied.
+
+        This is the behavior the tick task's acting_as(SCHEDULER) exists to satisfy — the
+        boundary no longer self-binds a trigger, so an unbound call is rejected up front
+        (spec-service-layer-boundary req-service-boundary-contract-surface).
+        """
+        col = _collector()
+        slot = datetime(2026, 5, 14, 12, 0, tzinfo=UTC)
+        schedule = create_schedule(name="due-every-minute", cron_expression="* * * * *", collector=col)
+        _pin_enabled_at_before(schedule, slot)
+
+        set_caller_context(None)  # bare background thread: no ambient actor
+        with pytest.raises(MissingActor):
+            evaluate_tick(now=slot)
 
 
 @pytest.mark.django_db(transaction=True)

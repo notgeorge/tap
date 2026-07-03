@@ -26,6 +26,7 @@ from croniter import croniter
 from django.db import transaction
 from django.db.models import Q
 
+from tap_auth.enforcement import requires_capability
 from tap_cares.models import (
     CollectionJob,
     CollectionJobStatus,
@@ -34,7 +35,6 @@ from tap_cares.models import (
     ScheduleFire,
     ScheduleFireStatus,
 )
-from tap_cares.services import run_collection
 from tap_grid.caller_context import CallerContext
 from tap_grid.models import Edge
 from tap_grid.services import (
@@ -168,6 +168,7 @@ def _active_run_count(schedule: Schedule) -> int:
     ).count()
 
 
+@requires_capability("cares.manage_schedules")
 def create_schedule(
     *,
     name: str,
@@ -210,6 +211,7 @@ def create_schedule(
     return schedule
 
 
+@requires_capability("cares.toggle_schedules")
 def set_schedule_enabled(
     schedule: Schedule,
     enabled: bool,
@@ -361,6 +363,7 @@ def _finalize_fire_triggered(
         )
 
 
+@requires_capability("cares.run_scheduler")
 def evaluate_tick(
     now: datetime | None = None,
     *,
@@ -432,6 +435,12 @@ def evaluate_tick(
 
             collector = _target_collector(schedule)
             try:
+                # Local import: scheduler.py lives inside the tap_cares.services package
+                # now, and run_collection is defined in the package __init__ — a top-level
+                # import would be circular at package initialization. Imported at the use
+                # site (the established lazy-import pattern in this app).
+                from tap_cares.services import run_collection
+
                 job = run_collection(collector, caller_context=ctx)
             except Exception as exc:  # noqa: BLE001
                 logger.exception(

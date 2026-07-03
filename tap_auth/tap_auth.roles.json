@@ -23,7 +23,8 @@
         "auth.manage_providers",
         "config.manage",
         "plugins.manage",
-        "cares.run_collectors"
+        "cares.run_collectors",
+        "cares.reconcile_collectors"
       ],
       "assignable_to": ["program"]
     },
@@ -39,11 +40,12 @@
       "assignable_to": ["program"]
     },
     "tap_cares.scheduler": {
-      "description": "The scheduler program actor: writes its own operational bookkeeping (Schedule/ScheduleFire nodes + edges) and triggers collection runs. The triggered run itself executes as the collector actor, not the scheduler. Program-only.",
+      "description": "The scheduler program actor: writes its own operational bookkeeping (Schedule/ScheduleFire nodes + edges) and triggers collection runs. Holds cares.run_scheduler (advance the tick) but NOT cares.manage_schedules — creating/editing schedules is an admin decision, distinct from the heartbeat firing them. The triggered run itself executes as the collector actor, not the scheduler. Program-only.",
       "capabilities": [
         "grid.read",
         "grid.write",
-        "cares.run_collectors"
+        "cares.run_collectors",
+        "cares.run_scheduler"
       ],
       "assignable_to": ["program"]
     }

@@ -303,8 +303,10 @@ class TestReconcileCollectorNodes:
 
     def test_reconcile_under_human_actor_is_refused(self):
         # The batch writes INTERNAL_ONLY nodes via the bypass — a program-actor-only
-        # door. A human reconcile is refused even holding grid.write (so it is the
-        # program-actor guard firing, not the write backstop): belt-and-suspenders.
+        # door. A human reconcile is refused even holding BOTH the cares.reconcile_collectors
+        # gate capability AND grid.write — so it passes the capability gate and the write
+        # backstop, and it is the program-actor guard specifically that fires:
+        # belt-and-suspenders defense-in-depth (the gate + the program-actor door).
         from django.contrib.auth.models import Group, Permission
         from django.contrib.contenttypes.models import ContentType
 
@@ -316,9 +318,10 @@ class TestReconcileCollectorNodes:
         _register("human", cls)
         content_type = ContentType.objects.get_for_model(Capability)
         group = Group.objects.create(name="recon-human-writers")
-        group.permissions.add(
-            Permission.objects.get(content_type=content_type, codename=caps.codename_for("grid.write"))
-        )
+        for capability in ("grid.write", "cares.reconcile_collectors"):
+            group.permissions.add(
+                Permission.objects.get(content_type=content_type, codename=caps.codename_for(capability))
+            )
         human = User.objects.create_user(username="reconciler", password="x")  # user_kind defaults to human
         human.groups.add(group)
         set_caller_context(CallerContext(user=human))

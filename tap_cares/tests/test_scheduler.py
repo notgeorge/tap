@@ -25,7 +25,7 @@ from tap_cares.models import (
     ScheduleFireStatus,
 )
 from tap_cares.registry import collector_registry, reconcile_collector_nodes, register_collector
-from tap_cares.scheduler import (
+from tap_cares.services.scheduler import (
     SchedulerError,
     _missed_count,
     create_schedule,
@@ -404,7 +404,7 @@ class TestEvaluateTickSkipped:
             max_active_runs=1,
         )
         _pin_enabled_at_before(schedule, slot)
-        with patch("tap_cares.scheduler._active_run_count", return_value=1):
+        with patch("tap_cares.services.scheduler._active_run_count", return_value=1):
             fires = evaluate_tick(now=slot)
         assert len(fires) == 1
         fire = fires[0]
@@ -432,7 +432,7 @@ class TestEvaluateTickFailed:
         )
         _pin_enabled_at_before(schedule, slot)
         with patch(
-            "tap_cares.scheduler.run_collection",
+            "tap_cares.services.run_collection",
             side_effect=RuntimeError("simulated dispatch failure"),
         ):
             fires = evaluate_tick(now=slot)

@@ -105,20 +105,23 @@ def test_bootloader_bundle_is_exactly_the_least_privilege_set():
         "config.manage",
         "plugins.manage",
         "cares.run_collectors",
+        "cares.reconcile_collectors",
     }
 
 
-def test_cares_bundles_unchanged():
+def test_cares_bundles_are_least_privilege():
     assert set(roles.role_capabilities("tap_cares.collector")) == {
         "grid.read",
         "grid.write",
         "grid.import_grift",
         "cares.run_collectors",
+        "cares.self_test_collectors",
     }
     assert set(roles.role_capabilities("tap_cares.scheduler")) == {
         "grid.read",
         "grid.write",
         "cares.run_collectors",
+        "cares.run_scheduler",
     }
 
 

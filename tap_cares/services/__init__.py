@@ -42,14 +42,20 @@ from tap_grid.services import _create_node_internal, _patch_node_internal, creat
 logger = logging.getLogger(__name__)
 
 # Gateway export manifest (spec-service-layer-boundary.md req-service-boundary-contract-surface):
-# the reviewable list of gated collector-execution operations, and nothing else. Every name
-# here carries a capability gate — the service-boundary guard fails the build on any ungated
-# entry, and on any ungated public function defined in this gateway whether or not it is listed.
-# (Scheduler/registry grid operations join the gateway in a follow-on increment.)
+# the reviewable list of gated operations, and nothing else. Every name here carries a
+# capability gate — the service-boundary guard fails the build on any ungated entry, and on
+# any ungated public function defined in a gateway module (this __init__ + the scheduler
+# submodule) whether or not it is listed. The scheduler ops are defined in the scheduler
+# gateway submodule and re-exported below.
 __all__ = [
+    # Collector-execution ops (defined here)
     "run_collection",
     "self_test_collector",
     "fire_collector_and_await",
+    # Scheduler ops (defined in services/scheduler.py, re-exported below)
+    "create_schedule",
+    "set_schedule_enabled",
+    "evaluate_tick",
 ]
 
 # Loud, self-diagnosing detail for the RUNNER_UNAVAILABLE readiness failure.
@@ -361,3 +367,15 @@ def fire_collector_and_await(
         time.sleep(poll_interval_seconds)
 
     return job.status == CollectionJobStatus.SUCCESSFUL.value, job
+
+
+# Scheduler gateway ops live in the scheduler submodule (they carry a large body of
+# below-gate helpers). Re-exported here so `__all__` advertises the whole gateway surface
+# from one place and callers use `from tap_cares.services import evaluate_tick`. Imported at
+# the bottom, after the collector ops above are defined, so scheduler.py's own lazy
+# `run_collection` import resolves against a fully-initialized package.
+from tap_cares.services.scheduler import (  # noqa: E402
+    create_schedule,
+    evaluate_tick,
+    set_schedule_enabled,
+)

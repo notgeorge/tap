@@ -100,11 +100,11 @@ tap_auth/tests/test_sessions.py:arg-type:1
 tap_cares/management/commands/dev_validation_spike.py:no-untyped-def:2
 tap_cares/models.py:type-arg:1
 tap_cares/registry.py:attr-defined:2
-tap_cares/scheduler.py:arg-type:3
-tap_cares/scheduler.py:attr-defined:7
-tap_cares/scheduler.py:misc:2
-tap_cares/scheduler.py:no-any-return:4
 tap_cares/services/__init__.py:no-any-return:1
+tap_cares/services/scheduler.py:arg-type:3
+tap_cares/services/scheduler.py:attr-defined:7
+tap_cares/services/scheduler.py:misc:2
+tap_cares/services/scheduler.py:no-any-return:4
 tap_cares/tasks.py:arg-type:1
 tap_cares/tasks.py:type-arg:1
 tap_cares/tests/test_collection_job_model.py:no-untyped-call:17
