@@ -11,6 +11,8 @@ argument-hint: [session-name | compose-project | path-to-diag-log]  (default: in
 
 A spawn (`scripts/spawn-session.sh`) stands an instance up through a fixed ordered sequence; a `scripts/gate-lean` throwaway drives that same sequence with a lean, isolated venv. When one fails, the failure is almost always at a **specific step**, and the web container's logs name it. This skill is the standardized read of that sequence so we stop re-deriving it by hand each time. Produce a **verdict**: failing step → root cause → the log line that proves it → the fix → whether to nuke.
 
+**Owning spec:** `specs/spec-dev-multisession-diagnose.md` (`req-dev-multisession-diagnose-*`) is canonical for *what* this procedure must establish; this SKILL.md is *how*. Keep them aligned — a new requirement there earns a step here, and vice versa.
+
 Authoritative background (skim, do not guess): `scripts/spawn-session.sh` (the step sequence), `scripts/despawn-session.sh` (teardown), `scripts/gate-lean` (the lean-boot gate + its `*-diag.log`), `specs/spec-dev-multisession.md`, `specs/spec-tap-boot-v0.md` (boot phases), `specs/spec-dev-validation.md`.
 
 ## Step 0 — Establish the target
@@ -61,4 +63,4 @@ Before finishing, reflect on the diagnostic session itself:
 - Did a step's evidence command come up short (wrong log depth, a state `ps`/`logs` didn't reveal, a probe you had to reach for)? Improve the command.
 - Was the target hard to resolve (naming, tmp base, no registry row)? Sharpen Step 0.
 
-Make the edit to **this** SKILL.md in the same change (it is the standard we are iterating), and note in your summary what you changed and why — so the skill compounds instead of staying frozen at its first draft.
+Make the edit to **this** SKILL.md in the same change (it is the standard we are iterating), and note in your summary what you changed and why — so the skill compounds instead of staying frozen at its first draft. A new *signature* is a SKILL.md-only edit; only a genuinely new **requirement** (a new kind of thing the procedure must establish) also touches the owning spec (`spec-dev-multisession-diagnose.md`).
