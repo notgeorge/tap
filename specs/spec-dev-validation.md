@@ -29,16 +29,16 @@ The discipline running through every requirement here is honest coverage account
 | req-dev-validation-known-broken | [Known-Broken Manifest](#known-broken-manifest) | Implemented | In-repo, ratchets down; named here as the house convention |
 | req-dev-validation-collection-complete | [Collection Completeness](#collection-completeness) | Implemented | Every test file on disk is collected by the gate run; discovery not an allow-list; validates the validator |
 | req-dev-validation-promote-hook | [Promote-Path Enforcement](#promote-path-enforcement) | Implemented | Reciprocal of `req-dev-multisession-promote-gate` |
-| req-dev-validation-ratchet-harness | [Reusable Ratchet Harness](#reusable-ratchet-harness) | Proposed | Extract the shared compare-and-report core of the proliferating baseline ratchets |
+| req-dev-validation-ratchet-harness | [Reusable Ratchet Harness](#reusable-ratchet-harness) | Implemented | `tap/ratchet.py` + `tap.guards` harness; every bespoke ratchet migrated onto it (provenance-schema sub-req deferred as YAGNI) |
 | req-dev-validation-mypy-ratchet | [Static Typing Ratchet](#static-typing-ratchet) | Implemented | `mypy .` strict-mode error set frozen per file+error-code and ratcheting down; blocks new errors |
-| req-dev-validation-suite-tiers | [Suite Tiering & Performance](#suite-tiering--performance) | Proposed | Fast / affected / full test lanes so a slow full run leaves the inner loop; how-each-runs discipline |
+| req-dev-validation-suite-tiers | [Suite Tiering & Performance](#suite-tiering--performance) | Partially Implemented | xdist full + `--fast` lanes built (`scripts/test`); affected/impact lane + profiled `slow` designations + per-profile fast lane still to build (coupled to the streamlined boot profiles) |
 
 Leaf surfaces referenced by the Map are owned elsewhere: spawn-env smoke in [spec-dev-multisession-smoketest.md](spec-dev-multisession-smoketest.md), teardown in [spec-dev-multisession-teardown.md](spec-dev-multisession-teardown.md), the log-site scanner in [spec-tap-logging.md](spec-tap-logging.md), and the async-delivery tiers in [spec-tap-cares-task-backend.md](../tap_cares/specs/spec-tap-cares-task-backend.md) (`req-tap-cares-task-backend-backlog-2`). This spec does not re-specify them.
 
 ### Validation Map
 ----
 RID: `req-dev-validation-map`
-Status: `Proposed`
+Status: `Implemented`
 
 The Validation Map is the spine of this spec and the single authoritative inventory of every validation surface in TAP. A surface that is not in the Map is, by definition, unaccounted-for. The Map is **generated from the code**, not hand-maintained: a guarded surface earns its row by being a discovered `Guard` (`tap.guards`), and a non-guard surface (a behavioral suite, a gate step, a manual/deferred procedure) earns its row from `tap.guards.surfaces.DECLARED_SURFACES`. Adding a validation surface therefore means adding its guard or its declared-surface entry — each carrying a requirement `rid` that is machine-checked to resolve — and regenerating; that addition is the reviewable decision. The Map records, per surface, its cadence and its honest guard status using the vocabulary below — including surfaces that are deliberately manual or deferred, so the validation posture and every gap are visible in one place rather than implied behind green checkmarks.
 
@@ -108,12 +108,12 @@ Rows marked *(target)* describe the intended state once this spec is implemented
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-dev-validation-map-1 | Map is authoritative | Proposed | Every validation surface in the repository has exactly one row in the Map. A surface absent from the Map is treated as unaccounted-for. | |
-| req-dev-validation-map-2 | Honest guard status | Proposed | Each row's guard status uses the defined vocabulary; manual/deferred surfaces are labeled explicitly, never implied. | Counters the false-confidence failure mode. |
-| req-dev-validation-map-3 | Co-change discipline | Proposed | Adding, moving, or retiring a validation surface anywhere REQUIRES updating its Map row in the same change. | The Map change is the reviewable decision. |
-| req-dev-validation-map-4 | References, not copies | Proposed | The Map points at owning specs; it does not duplicate their requirements or acceptance criteria. | Prevents cross-spec drift. |
-| req-dev-validation-map-5 | Generated, not hand-maintained | Proposed | The Map inventory is generated from the discovered guards + `DECLARED_SURFACES` by `manage.py guards --sync-map`; a meta-test fails if the committed block drifts from that output. Guarded rows cannot fall out of step with the code that enforces them. | `tap/tests/test_guards.py::test_spec_map_in_sync`. Closes the stale-Map-row drift class (an "Enforced by" pointer going stale unnoticed). |
-| req-dev-validation-map-6 | Every surface resolves to a requirement | Proposed | Each guard's `rid` and each declared surface's `rid` resolves to a requirement actually defined in some spec (RID heading or requirements-table cell), not merely referenced. A surface cannot point at a requirement that does not exist. | Replaces the prior "map_row ∈ prose table" check. Caught `req-dev-validation-mypy-ratchet` being referenced-but-undefined. |
+| req-dev-validation-map-1 | Map is authoritative | Implemented | Every validation surface in the repository has exactly one row in the Map. A surface absent from the Map is treated as unaccounted-for. | The Map is generated from the discovered guards + `DECLARED_SURFACES`, so a guard/surface with no row cannot exist. |
+| req-dev-validation-map-2 | Honest guard status | Implemented | Each row's guard status uses the defined vocabulary; manual/deferred surfaces are labeled explicitly, never implied. | Counters the false-confidence failure mode. Status is carried per-guard and per-declared-surface, rendered into the row. |
+| req-dev-validation-map-3 | Co-change discipline | Implemented | Adding, moving, or retiring a validation surface anywhere REQUIRES updating its Map row in the same change. | Enforced mechanically: adding a guard/surface changes the generated block, and `test_spec_map_in_sync` fails until it is regenerated. |
+| req-dev-validation-map-4 | References, not copies | Implemented | The Map points at owning specs; it does not duplicate their requirements or acceptance criteria. | Prevents cross-spec drift. Rich "why" lives in guard `description` + owning specs. |
+| req-dev-validation-map-5 | Generated, not hand-maintained | Implemented | The Map inventory is generated from the discovered guards + `DECLARED_SURFACES` by `manage.py guards --sync-map`; a meta-test fails if the committed block drifts from that output. Guarded rows cannot fall out of step with the code that enforces them. | `tap/tests/test_guards.py::test_spec_map_in_sync`. Closes the stale-Map-row drift class (an "Enforced by" pointer going stale unnoticed). |
+| req-dev-validation-map-6 | Every surface resolves to a requirement | Implemented | Each guard's `rid` and each declared surface's `rid` resolves to a requirement actually defined in some spec (RID heading or requirements-table cell), not merely referenced. A surface cannot point at a requirement that does not exist. | Replaces the prior "map_row ∈ prose table" check. Caught `req-dev-validation-mypy-ratchet` being referenced-but-undefined. |
 
 ### Cold-Boot Smoke Gate
 ----
@@ -240,15 +240,16 @@ This is the honest-coverage-accounting discipline of this spec turned on the tes
 ### Reusable Ratchet Harness
 ----
 RID: `req-dev-validation-ratchet-harness`
-Status: `Proposed`
+Status: `Implemented`
 
-> **Forward note, not a build (jotted 2026-07-01).** Seeded for a validation-focused
-> session. The convention above names the *shape*; this requirement is the
-> observation that the shape has proliferated enough to share an *implementation*,
-> plus a sketch of what to extract. Do not build speculatively — build it when the
-> next ratchet would be the third caller of the same copy-pasted compare-and-report
-> logic, or when the [Cold-Boot Smoke Gate](#cold-boot-smoke-gate) needs to invoke
-> several ratchets uniformly.
+> **BUILT (2026-07-02, session/validation-creation).** Extracted on demand once the
+> shape had its third-plus caller (per the discipline below). `tap/ratchet.py` holds
+> the Django-free compare core (`ratchet_ceiling` / `ratchet_floor` /
+> `read_baseline_set`); `tap.guards` adds the `Guard` / `CeilingRatchet` base and the
+> filesystem-discovered, distributed guard set. Every bespoke ratchet migrated onto it
+> (authz, direct-write, log-site ×3, gryphon coverage-floor, mypy, known-broken). The
+> one deferred sub-req is the provenance-carrying baseline schema (`-2`), YAGNI until a
+> consumer needs it. The section below records the original demand signal + design.
 
 #### Why now (the demand signal)
 
@@ -296,10 +297,10 @@ it incrementally; none is rewritten speculatively.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-dev-validation-ratchet-harness-1 | Shared compare core | Proposed | A single helper implements the floor and ceiling-to-zero ratchet directions, with one actionable regression message and one improvement/bump message, replacing per-caller copies. | Measurement stays bespoke per surface. |
-| req-dev-validation-ratchet-harness-2 | Common baseline schema | Proposed | Ratchet baselines share a committed artifact shape carrying the value plus provenance (`measured_at_commit`, scope, note). | |
-| req-dev-validation-ratchet-harness-3 | Emits its Map row | Proposed | The harness produces the surface's Validation Map row stub with standard guard-status phrasing so honest-status labeling cannot drift. | Ties to `req-dev-validation-map`. |
-| req-dev-validation-ratchet-harness-4 | Incremental migration, no speculative rewrite | Proposed | Existing ratchets migrate to the shared core only as they are next touched; the harness is built when it would have its second or third real caller, not before. | Guards against framework-ahead-of-demand. |
+| req-dev-validation-ratchet-harness-1 | Shared compare core | Implemented | A single helper implements the floor and ceiling-to-zero ratchet directions, with one actionable regression message and one improvement/bump message, replacing per-caller copies. | `tap/ratchet.py` (`ratchet_ceiling` / `ratchet_floor` / `read_baseline_set`); `tap.guards.CeilingRatchet` wraps the ceiling direction. Measurement stays bespoke per surface. |
+| req-dev-validation-ratchet-harness-2 | Common baseline schema | Deferred | Ratchet baselines share a committed artifact shape carrying the value plus provenance (`measured_at_commit`, scope, note). | Deferred as YAGNI: baselines remain line-per-entry text (each with a header comment); no consumer needs structured provenance yet. Revisit if a caller does. |
+| req-dev-validation-ratchet-harness-3 | Emits its Map row | Implemented | The harness produces the surface's Validation Map row with standard guard-status phrasing so honest-status labeling cannot drift. | Realized more strongly than a stub: guards carry `map_row`/`rid`/`cadence`/`status`, and `render_map_markdown()` generates the row (`req-dev-validation-map-5`). |
+| req-dev-validation-ratchet-harness-4 | Incremental migration, no speculative rewrite | Implemented | Existing ratchets migrate to the shared core only as they are next touched; the harness is built when it would have its second or third real caller, not before. | Migrated: authz, direct-write, log-site (×3), gryphon coverage-floor, mypy, known-broken. Guards against framework-ahead-of-demand. |
 
 ### Static Typing Ratchet
 ----
@@ -319,7 +320,7 @@ Status: `Implemented`
 ### Suite Tiering & Performance
 ----
 RID: `req-dev-validation-suite-tiers`
-Status: `Proposed`
+Status: `Partially Implemented`
 
 > **Forward note, not a build (jotted 2026-07-01).** Seeded for the
 > validation-focused session. The corpus has grown fast (the Gryphon suites alone
@@ -381,8 +382,8 @@ at the promote gate and not on every save.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-dev-validation-suite-tiers-1 | Three named lanes | Proposed | The suite exposes fast (`-m smoke`), affected (`-m "not slow"` or impact-selected), and full lanes, with a documented "which runs when". | Fast tier membership is owned by `req-dev-validation-canary-tier`. |
-| req-dev-validation-suite-tiers-2 | Parallel full run | Proposed | The full lane runs under `pytest-xdist` with per-worker databases; this does not conflict with the shared-DB single-invocation rule. | Highest-ROI lever. |
+| req-dev-validation-suite-tiers-1 | Three named lanes | Partially Implemented | The suite exposes fast (`-m smoke`), affected (`-m "not slow"` or impact-selected), and full lanes, with a documented "which runs when". | Built: full + `--fast` lanes (`scripts/test`, documented in `docs/misc/test-parallelization-xdist-notes.md`). Missing: the affected/impact lane. Fast tier membership is owned by `req-dev-validation-canary-tier`. |
+| req-dev-validation-suite-tiers-2 | Parallel full run | Implemented | The full lane runs under `pytest-xdist` with per-worker databases; this does not conflict with the shared-DB single-invocation rule. | `scripts/test` (`-n auto`), kept out of `addopts` on purpose. Highest-ROI lever; delivered. |
 | req-dev-validation-suite-tiers-3 | Profiled, not guessed | Proposed | `slow` designations follow from `--durations` evidence, not intuition. | |
 | req-dev-validation-suite-tiers-4 | Impact lane is not a gate | Proposed | Any test-impact/affected selection accelerates the inner loop only; the pre-push gate always runs the full lane. | Counters the substitution-backend blind spot. |
 
