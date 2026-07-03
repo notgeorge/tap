@@ -3,7 +3,7 @@
 Pure logic and below-service-boundary machinery: UUID coercion, schema/payload
 shaping, the write pipeline, provenance/batch bookkeeping, entity loading, and
 the debug/test guards. NONE of these present a service surface, so none carry a
-capability gate — they run *after* a public gateway function in
+capability gate — they run *after* an exported gateway callable in
 ``tap_grid.services`` has already authorized the caller. This module imports
 nothing from the gateway (``__init__.py``); the dependency is strictly one-way.
 """
