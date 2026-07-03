@@ -48,8 +48,8 @@
       {
         "slug": "fedramp_20x_ksi",
         "enabled": true,
-        "source": { "type": "editable", "path": "plugins/fedramp_20x_ksi" },
-        "note": "First plugin migrated to package-mode (tap_plugin.fedramp_20x_ksi), 2026-07-01. Editable local source during the monorepo transition; a real deployment uses a git source pinned to a rev."
+        "source": { "type": "git", "url": "https://github.com/notgeorge/tap-plugin-fedramp-20x-ksi", "rev": "v0.1.0", "credential": "github-plugins-ro" },
+        "note": "First leaf EVICTED from the monorepo (2026-07-03): pulled at boot from its own repo (notgeorge/tap-plugin-fedramp-20x-ksi) via authed git source — the github-plugins-ro PAT (scope tap_plugins/source) fed through GIT_ASKPASS, never in the URL. rev pinned to the immutable tag v0.1.0 (commit dae4682). samsite boots now depend on the repo + PAT + network — the intended demo-profile behavior. Reversible: flip back to {type:editable, path:plugins/fedramp_20x_ksi} to use the monorepo copy. The monorepo plugins/fedramp_20x_ksi/ tree stays in place until this boot-verifies, then is removed (per the eviction recipe)."
       },
       {
         "slug": "samsite",
