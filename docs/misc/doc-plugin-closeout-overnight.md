@@ -145,6 +145,10 @@ time to spare. Pairs with `req-dev-validation-suite-tiers`.
 
 ## Explicitly NOT in this close-out
 
+- **Full plugin eviction** (monorepo → own repos, authed git-source install) — a separate,
+  *supervised* morning plan: `docs/misc/doc-plugin-eviction-plan.md`. It has an unbuilt prerequisite
+  (`req-plugin-arch-sources` / `req-plugin-arch-source-secret` are Proposed) and is downstream of the
+  Phase 2 type sweep landing, so it is deliberately NOT in this unattended overnight scope.
 - Building the headless toggle (`req-web-rendering-headless` + tap_api) — backlog build, demand-gated.
 - Core apps as workspace members (`req-plugin-arch-core-packaging`) — backlog, downstream of
   app-interdependency reduction.
