@@ -27,6 +27,8 @@ The validator is a TAP feature, not a third-party lint layer. It should live ins
 | req-plugin-validate-levels | [Validation Levels](#validation-levels) | Implemented | Three cumulative levels: structure, loads, runs |
 | req-plugin-validate-loads | [Loads Level](#loads-level) | Implemented | Class-path validation via Django import system |
 | req-plugin-validate-runs | [Runs Level](#runs-level) | Implemented | Service-layer smoke tests with rollback transaction |
+| req-plugin-validate-identity | [Identity Coherence](#identity-coherence) | Implemented | Structure check: package-mode identity chain agrees on disk |
+| req-plugin-validate-deps | [Declared Dependencies](#declared-dependencies) | Implemented | Structure check: cross-plugin imports are declared in depends_on |
 | req-plugin-validate-cli | [Standalone CLI](#standalone-cli) | Implemented | Module-based CLI for structure level; loads/runs via management command |
 | req-plugin-validate-mgmt | [Management Command](#management-command) | Implemented | Django management command supporting all levels |
 | req-plugin-validate-output | [Validation Output](#validation-output) | Implemented | Human output and structured JSON output |
@@ -52,6 +54,8 @@ The implemented validation scope for v0 is structural validation only. This incl
 - manifest parsing
 - manifest structural validation
 - path and convention checks
+- package-mode identity coherence (slug / namespace / distribution / entry-point agree) — req-plugin-validate-identity
+- declared-dependency coverage (every cross-plugin import is declared in `depends_on`) — req-plugin-validate-deps
 - declared class-path validation where supported by existing TAP manifest validation logic
 - warnings for undeclared convention files where TAP already emits them
 
@@ -122,7 +126,7 @@ Plugin validation defines named levels that progressively exercise more of the p
 
 The validator defines these level names:
 
-- `structure` — manifest parsing, path checks, edge file validation. No Django required.
+- `structure` — manifest parsing, path checks, edge file validation, package-mode identity coherence (req-plugin-validate-identity), and declared-dependency coverage (req-plugin-validate-deps). No Django required.
 - `loads` — all structure checks plus class-path validation via Django's import system. Requires Django app startup.
 - `runs` — all loads checks plus service-layer smoke tests (create_node, create_edge, grift_import). Requires Django app startup and a database. Runs inside an atomic transaction that rolls back so no data is persisted.
 
@@ -209,6 +213,62 @@ If `create_node` fails with the auto-generated payload, that is a real validatio
 | req-plugin-validate-runs-3 | GRIFT Import Smoke Test | Implemented | `grift_import` succeeds for each declared GRIFT bundle. | |
 | req-plugin-validate-runs-4 | Transaction Rollback | Implemented | All runs-level checks execute inside an atomic transaction that rolls back. | |
 | req-plugin-validate-runs-5 | Auto Payload Generation | Implemented | Payloads are auto-generated from FIELD_CRUD_SCHEMA and CREATE_REQUIRED without plugin-authored fixtures. | |
+
+### Identity Coherence
+----
+RID: `req-plugin-validate-identity`
+Status: `Implemented`
+
+A structure-level check verifies that a package-mode plugin's identity chain agrees end to end on the source tree.
+
+#### Implementation
+
+`req-plugin-arch-identity` requires a single identity to run unbroken across four surfaces: the manifest `slug`, the namespace package segment (`tap_plugin/<slug>/`), the distribution name (`tap-plugin-<slug>`), and the `tap.plugins` entry-point key. The pre-boot conformance gate (`conformance_gate` in `tap/preboot.py`) enforces this from *installed* distribution metadata. This check enforces the same chain from the *on-disk source tree*, so a drift is caught at author time — before the plugin is ever built or installed.
+
+The `identity-coherence` check (structure level, no Django) verifies, for a package-mode plugin:
+
+- the namespace package directory is `<plugin_root>/tap_plugin/<slug>/` (segment equals the manifest slug);
+- `pyproject.toml` exists at the plugin root and its `[project].name` equals `dist_name_for_slug(slug)` (`tap-plugin-<slug-with-dashes>`);
+- the `[project.entry-points."tap.plugins"]` table declares exactly one key, equal to the slug, whose target is under the `tap_plugin.<slug>` namespace.
+
+The check reuses `dist_name_for_slug`, `NAMESPACE_PACKAGE`, and `TAP_PLUGINS_ENTRY_POINT_GROUP` from `tap/preboot.py` rather than re-deriving the conventions. Legacy flat plugins (manifest at the plugin root, no `tap_plugin/` namespace and no `pyproject.toml`) predate the identity chain and are reported as *not applicable* (pass) rather than failed.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-plugin-validate-identity-1 | Namespace Segment | Implemented | The `tap_plugin/<segment>/` directory name equals the manifest slug. | |
+| req-plugin-validate-identity-2 | Distribution Name | Implemented | `pyproject.toml` `[project].name` equals `dist_name_for_slug(slug)`. | |
+| req-plugin-validate-identity-3 | Entry-Point Key | Implemented | The `tap.plugins` entry-point group declares exactly one key equal to the slug, targeting the `tap_plugin.<slug>` namespace. | |
+| req-plugin-validate-identity-4 | Legacy Flat Inapplicable | Implemented | Flat legacy layouts (no namespace/pyproject) report the check as not applicable rather than failing. | |
+| req-plugin-validate-identity-5 | Reuses Pre-Boot Conventions | Implemented | The check imports the naming conventions from `tap/preboot.py` rather than re-deriving them. | |
+
+### Declared Dependencies
+----
+RID: `req-plugin-validate-deps`
+Status: `Implemented`
+
+A structure-level check verifies that every cross-plugin import is declared in the manifest's `depends_on`.
+
+#### Implementation
+
+`req-plugin-arch-dependencies` requires each plugin's manifest `depends_on` to cover every *other* plugin it imports, so the boot install order can satisfy them. The pre-boot dependency-consistency guard (`dependency_consistency_guard` in `tap/preboot.py`) enforces `declared ⊇ observed` across a whole profile. This check applies the same rule to a single plugin at author time.
+
+The `declared-dependencies` check (structure level, no Django) computes:
+
+- `observed` — the set of *other* plugin slugs imported via `tap_plugin.<other>`, from a static AST scan of the plugin's package directory (`tap.plugin_deps.scan_observed_imports`);
+- `declared` — the slugs in the manifest's `depends_on` (`tap.plugin_deps.read_declared_depends_on`).
+
+The check fails for each slug in `observed - declared` (an undeclared import). Declared-but-unimported edges (pure data/vocabulary dependencies — e.g. one plugin seeding another plugin's node types by string reference, never importing it) are legitimate and reported as informational, not flagged. The check reuses `tap.plugin_deps` — the same scanner the pre-boot guard uses.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-plugin-validate-deps-1 | Undeclared Import Fails | Implemented | Each `tap_plugin.<other>` import with no matching `depends_on` slug fails the check. | |
+| req-plugin-validate-deps-2 | Declared Import Passes | Implemented | An imported plugin declared in `depends_on` passes. | |
+| req-plugin-validate-deps-3 | Data Dependency Allowed | Implemented | A declared-but-unimported dependency (data/vocabulary) is informational, not a failure. | |
+| req-plugin-validate-deps-4 | Reuses Scanner | Implemented | The check reuses `tap.plugin_deps` rather than re-implementing import scanning. | |
 
 ### Standalone CLI
 ----

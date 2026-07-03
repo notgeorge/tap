@@ -387,3 +387,154 @@ class TestRunsLevel:
         doc = json.loads(result.to_json())
         assert doc["ok"] is True
         assert doc["level"] == "runs"
+
+
+# ---------------------------------------------------------------------------
+# Identity-coherence + declared-dependencies checks (package-mode)
+# ---------------------------------------------------------------------------
+
+
+def _make_package_mode_plugin(
+    tmp_path: Path,
+    *,
+    slug: str = "widget",
+    dist_name: str | None = None,
+    ep_key: str | None = None,
+    ep_target: str | None = None,
+    segment: str | None = None,
+    include_pyproject: bool = True,
+    package_files: dict[str, str] | None = None,
+    depends_on: str = "",
+) -> Path:
+    """Create a package-mode plugin tree: ``<root>/tap_plugin/<segment>/`` + ``pyproject.toml``.
+
+    Defaults produce a coherent plugin; override the ``dist_name``/``ep_key``/``ep_target``/
+    ``segment`` args to inject a specific identity-chain break.
+    """
+    dist_name = dist_name if dist_name is not None else f"tap-plugin-{slug.replace('_', '-')}"
+    ep_key = ep_key if ep_key is not None else slug
+    ep_target = ep_target if ep_target is not None else f"tap_plugin.{slug}.apps:WidgetConfig"
+    segment = segment if segment is not None else slug
+
+    root = tmp_path / f"pkg_{slug}"
+    pkg = root / "tap_plugin" / segment
+    pkg.mkdir(parents=True)
+    (pkg / "tap-plugin.toml").write_text(textwrap.dedent(f"""\
+            manifest_version = "0"
+            plugin_version = "0.1.0"
+            slug = "{slug}"
+            name = "Widget"
+            {depends_on}
+            """))
+    (pkg / "__init__.py").write_text("")
+    (pkg / "apps.py").write_text(
+        "from tap_plugins.base import TapPluginConfig\n\n\nclass WidgetConfig(TapPluginConfig):\n    pass\n"
+    )
+    if package_files:
+        for rel_path, content in package_files.items():
+            full = pkg / rel_path
+            full.parent.mkdir(parents=True, exist_ok=True)
+            full.write_text(content)
+    if include_pyproject:
+        (root / "pyproject.toml").write_text(textwrap.dedent(f"""\
+                [project]
+                name = "{dist_name}"
+                version = "0.1.0"
+
+                [project.entry-points."tap.plugins"]
+                {ep_key} = "{ep_target}"
+                """))
+    return root
+
+
+def _check(result, check_id):
+    return next(c for c in result.checks if c.id == check_id)
+
+
+class TestIdentityCoherence:
+    def test_coherent_package_mode_passes(self, tmp_path):
+        root = _make_package_mode_plugin(tmp_path)
+        result = validate_plugin(root)
+        assert _check(result, "identity-coherence").status == "pass", result.to_human()
+
+    def test_real_plugin_has_identity_check(self):
+        result = validate_plugin(PLUGINS_ROOT / "administrivia")
+        assert _check(result, "identity-coherence").status == "pass", result.to_human()
+
+    def test_legacy_flat_layout_is_inapplicable_not_failed(self, tmp_path):
+        plugin_dir = _make_plugin(
+            tmp_path,
+            toml="""\
+            manifest_version = "0"
+            plugin_version = "0.1.0"
+            slug = "test"
+            name = "Test"
+            """,
+        )
+        check = _check(validate_plugin(plugin_dir), "identity-coherence")
+        assert check.status == "pass"
+        assert any("not applicable" in m.text for m in check.messages)
+
+    def test_wrong_distribution_name_fails(self, tmp_path):
+        root = _make_package_mode_plugin(tmp_path, slug="widget", dist_name="widget")
+        result = validate_plugin(root)
+        assert result.ok is False
+        assert _check(result, "identity-coherence").status == "fail"
+
+    def test_entry_point_key_not_slug_fails(self, tmp_path):
+        root = _make_package_mode_plugin(tmp_path, slug="widget", ep_key="gadget")
+        assert _check(validate_plugin(root), "identity-coherence").status == "fail"
+
+    def test_entry_point_target_wrong_namespace_fails(self, tmp_path):
+        root = _make_package_mode_plugin(tmp_path, slug="widget", ep_target="tap_plugin.gadget.apps:WidgetConfig")
+        assert _check(validate_plugin(root), "identity-coherence").status == "fail"
+
+    def test_namespace_segment_mismatch_fails(self, tmp_path):
+        root = _make_package_mode_plugin(tmp_path, slug="widget", segment="gadget")
+        assert _check(validate_plugin(root), "identity-coherence").status == "fail"
+
+    def test_missing_pyproject_fails(self, tmp_path):
+        root = _make_package_mode_plugin(tmp_path, include_pyproject=False)
+        assert _check(validate_plugin(root), "identity-coherence").status == "fail"
+
+
+class TestDeclaredDependencies:
+    def test_no_dependencies_passes(self, tmp_path):
+        root = _make_package_mode_plugin(tmp_path)
+        assert _check(validate_plugin(root), "declared-dependencies").status == "pass"
+
+    def test_real_plugin_deps_pass(self):
+        result = validate_plugin(PLUGINS_ROOT / "samsite")
+        assert _check(result, "declared-dependencies").status == "pass", result.to_human()
+
+    def test_undeclared_import_fails(self, tmp_path):
+        root = _make_package_mode_plugin(
+            tmp_path,
+            slug="widget",
+            package_files={"collector.py": "from tap_plugin.gadget.models import Thing\n"},
+        )
+        result = validate_plugin(root)
+        assert result.ok is False
+        check = _check(result, "declared-dependencies")
+        assert check.status == "fail"
+        assert any("gadget" in m.text for m in check.messages)
+
+    def test_declared_import_passes(self, tmp_path):
+        root = _make_package_mode_plugin(
+            tmp_path,
+            slug="widget",
+            depends_on='depends_on = [{ slug = "gadget" }]',
+            package_files={"collector.py": "from tap_plugin.gadget.models import Thing\n"},
+        )
+        assert _check(validate_plugin(root), "declared-dependencies").status == "pass"
+
+    def test_declared_but_unimported_is_pass(self, tmp_path):
+        # Pure data/vocabulary dependency: declared, never imported. Legitimate.
+        root = _make_package_mode_plugin(
+            tmp_path,
+            slug="widget",
+            depends_on='depends_on = [{ slug = "grid_fixtures" }]',
+        )
+        check = _check(validate_plugin(root), "declared-dependencies")
+        assert check.status == "pass"
+        assert any("not imported" in m.text for m in check.messages)
