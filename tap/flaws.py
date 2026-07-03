@@ -56,16 +56,29 @@ FLAW_TAGS: dict[str, str] = {
 HANDLING_ABORT_OPERATION = "abort_operation"
 HANDLING_REFUSE_BOOT = "refuse_boot"
 HANDLING_FAIL_CLOSED_CONTINUE = "fail_closed_continue"
+# The pure WARN_ON_ONCE analog: a suspicious invariant violation is *recorded* and
+# the operation is allowed to PROCEED unchanged — a detection tripwire, not a block.
+# Distinct from fail-closed-continue (which denies the specific operation but keeps
+# serving): observe-continue denies nothing. It is the honest handling for a control
+# whose false-positive cost is catastrophic (e.g. bricking boot) and whose blocking
+# value is marginal — where alerting for incident-response review beats prevention.
+# The security instinct is inverted deliberately: we fail *open* here, but loudly.
+HANDLING_OBSERVE_CONTINUE = "observe_continue"
 
-_HANDLINGS: frozenset[str] = frozenset({HANDLING_ABORT_OPERATION, HANDLING_REFUSE_BOOT, HANDLING_FAIL_CLOSED_CONTINUE})
+_HANDLINGS: frozenset[str] = frozenset(
+    {HANDLING_ABORT_OPERATION, HANDLING_REFUSE_BOOT, HANDLING_FAIL_CLOSED_CONTINUE, HANDLING_OBSERVE_CONTINUE}
+)
 
-# Severity is orthogonal to flaw_class and derived from impact: refusing to boot
-# is CRITICAL; an aborted op or a fail-closed-and-continue is ERROR. A Flaw is
-# identified by message_code=FLAW + flaw_class, never by level alone.
+# Severity is orthogonal to flaw_class and derived from impact: refusing to boot is
+# CRITICAL; an aborted op or a fail-closed-and-continue is ERROR; an observe-continue
+# blocked nothing (WARN_ON_ONCE) so it is WARNING. A Flaw is identified by
+# message_code=FLAW + flaw_class + tags, never by level alone — so a security-tagged
+# observe-continue still routes to incident response despite the lower level.
 _HANDLING_LEVEL: dict[str, int] = {
     HANDLING_REFUSE_BOOT: logging.CRITICAL,
     HANDLING_ABORT_OPERATION: logging.ERROR,
     HANDLING_FAIL_CLOSED_CONTINUE: logging.ERROR,
+    HANDLING_OBSERVE_CONTINUE: logging.WARNING,
 }
 
 FLAW_MESSAGE_CODE = "FLAW"

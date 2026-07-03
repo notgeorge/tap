@@ -6,7 +6,10 @@ session `sync_auth` baseline runs first; each `run_boot` then converges it again
 
 from __future__ import annotations
 
+import logging
+
 import pytest
+from django.core.management.base import BaseCommand
 
 from tap_auth.actors import BOOTLOADER
 from tap_auth.models import Capability
@@ -182,3 +185,57 @@ def test_echo_receives_progress_lines():
     run_boot(None, echo=lines.append)
     assert any("Auth phase" in line for line in lines)
     assert any("auth-only standup complete" in line for line in lines)
+
+
+class TestBootInvocationSelfCheck:
+    """run_boot *detects* out-of-band invocation without blocking it (a tripwire).
+
+    Boot mints the capability system, so it runs *before* any gate exists and cannot be
+    capability-gated (the un-gateable-layer variant of spec-service-layer-boundary). The
+    confirmed-positive context check walks for a live boot-`BaseCommand` frame (a stable
+    Django API, not a forgeable caller flag). But it is deliberately a detection, not a
+    wall: a hard fail would brick every boot on any heuristic drift while barely
+    inconveniencing a real in-process attacker, so an out-of-band call emits a
+    `security`-tagged Flaw (handling `observe_continue`) for incident-response routing
+    and boot *proceeds*. `TAP_TEST_MODE` carves the test runner (which drives run_boot
+    directly and repeatedly); the whole rest of this suite relies on that carve. These
+    tests flip it off to exercise the real production path on both sides — the
+    out-of-band tripwire, and the clean allowed-command path.
+    """
+
+    @pytest.mark.django_db
+    def test_out_of_band_call_flaws_and_proceeds(self, settings, caplog):
+        # With the test-runner carve disabled, a bare import-and-call — the exact shape
+        # of app or plugin code invoking boot out of band — has no boot-command frame.
+        # It must NOT brick boot: a security Flaw is recorded and the standup completes.
+        settings.TAP_TEST_MODE = False
+        with caplog.at_level(logging.WARNING):
+            run_boot(None)
+
+        flaw_records = [r for r in caplog.records if getattr(r, "message_code", None) == "FLAW"]
+        assert flaw_records, "expected a FLAW record for the out-of-band boot invocation"
+        payload = flaw_records[0].message_data
+        assert payload["invariant_id"] == "boot_invoked_out_of_band"
+        assert "security" in payload["flaw_tags"]
+        assert payload["handling"] == "observe_continue"
+        # Detection is a tripwire, not a wall — boot still ran to completion.
+        assert Capability.objects.exists()
+
+    @pytest.mark.django_db
+    def test_allowed_boot_command_frame_emits_no_flaw(self, settings, caplog):
+        settings.TAP_TEST_MODE = False
+
+        class _StandInBootCommand(BaseCommand):
+            def run(self) -> None:
+                run_boot(None)
+
+        # The check keys on the command class's module, not the file the call sits in:
+        # make this stand-in present as the real `manage.py boot` command to the stack
+        # walk, exactly as Django leaves the command bound as `self` during execute().
+        _StandInBootCommand.__module__ = "tap_boot.management.commands.boot"
+        with caplog.at_level(logging.WARNING):
+            _StandInBootCommand().run()
+
+        flaw_records = [r for r in caplog.records if getattr(r, "message_code", None) == "FLAW"]
+        assert not flaw_records, "an allowed boot command must not trip the tripwire"
+        assert Capability.objects.exists()

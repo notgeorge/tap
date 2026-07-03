@@ -23,13 +23,27 @@ built here (spec v0 Scope).
 from __future__ import annotations
 
 import logging
+import sys
 from collections.abc import Callable
+from types import FrameType
 
+from django.conf import settings
+from django.core.management.base import BaseCommand
+
+from tap.flaws import HANDLING_OBSERVE_CONTINUE, flaw_class_for_path
 from tap_auth.actors import BOOTLOADER, acting_as, get_builtin_actor
 from tap_auth.sync import ensure_initial_admin, sync_auth
 from tap_boot.profile import BootProfile, FireCollectorStep, PopulationStep, SeedPluginStep
 
 logger = logging.getLogger(__name__)
+
+# Narrow, declared public surface. tap_boot is an un-gateable Family-B layer
+# (spec-service-layer-boundary): it runs before the capability system exists, so
+# its defense is surface-minimization, not gating. Only the three symbols the boot
+# commands and profile-resolution guard import are exported; everything else —
+# phase helpers, the collector-timeout default, the invocation self-check — is a
+# module internal that no external caller should reach for.
+__all__ = ["BootError", "check_profile", "run_boot"]
 
 # A no-op writer keeps run_boot usable from tests/handlers that don't want stdout.
 Echo = Callable[[str], None]
@@ -47,6 +61,78 @@ class BootError(Exception):
     """Raised when a phase cannot complete; the command maps it to a non-zero exit."""
 
 
+# The only management commands expected to drive `run_boot`. Boot mints the
+# capability system, so it runs *before* any gate exists and cannot itself be
+# capability-gated (the un-gateable-layer variant of spec-service-layer-boundary:
+# "can't gate before the gate exists"). Its runtime defense is a confirmed-positive
+# context check — see `_check_boot_invocation_context`.
+_ALLOWED_BOOT_COMMANDS = frozenset(
+    {
+        "tap_boot.management.commands.boot",
+        "tap_boot.management.commands.cold_boot_gate",
+    }
+)
+
+
+def _check_boot_invocation_context() -> None:
+    """Detect — but do not block — an out-of-band `run_boot` invocation.
+
+    A *confirmed-positive* check, deliberately not evidence-of-absence: it walks the
+    call stack for a live `BaseCommand` instance from `_ALLOWED_BOOT_COMMANDS` —
+    Django's `BaseCommand.execute() -> handle()` leaves the command object bound as
+    `self` in a frame for the whole call, a stable public API rather than a fragile
+    internal. A genuine boot-command frame cannot be forged from outside the boot
+    path (the same instinct as spec-tap-callsite-identity: prove identity from
+    structure, not from a self-asserted marker an illegitimate caller could also set).
+
+    **Detection, not prevention (a tripwire, not a wall).** When the frame is absent
+    this does NOT raise — it emits a `security`-tagged Flaw (handling
+    `observe_continue`) and lets boot proceed. A hard fail here would be the worst kind
+    of footgun: any drift in this heuristic (a Django internals change, a legitimate
+    new invocation path) would brick every boot, while a real attacker who can already
+    execute in-process gains almost nothing from the block — they can call the phase
+    primitives directly. So the asymmetry runs the other way from most guards: the
+    block's cost is catastrophic and its value marginal. What is genuinely valuable is
+    the *signal* — an out-of-band boot invocation is a high-signal anomaly worth
+    routing to incident response — so we record it loudly and continue (WARN_ON_ONCE,
+    not BUG_ON). Residual risk named deliberately (spec-security-posture honest-risk):
+    a malicious in-process caller CAN still complete an out-of-band boot; this surface
+    alerts, it does not prevent.
+
+    The test runner is the trusted exception: it drives `run_boot` directly and
+    repeatedly, keyed on the deploy-controlled `TAP_TEST_MODE` settings flag (set only
+    by the test settings, never reachable by request-time caller code) — so it neither
+    trips the tripwire nor spams Flaws.
+    """
+    if getattr(settings, "TAP_TEST_MODE", False):
+        return  # trusted: the test runner drives boot directly, outside any command
+    frame: FrameType | None = sys._getframe(1)
+    caller_filename = frame.f_code.co_filename if frame is not None else None
+    while frame is not None:
+        candidate = frame.f_locals.get("self")
+        if isinstance(candidate, BaseCommand) and type(candidate).__module__ in _ALLOWED_BOOT_COMMANDS:
+            return  # confirmed positive: an allowed boot command is driving this call
+        frame = frame.f_back
+    # No allowed boot-command frame: run_boot was reached out of band. Blame by where
+    # the immediate caller lives (a plugin under plugins/ is an AppFlaw; first-party
+    # code is a CodeFlaw), matching the service-layer-bypass security Flaws.
+    flaw_cls = flaw_class_for_path(caller_filename)
+    flaw_cls.report(
+        invariant_id="boot_invoked_out_of_band",
+        tags=["security"],
+        handling=HANDLING_OBSERVE_CONTINUE,
+        message=(
+            "run_boot() was invoked outside an allowed boot management command "
+            "(manage.py boot / cold_boot_gate). Boot runs before the capability system "
+            "exists, so this path cannot be capability-gated; the invocation is recorded "
+            "for incident-response review and allowed to proceed, not blocked. Confirm the "
+            "caller is a legitimate standup path."
+        ),
+        logger=logger,
+        detected_caller=caller_filename or "<unknown>",
+    )
+
+
 def run_boot(profile: BootProfile | None, *, echo: Echo | None = None) -> None:
     """Stand the instance up: auth phase, then (if the profile has steps) population.
 
@@ -54,6 +140,7 @@ def run_boot(profile: BootProfile | None, *, echo: Echo | None = None) -> None:
     run, req-boot-profile-4). Raises `BootError` on any phase failure, after
     logging the offending section/step (req-boot-report).
     """
+    _check_boot_invocation_context()
     say = echo or _SILENT
     profile_label = profile.profile_id if profile else "(none — auth only)"
     logger.info("[c13a] boot starting: profile=%s", profile_label)

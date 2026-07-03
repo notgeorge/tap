@@ -18,6 +18,7 @@ from tap.flaws import (
     FLAW_TAGS,
     HANDLING_ABORT_OPERATION,
     HANDLING_FAIL_CLOSED_CONTINUE,
+    HANDLING_OBSERVE_CONTINUE,
     HANDLING_REFUSE_BOOT,
     AppFlaw,
     CodeFlaw,
@@ -204,6 +205,17 @@ def test_fail_closed_is_error(captured_logger):
         invariant_id="x", tags=["security"], handling=HANDLING_FAIL_CLOSED_CONTINUE, message="m", logger=logger
     )
     assert _flaw_records(handler)[0].levelno == logging.ERROR
+
+
+def test_observe_continue_is_warning(captured_logger):
+    # WARN_ON_ONCE analog: nothing was blocked, so the level is WARNING — but the Flaw
+    # still emits (message_code=FLAW) and a security tag still routes it, level aside.
+    logger, handler = captured_logger
+    CodeFlaw.report(invariant_id="x", tags=["security"], handling=HANDLING_OBSERVE_CONTINUE, message="m", logger=logger)
+    rec = _flaw_records(handler)[0]
+    assert rec.levelno == logging.WARNING
+    assert rec.message_code == "FLAW"
+    assert rec.message_data["handling"] == HANDLING_OBSERVE_CONTINUE
 
 
 # ---------------------------------------------------------------------------

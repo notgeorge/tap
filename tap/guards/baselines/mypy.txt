@@ -77,7 +77,7 @@ tap/jsonfiles.py:assignment:1
 tap/jsonfiles.py:index:1
 tap/preboot.py:no-any-return:1
 tap/settings.py:type-arg:1
-tap/tests/test_flaws.py:attr-defined:19
+tap/tests/test_flaws.py:attr-defined:21
 tap/tests/test_plugin_deps.py:var-annotated:3
 tap/tests/test_ratchet.py:no-untyped-call:4
 tap/tests/test_runtime_secrets.py:type-arg:3

@@ -286,10 +286,19 @@ reviewed set; `_`-prefix the install/snapshot/gate internals; add `__all__`; giv
    nothing). For Family B this is the *primary* structural lock, because there's **no
    gate behind the door** — it's the thing that actually prevents out-of-band
    invocation of a public boot internal. Same DIY-AST shape as the other tree-scanners.
-3. **Runtime context self-check (George's proposal) — the runtime half.** Once the boot
-   entry is called, it inspects **ambient system state** to decide if it's a legitimate
-   boot context vs. an in-request / re-entrant / out-of-band call, and **errors loud**
-   if illegitimate. Assessed against tap_boot's *actual* invocation model (traced):
+3. **Runtime context self-check (George's proposal) — the runtime half. LANDED as a
+   *detection tripwire*, not a hard fail.** Once the boot entry is called, it inspects
+   ambient call-stack state to decide if it's a legitimate boot context vs. an
+   in-request / out-of-band call. **Design correction (George, 2026-07-03):** an
+   original hard-`raise` here is the worst kind of footgun — any drift in the heuristic
+   (a Django internals change, a legitimate new invocation path) would brick *every*
+   boot, while a real in-process attacker gains almost nothing from the block (they can
+   call the phase primitives directly). So the response is inverted: on an out-of-band
+   call it emits a `security`-tagged Flaw with the new `observe_continue` handling
+   (the pure `WARN_ON_ONCE` analog — spec-tap-flaw-v0 `req-flaw-handling-4`) and **lets
+   boot proceed**. The signal — a high-value anomaly routed to incident response — is
+   what's kept; the block, which cost more than it bought, is dropped. Assessed against
+   tap_boot's *actual* invocation model (traced):
 
    **The invocation model is narrow and well-behaved.** `run_boot`
    (`tap_boot/orchestrator.py:50`) is called from exactly two management-command
@@ -308,22 +317,26 @@ reviewed set; `_`-prefix the install/snapshot/gate internals; add `__all__`; giv
      from `run_boot` and assert an *allowed boot Command* is in the call chain:
 
      ```python
-     import sys
-     from django.core.management.base import BaseCommand
-
-     _ALLOWED_BOOT_COMMANDS = frozenset({
-         "tap_boot.management.commands.boot",
-         "tap_boot.management.commands.cold_boot_gate",
-     })
-
-     def _assert_invoked_via_boot_command() -> None:
+     # LANDED (tap_boot/orchestrator.py): the positive stack check, but detection-only.
+     def _check_boot_invocation_context() -> None:
+         if getattr(settings, "TAP_TEST_MODE", False):
+             return  # trusted: the test runner drives boot directly
          frame = sys._getframe(1)
+         caller_filename = frame.f_code.co_filename if frame is not None else None
          while frame is not None:
              cmd = frame.f_locals.get("self")
              if isinstance(cmd, BaseCommand) and type(cmd).__module__ in _ALLOWED_BOOT_COMMANDS:
-                 return  # confirmed positive
+                 return  # confirmed positive — an allowed boot command drives this call
              frame = frame.f_back
-         raise BootError("run_boot must run via `manage.py boot`/`cold_boot_gate`, not be called directly")
+         # No boot-command frame → out of band. Record and PROCEED (tripwire, not wall).
+         flaw_class_for_path(caller_filename).report(
+             invariant_id="boot_invoked_out_of_band",
+             tags=["security"],
+             handling=HANDLING_OBSERVE_CONTINUE,
+             message="run_boot() invoked outside an allowed boot management command …",
+             logger=logger,
+             detected_caller=caller_filename or "<unknown>",
+         )
      ```
 
      Why this is positive-not-fragile: it confirms the *actual call chain* passes
@@ -342,11 +355,13 @@ reviewed set; `_`-prefix the install/snapshot/gate internals; add `__all__`; giv
      frame → would fail. Add an explicit bypass keyed on the trusted test environment
      (`settings.TESTING` / `PYTEST_CURRENT_TEST`), named as a deliberate carve.
    - **Re-entrancy → a module-level run-once sentinel** (`_BOOT_INVOKED` flipped on first
-     entry; a second in-process `run_boot` errors). The stack check passes a *legitimate*
+     entry; a second in-process `run_boot` observes). The stack check passes a *legitimate*
      second invocation within one command run, so double-boot protection is separate: the
      stack check answers "is this a real boot invocation," the sentinel answers "is this
-     the *first* one." **Neither exists today** — no run-once guard, lock, or context
-     check is present in tap_boot.
+     the *first* one." **Deferred, not landed** — the sentinel has real re-entrancy edge
+     cases (a legitimate re-boot) and, now that the primary response is observe-continue
+     rather than a raise, it would itself be an observe-only signal; left for a follow-up
+     rather than shipped speculatively.
    - **Optional secondary — request-context absence.** At `run_boot` entry, before it
      binds its actor via `acting_as(bootloader)` (`orchestrator.py:71-72`), a legit CLI
      boot has no ambient caller context (`tap_grid.caller_context.get_caller_context()` →
@@ -371,7 +386,9 @@ reviewed set; `_`-prefix the install/snapshot/gate internals; add `__all__`; giv
      corrupting boot-time state), **not** stopping an in-process attacker (who has
      bigger levers than re-calling boot). State that plainly; don't overclaim it as an
      attack mitigation.
-   - Illegitimate *context* → error, loud; already-done idempotent work → no-op.
+   - Illegitimate *context* → **security Flaw, loud, then proceed** (observe-continue);
+     already-done idempotent work → no-op. The residual risk (the flagged boot still
+     ran) is named deliberately per spec-security-posture honest-risk.
 
 ---
 

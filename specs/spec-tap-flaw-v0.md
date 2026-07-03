@@ -196,10 +196,11 @@ Reporting a Flaw is uniform and mandatory. Handling its impact is chosen per-Fla
 
 - **Reporting is mandatory and uniform**: a detected Flaw is always emitted (`req-flaw-emission`). A Flaw is never swallowed, downgraded to a routine log, or silently continued past.
 - **Handling is per-Flaw**, along the kernel `BUG` vs `WARN` axis:
-  - *fatal-to-operation* — abort the current operation (e.g. raise, roll back the batch).
-  - *fatal-to-standup* — refuse to boot / come up (e.g. a plugin contract violation at boot).
-  - *fail-closed-and-continue* — deny the specific request safely and keep serving (e.g. the unguarded gate fails closed for that op; the instance stays up).
-- The choice is recorded with the Flaw so a reader knows whether the instance is still trustworthy. Fail-closed-and-continue must be genuinely safe (no partial mutation, no data leak) — degrade, never limp.
+  - *fatal-to-operation* (`abort_operation`) — abort the current operation (e.g. raise, roll back the batch).
+  - *fatal-to-standup* (`refuse_boot`) — refuse to boot / come up (e.g. a plugin contract violation at boot).
+  - *fail-closed-and-continue* (`fail_closed_continue`) — deny the specific request safely and keep serving (e.g. the unguarded gate fails closed for that op; the instance stays up).
+  - *observe-and-continue* (`observe_continue`) — the pure `WARN_ON_ONCE` analog: record the violation and let the operation **proceed unchanged**. A detection tripwire, not a block — it denies nothing. Reserved for a control whose false-positive cost is catastrophic and whose blocking value is marginal (a real attacker could bypass it anyway), where alerting for incident-response review beats prevention. This handling fails *open*, deliberately and loudly; the residual risk (the flagged operation still ran) must be named at the callsite per `spec-security-posture` honest-risk. Emits at WARNING — nothing was blocked — but the `security` tag, not the level, is what routes it.
+- The choice is recorded with the Flaw so a reader knows whether the instance is still trustworthy. Fail-closed-and-continue must be genuinely safe (no partial mutation, no data leak) — degrade, never limp. Observe-and-continue makes no safety claim about the operation itself — its value is the signal, so it is only appropriate where the block would cost more than the exposure it prevents.
 - A Flaw must not be "handled" by suppression: catching a Flaw to continue without reporting is itself a `code` Flaw.
 
 #### Acceptance Criteria
@@ -207,7 +208,8 @@ Reporting a Flaw is uniform and mandatory. Handling its impact is chosen per-Fla
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-flaw-handling-1 | Always Reported | Proposed | A detected Flaw is always emitted; never swallowed or downgraded. | |
-| req-flaw-handling-2 | Per-Flaw Impact | Proposed | Handling (abort / refuse-boot / fail-closed-continue) is chosen per Flaw and recorded. | |
+| req-flaw-handling-2 | Per-Flaw Impact | Proposed | Handling (abort / refuse-boot / fail-closed-continue / observe-continue) is chosen per Flaw and recorded. | |
+| req-flaw-handling-4 | Observe-Continue Is Detection | Proposed | `observe_continue` records the Flaw and proceeds unchanged (WARN_ON_ONCE); it blocks nothing, emits at WARNING, and is reserved for controls where a hard block would cost more than the exposure it prevents. The residual risk must be named at the callsite. | Boot out-of-band invocation tripwire is the first consumer (`tap_boot.orchestrator`) |
 | req-flaw-handling-3 | No Silent Suppression | Proposed | Catching a Flaw to continue without reporting is itself a `code` Flaw. | |
 
 ---
