@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class DynamoDbTable(BaseModel):
     """An Amazon DynamoDB table."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_dynamodb_table"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_dynamodb_table"
     ENTITY_NAME: ClassVar[str] = "DynamoDB Table"
     ENTITY_DESCRIPTION: ClassVar[str] = "An Amazon DynamoDB NoSQL table."
     ENTITY_ICON: ClassVar[str] = "aws-dynamodb"
@@ -50,7 +50,7 @@ class DynamoDbTable(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_dynamodb_table"
+        db_table = "aws_core__aws_dynamodb_table"
 
     def get_name(self) -> str:
         return self.name

@@ -1,5 +1,5 @@
 {
-  "slug": "REFERENCES_SIGNAL",
+  "slug": "REFERENCES_SIGNAL__fedramp_20x_ksi",
   "name": "References Signal",
   "description": "A VDR report cites the KSI signal for the same system (the report's ksi_signal_ref). Emitted when the cited signal is on the grid.",
   "sources": ["vdr_report"],

@@ -1,5 +1,5 @@
 {
-  "slug": "FEDERATES_INTO",
+  "slug": "FEDERATES_INTO__aws_core",
   "name": "Federates Into",
   "description": "An external OIDC identity provider federates into an IAM role — i.e. tokens issued by the provider are trusted to assume the role via sts:AssumeRoleWithWebIdentity. Direction is provider -> role; the role's trust policy declares the relationship.",
   "sources": [

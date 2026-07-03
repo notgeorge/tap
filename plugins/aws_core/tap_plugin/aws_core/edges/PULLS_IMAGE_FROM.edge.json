@@ -1,5 +1,5 @@
 {
-  "slug": "PULLS_IMAGE_FROM",
+  "slug": "PULLS_IMAGE_FROM__aws_core",
   "name": "Pulls Image From",
   "description": "Container service pulls images from a registry.",
   "sources": [

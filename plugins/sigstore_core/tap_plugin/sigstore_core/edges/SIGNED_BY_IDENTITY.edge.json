@@ -1,5 +1,5 @@
 {
-  "slug": "SIGNED_BY_IDENTITY",
+  "slug": "SIGNED_BY_IDENTITY__sigstore_core",
   "name": "Signed By Identity",
   "description": "The Fulcio cert for this Rekor entry asserts this identity as the signer. v0 targets github_workflow; the target side is intentionally narrow until additional identity-node types arrive (raw email identities, GitLab workflows, etc.). Caller-supplied: the decompose helper emits this edge only when the caller passes a resolved identity entity id, performing no cross-plugin graph reads of its own.",
   "sources": ["rekor_log_entry"],

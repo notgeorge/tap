@@ -1,5 +1,5 @@
 {
-  "slug": "HAS_ACTIONS_JOB",
+  "slug": "HAS_ACTIONS_JOB__github_core",
   "name": "Has Job",
   "description": "Run contains a job. v0 reflects the latest-attempt job set (multi-attempt deferred to req-github-core-backlog-run-attempts).",
   "sources": ["github_actions_run"],

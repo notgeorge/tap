@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class IamPolicy(BaseModel):
     """An AWS IAM policy document."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_iam_policy"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_iam_policy"
     ENTITY_NAME: ClassVar[str] = "IAM Policy"
     ENTITY_DESCRIPTION: ClassVar[str] = "An AWS IAM permission policy."
     ENTITY_ICON: ClassVar[str] = "aws-iam"
@@ -47,7 +47,7 @@ class IamPolicy(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_iam_policy"
+        db_table = "aws_core__aws_iam_policy"
 
     def get_name(self) -> str:
         return self.name

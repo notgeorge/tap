@@ -24,7 +24,7 @@ class OidcIssuer(BaseModel):
     Spec: plugins/github_core/specs/spec-github-core-v0.md (req-github-core-models).
     """
 
-    ENTITY_TYPE: ClassVar[str] = "oidc_issuer"
+    ENTITY_TYPE: ClassVar[str] = "github_core__oidc_issuer"
     ENTITY_NAME: ClassVar[str] = "OIDC Issuer"
     ENTITY_DESCRIPTION: ClassVar[str] = "An OpenID Connect identity provider (issuer)."
     ENTITY_ICON: ClassVar[str] = "oidc-issuer"
@@ -72,7 +72,7 @@ class OidcIssuer(BaseModel):
     }
 
     class Meta(BaseModel.Meta):
-        db_table = "oidc_issuer"
+        db_table = "github_core__oidc_issuer"
 
     def get_name(self) -> str:
         return self._WELL_KNOWN_NAMES.get(self.issuer_url, self.issuer_url)

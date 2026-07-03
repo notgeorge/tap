@@ -1,5 +1,5 @@
 {
-  "slug": "DECLARES_VALIDATION",
+  "slug": "DECLARES_VALIDATION__fedramp_20x_ksi",
   "name": "Declares Validation",
   "description": "A KSI signal carries a validation result. One edge per validations[] entry.",
   "sources": ["ksi_signal"],

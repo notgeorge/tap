@@ -54,7 +54,7 @@
             "config": {
               "entity_id_var": "ksi_signal_entity_id",
               "fallback": {
-                "query": "MATCH (s:ksi_signal) WHERE s.data.emitted_at IS NOT NULL ORDER BY s.data.emitted_at DESC LIMIT 1",
+                "query": "MATCH (s:fedramp_20x_ksi__ksi_signal) WHERE s.data.emitted_at IS NOT NULL ORDER BY s.data.emitted_at DESC LIMIT 1",
                 "description": "Latest ksi_signal emission by emitted_at."
               }
             }
@@ -75,7 +75,7 @@
             "config": {
               "entity_id_var": "ksi_signal_entity_id",
               "sequence": {
-                "query": "MATCH (s:ksi_signal) WHERE s.data.emitted_at IS NOT NULL ORDER BY s.data.emitted_at DESC LIMIT 200",
+                "query": "MATCH (s:fedramp_20x_ksi__ksi_signal) WHERE s.data.emitted_at IS NOT NULL ORDER BY s.data.emitted_at DESC LIMIT 200",
                 "label_field": "emitted_at",
                 "label": "KSI Signal"
               }

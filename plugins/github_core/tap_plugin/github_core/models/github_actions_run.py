@@ -16,7 +16,7 @@ class GithubActionsRun(BaseModel):
     Spec: plugins/github_core/specs/spec-github-core-v0.md (req-github-core-models)
     """
 
-    ENTITY_TYPE: ClassVar[str] = "github_actions_run"
+    ENTITY_TYPE: ClassVar[str] = "github_core__github_actions_run"
     ENTITY_NAME: ClassVar[str] = "GitHub Actions Run"
     ENTITY_DESCRIPTION: ClassVar[str] = "An execution of a GitHub Actions workflow."
     ENTITY_ICON: ClassVar[str] = "github-actions-run"
@@ -77,7 +77,7 @@ class GithubActionsRun(BaseModel):
     tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "github_actions_run"
+        db_table = "github_core__github_actions_run"
 
     def get_name(self) -> str:
         if self.run_number:

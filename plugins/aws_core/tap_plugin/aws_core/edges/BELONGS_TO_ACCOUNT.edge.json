@@ -1,5 +1,5 @@
 {
-  "slug": "BELONGS_TO_ACCOUNT",
+  "slug": "BELONGS_TO_ACCOUNT__aws_core",
   "name": "Belongs To Account",
   "description": "Resource belongs to an AWS account.",
   "default_dimensions": {

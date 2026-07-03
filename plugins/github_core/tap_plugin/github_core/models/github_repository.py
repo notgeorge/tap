@@ -13,7 +13,7 @@ class GithubRepository(BaseModel):
     Spec: plugins/github_core/specs/spec-github-core-v0.md (req-github-core-models)
     """
 
-    ENTITY_TYPE: ClassVar[str] = "github_repository"
+    ENTITY_TYPE: ClassVar[str] = "github_core__github_repository"
     ENTITY_NAME: ClassVar[str] = "GitHub Repository"
     ENTITY_DESCRIPTION: ClassVar[str] = "A repository hosted on GitHub."
     ENTITY_ICON: ClassVar[str] = "github-repository"
@@ -64,7 +64,7 @@ class GithubRepository(BaseModel):
     tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "github_repository"
+        db_table = "github_core__github_repository"
 
     def get_name(self) -> str:
         return self.full_name or self.name

@@ -20,7 +20,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e52f9e44b889",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "Africa (Cape Town)",
             "dimensions": {}
           },
@@ -33,7 +33,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e530fe6567a3",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "Asia Pacific (Hong Kong)",
             "dimensions": {}
           },
@@ -46,7 +46,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5311d8b172d",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "Asia Pacific (Taipei)",
             "dimensions": {}
           },
@@ -59,7 +59,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5325b77f835",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "Asia Pacific (Tokyo)",
             "dimensions": {}
           },
@@ -72,7 +72,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5330810d3fd",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "Asia Pacific (Seoul)",
             "dimensions": {}
           },
@@ -85,7 +85,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e534620d356c",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "Asia Pacific (Osaka)",
             "dimensions": {}
           },
@@ -98,7 +98,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e535a20f3536",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "Asia Pacific (Mumbai)",
             "dimensions": {}
           },
@@ -111,7 +111,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e536346eb16b",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "Asia Pacific (Hyderabad)",
             "dimensions": {}
           },
@@ -124,7 +124,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e53777024e1e",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "Asia Pacific (Singapore)",
             "dimensions": {}
           },
@@ -137,7 +137,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e538455cfe27",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "Asia Pacific (Sydney)",
             "dimensions": {}
           },
@@ -150,7 +150,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e539c22a4f4a",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "Asia Pacific (Jakarta)",
             "dimensions": {}
           },
@@ -163,7 +163,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e53abbf8bfa7",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "Asia Pacific (Melbourne)",
             "dimensions": {}
           },
@@ -176,7 +176,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e53bf1d9ba1a",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "Asia Pacific (Malaysia)",
             "dimensions": {}
           },
@@ -189,7 +189,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e53c5221cf79",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "Asia Pacific (New Zealand)",
             "dimensions": {}
           },
@@ -202,7 +202,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e53dbac7930e",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "Asia Pacific (Thailand)",
             "dimensions": {}
           },
@@ -215,7 +215,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e53ebff1bff7",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "Canada (Central)",
             "dimensions": {}
           },
@@ -228,7 +228,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e53f7d8c1b7e",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "Canada West (Calgary)",
             "dimensions": {}
           },
@@ -241,7 +241,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e54037fc5f8f",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "Europe (Frankfurt)",
             "dimensions": {}
           },
@@ -254,7 +254,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e54146b6dfa2",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "Europe (Zurich)",
             "dimensions": {}
           },
@@ -267,7 +267,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e542fbc2081f",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "Europe (Stockholm)",
             "dimensions": {}
           },
@@ -280,7 +280,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5432731fb95",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "Europe (Milan)",
             "dimensions": {}
           },
@@ -293,7 +293,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e544c471736d",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "Europe (Spain)",
             "dimensions": {}
           },
@@ -306,7 +306,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e545f600edc1",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "Europe (Ireland)",
             "dimensions": {}
           },
@@ -319,7 +319,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e546e912ff3e",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "Europe (London)",
             "dimensions": {}
           },
@@ -332,7 +332,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e54751796da2",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "Europe (Paris)",
             "dimensions": {}
           },
@@ -345,7 +345,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e54832a55bbc",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "Israel (Tel Aviv)",
             "dimensions": {}
           },
@@ -358,7 +358,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5494f425315",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "Middle East (UAE)",
             "dimensions": {}
           },
@@ -371,7 +371,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e54a7e00b865",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "Middle East (Bahrain)",
             "dimensions": {}
           },
@@ -384,7 +384,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e54bb4366cb8",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "Mexico (Central)",
             "dimensions": {}
           },
@@ -397,7 +397,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e54c03e6ea79",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "South America (São Paulo)",
             "dimensions": {}
           },
@@ -410,7 +410,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e54dceaf090d",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "US East (N. Virginia)",
             "dimensions": {}
           },
@@ -423,7 +423,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e54e8f9c31d1",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "US East (Ohio)",
             "dimensions": {}
           },
@@ -436,7 +436,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e54f83ab5e84",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "US West (N. California)",
             "dimensions": {}
           },
@@ -449,7 +449,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5502a3ff202",
-            "entity_type": "aws_region",
+            "entity_type": "aws_core__aws_region",
             "name": "US West (Oregon)",
             "dimensions": {}
           },
@@ -462,7 +462,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e551be0cbfb1",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "af-south-1a",
             "dimensions": {}
           },
@@ -474,7 +474,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e552c1fd807e",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "af-south-1b",
             "dimensions": {}
           },
@@ -486,7 +486,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e553709244d3",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "af-south-1c",
             "dimensions": {}
           },
@@ -498,7 +498,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5543b72d0bf",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-east-1a",
             "dimensions": {}
           },
@@ -510,7 +510,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e555d93a40e9",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-east-1b",
             "dimensions": {}
           },
@@ -522,7 +522,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e556ac7dedf9",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-east-1c",
             "dimensions": {}
           },
@@ -534,7 +534,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e55783f2e990",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-east-2a",
             "dimensions": {}
           },
@@ -546,7 +546,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e558ef915af9",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-east-2b",
             "dimensions": {}
           },
@@ -558,7 +558,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e559708f4bb5",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-east-2c",
             "dimensions": {}
           },
@@ -570,7 +570,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e55a697a62bc",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-northeast-1a",
             "dimensions": {}
           },
@@ -582,7 +582,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e55b62be4e3f",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-northeast-1b",
             "dimensions": {}
           },
@@ -594,7 +594,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e55c0c6e296e",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-northeast-1c",
             "dimensions": {}
           },
@@ -606,7 +606,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e55d70bf73ef",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-northeast-1d",
             "dimensions": {}
           },
@@ -618,7 +618,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e55e35d7bb78",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-northeast-2a",
             "dimensions": {}
           },
@@ -630,7 +630,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e55fb3432964",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-northeast-2b",
             "dimensions": {}
           },
@@ -642,7 +642,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e56026c7c892",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-northeast-2c",
             "dimensions": {}
           },
@@ -654,7 +654,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5618a1016ed",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-northeast-2d",
             "dimensions": {}
           },
@@ -666,7 +666,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5624fa09280",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-northeast-3a",
             "dimensions": {}
           },
@@ -678,7 +678,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e563c5b6cd31",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-northeast-3b",
             "dimensions": {}
           },
@@ -690,7 +690,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e564034a300f",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-northeast-3c",
             "dimensions": {}
           },
@@ -702,7 +702,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e565de2d6dd0",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-south-1a",
             "dimensions": {}
           },
@@ -714,7 +714,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e56627f36286",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-south-1b",
             "dimensions": {}
           },
@@ -726,7 +726,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5670f29adaf",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-south-1c",
             "dimensions": {}
           },
@@ -738,7 +738,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e568780a90b0",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-south-2a",
             "dimensions": {}
           },
@@ -750,7 +750,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5697253cc08",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-south-2b",
             "dimensions": {}
           },
@@ -762,7 +762,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e56a2338599d",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-south-2c",
             "dimensions": {}
           },
@@ -774,7 +774,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e56b17b566b2",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-southeast-1a",
             "dimensions": {}
           },
@@ -786,7 +786,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e56cf24112cc",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-southeast-1b",
             "dimensions": {}
           },
@@ -798,7 +798,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e56d2b34d937",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-southeast-1c",
             "dimensions": {}
           },
@@ -810,7 +810,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e56ea4f9f286",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-southeast-2a",
             "dimensions": {}
           },
@@ -822,7 +822,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e56fccc86932",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-southeast-2b",
             "dimensions": {}
           },
@@ -834,7 +834,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e570aebb4eef",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-southeast-2c",
             "dimensions": {}
           },
@@ -846,7 +846,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e571a624fd7f",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-southeast-3a",
             "dimensions": {}
           },
@@ -858,7 +858,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e572aa5415b0",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-southeast-3b",
             "dimensions": {}
           },
@@ -870,7 +870,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e57341d647d6",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-southeast-3c",
             "dimensions": {}
           },
@@ -882,7 +882,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5749de7364f",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-southeast-4a",
             "dimensions": {}
           },
@@ -894,7 +894,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e575981c443e",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-southeast-4b",
             "dimensions": {}
           },
@@ -906,7 +906,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e576d8541626",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-southeast-4c",
             "dimensions": {}
           },
@@ -918,7 +918,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5773a9120e9",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-southeast-5a",
             "dimensions": {}
           },
@@ -930,7 +930,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5780726872a",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-southeast-5b",
             "dimensions": {}
           },
@@ -942,7 +942,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5795adb0360",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-southeast-5c",
             "dimensions": {}
           },
@@ -954,7 +954,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e57ab801b1d9",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-southeast-6a",
             "dimensions": {}
           },
@@ -966,7 +966,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e57b051b3746",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-southeast-6b",
             "dimensions": {}
           },
@@ -978,7 +978,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e57cde1d72e9",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-southeast-6c",
             "dimensions": {}
           },
@@ -990,7 +990,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e57dffbe1770",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-southeast-7a",
             "dimensions": {}
           },
@@ -1002,7 +1002,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e57ed5d14fa2",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-southeast-7b",
             "dimensions": {}
           },
@@ -1014,7 +1014,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e57f980fbda8",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ap-southeast-7c",
             "dimensions": {}
           },
@@ -1026,7 +1026,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e580cc824820",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ca-central-1a",
             "dimensions": {}
           },
@@ -1038,7 +1038,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e581ade7a193",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ca-central-1b",
             "dimensions": {}
           },
@@ -1050,7 +1050,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e582e6cd833a",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ca-central-1d",
             "dimensions": {}
           },
@@ -1062,7 +1062,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e583744236ba",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ca-west-1a",
             "dimensions": {}
           },
@@ -1074,7 +1074,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e584240f4ca5",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ca-west-1b",
             "dimensions": {}
           },
@@ -1086,7 +1086,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5854dce2ca5",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "ca-west-1c",
             "dimensions": {}
           },
@@ -1098,7 +1098,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5868c2674a7",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "eu-central-1a",
             "dimensions": {}
           },
@@ -1110,7 +1110,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5877e869326",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "eu-central-1b",
             "dimensions": {}
           },
@@ -1122,7 +1122,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5885a869996",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "eu-central-1c",
             "dimensions": {}
           },
@@ -1134,7 +1134,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e589aef75786",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "eu-central-2a",
             "dimensions": {}
           },
@@ -1146,7 +1146,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e58a79d54e35",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "eu-central-2b",
             "dimensions": {}
           },
@@ -1158,7 +1158,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e58b38c94735",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "eu-central-2c",
             "dimensions": {}
           },
@@ -1170,7 +1170,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e58c507769e8",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "eu-north-1a",
             "dimensions": {}
           },
@@ -1182,7 +1182,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e58d6559c592",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "eu-north-1b",
             "dimensions": {}
           },
@@ -1194,7 +1194,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e58e151ca153",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "eu-north-1c",
             "dimensions": {}
           },
@@ -1206,7 +1206,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e58f80c8bec9",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "eu-south-1a",
             "dimensions": {}
           },
@@ -1218,7 +1218,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e590908c4857",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "eu-south-1b",
             "dimensions": {}
           },
@@ -1230,7 +1230,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5914a753c53",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "eu-south-1c",
             "dimensions": {}
           },
@@ -1242,7 +1242,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e592689b9bd8",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "eu-south-2a",
             "dimensions": {}
           },
@@ -1254,7 +1254,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5934f731fbf",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "eu-south-2b",
             "dimensions": {}
           },
@@ -1266,7 +1266,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e594fffd5436",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "eu-south-2c",
             "dimensions": {}
           },
@@ -1278,7 +1278,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5955a4316ce",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "eu-west-1a",
             "dimensions": {}
           },
@@ -1290,7 +1290,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e596af091ff3",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "eu-west-1b",
             "dimensions": {}
           },
@@ -1302,7 +1302,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e597ce1ea11a",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "eu-west-1c",
             "dimensions": {}
           },
@@ -1314,7 +1314,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e598cb13048b",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "eu-west-2a",
             "dimensions": {}
           },
@@ -1326,7 +1326,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5991d8fa6ff",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "eu-west-2b",
             "dimensions": {}
           },
@@ -1338,7 +1338,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e59a842ae4ac",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "eu-west-2c",
             "dimensions": {}
           },
@@ -1350,7 +1350,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e59bbb696646",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "eu-west-3a",
             "dimensions": {}
           },
@@ -1362,7 +1362,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e59cc16d6d90",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "eu-west-3b",
             "dimensions": {}
           },
@@ -1374,7 +1374,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e59d05f8ce1e",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "eu-west-3c",
             "dimensions": {}
           },
@@ -1386,7 +1386,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e59e33de4692",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "il-central-1a",
             "dimensions": {}
           },
@@ -1398,7 +1398,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e59f6e9b7bc4",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "il-central-1b",
             "dimensions": {}
           },
@@ -1410,7 +1410,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5a08d3ff0b4",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "il-central-1c",
             "dimensions": {}
           },
@@ -1422,7 +1422,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5a19714bc36",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "me-central-1a",
             "dimensions": {}
           },
@@ -1434,7 +1434,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5a277c32fed",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "me-central-1b",
             "dimensions": {}
           },
@@ -1446,7 +1446,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5a3100322f9",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "me-central-1c",
             "dimensions": {}
           },
@@ -1458,7 +1458,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5a4896e34e0",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "me-south-1a",
             "dimensions": {}
           },
@@ -1470,7 +1470,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5a54b95334f",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "me-south-1b",
             "dimensions": {}
           },
@@ -1482,7 +1482,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5a6abae6931",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "me-south-1c",
             "dimensions": {}
           },
@@ -1494,7 +1494,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5a717baee11",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "mx-central-1a",
             "dimensions": {}
           },
@@ -1506,7 +1506,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5a8684d4f6e",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "mx-central-1b",
             "dimensions": {}
           },
@@ -1518,7 +1518,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5a92f3aef0d",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "mx-central-1c",
             "dimensions": {}
           },
@@ -1530,7 +1530,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5aa77ea7c38",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "sa-east-1a",
             "dimensions": {}
           },
@@ -1542,7 +1542,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5ab812d74fc",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "sa-east-1b",
             "dimensions": {}
           },
@@ -1554,7 +1554,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5ac5f59a11d",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "sa-east-1c",
             "dimensions": {}
           },
@@ -1566,7 +1566,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5ad47b5508c",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "us-east-1a",
             "dimensions": {}
           },
@@ -1578,7 +1578,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5aea7bd6158",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "us-east-1b",
             "dimensions": {}
           },
@@ -1590,7 +1590,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5afd7c51d4f",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "us-east-1c",
             "dimensions": {}
           },
@@ -1602,7 +1602,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5b06e88da19",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "us-east-1d",
             "dimensions": {}
           },
@@ -1614,7 +1614,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5b157079855",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "us-east-1e",
             "dimensions": {}
           },
@@ -1626,7 +1626,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5b2f1b95bdd",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "us-east-1f",
             "dimensions": {}
           },
@@ -1638,7 +1638,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5b3c4363b3a",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "us-east-2a",
             "dimensions": {}
           },
@@ -1650,7 +1650,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5b43861776a",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "us-east-2b",
             "dimensions": {}
           },
@@ -1662,7 +1662,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5b5faaeb791",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "us-east-2c",
             "dimensions": {}
           },
@@ -1674,7 +1674,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5b696216b36",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "us-west-1a",
             "dimensions": {}
           },
@@ -1686,7 +1686,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5b7c203ebd0",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "us-west-1b",
             "dimensions": {}
           },
@@ -1698,7 +1698,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5b8b49eb9dc",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "us-west-1c",
             "dimensions": {}
           },
@@ -1710,7 +1710,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5b93548d999",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "us-west-2a",
             "dimensions": {}
           },
@@ -1722,7 +1722,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5ba96615051",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "us-west-2b",
             "dimensions": {}
           },
@@ -1734,7 +1734,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5bb6c2d5bef",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "us-west-2c",
             "dimensions": {}
           },
@@ -1746,7 +1746,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e5bcc33d3115",
-            "entity_type": "aws_az",
+            "entity_type": "aws_core__aws_az",
             "name": "us-west-2d",
             "dimensions": {}
           },
@@ -1767,7 +1767,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e52f9e44b889",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e551be0cbfb1",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -1781,7 +1781,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e52f9e44b889",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e552c1fd807e",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -1795,7 +1795,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e52f9e44b889",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e553709244d3",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -1809,7 +1809,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e530fe6567a3",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5543b72d0bf",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -1823,7 +1823,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e530fe6567a3",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e555d93a40e9",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -1837,7 +1837,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e530fe6567a3",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e556ac7dedf9",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -1851,7 +1851,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e5311d8b172d",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e55783f2e990",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -1865,7 +1865,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e5311d8b172d",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e558ef915af9",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -1879,7 +1879,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e5311d8b172d",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e559708f4bb5",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -1893,7 +1893,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e5325b77f835",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e55a697a62bc",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -1907,7 +1907,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e5325b77f835",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e55b62be4e3f",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -1921,7 +1921,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e5325b77f835",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e55c0c6e296e",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -1935,7 +1935,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e5325b77f835",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e55d70bf73ef",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -1949,7 +1949,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e5330810d3fd",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e55e35d7bb78",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -1963,7 +1963,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e5330810d3fd",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e55fb3432964",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -1977,7 +1977,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e5330810d3fd",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e56026c7c892",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -1991,7 +1991,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e5330810d3fd",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5618a1016ed",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2005,7 +2005,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e534620d356c",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5624fa09280",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2019,7 +2019,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e534620d356c",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e563c5b6cd31",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2033,7 +2033,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e534620d356c",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e564034a300f",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2047,7 +2047,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e535a20f3536",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e565de2d6dd0",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2061,7 +2061,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e535a20f3536",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e56627f36286",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2075,7 +2075,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e535a20f3536",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5670f29adaf",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2089,7 +2089,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e536346eb16b",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e568780a90b0",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2103,7 +2103,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e536346eb16b",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5697253cc08",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2117,7 +2117,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e536346eb16b",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e56a2338599d",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2131,7 +2131,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e53777024e1e",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e56b17b566b2",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2145,7 +2145,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e53777024e1e",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e56cf24112cc",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2159,7 +2159,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e53777024e1e",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e56d2b34d937",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2173,7 +2173,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e538455cfe27",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e56ea4f9f286",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2187,7 +2187,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e538455cfe27",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e56fccc86932",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2201,7 +2201,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e538455cfe27",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e570aebb4eef",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2215,7 +2215,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e539c22a4f4a",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e571a624fd7f",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2229,7 +2229,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e539c22a4f4a",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e572aa5415b0",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2243,7 +2243,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e539c22a4f4a",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e57341d647d6",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2257,7 +2257,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e53abbf8bfa7",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5749de7364f",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2271,7 +2271,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e53abbf8bfa7",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e575981c443e",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2285,7 +2285,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e53abbf8bfa7",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e576d8541626",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2299,7 +2299,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e53bf1d9ba1a",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5773a9120e9",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2313,7 +2313,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e53bf1d9ba1a",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5780726872a",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2327,7 +2327,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e53bf1d9ba1a",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5795adb0360",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2341,7 +2341,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e53c5221cf79",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e57ab801b1d9",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2355,7 +2355,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e53c5221cf79",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e57b051b3746",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2369,7 +2369,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e53c5221cf79",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e57cde1d72e9",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2383,7 +2383,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e53dbac7930e",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e57dffbe1770",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2397,7 +2397,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e53dbac7930e",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e57ed5d14fa2",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2411,7 +2411,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e53dbac7930e",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e57f980fbda8",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2425,7 +2425,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e53ebff1bff7",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e580cc824820",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2439,7 +2439,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e53ebff1bff7",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e581ade7a193",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2453,7 +2453,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e53ebff1bff7",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e582e6cd833a",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2467,7 +2467,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e53f7d8c1b7e",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e583744236ba",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2481,7 +2481,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e53f7d8c1b7e",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e584240f4ca5",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2495,7 +2495,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e53f7d8c1b7e",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5854dce2ca5",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2509,7 +2509,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54037fc5f8f",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5868c2674a7",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2523,7 +2523,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54037fc5f8f",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5877e869326",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2537,7 +2537,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54037fc5f8f",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5885a869996",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2551,7 +2551,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54146b6dfa2",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e589aef75786",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2565,7 +2565,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54146b6dfa2",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e58a79d54e35",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2579,7 +2579,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54146b6dfa2",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e58b38c94735",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2593,7 +2593,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e542fbc2081f",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e58c507769e8",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2607,7 +2607,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e542fbc2081f",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e58d6559c592",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2621,7 +2621,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e542fbc2081f",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e58e151ca153",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2635,7 +2635,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e5432731fb95",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e58f80c8bec9",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2649,7 +2649,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e5432731fb95",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e590908c4857",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2663,7 +2663,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e5432731fb95",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5914a753c53",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2677,7 +2677,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e544c471736d",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e592689b9bd8",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2691,7 +2691,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e544c471736d",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5934f731fbf",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2705,7 +2705,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e544c471736d",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e594fffd5436",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2719,7 +2719,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e545f600edc1",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5955a4316ce",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2733,7 +2733,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e545f600edc1",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e596af091ff3",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2747,7 +2747,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e545f600edc1",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e597ce1ea11a",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2761,7 +2761,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e546e912ff3e",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e598cb13048b",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2775,7 +2775,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e546e912ff3e",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5991d8fa6ff",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2789,7 +2789,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e546e912ff3e",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e59a842ae4ac",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2803,7 +2803,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54751796da2",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e59bbb696646",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2817,7 +2817,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54751796da2",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e59cc16d6d90",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2831,7 +2831,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54751796da2",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e59d05f8ce1e",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2845,7 +2845,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54832a55bbc",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e59e33de4692",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2859,7 +2859,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54832a55bbc",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e59f6e9b7bc4",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2873,7 +2873,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54832a55bbc",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5a08d3ff0b4",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2887,7 +2887,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e5494f425315",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5a19714bc36",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2901,7 +2901,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e5494f425315",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5a277c32fed",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2915,7 +2915,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e5494f425315",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5a3100322f9",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2929,7 +2929,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54a7e00b865",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5a4896e34e0",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2943,7 +2943,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54a7e00b865",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5a54b95334f",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2957,7 +2957,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54a7e00b865",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5a6abae6931",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2971,7 +2971,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54bb4366cb8",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5a717baee11",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2985,7 +2985,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54bb4366cb8",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5a8684d4f6e",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -2999,7 +2999,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54bb4366cb8",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5a92f3aef0d",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -3013,7 +3013,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54c03e6ea79",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5aa77ea7c38",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -3027,7 +3027,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54c03e6ea79",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5ab812d74fc",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -3041,7 +3041,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54c03e6ea79",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5ac5f59a11d",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -3055,7 +3055,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54dceaf090d",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5ad47b5508c",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -3069,7 +3069,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54dceaf090d",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5aea7bd6158",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -3083,7 +3083,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54dceaf090d",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5afd7c51d4f",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -3097,7 +3097,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54dceaf090d",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5b06e88da19",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -3111,7 +3111,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54dceaf090d",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5b157079855",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -3125,7 +3125,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54dceaf090d",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5b2f1b95bdd",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -3139,7 +3139,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54e8f9c31d1",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5b3c4363b3a",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -3153,7 +3153,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54e8f9c31d1",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5b43861776a",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -3167,7 +3167,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54e8f9c31d1",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5b5faaeb791",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -3181,7 +3181,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54f83ab5e84",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5b696216b36",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -3195,7 +3195,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54f83ab5e84",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5b7c203ebd0",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -3209,7 +3209,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e54f83ab5e84",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5b8b49eb9dc",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -3223,7 +3223,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e5502a3ff202",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5b93548d999",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -3237,7 +3237,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e5502a3ff202",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5ba96615051",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -3251,7 +3251,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e5502a3ff202",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5bb6c2d5bef",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         },
@@ -3265,7 +3265,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e5502a3ff202",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e5bcc33d3115",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__aws_core",
             "properties": {}
           }
         }

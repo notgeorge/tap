@@ -1,5 +1,5 @@
 {
-  "slug": "EXECUTES_WORKFLOW",
+  "slug": "EXECUTES_WORKFLOW__github_core",
   "name": "Executes Workflow",
   "description": "Run is an execution of a workflow.",
   "sources": ["github_actions_run"],

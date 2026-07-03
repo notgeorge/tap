@@ -54,7 +54,7 @@
             "config": {
               "entity_id_var": "vdr_report_entity_id",
               "fallback": {
-                "query": "MATCH (r:vdr_report) WHERE r.data.emitted_at IS NOT NULL ORDER BY r.data.emitted_at DESC LIMIT 1",
+                "query": "MATCH (r:fedramp_20x_ksi__vdr_report) WHERE r.data.emitted_at IS NOT NULL ORDER BY r.data.emitted_at DESC LIMIT 1",
                 "description": "Latest vdr_report emission by emitted_at."
               }
             }
@@ -75,7 +75,7 @@
             "config": {
               "entity_id_var": "vdr_report_entity_id",
               "sequence": {
-                "query": "MATCH (r:vdr_report) WHERE r.data.emitted_at IS NOT NULL ORDER BY r.data.emitted_at DESC LIMIT 200",
+                "query": "MATCH (r:fedramp_20x_ksi__vdr_report) WHERE r.data.emitted_at IS NOT NULL ORDER BY r.data.emitted_at DESC LIMIT 200",
                 "label_field": "emitted_at",
                 "label": "VDR Report"
               }

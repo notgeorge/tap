@@ -1,5 +1,5 @@
 {
-  "slug": "RESIDES_IN",
+  "slug": "RESIDES_IN__aws_core",
   "name": "Resides In",
   "description": "Resource lives in a region, availability zone, VPC, or subnet.",
   "sources": [

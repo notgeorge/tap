@@ -1,5 +1,5 @@
 {
-  "slug": "PAIRED_WITH",
+  "slug": "PAIRED_WITH__computing_core",
   "name": "Paired With",
   "description": "A public key is paired with a private key in a cryptographic key pair.",
   "sources": [

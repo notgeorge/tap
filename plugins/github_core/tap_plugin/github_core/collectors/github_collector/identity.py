@@ -21,45 +21,45 @@ def _id(entity_type: str, natural_key: str) -> UUID:
 
 def platform_id(host: str) -> UUID:
     # Natural key is the host ("github.com"); a GHES tenant gets its own id.
-    return _id("github_platform", host)
+    return _id("github_core__github_platform", host)
 
 
 def oidc_issuer_id(issuer_url: str) -> UUID:
     # Natural key is the canonical OIDC issuer URL (with scheme), e.g.
     # "https://token.actions.githubusercontent.com".
-    return _id("oidc_issuer", issuer_url)
+    return _id("github_core__oidc_issuer", issuer_url)
 
 
 def account_id(login: str) -> UUID:
-    return _id("github_account", login)
+    return _id("github_core__github_account", login)
 
 
 def repository_id(full_name: str) -> UUID:
-    return _id("github_repository", full_name)
+    return _id("github_core__github_repository", full_name)
 
 
 def workflow_id(full_name: str, workflow_id_int: int | str) -> UUID:
-    return _id("github_workflow", f"{full_name}#{workflow_id_int}")
+    return _id("github_core__github_workflow", f"{full_name}#{workflow_id_int}")
 
 
 def github_app_id(slug: str) -> UUID:
     # Natural key is the app slug ("dependabot"); one app node is shared across
     # every repo that enables it (ENABLED_ON edges fan in).
-    return _id("github_app", slug)
+    return _id("github_core__github_app", slug)
 
 
 def run_id(full_name: str, run_id_int: int | str) -> UUID:
     # v0 natural key is owner/repo + run_id (run_attempt deferred — see
     # req-github-core-backlog-run-attempts).
-    return _id("github_actions_run", f"{full_name}#{run_id_int}")
+    return _id("github_core__github_actions_run", f"{full_name}#{run_id_int}")
 
 
 def job_id(full_name: str, job_id_int: int | str) -> UUID:
-    return _id("github_actions_job", f"{full_name}#{job_id_int}")
+    return _id("github_core__github_actions_job", f"{full_name}#{job_id_int}")
 
 
 def runner_id(full_name: str, runner_id_int: int | str) -> UUID:
-    return _id("github_runner", f"{full_name}#{runner_id_int}")
+    return _id("github_core__github_runner", f"{full_name}#{runner_id_int}")
 
 
 def edge_id(edge_type: str, source: UUID, target: UUID) -> UUID:

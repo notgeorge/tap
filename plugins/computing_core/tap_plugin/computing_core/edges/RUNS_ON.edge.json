@@ -1,5 +1,5 @@
 {
-  "slug": "RUNS_ON",
+  "slug": "RUNS_ON__computing_core",
   "name": "Runs On",
   "description": "A program or process runs on a compute environment.",
   "sources": [

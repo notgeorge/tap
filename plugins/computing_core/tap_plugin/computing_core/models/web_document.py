@@ -18,7 +18,7 @@ class WebDocument(BaseModel):
     Spec: plugins/computing_core/specs/spec-computing-core-v0.md
     """
 
-    ENTITY_TYPE: ClassVar[str] = "web_document"
+    ENTITY_TYPE: ClassVar[str] = "computing_core__web_document"
     ENTITY_NAME: ClassVar[str] = "Web Document"
     ENTITY_DESCRIPTION: ClassVar[str] = "A document retrievable at a URL over HTTP(S)."
     ENTITY_ICON: ClassVar[str] = "web-document"
@@ -60,7 +60,7 @@ class WebDocument(BaseModel):
     description = models.TextField(blank=True, default="")
 
     class Meta(BaseModel.Meta):
-        db_table = "computing_web_document"
+        db_table = "computing_core__web_document"
 
     def get_name(self) -> str:
         return self.name or self.url

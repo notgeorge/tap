@@ -1,5 +1,5 @@
 {
-  "slug": "ATTACHED_TO",
+  "slug": "ATTACHED_TO__aws_core",
   "name": "Attached To",
   "description": "Resource is attached to another resource (EBS to EC2, policy to role, EIP to instance, ACL to subnet, etc.).",
   "property_schema": {

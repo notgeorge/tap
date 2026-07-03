@@ -20,7 +20,7 @@ class KsiSignal(BaseModel):
     Two emissions with the same `signal_id` are the same observation.
     """
 
-    ENTITY_TYPE: ClassVar[str] = "ksi_signal"
+    ENTITY_TYPE: ClassVar[str] = "fedramp_20x_ksi__ksi_signal"
     ENTITY_NAME: ClassVar[str] = "KSI Signal"
     ENTITY_DESCRIPTION: ClassVar[str] = (
         "One emission of a FedRAMP 20x KSI validation signal — identity, "
@@ -111,7 +111,7 @@ class KsiSignal(BaseModel):
     verified_at = models.CharField(max_length=64, blank=True, default="")
 
     class Meta(BaseModel.Meta):
-        db_table = "ksi_signal"
+        db_table = "fedramp_20x_ksi__ksi_signal"
 
     def get_name(self) -> str:
         return self.name

@@ -1,5 +1,5 @@
 {
-  "slug": "COVERS_FINDING",
+  "slug": "COVERS_FINDING__fedramp_20x_ksi",
   "name": "Covers Finding",
   "description": "An exception covers a finding — formally accepting the risk the finding represents. An active exception may cover multiple findings.",
   "sources": ["exception"],

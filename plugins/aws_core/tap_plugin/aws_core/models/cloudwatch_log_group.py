@@ -21,7 +21,7 @@ class CloudwatchLogGroup(BaseModel):
     ``configuration`` verbatim.
     """
 
-    ENTITY_TYPE: ClassVar[str] = "aws_cloudwatch_log_group"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_cloudwatch_log_group"
     ENTITY_NAME: ClassVar[str] = "CloudWatch Log Group"
     ENTITY_DESCRIPTION: ClassVar[str] = "An Amazon CloudWatch Logs log group."
     ENTITY_ICON: ClassVar[str] = "aws-cloudwatch"
@@ -57,7 +57,7 @@ class CloudwatchLogGroup(BaseModel):
     tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_cloudwatch_log_group"
+        db_table = "aws_core__aws_cloudwatch_log_group"
 
     def get_name(self) -> str:
         return self.name

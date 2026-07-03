@@ -63,7 +63,7 @@ def _policy_attrs(policy: VerificationPolicy) -> dict[str, str]:
     """
     if isinstance(policy, GitHubWorkflowPolicy):
         attrs: dict[str, str] = {
-            "policy_kind": "github_workflow",
+            "policy_kind": "github_core__github_workflow",
             "policy_oidc_issuer": policy.oidc_issuer,
             "policy_github_repository": policy.github_repository,
         }
@@ -126,10 +126,10 @@ def bundle_to_grift_fragment(
     fragment = GriftFragment()
 
     # sigstore_ca upsert (public-good Fulcio in v0).
-    ca_id = _entity_id("sigstore_ca", PUBLIC_GOOD_FULCIO_URL)
+    ca_id = _entity_id("sigstore_core__sigstore_ca", PUBLIC_GOOD_FULCIO_URL)
     fragment.entities.append(
         {
-            "entity_type": "sigstore_ca",
+            "entity_type": "sigstore_core__sigstore_ca",
             "entity_id": ca_id,
             "fields": {
                 "ca_url": PUBLIC_GOOD_FULCIO_URL,
@@ -144,10 +144,10 @@ def bundle_to_grift_fragment(
     # rekor_log_entry node. Immutable transparency-log facts only — verdict
     # lives on the ATTESTED_BY edge below.
     entry_natural_key = f"{result.log_key_id}#{result.rekor_log_index}"
-    entry_id = _entity_id("rekor_log_entry", entry_natural_key)
+    entry_id = _entity_id("sigstore_core__rekor_log_entry", entry_natural_key)
     fragment.entities.append(
         {
-            "entity_type": "rekor_log_entry",
+            "entity_type": "sigstore_core__rekor_log_entry",
             "entity_id": entry_id,
             "fields": {
                 "log_key_id": result.log_key_id,
@@ -165,8 +165,8 @@ def bundle_to_grift_fragment(
     # CERT_ISSUED_BY: rekor_log_entry → sigstore_ca
     fragment.edges.append(
         {
-            "edge_type": "CERT_ISSUED_BY",
-            "edge_id": _edge_id("CERT_ISSUED_BY", entry_id, ca_id),
+            "edge_type": "CERT_ISSUED_BY__sigstore_core",
+            "edge_id": _edge_id("CERT_ISSUED_BY__sigstore_core", entry_id, ca_id),
             "source_entity_id": entry_id,
             "target_entity_id": ca_id,
             "dimensions": dict(dimensions),
@@ -183,8 +183,8 @@ def bundle_to_grift_fragment(
     attested_attrs.update(_policy_attrs(policy))
     fragment.edges.append(
         {
-            "edge_type": "ATTESTED_BY",
-            "edge_id": _edge_id("ATTESTED_BY", anchor_entity_id, entry_id),
+            "edge_type": "ATTESTED_BY__sigstore_core",
+            "edge_id": _edge_id("ATTESTED_BY__sigstore_core", anchor_entity_id, entry_id),
             "source_entity_id": anchor_entity_id,
             "target_entity_id": entry_id,
             "properties": attested_attrs,
@@ -196,8 +196,8 @@ def bundle_to_grift_fragment(
     if signing_identity_entity_id is not None:
         fragment.edges.append(
             {
-                "edge_type": "SIGNED_BY_IDENTITY",
-                "edge_id": _edge_id("SIGNED_BY_IDENTITY", entry_id, signing_identity_entity_id),
+                "edge_type": "SIGNED_BY_IDENTITY__sigstore_core",
+                "edge_id": _edge_id("SIGNED_BY_IDENTITY__sigstore_core", entry_id, signing_identity_entity_id),
                 "source_entity_id": entry_id,
                 "target_entity_id": signing_identity_entity_id,
                 "dimensions": dict(dimensions),
@@ -209,8 +209,8 @@ def bundle_to_grift_fragment(
         # SIGNED_BY_IDENTITY). Source is the identity, target the issuing CA.
         fragment.edges.append(
             {
-                "edge_type": "REQUESTS_SIGSTORE_SIGNATURE",
-                "edge_id": _edge_id("REQUESTS_SIGSTORE_SIGNATURE", signing_identity_entity_id, ca_id),
+                "edge_type": "REQUESTS_SIGSTORE_SIGNATURE__sigstore_core",
+                "edge_id": _edge_id("REQUESTS_SIGSTORE_SIGNATURE__sigstore_core", signing_identity_entity_id, ca_id),
                 "source_entity_id": signing_identity_entity_id,
                 "target_entity_id": ca_id,
                 "dimensions": dict(dimensions),
@@ -225,13 +225,13 @@ def bundle_to_grift_fragment(
     if oidc_issuer_entity_id is not None and result.signing_issuer:
         fragment.edges.append(
             {
-                "edge_type": "IDENTITY_VOUCHED_BY",
-                "edge_id": _edge_id("IDENTITY_VOUCHED_BY", entry_id, oidc_issuer_entity_id),
+                "edge_type": "IDENTITY_VOUCHED_BY__sigstore_core",
+                "edge_id": _edge_id("IDENTITY_VOUCHED_BY__sigstore_core", entry_id, oidc_issuer_entity_id),
                 "source_entity_id": entry_id,
                 "target_entity_id": oidc_issuer_entity_id,
                 "properties": {
                     "hotlink": {
-                        "model": "rekor_log_entry",
+                        "model": "sigstore_core__rekor_log_entry",
                         "spec": "rekor-issuer",
                         "value": result.signing_issuer,
                     }

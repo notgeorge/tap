@@ -1,5 +1,5 @@
 {
-  "slug": "EXECUTED_ON",
+  "slug": "EXECUTED_ON__github_core",
   "name": "Executed On",
   "description": "Job executed on a durable registered self-hosted runner. Emitted only when an observed job runner_id matches a github_runner node.",
   "sources": ["github_actions_job"],

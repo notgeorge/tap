@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class SecurityGroup(BaseModel):
     """An Amazon VPC security group."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_security_group"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_security_group"
     ENTITY_NAME: ClassVar[str] = "Security Group"
     ENTITY_DESCRIPTION: ClassVar[str] = "An Amazon VPC security group (stateful firewall)."
     ENTITY_ICON: ClassVar[str] = "aws-security-group"
@@ -44,7 +44,7 @@ class SecurityGroup(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_security_group"
+        db_table = "aws_core__aws_security_group"
 
     def get_name(self) -> str:
         return self.name or self.group_id

@@ -19,10 +19,10 @@ class User(BaseModel):
     Spec: plugins/computing_core/specs/spec-computing-core-v0.md
     """
 
-    ENTITY_TYPE: ClassVar[str] = "user"
+    ENTITY_TYPE: ClassVar[str] = "computing_core__user"
     ENTITY_NAME: ClassVar[str] = "User"
     ENTITY_DESCRIPTION: ClassVar[str] = "A human who interacts with computing systems."
-    ENTITY_ICON: ClassVar[str] = "user"
+    ENTITY_ICON: ClassVar[str] = "computing_core__user"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.computing": "identity"}
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
         "tap_viz": {
@@ -46,7 +46,7 @@ class User(BaseModel):
     description = models.TextField(blank=True, default="")
 
     class Meta(BaseModel.Meta):
-        db_table = "computing_user"
+        db_table = "computing_core__user"
 
     def get_name(self) -> str:
         return self.name or ""

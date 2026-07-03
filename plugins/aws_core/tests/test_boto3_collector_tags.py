@@ -66,18 +66,18 @@ class TestManifestTagsBlock:
     def test_declared_sources_match_design(self):
         by_type = {e["entity_type"]: e for e in manifest_entries()}
         rgta = {
-            "aws_lambda",
-            "aws_eventbridge_rule",
-            "aws_cloudwatch_log_group",
-            "aws_acm_certificate",
-            "aws_s3_bucket",
-            "aws_dynamodb_table",
+            "aws_core__aws_lambda",
+            "aws_core__aws_eventbridge_rule",
+            "aws_core__aws_cloudwatch_log_group",
+            "aws_core__aws_acm_certificate",
+            "aws_core__aws_s3_bucket",
+            "aws_core__aws_dynamodb_table",
         }
         service = {
-            "aws_iam_role",
-            "aws_cloudfront_distribution",
-            "aws_route53_zone",
-            "aws_iam_oidc_provider",
+            "aws_core__aws_iam_role",
+            "aws_core__aws_cloudfront_distribution",
+            "aws_core__aws_route53_zone",
+            "aws_core__aws_iam_oidc_provider",
         }
         for t in rgta:
             assert tags_block(by_type[t])["source"] == "rgta"

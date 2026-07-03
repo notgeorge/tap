@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class EbsVolume(BaseModel):
     """An Amazon EBS block storage volume."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_ebs_volume"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_ebs_volume"
     ENTITY_NAME: ClassVar[str] = "EBS Volume"
     ENTITY_DESCRIPTION: ClassVar[str] = "An Amazon EBS block storage volume."
     ENTITY_ICON: ClassVar[str] = "aws-ebs"
@@ -53,7 +53,7 @@ class EbsVolume(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_ebs_volume"
+        db_table = "aws_core__aws_ebs_volume"
 
     def get_name(self) -> str:
         return self.name or self.volume_id

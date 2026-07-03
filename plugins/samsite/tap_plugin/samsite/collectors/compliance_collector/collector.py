@@ -158,15 +158,15 @@ class SamsiteComplianceCollector(CollectorBase):
             all_edges.append(
                 {
                     "entity": {
-                        "entity_id": str(identity.edge_entity_id("GENERATES_FILE", workflow_id, anchor_entity_id)),
+                        "entity_id": str(identity.edge_entity_id("GENERATES_FILE__computing_core", workflow_id, anchor_entity_id)),
                         "entity_type": "edge",
-                        "name": "GENERATES_FILE",
+                        "name": "GENERATES_FILE__computing_core",
                         "dimensions": {},
                     },
                     "edge": {
                         "from_entity_id": workflow_id,
                         "to_entity_id": anchor_entity_id,
-                        "edge_type": "GENERATES_FILE",
+                        "edge_type": "GENERATES_FILE__computing_core",
                         "properties": {"basis": "signer_identity_inferred"},
                     },
                 }
@@ -174,10 +174,10 @@ class SamsiteComplianceCollector(CollectorBase):
         self.record_info(
             _SITE_SIGNATURE_GRAPH,
             "SIGNATURE_GRAPH_EMITTED",
-            f"{fetched_item['artifact']['name']}: rekor_log_entry emitted "
+            f"{fetched_item['lotr__artifact']['name']}: rekor_log_entry emitted "
             f"(log_index={result.rekor_log_index or '<none>'}, verified={result.signature_verified}).",
             message_data={
-                "artifact": fetched_item["artifact"]["name"],
+                "artifact": fetched_item["lotr__artifact"]["name"],
                 "rekor_log_index": result.rekor_log_index,
                 "signed_by_identity": workflow_id,
             },
@@ -201,8 +201,8 @@ class SamsiteComplianceCollector(CollectorBase):
         # One policy for the whole run — verify_bundle enforces it and
         # bundle_to_grift_fragment records it on the ATTESTED_BY edge.
         policy = GitHubWorkflowPolicy(
-            oidc_issuer=verification_policy["oidc_issuer"],
-            github_repository=verification_policy["github_repository"],
+            oidc_issuer=verification_policy["github_core__oidc_issuer"],
+            github_repository=verification_policy["github_core__github_repository"],
         )
         self.record_info(
             _SITE_MANIFEST_LOADED,
@@ -301,9 +301,9 @@ class SamsiteComplianceCollector(CollectorBase):
         sig_seen_node_ids: set[str] = set()
 
         for fetched_item in fetched:
-            if fetched_item["artifact"]["handling"] != "ksi_signal":
+            if fetched_item["lotr__artifact"]["handling"] != "fedramp_20x_ksi__ksi_signal":
                 continue
-            artifact = fetched_item["artifact"]
+            artifact = fetched_item["lotr__artifact"]
             try:
                 signal = json.loads(fetched_item["body"])
             except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -324,9 +324,9 @@ class SamsiteComplianceCollector(CollectorBase):
             )
 
         for fetched_item in fetched:
-            if fetched_item["artifact"]["handling"] != "vdr_report":
+            if fetched_item["lotr__artifact"]["handling"] != "fedramp_20x_ksi__vdr_report":
                 continue
-            artifact = fetched_item["artifact"]
+            artifact = fetched_item["lotr__artifact"]
             try:
                 report = json.loads(fetched_item["body"])
             except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -350,8 +350,8 @@ class SamsiteComplianceCollector(CollectorBase):
             )
 
         for fetched_item in fetched:
-            artifact = fetched_item["artifact"]
-            if artifact["handling"] != "compliance_artifact":
+            artifact = fetched_item["lotr__artifact"]
+            if artifact["handling"] != "fedramp_20x_ksi__compliance_artifact":
                 continue
             decomp = decompose_compliance_artifact(
                 body=fetched_item["body"],

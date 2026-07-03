@@ -1,5 +1,5 @@
 {
-  "slug": "CONTAINS_INDICATOR",
+  "slug": "CONTAINS_INDICATOR__fedramp_20x_ksi",
   "name": "Contains Indicator",
   "description": "A KSI theme contains an individual KSI indicator.",
   "sources": ["ksi_theme"],

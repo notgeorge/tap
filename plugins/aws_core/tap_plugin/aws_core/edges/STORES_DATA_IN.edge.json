@@ -1,5 +1,5 @@
 {
-  "slug": "STORES_DATA_IN",
+  "slug": "STORES_DATA_IN__aws_core",
   "name": "Stores Data In",
   "description": "Service stores data in a storage or database resource.",
   "targets": [

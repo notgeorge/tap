@@ -10,10 +10,10 @@ from tap_grid.models import BaseModel
 class Port(BaseModel):
     """A transport endpoint identified by port number and protocol."""
 
-    ENTITY_TYPE: ClassVar[str] = "port"
+    ENTITY_TYPE: ClassVar[str] = "computing_core__port"
     ENTITY_NAME: ClassVar[str] = "Port"
     ENTITY_DESCRIPTION: ClassVar[str] = "A transport endpoint identified by port number and transport family."
-    ENTITY_ICON: ClassVar[str] = "port"
+    ENTITY_ICON: ClassVar[str] = "computing_core__port"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.computing": "network"}
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
         "tap_viz": {
@@ -71,7 +71,7 @@ class Port(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "computing_port"
+        db_table = "computing_core__port"
 
     def get_name(self) -> str:
         if self.name:

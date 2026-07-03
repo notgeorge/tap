@@ -23,7 +23,7 @@ class VdrFinding(BaseModel):
     Spec: spec-fedramp-20x-ksi-compliance-artifacts-v0.md.
     """
 
-    ENTITY_TYPE: ClassVar[str] = "vdr_finding"
+    ENTITY_TYPE: ClassVar[str] = "fedramp_20x_ksi__vdr_finding"
     ENTITY_NAME: ClassVar[str] = "VDR Finding"
     ENTITY_DESCRIPTION: ClassVar[str] = (
         "One vulnerability finding from a VDR report — carrying its FedRAMP "
@@ -96,7 +96,7 @@ class VdrFinding(BaseModel):
     poam_ref = models.CharField(max_length=255, blank=True, default="")
 
     class Meta(BaseModel.Meta):
-        db_table = "vdr_finding"
+        db_table = "fedramp_20x_ksi__vdr_finding"
 
     def get_name(self) -> str:
         return self.name

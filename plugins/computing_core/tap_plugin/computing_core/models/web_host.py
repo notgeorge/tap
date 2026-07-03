@@ -18,7 +18,7 @@ class WebHost(BaseModel):
     Spec: plugins/computing_core/specs/spec-computing-core-v0.md
     """
 
-    ENTITY_TYPE: ClassVar[str] = "web_host"
+    ENTITY_TYPE: ClassVar[str] = "computing_core__web_host"
     ENTITY_NAME: ClassVar[str] = "Web Host"
     ENTITY_DESCRIPTION: ClassVar[str] = "A named internet host that serves content over HTTP(S)."
     ENTITY_ICON: ClassVar[str] = "web-host"
@@ -48,7 +48,7 @@ class WebHost(BaseModel):
     description = models.TextField(blank=True, default="")
 
     class Meta(BaseModel.Meta):
-        db_table = "computing_web_host"
+        db_table = "computing_core__web_host"
 
     def get_name(self) -> str:
         return self.name or self.hostname

@@ -1,5 +1,5 @@
 {
-  "slug": "REFERENCES_RESOURCE",
+  "slug": "REFERENCES_RESOURCE__github_core",
   "name": "References Resource",
   "description": "GitHub plumbing names or depends on a resource on the grid (conservative exact-match link via the github_grid_link_manifest). Does not claim deployment, ownership, or runtime control. Derived link — not hotlink-backed.",
   "sources": ["github_workflow", "github_actions_run", "github_actions_job"],

@@ -8,14 +8,14 @@
       "kind": "rest_endpoint",
       "path": "/users/{owner}",
       "fallback_path": "/orgs/{owner}",
-      "target_entity_type": "github_account",
+      "target_entity_type": "github_core__github_account",
       "fields": ["login", "github_id", "account_type", "html_url"]
     },
     {
       "name": "repository",
       "kind": "rest_endpoint",
       "path": "/repos/{owner}/{repo}",
-      "target_entity_type": "github_repository",
+      "target_entity_type": "github_core__github_repository",
       "fields": ["full_name", "owner_login", "name", "github_id", "default_branch", "visibility", "html_url"]
     },
     {
@@ -23,7 +23,7 @@
       "kind": "rest_endpoint",
       "path": "/repos/{owner}/{repo}/actions/workflows",
       "item_path": "workflows[*]",
-      "target_entity_type": "github_workflow",
+      "target_entity_type": "github_core__github_workflow",
       "fields": ["workflow_id", "path", "name", "state", "html_url"]
     },
     {
@@ -39,7 +39,7 @@
       "path": "/repos/{owner}/{repo}/actions/runs",
       "query": {"per_page": "{initial_run_limit}"},
       "item_path": "workflow_runs[*]",
-      "target_entity_type": "github_actions_run",
+      "target_entity_type": "github_core__github_actions_run",
       "fields": ["run_id", "run_number", "event", "status", "conclusion", "head_sha", "head_branch", "run_started_at", "completed_at", "html_url"]
     },
     {
@@ -47,7 +47,7 @@
       "kind": "rest_endpoint",
       "path": "/repos/{owner}/{repo}/actions/runs/{run_id}/jobs",
       "item_path": "jobs[*]",
-      "target_entity_type": "github_actions_job",
+      "target_entity_type": "github_core__github_actions_job",
       "fields": ["job_id", "name", "status", "conclusion", "started_at", "completed_at", "html_url"],
       "description": "Default endpoint returns latest-attempt jobs only (req-github-core-collector-8). /attempts/{n}/jobs is backlog (req-github-core-backlog-run-attempts)."
     },
@@ -56,17 +56,17 @@
       "kind": "rest_endpoint",
       "path": "/repos/{owner}/{repo}/actions/runners",
       "item_path": "runners[*]",
-      "target_entity_type": "github_runner",
+      "target_entity_type": "github_core__github_runner",
       "fields": ["runner_id", "name", "os", "status", "busy", "labels"],
       "permission_failure": "degrade_with_warning",
       "description": "Requires repo administration scope on the PAT; degrades gracefully on 403 (req-github-core-collector-5)."
     }
   ],
   "edges": [
-    {"slug": "OWNS_REPO", "source": "github_account", "target": "github_repository"},
-    {"slug": "DEFINES_WORKFLOW", "source": "github_repository", "target": "github_workflow"},
-    {"slug": "EXECUTES_WORKFLOW", "source": "github_actions_run", "target": "github_workflow"},
-    {"slug": "HAS_ACTIONS_JOB", "source": "github_actions_run", "target": "github_actions_job"},
-    {"slug": "EXECUTED_ON", "source": "github_actions_job", "target": "github_runner", "condition": "job.runner_id matches runner.runner_id"}
+    {"slug": "OWNS_REPO__github_core", "source": "github_core__github_account", "target": "github_core__github_repository"},
+    {"slug": "DEFINES_WORKFLOW__github_core", "source": "github_core__github_repository", "target": "github_core__github_workflow"},
+    {"slug": "EXECUTES_WORKFLOW__github_core", "source": "github_core__github_actions_run", "target": "github_core__github_workflow"},
+    {"slug": "HAS_ACTIONS_JOB__github_core", "source": "github_core__github_actions_run", "target": "github_core__github_actions_job"},
+    {"slug": "EXECUTED_ON__github_core", "source": "github_core__github_actions_job", "target": "github_core__github_runner", "condition": "job.runner_id matches runner.runner_id"}
   ]
 }

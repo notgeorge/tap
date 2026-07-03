@@ -1,5 +1,5 @@
 {
-  "slug": "DECLARES_COMPONENT",
+  "slug": "DECLARES_COMPONENT__fedramp_20x_ksi",
   "name": "Declares Component",
   "description": "A KSI signal names a component of the system it describes. One edge per components[] entry.",
   "sources": ["ksi_signal"],

@@ -1,5 +1,5 @@
 {
-  "slug": "EXPOSES_NETWORK_ACCESS",
+  "slug": "EXPOSES_NETWORK_ACCESS__aws_core",
   "name": "Exposes Network Access",
   "description": "Security group or load balancer exposes network access through ports or endpoints.",
   "sources": [

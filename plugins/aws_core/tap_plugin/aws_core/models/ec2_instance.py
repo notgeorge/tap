@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class Ec2Instance(BaseModel):
     """An Amazon EC2 virtual server instance."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_ec2_instance"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_ec2_instance"
     ENTITY_NAME: ClassVar[str] = "EC2 Instance"
     ENTITY_DESCRIPTION: ClassVar[str] = "An Amazon EC2 virtual server instance."
     ENTITY_ICON: ClassVar[str] = "aws-ec2"
@@ -55,7 +55,7 @@ class Ec2Instance(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_ec2_instance"
+        db_table = "aws_core__aws_ec2_instance"
 
     def get_name(self) -> str:
         return self.name or self.instance_id

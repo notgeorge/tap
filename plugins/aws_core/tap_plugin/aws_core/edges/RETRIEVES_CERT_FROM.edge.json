@@ -1,5 +1,5 @@
 {
-  "slug": "RETRIEVES_CERT_FROM",
+  "slug": "RETRIEVES_CERT_FROM__aws_core",
   "name": "Retrieves Cert From",
   "description": "A CloudFront distribution uses an ACM certificate for TLS. The distribution config references the certificate and initiates its use (edge direction); the certificate material originates at ACM — a data-backwards edge, which the `_FROM` marks.",
   "sources": [

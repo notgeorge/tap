@@ -34,7 +34,7 @@ class CharacterEditForm(forms.Form):
 class CharacterEditorDescriptor(EditorDescriptor):
     """Typed editor descriptor for LOTR Character objects."""
 
-    entity_type = "character"
+    entity_type = "lotr__character"
     form_class = CharacterEditForm
     editor_template = "lotr/character_editor.html"
 

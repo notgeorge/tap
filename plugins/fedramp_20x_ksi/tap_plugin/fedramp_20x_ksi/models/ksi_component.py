@@ -19,7 +19,7 @@ class KsiComponent(BaseModel):
     Spec: spec-fedramp-20x-ksi-compliance-artifacts-v0.md.
     """
 
-    ENTITY_TYPE: ClassVar[str] = "ksi_component"
+    ENTITY_TYPE: ClassVar[str] = "fedramp_20x_ksi__ksi_component"
     ENTITY_NAME: ClassVar[str] = "KSI Component"
     ENTITY_DESCRIPTION: ClassVar[str] = (
         "One component a KSI signal names — a normalized cross-CSP component "
@@ -75,7 +75,7 @@ class KsiComponent(BaseModel):
     information_flow = models.JSONField(default=list, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "ksi_component"
+        db_table = "fedramp_20x_ksi__ksi_component"
 
     def get_name(self) -> str:
         return self.name

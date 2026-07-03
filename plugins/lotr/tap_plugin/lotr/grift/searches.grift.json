@@ -29,7 +29,7 @@
             "description": "Every character in Middle-earth.",
             "search_type": "orm",
             "root": "node",
-            "definition": {"filters": {"entity_type": "character"}, "order_by": ["name"]}
+            "definition": {"filters": {"entity_type": "lotr__character"}, "order_by": ["name"]}
           }
         },
         {
@@ -44,7 +44,7 @@
             "description": "Every location in Middle-earth.",
             "search_type": "orm",
             "root": "node",
-            "definition": {"filters": {"entity_type": "location"}, "order_by": ["name"]}
+            "definition": {"filters": {"entity_type": "lotr__location"}, "order_by": ["name"]}
           }
         },
         {
@@ -59,7 +59,7 @@
             "description": "Every significant artifact.",
             "search_type": "orm",
             "root": "node",
-            "definition": {"filters": {"entity_type": "artifact"}, "order_by": ["name"]}
+            "definition": {"filters": {"entity_type": "lotr__artifact"}, "order_by": ["name"]}
           }
         },
         {
@@ -75,8 +75,8 @@
             "search_type": "orm",
             "root": "node",
             "definition": {
-              "filters": {"entity_type": "character"},
-              "hops": [{"direction": "out", "edge_type": "WIELDS", "target_filters": {"entity_type": "artifact"}}],
+              "filters": {"entity_type": "lotr__character"},
+              "hops": [{"direction": "out", "edge_type": "WIELDS__lotr", "target_filters": {"entity_type": "lotr__artifact"}}],
               "order_by": ["name"]
             }
           }
@@ -94,8 +94,8 @@
             "search_type": "orm",
             "root": "node",
             "definition": {
-              "filters": {"entity_type": "character"},
-              "hops": [{"direction": "out", "edge_type": "LOCATED_IN", "target_filters": {"entity_type": "location"}}],
+              "filters": {"entity_type": "lotr__character"},
+              "hops": [{"direction": "out", "edge_type": "LOCATED_IN__lotr", "target_filters": {"entity_type": "lotr__location"}}],
               "order_by": ["name"]
             }
           }
@@ -113,8 +113,8 @@
             "search_type": "orm",
             "root": "node",
             "definition": {
-              "filters": {"entity_type": "character"},
-              "hops": [{"direction": "out", "edge_type": "ALLIES_WITH"}],
+              "filters": {"entity_type": "lotr__character"},
+              "hops": [{"direction": "out", "edge_type": "ALLIES_WITH__lotr"}],
               "order_by": ["name"]
             }
           }
@@ -163,9 +163,9 @@
             "root": "node",
             "definition": {
               "query": [
-                "MATCH (r:realm)-[e1:CONTAINS]->(l:location)",
-                "MATCH (l2:location)-[e2:CONTAINS]->(l3:location)",
-                "MATCH (c:character)-[e3:LOCATED_IN]->(loc:location)"
+                "MATCH (r:lotr__realm)-[e1:CONTAINS__lotr]->(l:lotr__location)",
+                "MATCH (l2:lotr__location)-[e2:CONTAINS__lotr]->(l3:lotr__location)",
+                "MATCH (c:lotr__character)-[e3:LOCATED_IN__lotr]->(loc:lotr__location)"
               ]
             }
           }

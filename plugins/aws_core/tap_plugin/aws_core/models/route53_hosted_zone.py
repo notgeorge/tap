@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class Route53HostedZone(BaseModel):
     """An Amazon Route 53 DNS hosted zone."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_route53_zone"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_route53_zone"
     ENTITY_NAME: ClassVar[str] = "Route 53 Hosted Zone"
     ENTITY_DESCRIPTION: ClassVar[str] = "An Amazon Route 53 DNS hosted zone."
     ENTITY_ICON: ClassVar[str] = "aws-route53"
@@ -49,7 +49,7 @@ class Route53HostedZone(BaseModel):
     tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_route53_hosted_zone"
+        db_table = "aws_core__aws_route53_zone"
 
     def get_name(self) -> str:
         return self.name

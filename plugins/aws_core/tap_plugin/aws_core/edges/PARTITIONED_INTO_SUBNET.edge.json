@@ -1,5 +1,5 @@
 {
-  "slug": "PARTITIONED_INTO_SUBNET",
+  "slug": "PARTITIONED_INTO_SUBNET__aws_core",
   "name": "Partitioned Into Subnet",
   "description": "A VPC is partitioned into subnets.",
   "sources": [

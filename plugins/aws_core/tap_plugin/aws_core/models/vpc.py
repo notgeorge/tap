@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class Vpc(BaseModel):
     """An Amazon VPC."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_vpc"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_vpc"
     ENTITY_NAME: ClassVar[str] = "VPC"
     ENTITY_DESCRIPTION: ClassVar[str] = "An Amazon Virtual Private Cloud."
     ENTITY_ICON: ClassVar[str] = "aws-vpc"
@@ -50,7 +50,7 @@ class Vpc(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_vpc"
+        db_table = "aws_core__aws_vpc"
 
     def get_name(self) -> str:
         return self.name or self.vpc_id

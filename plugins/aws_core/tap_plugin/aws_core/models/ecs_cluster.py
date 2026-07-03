@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class EcsCluster(BaseModel):
     """An Amazon ECS cluster."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_ecs_cluster"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_ecs_cluster"
     ENTITY_NAME: ClassVar[str] = "ECS Cluster"
     ENTITY_DESCRIPTION: ClassVar[str] = "An Amazon Elastic Container Service cluster."
     ENTITY_ICON: ClassVar[str] = "aws-ecs"
@@ -44,7 +44,7 @@ class EcsCluster(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_ecs_cluster"
+        db_table = "aws_core__aws_ecs_cluster"
 
     def get_name(self) -> str:
         return self.name

@@ -1,5 +1,5 @@
 {
-  "slug": "HOSTS",
+  "slug": "HOSTS__computing_core",
   "name": "Hosts",
   "description": "A compute environment hosts a resource such as a network interface, program, or file.",
   "targets": [

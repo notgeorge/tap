@@ -113,7 +113,7 @@ def _build_rows(envelope: dict[str, Any], asset_id: str) -> list[dict[str, Any]]
     findings_by_id: dict[str, dict[str, Any]] = {}
     for n in envelope.get("nodes", []):
         ent = n.get("entity") or {}
-        if ent.get("entity_type") != "finding":
+        if ent.get("entity_type") != "fedramp_20x_ksi__finding":
             continue
         fid = ent.get("entity_id")
         if not fid:
@@ -137,9 +137,9 @@ def _build_rows(envelope: dict[str, Any], asset_id: str) -> list[dict[str, Any]]
         to_id = ebody.get("to_entity_id")
         props = ebody.get("properties") or {}
 
-        if et == "HAS_FINDING" and from_id == asset_id and to_id in findings_by_id:
+        if et == "HAS_FINDING__fedramp_20x_ksi" and from_id == asset_id and to_id in findings_by_id:
             asset_findings.add(to_id)
-        elif et == "RELATED_INDICATOR" and from_id in findings_by_id:
+        elif et == "RELATED_INDICATOR__fedramp_20x_ksi" and from_id in findings_by_id:
             ksi_node = nodes_by_id.get(to_id or "")
             if ksi_node is None:
                 continue
@@ -154,7 +154,7 @@ def _build_rows(envelope: dict[str, Any], asset_id: str) -> list[dict[str, Any]]
                     "relationship_type": props.get("relationship_type", ""),
                 }
             )
-        elif et == "HAS_EVIDENCE" and from_id in findings_by_id:
+        elif et == "HAS_EVIDENCE__fedramp_20x_ksi" and from_id in findings_by_id:
             ev_node = nodes_by_id.get(to_id or "")
             if ev_node is None:
                 continue
@@ -162,7 +162,7 @@ def _build_rows(envelope: dict[str, Any], asset_id: str) -> list[dict[str, Any]]
             ev_body = ev_node.get("node") or {}
             ev_created_iso = ev_ent.get("created_at")
             ev_updated_iso = ev_ent.get("updated_at")
-            findings_by_id[from_id]["evidence"].append(
+            findings_by_id[from_id]["fedramp_20x_ksi__evidence"].append(
                 {
                     "entity_id": ev_ent.get("entity_id", ""),
                     "name": ev_ent.get("name") or ev_body.get("name") or "",
@@ -183,7 +183,7 @@ def _build_rows(envelope: dict[str, Any], asset_id: str) -> list[dict[str, Any]]
         f = findings_by_id[fid]
         ent = f["entity"]
         body = f["body"]
-        f["evidence"].sort(key=lambda e: (e["support_kind"], e["name"], e["entity_id"]))
+        f["fedramp_20x_ksi__evidence"].sort(key=lambda e: (e["support_kind"], e["name"], e["entity_id"]))
         f["ksis"].sort(key=lambda k: (k["code"], k["entity_id"]))
         primary_ksi = f["ksis"][0] if f["ksis"] else {}
         # Verdict precedence: aggregate-from-evidence wins, then the
@@ -191,7 +191,7 @@ def _build_rows(envelope: dict[str, Any], asset_id: str) -> list[dict[str, Any]]
         # without seeded evidence still reads as "violation"), then the raw
         # lifecycle status as a final fallback.
         verdict = (
-            _aggregate_verdict(f["evidence"])
+            _aggregate_verdict(f["fedramp_20x_ksi__evidence"])
             or primary_ksi.get("relationship_type", "")
             or (body.get("status") or "open")
         )
@@ -207,7 +207,7 @@ def _build_rows(envelope: dict[str, Any], asset_id: str) -> list[dict[str, Any]]
                 "ksi_name": primary_ksi.get("name", ""),
                 "age_relative": _relative_timestamp(created_iso),
                 "ksis": f["ksis"],
-                "evidence": f["evidence"],
+                "evidence": f["fedramp_20x_ksi__evidence"],
             }
         )
 

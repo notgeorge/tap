@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class EcsTask(BaseModel):
     """An Amazon ECS task instance."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_ecs_task"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_ecs_task"
     ENTITY_NAME: ClassVar[str] = "ECS Task"
     ENTITY_DESCRIPTION: ClassVar[str] = "A running ECS task (container group)."
     ENTITY_ICON: ClassVar[str] = "aws-ecs"
@@ -50,7 +50,7 @@ class EcsTask(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_ecs_task"
+        db_table = "aws_core__aws_ecs_task"
 
     def get_name(self) -> str:
         return self.name or self.task_arn.rsplit("/", 1)[-1] if self.task_arn else ""

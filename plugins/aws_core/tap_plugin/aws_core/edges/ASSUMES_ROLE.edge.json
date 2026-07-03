@@ -1,5 +1,5 @@
 {
-  "slug": "ASSUMES_ROLE",
+  "slug": "ASSUMES_ROLE__aws_core",
   "name": "Assumes Role",
   "description": "An IAM user, IAM role, Lambda function, or EventBridge rule assumes an IAM role.",
   "sources": [

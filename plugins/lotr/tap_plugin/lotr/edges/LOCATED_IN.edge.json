@@ -1,5 +1,5 @@
 {
-  "slug": "LOCATED_IN",
+  "slug": "LOCATED_IN__lotr",
   "name": "Located In",
   "description": "Entity is located in a place.",
   "sources": ["character"],

@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class TargetGroup(BaseModel):
     """An Amazon load balancer target group."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_target_group"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_target_group"
     ENTITY_NAME: ClassVar[str] = "Target Group"
     ENTITY_DESCRIPTION: ClassVar[str] = "An Amazon load balancer target group."
     ENTITY_ICON: ClassVar[str] = "aws-target-group"
@@ -53,7 +53,7 @@ class TargetGroup(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_target_group"
+        db_table = "aws_core__aws_target_group"
 
     def get_name(self) -> str:
         return self.name

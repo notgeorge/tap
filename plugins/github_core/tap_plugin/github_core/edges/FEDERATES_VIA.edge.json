@@ -1,5 +1,5 @@
 {
-  "slug": "FEDERATES_VIA",
+  "slug": "FEDERATES_VIA__github_core",
   "name": "Federates Via",
   "description": "A GitHub repository federates into AWS through an IAM OIDC provider whose URL is the canonical github.com Actions issuer (token.actions.githubusercontent.com). Chains with the AWS-side FEDERATES_INTO edge: repo FEDERATES_VIA oidc_provider FEDERATES_INTO deploy_role. Resolved during the enrichment phase via the github_grid_link_manifest (structural constant rule). Derived link — not hotlink-backed.",
   "sources": ["github_repository"],

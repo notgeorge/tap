@@ -1,5 +1,5 @@
 {
-  "slug": "HAS_FINDING",
+  "slug": "HAS_FINDING__fedramp_20x_ksi",
   "name": "Has Finding",
   "description": "An asset has a finding observed against it. Source may be any entity type; target is a finding.",
   "targets": ["finding"],

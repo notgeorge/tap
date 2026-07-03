@@ -1,5 +1,5 @@
 {
-  "slug": "HAS_IP",
+  "slug": "HAS_IP__computing_core",
   "name": "Has IP",
   "description": "A network interface has an assigned IP address.",
   "sources": [

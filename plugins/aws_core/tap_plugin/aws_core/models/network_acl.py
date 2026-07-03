@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class NetworkAcl(BaseModel):
     """An Amazon VPC network ACL (stateless firewall)."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_network_acl"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_network_acl"
     ENTITY_NAME: ClassVar[str] = "Network ACL"
     ENTITY_DESCRIPTION: ClassVar[str] = "An Amazon VPC network access control list."
     ENTITY_ICON: ClassVar[str] = "aws-network-acl"
@@ -44,7 +44,7 @@ class NetworkAcl(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_network_acl"
+        db_table = "aws_core__aws_network_acl"
 
     def get_name(self) -> str:
         return self.name or self.network_acl_id

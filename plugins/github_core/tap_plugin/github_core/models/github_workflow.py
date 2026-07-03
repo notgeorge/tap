@@ -17,7 +17,7 @@ class GithubWorkflow(BaseModel):
     Spec: plugins/github_core/specs/spec-github-core-v0.md (req-github-core-models)
     """
 
-    ENTITY_TYPE: ClassVar[str] = "github_workflow"
+    ENTITY_TYPE: ClassVar[str] = "github_core__github_workflow"
     ENTITY_NAME: ClassVar[str] = "GitHub Workflow"
     ENTITY_DESCRIPTION: ClassVar[str] = "A GitHub Actions workflow definition."
     ENTITY_ICON: ClassVar[str] = "github-workflow"
@@ -67,7 +67,7 @@ class GithubWorkflow(BaseModel):
     tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "github_workflow"
+        db_table = "github_core__github_workflow"
 
     def get_name(self) -> str:
         return self.name or self.path or self.full_name

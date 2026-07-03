@@ -29,8 +29,8 @@
 // Only the arrangement-driven clusters need a seeded root. Deploy & Bootstrap is
 // laid out wholesale by adh in finalize, so it has no entry here.
 const CLUSTER_ROOTS = [
-    {root_entity_type: "aws_route53_zone",      x:  250, y:  200, cluster: "website"},
-    {root_entity_type: "aws_eventbridge_rule",  x:  250, y:  480, cluster: "compliance"},
+    {root_entity_type: "aws_core__aws_route53_zone",      x:  250, y:  200, cluster: "website"},
+    {root_entity_type: "aws_core__aws_eventbridge_rule",  x:  250, y:  480, cluster: "compliance"},
 ];
 
 export async function execute(context) {

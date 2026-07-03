@@ -1,5 +1,5 @@
 {
-  "slug": "REPORTS_FINDING",
+  "slug": "REPORTS_FINDING__fedramp_20x_ksi",
   "name": "Reports Finding",
   "description": "A VDR report carries a vulnerability finding. One edge per findings[] and risk_accepted[] entry.",
   "sources": ["vdr_report"],

@@ -20,7 +20,7 @@ class IamOidcProvider(BaseModel):
     (CI runners, K8s service accounts, etc.).
     """
 
-    ENTITY_TYPE: ClassVar[str] = "aws_iam_oidc_provider"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_iam_oidc_provider"
     ENTITY_NAME: ClassVar[str] = "IAM OIDC Provider"
     ENTITY_DESCRIPTION: ClassVar[str] = "A federated OpenID Connect identity provider registered in AWS IAM."
     ENTITY_ICON: ClassVar[str] = "aws-iam"
@@ -63,7 +63,7 @@ class IamOidcProvider(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_iam_oidc_provider"
+        db_table = "aws_core__aws_iam_oidc_provider"
 
     def get_name(self) -> str:
         return self.name or self.url or self.provider_arn

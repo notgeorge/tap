@@ -1,5 +1,5 @@
 {
-  "slug": "OWNS_REPO",
+  "slug": "OWNS_REPO__github_core",
   "name": "Owns Repo",
   "description": "GitHub account owns a repository.",
   "sources": ["github_account"],

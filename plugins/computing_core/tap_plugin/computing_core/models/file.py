@@ -10,10 +10,10 @@ from tap_grid.models import BaseModel
 class File(BaseModel):
     """A filesystem object tracked as a durable artifact when meaningful."""
 
-    ENTITY_TYPE: ClassVar[str] = "file"
+    ENTITY_TYPE: ClassVar[str] = "computing_core__file"
     ENTITY_NAME: ClassVar[str] = "File"
     ENTITY_DESCRIPTION: ClassVar[str] = "A filesystem object tracked as a durable artifact."
-    ENTITY_ICON: ClassVar[str] = "file"
+    ENTITY_ICON: ClassVar[str] = "computing_core__file"
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"tap.computing": "storage"}
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
         "tap_viz": {
@@ -46,7 +46,7 @@ class File(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "computing_file"
+        db_table = "computing_core__file"
 
     def get_name(self) -> str:
         return self.name or self.file_path

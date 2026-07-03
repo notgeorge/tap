@@ -1,5 +1,5 @@
 {
-  "slug": "RELATED_INDICATOR",
+  "slug": "RELATED_INDICATOR__fedramp_20x_ksi",
   "name": "Related Indicator",
   "description": "A finding relates to a compliance indicator it concerns. The relationship_type property classifies the nature of the relationship (passing, violation, informational, other). Vocabulary aligns with HAS_EVIDENCE.support_kind.",
   "sources": ["finding"],

@@ -1,5 +1,5 @@
 {
-  "slug": "ROUTES_TRAFFIC",
+  "slug": "ROUTES_TRAFFIC__aws_core",
   "name": "Routes Traffic",
   "description": "Route table, load balancer, or DNS zone routes traffic to a target.",
   "sources": [

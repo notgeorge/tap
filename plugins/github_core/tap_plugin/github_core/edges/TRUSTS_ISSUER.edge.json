@@ -1,5 +1,5 @@
 {
-  "slug": "TRUSTS_ISSUER",
+  "slug": "TRUSTS_ISSUER__github_core",
   "name": "Trusts Issuer",
   "description": "An AWS IAM OIDC provider registers trust in an OIDC issuer — its configured URL is that issuer's host. Derived link resolved during the github_core enrichment phase by matching aws_iam_oidc_provider.url against oidc_issuer.host; converges the AWS federation path onto the same issuer node Sigstore identities are vouched by. Derived link — not hotlink-backed (the provider is written by aws_core, which does not emit this edge).",
   "sources": ["aws_iam_oidc_provider"],

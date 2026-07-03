@@ -42,7 +42,7 @@ class TestListCharactersRunner:
         assert "edges" in result
         # At least the character we just created should be present.
         entity_types = [n["entity_type"] for n in result["nodes"]]
-        assert all(et == "character" for et in entity_types)
+        assert all(et == "lotr__character" for et in entity_types)
 
     def test_list_characters_uses_read_only_connection(self):
         """Smoke test: execute_search doesn't crash when using the search_readonly alias."""

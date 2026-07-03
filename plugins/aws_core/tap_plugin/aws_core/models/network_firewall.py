@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class NetworkFirewall(BaseModel):
     """An AWS Network Firewall."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_network_firewall"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_network_firewall"
     ENTITY_NAME: ClassVar[str] = "Network Firewall"
     ENTITY_DESCRIPTION: ClassVar[str] = "An AWS Network Firewall."
     ENTITY_ICON: ClassVar[str] = "aws-network-firewall"
@@ -44,7 +44,7 @@ class NetworkFirewall(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_network_firewall"
+        db_table = "aws_core__aws_network_firewall"
 
     def get_name(self) -> str:
         return self.name

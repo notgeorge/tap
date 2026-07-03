@@ -1,5 +1,5 @@
 {
-  "slug": "HAS_POLICY_ACCESS_TO",
+  "slug": "HAS_POLICY_ACCESS_TO__aws_core",
   "name": "Has Policy Access To",
   "description": "IAM identity has access to a resource via policy grants.",
   "sources": [

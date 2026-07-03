@@ -12,10 +12,10 @@ _NAME_SCHEMA: dict[str, Any] = {"type": "string", "minLength": 1}
 class Location(BaseModel):
     """A place in Middle-earth (Shire, Mordor, Rivendell, etc.)."""
 
-    ENTITY_TYPE: ClassVar[str] = "location"
+    ENTITY_TYPE: ClassVar[str] = "lotr__location"
     ENTITY_NAME: ClassVar[str] = "Location"
     ENTITY_DESCRIPTION: ClassVar[str] = "A place in Middle-earth."
-    ENTITY_ICON: ClassVar[str] = "location"
+    ENTITY_ICON: ClassVar[str] = "lotr__location"
 
     FIELD_CRUD_SCHEMA: ClassVar[dict[str, Any]] = {
         "name": _NAME_SCHEMA,
@@ -23,7 +23,7 @@ class Location(BaseModel):
         "realm": {"type": "string"},
     }
     CREATE_REQUIRED: ClassVar[list[str]] = ["name"]
-    REPLACE_REQUIRED: ClassVar[list[str]] = ["name", "description", "realm"]
+    REPLACE_REQUIRED: ClassVar[list[str]] = ["name", "description", "lotr__realm"]
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
         "tap_viz": {
             "shape": "round-rectangle",
@@ -32,24 +32,24 @@ class Location(BaseModel):
                     {
                         "name": "location-contains-location",
                         "description": "A location may visually contain a child location.",
-                        "gryphon": "(parent:location)-[:CONTAINS]->(child:location)",
+                        "gryphon": "(parent:lotr__location)-[:CONTAINS__lotr]->(child:lotr__location)",
                     },
                     {
                         "name": "location-contains-character",
                         "description": "A location visually contains characters located there.",
-                        "gryphon": "(parent:location)<-[:LOCATED_IN]-(child:character)",
+                        "gryphon": "(parent:lotr__location)<-[:LOCATED_IN__lotr]-(child:lotr__character)",
                     },
                 ],
                 "child": [
                     {
                         "name": "location-inside-realm",
                         "description": "A location may be visually nested inside a containing realm.",
-                        "gryphon": "(parent:realm)-[:CONTAINS]->(child:location)",
+                        "gryphon": "(parent:lotr__realm)-[:CONTAINS__lotr]->(child:lotr__location)",
                     },
                     {
                         "name": "location-inside-location",
                         "description": "A location may be visually nested inside a parent location.",
-                        "gryphon": "(parent:location)-[:CONTAINS]->(child:location)",
+                        "gryphon": "(parent:lotr__location)-[:CONTAINS__lotr]->(child:lotr__location)",
                     },
                 ],
                 "parent_label": {
@@ -62,14 +62,14 @@ class Location(BaseModel):
     }
 
     OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
-        {"nodes": [{"type": "location"}], "edges": [{"type": "CONTAINS"}]},
+        {"nodes": [{"type": "lotr__location"}], "edges": [{"type": "CONTAINS__lotr"}]},
     ]
 
     INBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
-        {"nodes": [{"type": "character"}], "edges": [{"type": "LOCATED_IN"}, {"type": "RULES"}]},
-        {"nodes": [{"type": "artifact"}], "edges": [{"type": "FORGED_IN"}]},
-        {"nodes": [{"type": "location"}, {"type": "realm"}], "edges": [{"type": "CONTAINS"}]},
-        {"nodes": [{"type": "citadel"}], "edges": [{"type": "PROTECTS"}]},
+        {"nodes": [{"type": "lotr__character"}], "edges": [{"type": "LOCATED_IN__lotr"}, {"type": "RULES__lotr"}]},
+        {"nodes": [{"type": "lotr__artifact"}], "edges": [{"type": "FORGED_IN__lotr"}]},
+        {"nodes": [{"type": "lotr__location"}, {"type": "lotr__realm"}], "edges": [{"type": "CONTAINS__lotr"}]},
+        {"nodes": [{"type": "lotr__citadel"}], "edges": [{"type": "PROTECTS__lotr"}]},
     ]
 
     name = models.CharField(max_length=255, blank=True, default="")
@@ -77,7 +77,7 @@ class Location(BaseModel):
     realm = models.CharField(max_length=255, blank=True, default="")
 
     class Meta(BaseModel.Meta):
-        db_table = "lotr_location"
+        db_table = "lotr__location"
 
     def get_name(self) -> str:
         return self.name

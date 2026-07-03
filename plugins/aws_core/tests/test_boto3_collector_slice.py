@@ -219,7 +219,7 @@ def test_canned_lambda_and_role_land_on_grid(_stub_aws):
     assert isinstance(ledger_entries[0]["message_data"]["calls"], list)
 
     # The Lambda node landed, typed + lossless, by deterministic identity.
-    fn = get_node(node_entity_id("aws_lambda", _FN_ARN))
+    fn = get_node(node_entity_id("aws_core__aws_lambda", _FN_ARN))
     assert fn.name == "sam-handler"
     assert fn.runtime == "python3.13"
     assert fn.memory_size == 256
@@ -230,7 +230,7 @@ def test_canned_lambda_and_role_land_on_grid(_stub_aws):
     assert fn.tags == {"Owner": "sam"}
 
     # The IAM role node landed (global-scope entry).
-    role = get_node(node_entity_id("aws_iam_role", _ROLE_ARN))
+    role = get_node(node_entity_id("aws_core__aws_iam_role", _ROLE_ARN))
     assert role.name == "sam-exec"
     assert role.role_arn == _ROLE_ARN
     # IAM role tags came via the service side-quest (ListRoleTags, list_kv).
@@ -238,10 +238,10 @@ def test_canned_lambda_and_role_land_on_grid(_stub_aws):
 
     # The ASSUMES_ROLE edge resolved by identity — non-dangling because both
     # endpoints were collected this run (two-phase, identity-resolved).
-    edge = get_edge(edge_entity_id("ASSUMES_ROLE", _FN_ARN, _ROLE_ARN))
-    assert edge.edge_type == "ASSUMES_ROLE"
-    assert str(edge.from_entity_id) == str(node_entity_id("aws_lambda", _FN_ARN))
-    assert str(edge.to_entity_id) == str(node_entity_id("aws_iam_role", _ROLE_ARN))
+    edge = get_edge(edge_entity_id("ASSUMES_ROLE__aws_core", _FN_ARN, _ROLE_ARN))
+    assert edge.edge_type == "ASSUMES_ROLE__aws_core"
+    assert str(edge.from_entity_id) == str(node_entity_id("aws_core__aws_lambda", _FN_ARN))
+    assert str(edge.to_entity_id) == str(node_entity_id("aws_core__aws_iam_role", _ROLE_ARN))
 
     # WRITES_LOGS resolves non-dangling under the v0 make-it-work
     # (req-aws-collector-edges-7): aws_cloudwatch_log_group is keyed by
@@ -249,12 +249,12 @@ def test_canned_lambda_and_role_land_on_grid(_stub_aws):
     # node's natural_key are the byte-identical string — both ends derive the
     # same uuid5 with no resolver. (Pre-tweak this was a silent dangling edge:
     # name on the Lambda side vs an ARN-keyed log-group node.)
-    lg = get_node(node_entity_id("aws_cloudwatch_log_group", _LOG_GROUP))
+    lg = get_node(node_entity_id("aws_core__aws_cloudwatch_log_group", _LOG_GROUP))
     assert lg.name == _LOG_GROUP
-    log_edge = get_edge(edge_entity_id("WRITES_LOGS", _FN_ARN, _LOG_GROUP))
-    assert log_edge.edge_type == "WRITES_LOGS"
-    assert str(log_edge.from_entity_id) == str(node_entity_id("aws_lambda", _FN_ARN))
-    assert str(log_edge.to_entity_id) == str(node_entity_id("aws_cloudwatch_log_group", _LOG_GROUP))
+    log_edge = get_edge(edge_entity_id("WRITES_LOGS__aws_core", _FN_ARN, _LOG_GROUP))
+    assert log_edge.edge_type == "WRITES_LOGS__aws_core"
+    assert str(log_edge.from_entity_id) == str(node_entity_id("aws_core__aws_lambda", _FN_ARN))
+    assert str(log_edge.to_entity_id) == str(node_entity_id("aws_core__aws_cloudwatch_log_group", _LOG_GROUP))
 
     # ROUTES_TRAFFIC resolves non-dangling through the route53 custom_fn's
     # CloudFront cross-join: the zone's A-alias domain -> the already-
@@ -262,12 +262,12 @@ def test_canned_lambda_and_role_land_on_grid(_stub_aws):
     # custom_fn did the domain->ARN join (req-aws-collector-edges-7). Note
     # the manifest-registered type is aws_route53_zone (model + plugin),
     # which the collector manifest was reconciled to.
-    zone = get_node(node_entity_id("aws_route53_zone", _ZONE_ID))
+    zone = get_node(node_entity_id("aws_core__aws_route53_zone", _ZONE_ID))
     assert zone.name == "samsite.unified-systems.com."
-    route_edge = get_edge(edge_entity_id("ROUTES_TRAFFIC", _ZONE_ID, _DIST_ARN))
-    assert route_edge.edge_type == "ROUTES_TRAFFIC"
-    assert str(route_edge.from_entity_id) == str(node_entity_id("aws_route53_zone", _ZONE_ID))
-    assert str(route_edge.to_entity_id) == str(node_entity_id("aws_cloudfront_distribution", _DIST_ARN))
+    route_edge = get_edge(edge_entity_id("ROUTES_TRAFFIC__aws_core", _ZONE_ID, _DIST_ARN))
+    assert route_edge.edge_type == "ROUTES_TRAFFIC__aws_core"
+    assert str(route_edge.from_entity_id) == str(node_entity_id("aws_core__aws_route53_zone", _ZONE_ID))
+    assert str(route_edge.to_entity_id) == str(node_entity_id("aws_core__aws_cloudfront_distribution", _DIST_ARN))
 
 
 @pytest.mark.django_db
@@ -327,7 +327,7 @@ def test_unregistered_edge_transform_is_classified_not_fatal(_stub_aws, monkeypa
 
     # The distribution node still landed — it is appended before the edge
     # pass runs, so the skipped edge does not lose the node.
-    dist = get_node(node_entity_id("aws_cloudfront_distribution", _DIST_ARN))
+    dist = get_node(node_entity_id("aws_core__aws_cloudfront_distribution", _DIST_ARN))
     assert dist.distribution_arn == _DIST_ARN
 
 

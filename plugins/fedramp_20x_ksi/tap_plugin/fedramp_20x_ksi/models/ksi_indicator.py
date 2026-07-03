@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class KsiIndicator(BaseModel):
     """An individual KSI such as KSI-IAM-MFA."""
 
-    ENTITY_TYPE: ClassVar[str] = "ksi_indicator"
+    ENTITY_TYPE: ClassVar[str] = "fedramp_20x_ksi__ksi_indicator"
     ENTITY_NAME: ClassVar[str] = "KSI Indicator"
     ENTITY_DESCRIPTION: ClassVar[str] = (
         "A single measurable FedRAMP 20x Key Security Indicator within a theme."
@@ -97,7 +97,7 @@ class KsiIndicator(BaseModel):
     status = models.CharField(max_length=16, blank=True, default="")
 
     class Meta(BaseModel.Meta):
-        db_table = "ksi_indicator"
+        db_table = "fedramp_20x_ksi__ksi_indicator"
 
     def get_name(self) -> str:
         return self.name or self.code

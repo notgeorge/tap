@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class Subnet(BaseModel):
     """An Amazon VPC subnet."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_subnet"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_subnet"
     ENTITY_NAME: ClassVar[str] = "Subnet"
     ENTITY_DESCRIPTION: ClassVar[str] = "A subnet within an Amazon VPC."
     ENTITY_ICON: ClassVar[str] = "aws-subnet"
@@ -50,7 +50,7 @@ class Subnet(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_subnet"
+        db_table = "aws_core__aws_subnet"
 
     def get_name(self) -> str:
         return self.name or self.subnet_id

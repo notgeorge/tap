@@ -28,7 +28,7 @@ _VALID_CLASSES = {"a", "b", "c", "d"}
 _FALLBACK_CLASS = "all"
 
 _FEDRAMP_CLASS_QUERY = (
-    'MATCH (c:compliance_context) WHERE c.regime = "fedramp_20x" '
+    'MATCH (c:fedramp_20x_ksi__compliance_context) WHERE c.regime = "fedramp_20x" '
     "RETURN c.fedramp_class AS fedramp_class"
 )
 

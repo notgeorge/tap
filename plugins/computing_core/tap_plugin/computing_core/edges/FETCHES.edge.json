@@ -1,5 +1,5 @@
 {
-  "slug": "FETCHES",
+  "slug": "FETCHES__computing_core",
   "name": "Fetches",
   "description": "A process retrieves a web document over HTTP(S). Source is left wildcard so any fetcher (e.g. a CI workflow, a program) can fetch without computing_core depending on the fetcher's owning plugin.",
   "targets": [

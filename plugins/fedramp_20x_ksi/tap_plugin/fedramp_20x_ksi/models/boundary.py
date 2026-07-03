@@ -24,7 +24,7 @@ class Boundary(BaseModel):
     Spec: plugins/fedramp_20x_ksi/specs/spec-fedramp-20x-ksi-boundary.md
     """
 
-    ENTITY_TYPE: ClassVar[str] = "boundary"
+    ENTITY_TYPE: ClassVar[str] = "fedramp_20x_ksi__boundary"
     ENTITY_NAME: ClassVar[str] = "Authorization Boundary"
     ENTITY_DESCRIPTION: ClassVar[str] = (
         "A FedRAMP authorization boundary — the perimeter of system "
@@ -34,7 +34,7 @@ class Boundary(BaseModel):
     # No type icon: the red box from DEFAULT_DISPLAY is sufficient to read the
     # boundary on the graph, and the icon badge added visual noise.
     ENTITY_ICON: ClassVar[str] = ""
-    DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"compliance": "boundary"}
+    DEFAULT_DIMENSIONS: ClassVar[dict[str, str]] = {"compliance": "fedramp_20x_ksi__boundary"}
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {
         "tap_viz": {
             "shape": "round-rectangle",
@@ -58,7 +58,7 @@ class Boundary(BaseModel):
     description = models.TextField(blank=True, default="")
 
     class Meta(BaseModel.Meta):
-        db_table = "fedramp_boundary"
+        db_table = "fedramp_20x_ksi__boundary"
 
     def get_name(self) -> str:
         return self.name

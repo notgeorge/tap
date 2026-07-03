@@ -25,7 +25,7 @@ export async function execute(context) {
 
     // 1. Teardown: artifacts from a prior character-view entry are hidden.
     //    They stay in cy so re-entry can unhide without another API round trip.
-    cy.nodes('[entity_type="artifact"]').addClass(ELEVATION_HIDDEN_CLASS);
+    cy.nodes('[entity_type="lotr__artifact"]').addClass(ELEVATION_HIDDEN_CLASS);
     cy.edges('[edge_type="WIELDS"]').addClass(ELEVATION_HIDDEN_CLASS);
 
     // 2. Declare nested projection: realm → location → character.
@@ -34,15 +34,15 @@ export async function execute(context) {
         relationships: [
             {
                 name: "realm-contains-location",
-                gryphon: "(parent:realm)-[:CONTAINS]->(child:location)",
+                gryphon: "(parent:lotr__realm)-[:CONTAINS__lotr]->(child:lotr__location)",
             },
             {
                 name: "location-contains-location",
-                gryphon: "(parent:location)-[:CONTAINS]->(child:location)",
+                gryphon: "(parent:lotr__location)-[:CONTAINS__lotr]->(child:lotr__location)",
             },
             {
                 name: "location-contains-character",
-                gryphon: "(parent:location)<-[:LOCATED_IN]-(child:character)",
+                gryphon: "(parent:lotr__location)<-[:LOCATED_IN__lotr]-(child:lotr__character)",
             },
         ],
         baseSizes: {

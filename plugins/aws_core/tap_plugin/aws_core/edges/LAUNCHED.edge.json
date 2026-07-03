@@ -1,5 +1,5 @@
 {
-  "slug": "LAUNCHED",
+  "slug": "LAUNCHED__aws_core",
   "name": "Launched",
   "description": "IAM user or role launched or created a resource.",
   "sources": [

@@ -12,7 +12,7 @@ _NAME_SCHEMA: dict[str, Any] = {"type": "string", "minLength": 1}
 class Realm(BaseModel):
     """A major geographical and political domain (Gondor, Rohan, Eriador, etc.)."""
 
-    ENTITY_TYPE: ClassVar[str] = "realm"
+    ENTITY_TYPE: ClassVar[str] = "lotr__realm"
     ENTITY_NAME: ClassVar[str] = "Realm"
     ENTITY_DESCRIPTION: ClassVar[str] = "A major geographical and political domain."
     ENTITY_ICON: ClassVar[str] = ""
@@ -24,7 +24,7 @@ class Realm(BaseModel):
                     {
                         "name": "realm-contains-location",
                         "description": "A realm visually contains its locations.",
-                        "gryphon": "(parent:realm)-[:CONTAINS]->(child:location)",
+                        "gryphon": "(parent:lotr__realm)-[:CONTAINS__lotr]->(child:lotr__location)",
                     }
                 ],
                 "parent_label": {
@@ -44,18 +44,18 @@ class Realm(BaseModel):
     REPLACE_REQUIRED: ClassVar[list[str]] = ["name", "description"]
 
     OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
-        {"nodes": [{"type": "location"}], "edges": [{"type": "CONTAINS"}]},
+        {"nodes": [{"type": "lotr__location"}], "edges": [{"type": "CONTAINS__lotr"}]},
     ]
 
     INBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
-        {"nodes": [{"type": "location"}], "edges": [{"type": "CONTAINS"}]},
+        {"nodes": [{"type": "lotr__location"}], "edges": [{"type": "CONTAINS__lotr"}]},
     ]
 
     name = models.CharField(max_length=255, blank=True, default="")
     description = models.TextField(blank=True, default="")
 
     class Meta(BaseModel.Meta):
-        db_table = "lotr_realm"
+        db_table = "lotr__realm"
 
     def get_name(self) -> str:
         return self.name

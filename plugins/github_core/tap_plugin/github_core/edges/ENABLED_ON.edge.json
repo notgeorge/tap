@@ -1,5 +1,5 @@
 {
-  "slug": "ENABLED_ON",
+  "slug": "ENABLED_ON__github_core",
   "name": "Enabled On",
   "description": "A GitHub App or first-party platform service is enabled on a repository — a github_app (e.g. Dependabot) or the Actions OIDC issuer (token.actions.githubusercontent.com), which every repo's workflows use to mint identity tokens.",
   "sources": [
