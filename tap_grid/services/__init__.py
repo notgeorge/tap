@@ -938,7 +938,7 @@ def _create_node_internal_for_test(
     display projection, etc.) without going through a subsystem helper.
     """
     _assert_test_or_debug("_create_node_internal_for_test")
-    return _create_node_internal(
+    return _create_node_internal(  # TAP-AUTHZ-COV: test-only helper; _assert_test_or_debug makes it production-unreachable
         type_slug,
         payload,
         caller_context=caller_context,
@@ -957,7 +957,7 @@ def _patch_node_internal_for_test(
 ) -> WriteResult:
     """Test-only trusted-internal patch. See `_create_node_internal_for_test`."""
     _assert_test_or_debug("_patch_node_internal_for_test")
-    return _patch_node_internal(
+    return _patch_node_internal(  # TAP-AUTHZ-COV: test-only helper; _assert_test_or_debug makes it production-unreachable
         target,
         payload,
         caller_context=caller_context,

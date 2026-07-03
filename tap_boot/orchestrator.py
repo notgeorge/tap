@@ -76,6 +76,31 @@ def run_boot(profile: BootProfile | None, *, echo: Echo | None = None) -> None:
     say("Boot complete.")
 
 
+def check_profile(profile: BootProfile | None, *, echo: Echo | None = None) -> int:
+    """Resolve-only preflight: validate every enabled step, mutate nothing.
+
+    Runs the zero-grid-mutation pre-resolution `run_boot` does before the
+    population phase (`_resolve_steps`) — every `seed-plugin` slug/bundle and
+    every `fire-collector` key is checked against the in-memory registries — but
+    stops there: no auth sync, no DB writes, no collector firing. This is the
+    per-profile cold-boot smoke's engine: a shipped profile whose collector key
+    has rotted (the module-path→slug drift class) or whose plugin/bundle is
+    missing fails here, offline, without standing anything up.
+
+    Returns the number of enabled population steps that resolved. Raises
+    `BootError` on the first unresolvable step (same failure the real boot
+    would hit at `_resolve_steps`, only sooner and side-effect-free).
+    """
+    say = echo or _SILENT
+    profile_label = profile.profile_id if profile else "(none — auth only)"
+    if profile is None or not profile.has_population:
+        say(f"Profile '{profile_label}': no population steps to resolve (auth-only).")
+        return 0
+    plan = _resolve_steps(profile, say)
+    say(f"Profile '{profile_label}': {len(plan)} population step(s) resolved cleanly.")
+    return len(plan)
+
+
 def _phase_auth(profile: BootProfile | None, say: Echo) -> None:
     """auth phase: hard-sync capabilities/groups/actors, ensure the admin, then
     (if the profile declares one) validate + apply the auth section."""

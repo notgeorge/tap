@@ -1,5 +1,6 @@
 {% extends "tap_web/base.html" %}
 {% load static %}
+{% load tap_time %}
 
 {% block title %}{{ obj_name }} — {{ product_name }}{% endblock %}
 
@@ -96,7 +97,7 @@
                         <td class="py-2 pr-4 text-slate-600">{{ row.source|default:"—" }}</td>
                         <td class="py-2 pr-4 text-slate-600">{{ row.actor }}</td>
                         <td class="py-2 pr-4 text-slate-500 whitespace-nowrap">
-                            {% if row.started_at %}{{ row.started_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}
+                            {{ row.started_at|tap_localtime }}
                         </td>
                         <td class="py-2">
                             <span class="inline-block rounded px-2 py-0.5 text-xs

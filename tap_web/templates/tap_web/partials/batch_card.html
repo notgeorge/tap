@@ -11,6 +11,7 @@ Context:
 Generic: this partial never hardcodes a detail-page route — the caller supplies
 `card.url` (so plugin pages link to their own batch viewer; core stays neutral).
 {% endcomment %}
+{% load tap_time %}
 <div class="batch-card{% if compact %} batch-card--compact{% endif %} batch-card--status-{{ card.status|default:'unknown' }}">
   <div class="batch-card__head">
     {% if card.url %}
@@ -23,8 +24,8 @@ Generic: this partial never hardcodes a detail-page route — the caller supplie
 
   <dl class="batch-card__meta">
     {% if card.source %}<div><dt>source</dt><dd><code>{{ card.source }}</code></dd></div>{% endif %}
-    <div><dt>started</dt><dd>{{ card.started_at|date:"Y-m-d H:i"|default:"—" }}</dd></div>
-    <div><dt>{% if card.status == 'failed' %}failed{% else %}closed{% endif %}</dt><dd>{{ card.closed_at|date:"Y-m-d H:i"|default:"—" }}</dd></div>
+    <div><dt>started</dt><dd>{{ card.started_at|tap_localtime }}</dd></div>
+    <div><dt>{% if card.status == 'failed' %}failed{% else %}closed{% endif %}</dt><dd>{{ card.closed_at|tap_localtime }}</dd></div>
   </dl>
 
   {% if not compact %}

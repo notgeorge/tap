@@ -127,7 +127,7 @@ The authoritative schema is `TABLE_CONFIG_SCHEMA` in `tap_web/panels/table_panel
 #### Column Formatters
 `columns[].formatter` selects a named client-side renderer (defined in `panel-table.js`); string names keep the config declarable with no inline JS. Available formatters:
 - `plaintext` — raw string value (default).
-- `datetime` — compact local timestamp (`yyyy-mm-dd hh:mm`).
+- `datetime` — local timestamp with zone disclosure, rendered through the shared time-display helper (`spec-web-time-display.md`, `req-web-time-single-helper`). The incoming value is UTC ISO-8601; the formatter localizes to the viewer's browser zone and discloses the zone (`req-web-time-local-display`, `req-web-time-zone-disclosure`).
 - `tickCross` — `✓` / `✕` / `–` for true / false / null-or-absent.
 - `tickDash` — `✓` for true, a neutral `–` otherwise; for boolean columns where a "no" is unremarkable rather than a fault.
 - `ciaLevel` — compact impact level: `low → L`, `moderate → M`, `high → H`, anything else (not-applicable, blank) → a neutral `–`; color-coded by severity.

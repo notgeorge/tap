@@ -1,0 +1,12 @@
+# Authz-coverage ratchet baseline (req-tap-auth-policy-9). One line per ungated
+# privileged-sink call site, keyed by enclosing scope: <path>::<qualname>::<sink>
+# (line-drift-proof). EMPTY = strict (zero tolerated).
+#
+# Emptied 2026-07-02: the scanner was recalibrated to drop the self-gating read
+# executors (execute_search/execute_gryphon_raw/explain_gryphon_raw) from
+# SINK_CALLS — each is @requires_capability("grid.read") at its own def, gating on
+# caller context fail-closed, so its callers are gated BY CONSTRUCTION (this was
+# 33/37 false positives, mostly dashboard panels). The remaining 4 genuine
+# write-sink sites (2 test-only _*_for_test helpers, boot seeding, validate CLI
+# dry-run) are non-request-reachable and carry `# TAP-AUTHZ-COV: <reason>` markers.
+# SINK_CALLS now tracks only the undecorated write sinks; a NEW ungated one fails.

@@ -9,12 +9,12 @@ This scanner closes that gap at build time: every call to a privileged sink must
 sit inside a gated function (`@requires_capability`) or an `authorized(...)`
 block, else it is flagged.
 
-It reuses the log-site scanner's harness (`tap/logging.py`): `discover_scan_roots`
-(first-party `tap_*` apps + `plugins/*`) and `CallSite`, the same
-`ast`-at-collection-time approach, and the same baseline-ratchet + exemption-marker
-model. See `tap/tests/test_authz_coverage.py` for the enforcement
-surface; the baseline grandfathers today's ungated paths and ratchets to zero as
-each per-app standard lands.
+It reuses the shared source-scan primitives (`tap/source_scan.py`):
+`first_party_source_roots` (first-party `tap_*` apps + `plugins/*`) and `CallSite`,
+the same `ast`-at-collection-time approach, and the same baseline-ratchet +
+exemption-marker model. `tap/guards/authz.py::AuthzCoverageRatchet` is the
+enforcement surface (via `tap/tests/test_guards.py`); the baseline grandfathers
+today's ungated paths and ratchets to zero as each per-app standard lands.
 
 NOT Semgrep, deliberately (req-tap-auth-policy-9): a later rule — direct
 graph-model ORM in panel/view zones, deferred to the tap_web standard — enumerates
@@ -29,19 +29,26 @@ import ast
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# Privileged graph sinks. A call to one of these must be reached only through a
-# gate. `write_batch` is the undecorated write chokepoint (only the runtime
-# backstop guards it); the Search/Gryphon executors and `grift_import`
-# self-authorize, but a call from an ungated function is "gated by accident", not
-# by construction; the `_*_internal` write helpers are the decorated entry points
-# the per-app review found reached ambiently from tasks/registration.
+# Privileged graph sinks that are NOT gated at their own definition — a call to one
+# must be reached through a gate, else it is ungated. `write_batch` is the
+# undecorated write chokepoint (only the runtime backstop guards it); `grift_import`
+# self-authorizes internally but is not decorated; the `_*_internal` write helpers
+# are the entry points the per-app review found reached ambiently from
+# tasks/registration.
+#
+# DELIBERATELY EXCLUDED: the read executors `execute_search` / `execute_gryphon_raw`
+# / `explain_gryphon_raw`. Each is `@requires_capability("grid.read")` AT ITS OWN
+# DEFINITION, gating on the CallerContext, fail-closed, regardless of caller — the
+# gate cannot be bypassed by an ungated caller, so a call site is gated BY
+# CONSTRUCTION, not "by accident". Flagging their callers made the scanner ~89%
+# false-positive (33/37 baseline entries were self-gated read calls, chiefly
+# dashboard panels), which drowned the genuine undecorated-write-sink debt. A guard
+# that cries wolf gets ignored; this keeps it pointed at the sinks that actually
+# lack a construction-time gate. (req-tap-auth-policy-9; see spec-dev-validation Map.)
 SINK_CALLS: frozenset[str] = frozenset(
     {
         "write_batch",
         "grift_import",
-        "execute_search",
-        "execute_gryphon_raw",
-        "explain_gryphon_raw",
         "_create_node_internal",
         "_patch_node_internal",
     }
@@ -201,7 +208,8 @@ def scan_authz_coverage(roots: list[Path]) -> AuthzScanResult:
 
     Files that fail to parse are skipped (pytest collection catches real syntax
     errors elsewhere). Test files are skipped — see `_is_test_path`. Use
-    `discover_scan_roots()` to derive the first-party-app + plugin roots.
+    `tap.source_scan.first_party_source_roots()` to derive the first-party-app +
+    plugin roots.
     """
     result = AuthzScanResult()
     for root in roots:

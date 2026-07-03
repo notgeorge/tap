@@ -158,6 +158,14 @@ strict = true
 # Relax some strict settings for pragmatic development
 allow_untyped_decorators = true
 allow_subclassing_any = true
+# Package-mode plugins live under plugins/<slug>/tap_plugin/<slug>/ AND are installed
+# (editable) as the PEP 420 namespace package `tap_plugin.<slug>`. Without this,
+# `mypy .` walks that source a SECOND time under the path-derived name
+# `plugins.<slug>.tap_plugin...`, colliding with the install ("Source file found
+# twice") and aborting the run. Excluding the source dir makes mypy resolve each
+# plugin once, via its install, under its true `tap_plugin.<slug>` identity. Each
+# plugin ships a `py.typed` marker (PEP 561) so it is analyzed, not skipped.
+exclude = '(^|/)plugins/[^/]+/tap_plugin/'
 
 [[tool.mypy.overrides]]
 module = ["*.tests.*", "conftest"]
@@ -169,7 +177,14 @@ module = ["simple_history", "simple_history.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = ["botocore", "botocore.*", "boto3", "boto3.*", "jsonschema", "jsonschema.*", "sigstore", "sigstore.*", "allauth", "allauth.*"]
+module = ["botocore", "botocore.*", "boto3", "boto3.*", "jsonschema", "jsonschema.*", "sigstore", "sigstore.*", "allauth", "allauth.*", "playwright", "playwright.*"]
+ignore_missing_imports = true
+
+# Third-party runtime deps that ship no type stubs / py.typed marker (the async task
+# stack + cron parser). Same class as the block above; not first-party, so we mute the
+# unresolved-import noise rather than annotate someone else's package.
+[[tool.mypy.overrides]]
+module = ["steady_queue.*", "django.tasks", "django.tasks.*", "croniter", "croniter.*"]
 ignore_missing_imports = true
 
 [tool.django-stubs]

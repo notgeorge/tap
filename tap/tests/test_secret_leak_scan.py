@@ -1,15 +1,9 @@
-"""Source-control leak-guard enforcement — `req-tap-cares-secrets-leak-guard`.
+"""Pure-scan unit coverage for the secret-leak scanner — `req-tap-cares-secrets-leak-guard`.
 
-Push-protection beyond `.gitignore`: a real secret must never enter the repo,
-whether as a `*.secret.json` (ignore bypassed via `git add -f`) or renamed to
-dodge the suffix. The scan logic lives in `tap.runtime_secrets`; this file is the
-enforcement surface, mirroring `tap/tests/test_json_files.py` and
-`tap/tests/test_log_site_ids.py` (a filesystem walk, no git dependency, so it
-runs in-container like the sibling scanners).
-
-The repo-wide test walks the tree for `*.json`, excluding vendored/cache dirs and
-the live secrets mount (`tap_secrets`, gitignored and symlinked out of the tree).
-The unit tests pin the scan logic.
+The scan logic lives in `tap.runtime_secrets`; these tests pin its behaviour over
+synthetic tracked paths. The repo-wide enforcement walk (a filesystem scan of the
+whole tree) is `tap/guards/secret_leak.py::SecretLeakGuard`, run via
+`tap/tests/test_guards.py` — this file keeps only the fast, DB-free unit tests.
 """
 
 from __future__ import annotations
@@ -18,40 +12,6 @@ import json
 from pathlib import Path
 
 from tap.runtime_secrets import scan_paths_for_secret_leaks
-
-_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-
-# Dirs never walked: vendored/cache trees plus `tap_secrets`, the live off-grid
-# secrets mount (a gitignored symlink to the host store). Mirrors the exclusion
-# discipline in `tap/jsonfiles.py`.
-_EXCLUDE_DIRS = frozenset(
-    {".venv", "node_modules", "__pycache__", ".git", ".claude", ".mypy_cache", ".pytest_cache", "vendor", "tap_secrets"}
-)
-
-
-def _repo_json_files() -> list[str]:
-    """Repo-relative `.json` files in the tree, excluding the mount + vendored dirs."""
-    rels: list[str] = []
-    for path in _REPO_ROOT.rglob("*.json"):
-        if any(part in _EXCLUDE_DIRS for part in path.relative_to(_REPO_ROOT).parts):
-            continue
-        if path.is_file():
-            rels.append(str(path.relative_to(_REPO_ROOT)))
-    return rels
-
-
-def test_no_secret_material_in_repo_tree() -> None:
-    """No file in the tree is a `*.secret.json` or a disguised secret envelope."""
-    leaks = scan_paths_for_secret_leaks(_REPO_ROOT, _repo_json_files())
-    if leaks:
-        listing = "\n  ".join(f"{leak.path} — {leak.reason}" for leak in leaks)
-        raise AssertionError(
-            f"Secret material found in the repository tree ({len(leaks)}):\n  {listing}\n\n"
-            "Secrets live only in the mounted *.secret.json store (off-grid, gitignored). "
-            "Remove the file (and rotate the credential — treat it as compromised). A "
-            "non-secret placeholder may use the *.secret.example.json suffix "
-            "(spec-tap-cares-secrets.md req-tap-cares-secrets-leak-guard)."
-        )
 
 
 class TestScanLogic:
