@@ -39,6 +39,7 @@ from urllib.parse import unquote, urlparse
 
 from tap import plugin_deps
 from tap.logging import abort
+from tap.plugin_source_auth import GitCredential, SourceAuthError, git_askpass_env, resolve_git_credential
 
 logger = logging.getLogger(__name__)
 
@@ -226,16 +227,48 @@ def uv_install_args(entry: dict[str, Any]) -> list[str]:
     raise PrebootError(f"plugin '{entry['slug']}': unknown source type '{stype}'")
 
 
+def _secrets_root() -> Path | None:
+    """The ``TAP_SECRETS_ROOT`` directory for pre-boot credential resolution, or None.
+
+    Settings-free (`req-boot-preboot`): reads the same env var ``settings.py`` reads,
+    since Django is not configured yet. Absent ⇒ no source-credential store, so only
+    public/editable/path sources can install (git sources that *declare* a credential
+    then fail loud in :func:`install_plugins`).
+    """
+    raw = os.environ.get("TAP_SECRETS_ROOT")
+    return Path(raw) if raw else None
+
+
+def _run_install(args: list[str], cred: GitCredential | None) -> subprocess.CompletedProcess[str]:
+    """Run one ``uv pip install``, feeding git credentials via ``GIT_ASKPASS`` when present.
+
+    The token is passed to the child through the askpass env overlay only — never in
+    ``args`` (which preboot logs) and never in the URL (`req-plugin-arch-source-secret-4`).
+    """
+    if cred is None:
+        return subprocess.run(args, cwd=str(REPO_ROOT), capture_output=True, text=True)
+    with git_askpass_env(cred) as overlay:
+        return subprocess.run(args, cwd=str(REPO_ROOT), capture_output=True, text=True, env={**os.environ, **overlay})
+
+
 def install_plugins(entries: list[dict[str, Any]]) -> None:
     """Install each enabled plugin, skipping any already satisfied (idempotent)."""
+    secrets_root = _secrets_root()
     for entry in entries:
         slug = entry["slug"]
         if is_satisfied(entry):
             logger.info("[a245] pre-boot install: '%s' already satisfied — no-op", slug)
             continue
+        try:
+            cred = resolve_git_credential(secrets_root, entry.get("source", {}))
+        except SourceAuthError as exc:
+            logger.error("[0d9b] pre-boot install: source credential error for '%s': %s", slug, exc)
+            raise PrebootError(f"plugin '{slug}' source credential could not be resolved: {exc}") from exc
+        if cred is not None:
+            logger.info("[9934] pre-boot install: '%s' authenticating to %s as %s", slug, cred.host, cred.username)
         args = uv_install_args(entry)
         logger.info("[a83c] pre-boot install: '%s' via %s", slug, " ".join(args))
-        result = subprocess.run(args, cwd=str(REPO_ROOT), capture_output=True, text=True)
+        result = _run_install(args, cred)
         if result.returncode != 0:
             logger.error("[b1f5] pre-boot install FAILED for '%s': %s", slug, result.stderr.strip())
             raise PrebootError(f"plugin '{slug}' install failed (exit {result.returncode})")
