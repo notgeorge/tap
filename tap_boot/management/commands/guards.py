@@ -4,7 +4,8 @@ Enumerates every registered `Guard` and prints what each declares about itself, 
 the Validation Map is *read off the code* rather than hand-maintained. `--check` runs
 each guard and reports live pass/fail; `--json` emits machine-readable output;
 `--map` prints the generated Map table (guards ∪ declared surfaces); `--sync-map`
-writes that table into the generated block in `spec-dev-validation.md`.
+writes that table into the generated block in `spec-dev-validation.md`; `--sarif`
+emits a SARIF 2.1.0 log of the callsite ratchets' per-offense findings.
 
 Lives in tap_boot (the dev-validation gate's home, alongside `cold_boot_gate`).
 Read-only except `--sync-map`/`--sync-mypy`, which regenerate committed artifacts
@@ -19,7 +20,7 @@ from typing import Any
 from django.core.management.base import BaseCommand, CommandError
 
 from tap.guards.base import REPO_ROOT
-from tap.guards.report import MAP_BEGIN, MAP_END, build_report, render_map_markdown
+from tap.guards.report import MAP_BEGIN, MAP_END, build_report, render_map_markdown, render_sarif
 
 _SPEC_PATH = REPO_ROOT / "specs" / "spec-dev-validation.md"
 
@@ -38,6 +39,11 @@ class Command(BaseCommand):
             "--map",
             action="store_true",
             help="Print the generated Validation Map table (guards ∪ declared surfaces).",
+        )
+        parser.add_argument(
+            "--sarif",
+            action="store_true",
+            help="Emit a SARIF 2.1.0 log of the callsite ratchets' per-offense findings (baselined debt as suppressed).",
         )
         parser.add_argument(
             "--sync-map",
@@ -59,6 +65,9 @@ class Command(BaseCommand):
             return
         if options["map"]:
             self.stdout.write(render_map_markdown())
+            return
+        if options["sarif"]:
+            self.stdout.write(json.dumps(render_sarif(), indent=2))
             return
 
         rows = build_report(run_checks=options["check"])
