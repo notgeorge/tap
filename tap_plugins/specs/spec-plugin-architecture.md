@@ -44,7 +44,7 @@ Plugins may be developed as standalone git repositories and integrated into TAP 
 | req-plugin-arch-iterative-dev | [Iterative Development](#iterative-development) | Implemented | Canonical patterns for revising GRIFT content during and after initial import |
 | req-plugin-arch-python-deps | [Plugin Python Dependencies](#plugin-python-dependencies) | Implemented | Per-plugin `pyproject.toml` owns Tier-0 deps; plugins install profile-driven via the pre-boot `install` section (editable), not uv workspace membership (`members = []`). Deps resolve at install time — not in the root `uv.lock` during the transition (`github_core` declares `PyYAML`) |
 | req-plugin-arch-core-packaging | [Core Apps As Workspace Members](#core-apps-as-workspace-members) | Backlog | Core `tap_*` apps could each become a uv **workspace member** with its own `pyproject.toml` + deps — package-mode for core, mirroring plugins — scoping deps to their consumer (e.g. `requests`/`django-allauth[socialaccount]` → `tap_auth`). The reason plugins can't be workspace members (profile-gating breaks the reconciliation guard) does **not** apply: core apps are always installed. Payoff: dep locality + independently-shippable core (the extraction endgame). Cost: N pyprojects + it *formalizes* the inter-app dependency edges — so sequence it **after** app-interdependency reduction, not now |
-| req-plugin-arch-dev-deps | [Developer Mode Dependencies](#developer-mode-dependencies) | Backlog | Per-plugin PEP 735 `[dependency-groups]` `dev` group so an evicted plugin is standalone-testable; today plugins free-ride on the shared root venv's dev group. Dev deps never enter a deployed instance. Demand-gated on eviction. Not critical path (design note: `doc-plugin-dependency-scoping-backlog`) |
+| req-plugin-arch-dev-deps | [Developer Mode Dependencies](#developer-mode-dependencies) | Partially Implemented | Per-plugin PEP 735 `[dependency-groups]` `dev` group so an evicted plugin is standalone-testable; dev deps never enter a deployed instance. **Cheap edge landed 2026-07-02:** the `new-plugin` scaffold now seeds a `dev` group so new plugins are born self-contained. **Backfill** (add a `dev` group to the ~11 existing plugins) stays demand-gated on eviction — part of the full-eviction plan. Design note: `doc-plugin-dependency-scoping-backlog` |
 | req-plugin-arch-slim-install | [Install-Footprint Slimming](#install-footprint-slimming) | Backlog | Ship only what a deployment uses, across three layers: Python extras (Layer A), Docker image variants for system binaries (Layer B), and the already-built plugin-granularity install section (Layer C). Demand-gated on a deployment that needs a smaller footprint. Not critical path (design note: `doc-plugin-dependency-scoping-backlog`) |
 | req-plugin-arch-isolation | [Plugin Type Ownership & DB Isolation](#plugin-type-ownership--db-isolation) | Proposed | Plugin-refactor pickup: owner-namespaced types + hard-included per-plugin DB guards |
 | req-plugin-arch-hooks | [Plugin Hook System](#plugin-hook-system) | Backlog | Future Simon Willison DJP/pluggy-style hook surface for plugin injection points throughout TAP |
@@ -1024,7 +1024,7 @@ The load-bearing insight: **the reason plugins cannot be workspace members does 
 ### Developer Mode Dependencies
 ----
 RID: `req-plugin-arch-dev-deps`
-Status: `Backlog`
+Status: `Partially Implemented`
 
 A plugin's **develop/test** dependency closure (test framework, factories, linters) is a
 separate axis from its runtime closure (`req-plugin-arch-python-deps`, Tier 0). This
@@ -1056,8 +1056,11 @@ monorepo hides.
   boot/install-section concept. Dev deps must not enter a deployed instance through the boot
   `install` path — the same discipline as "the profile carries no secrets." No `dev: true` in
   a profile, ever.
-- **Cheap edge (safe pre-demand):** the `new-plugin` scaffold seeds every new plugin with a
-  `dev` group, so the free-riding habit does not calcify.
+- **Cheap edge (safe pre-demand) — DONE 2026-07-02:** the `new-plugin` scaffold
+  (`tap_plugins/skills/new-plugin/SKILL.md`) seeds every new plugin's `pyproject.toml` with a
+  `[dependency-groups]` `dev` group (`pytest`, `pytest-django`, `factory-boy`), so the
+  free-riding habit does not calcify. The **backfill** to the ~11 existing plugins remains
+  demand-gated and is folded into the full-eviction plan.
 - **Two-tier testing (with eviction):** running each plugin's suite against *its own* dev
   group instead of the shared root venv is the "two-tier plugin testing" build; it consumes
   into `spec-plugin-testing.md`.

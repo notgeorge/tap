@@ -44,10 +44,25 @@ name = "tap-plugin-<slug>"
 description = "TAP <Display Name> plugin — <one line>."
 requires-python = ">=3.14"
 dynamic = ["version"]
-dependencies = []                    # Tier-0 deps go here (see Dependencies below)
+dependencies = []                    # Tier-0 RUNTIME deps go here (see Dependencies below)
 
 [project.entry-points."tap.plugins"]
 <slug> = "tap_plugin.<slug>.apps:<Slug>Config"   # entry-point KEY == slug
+
+# Developer-mode (test/lint) deps — the plugin's OWN dev closure, so its suite runs
+# standalone (post-eviction) instead of free-riding on the monorepo root venv's dev
+# group (req-plugin-arch-dev-deps). PEP 735 dependency-groups: NOT [project.optional-
+# dependencies] (extras are opt-in runtime features), and NEVER a boot/install concept —
+# dev deps must not enter a deployed instance. Dev-group deps never ship in the wheel.
+# Pulled with `uv sync --group dev` / `uv run --group dev pytest` in a standalone checkout;
+# in the monorepo the shared root dev group already covers them, so this is a pre-demand
+# foundational edge (born-correct so the free-riding habit never calcifies).
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-django>=4.9",
+    "factory-boy>=3.3",
+]
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
