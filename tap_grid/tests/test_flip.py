@@ -228,56 +228,60 @@ class TestUpdateFlipMapIntegration:
 
     def test_flip_map_written_on_create(self):
         """Default-on FLIP writes flip_map for service-writeable fields on create."""
-        from tap_plugin.lotr.models import Character
+        from tap_plugin.grid_fixtures.models import ConstrainedSource
+
         from tap_grid.services import create_entity
 
         with _batch_ctx(source="test:flip") as batch_id:
-            entity = create_entity("character", name="Frodo")
-            char = Character.objects.create(entity=entity, name="Frodo", bio="A hobbit")
+            entity = create_entity("grid_fixtures__constrained_source", name="Frodo")
+            char = ConstrainedSource.objects.create(entity=entity, name="Frodo", description="A hobbit")
 
         char.refresh_from_db()
-        assert char.flip_map.get("bio") == batch_id
+        assert char.flip_map.get("description") == batch_id
         assert char.flip_map.get("name") == batch_id
 
     def test_flip_map_updated_on_partial_save(self):
         """Partial save (update_fields) stamps only the changed tracked field."""
-        from tap_plugin.lotr.models import Character
+        from tap_plugin.grid_fixtures.models import ConstrainedSource
+
         from tap_grid.services import create_entity
 
         with _batch_ctx(source="test:flip-create"):
-            entity = create_entity("character", name="Sam")
-            char = Character.objects.create(entity=entity, bio="A gardener")
+            entity = create_entity("grid_fixtures__constrained_source", name="Sam")
+            char = ConstrainedSource.objects.create(entity=entity, description="A gardener")
 
         with _batch_ctx(source="test:flip-update") as batch_id2:
-            char.bio = "Gardener of the Shire"
-            char.save(update_fields=["bio"])
+            char.description = "Gardener of the Shire"
+            char.save(update_fields=["description"])
 
         char.refresh_from_db()
-        assert char.flip_map.get("bio") == batch_id2
+        assert char.flip_map.get("description") == batch_id2
 
     def test_untracked_field_not_in_flip_map(self):
         """System-managed fields (not in SERVICE_CRUD_SCHEMA) are absent from flip_map."""
-        from tap_plugin.lotr.models import Character
+        from tap_plugin.grid_fixtures.models import ConstrainedSource
+
         from tap_grid.services import create_entity
 
         with _batch_ctx(source="test:flip-untracked"):
-            entity = create_entity("character", name="Gandalf")
-            char = Character.objects.create(entity=entity, name="Gandalf", bio="A wizard")
+            entity = create_entity("grid_fixtures__constrained_source", name="Gandalf")
+            char = ConstrainedSource.objects.create(entity=entity, name="Gandalf", description="A wizard")
 
         char.refresh_from_db()
         # batch_id and flip_map themselves are not service-writeable → not in flip_map
         assert "batch_id" not in char.flip_map
         assert "flip_map" not in char.flip_map
         # name and bio are service-writeable → in flip_map
-        assert "bio" in char.flip_map
+        assert "description" in char.flip_map
         assert "name" in char.flip_map
 
     def test_no_flip_stamping_without_batch_context(self):
         """Direct ORM save without CallerContext leaves flip_map empty."""
-        from tap_plugin.lotr.models import Character
+        from tap_plugin.grid_fixtures.models import ConstrainedSource
+
         from tap_grid.services import create_entity
 
-        entity = create_entity("character", name="Tom Bombadil")
-        char = Character.objects.create(entity=entity, bio="A mystery")
+        entity = create_entity("grid_fixtures__constrained_source", name="Tom Bombadil")
+        char = ConstrainedSource.objects.create(entity=entity, description="A mystery")
         char.refresh_from_db()
         assert char.flip_map == {}

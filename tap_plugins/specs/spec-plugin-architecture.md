@@ -31,15 +31,20 @@ Plugins may be developed as standalone git repositories and integrated into TAP 
 | req-plugin-arch-layout | [Package Layout](#package-layout) | Implemented | Core files, convention directories, and self-contained repo structure |
 | req-plugin-arch-repo | [Repository Structure](#repository-structure) | Implemented | Plugins are self-contained git repos integrated as submodules |
 | req-plugin-arch-install-registry | [Install Resolution And Plugin Registry](#install-resolution-and-plugin-registry) | Partially Implemented | Plugin-refactor MVP (2026-07-01): entry-point discovery, no-symlink uv-owned loading, identity separation, and `TAP_PLUGINS` generation are built (`tap/preboot.py`) and carry the **entire plugin set** — 10 package-mode plugins (2026-07-02: `gryphon_playground` migrated, build-baked set now empty) install + discover through the profile `install` section. The registry/report inspection surface (-3/-5/-11) is now built as a **read-model**: `tap_plugins.report.build_report()` + `manage.py plugins [--json]` (schema-validated, gated by `plugins.read`); plugins-as-grid-entities + cytoscape view stay deferred |
+| req-plugin-arch-slug-register | [Slug Load-Bearing Register](#slug-load-bearing-register) | Implemented | The slug is the load-bearing, immutable-by-guardrail canonical identity; `docs/doc-plugin-slug-load-bearing.md` registers every place it is load-bearing, and any change that adds a new slug-dependent coupling updates that register in the same change |
 | req-plugin-arch-identity | [Plugin Identity & Naming](#plugin-identity--naming) | Implemented | Applied across the full samsite plugin set (9 plugins, 2026-07-01): namespace `tap_plugin.<slug>` (PEP 420, -3), dist `tap-plugin-<slug>` (-2), slug identity (-1), and the pre-boot **conformance gate** (`tap/preboot.py:conformance_gate`, -5) all live + tested — the gate verifies all four agree for every discovered plugin at boot. Standalone-repo move (-4) is convention, not yet exercised |
-| req-plugin-arch-sources | [Multi-Path Source Resolution](#multi-path-source-resolution) | Proposed | Design locked 2026-07-01; `wheelhouse` offline path added 2026-07-02. Source-type strategy registry (`git` bootstrap → `index` durable = private-bucket+dumb-pypi → `wheelhouse` offline/airgapped = mounted pre-built-wheel directory → future `grid`); credentials resolved from `TAP_SECRETS_ROOT`, never in the profile (the `wheelhouse` path needs none). All migrated plugins currently use `editable` local sources during the monorepo transition |
+| req-plugin-arch-sources | [Multi-Path Source Resolution](#multi-path-source-resolution) | Proposed | Design locked 2026-07-01; `wheelhouse` offline path added 2026-07-02 (design locked, build **not critical path** — demand-gated). Source-type strategy registry (`git` bootstrap → `index` durable = private-bucket+dumb-pypi → `wheelhouse` offline/airgapped = mounted pre-built-wheel directory → future `grid`); credentials resolved from `TAP_SECRETS_ROOT`, never in the profile (the `wheelhouse` path needs none). All migrated plugins currently use `editable` local sources during the monorepo transition |
+| req-plugin-arch-source-secret | [Plugin-Source Credential](#plugin-source-credential) | Proposed | The authed-git-source install credential: `kind` `github_pat`, boot-specific `data_schema`, consumer-first `scope` `tap_plugins/source`, resolved in **pre-boot** via app-neutral `tap/runtime_secrets`; `GIT_ASKPASS` never token-in-URL; required only when an authed git source is declared |
+| req-plugin-arch-source-least-priv | [Least-Privilege Source Self-Check](#least-privilege-source-self-check) | Backlog | Warn (non-dev) if the instance can *write* its plugin source (git token has push / mounted source is `W_OK`) — an over-scoped credential/mount. A per-source health probe |
 | req-plugin-arch-versioning | [Version Naming & Integrity](#version-naming--integrity) | Implemented | VCS-derived PEP 440 via `hatch-vcs` (`source = "vcs"`, `root = "../.."` monorepo-transition override, `fallback_version`) applied to all 9 migrated plugins (-1, -2). Index byte-integrity / append-only / signing (-3/-4/-5) stay deferred (no index yet) |
 | req-plugin-arch-dependencies | [Plugin Dependencies](#plugin-dependencies) | Partially Implemented | Tier 0 (package deps → uv/pyproject, -1) built across the set. Tier 1/2 (-2/-3/-4) built 2026-07-02: manifest `depends_on` schema (slug + min-version + optional + note), the import-graph AST scanner (`tap/plugin_deps.py`), and the pre-boot `dependency_consistency_guard` (declared ⊇ observed, order, min-version — fail closed) are live; `samsite` declares its real edges. Only the topological-sort resolver stays deferred (declare-now, resolver-later — hand-ordering fine at N=10) |
 | req-plugin-arch-skills | [Plugin Skills](#plugin-skills) | Implemented | Plugins may ship Claude Code skills for plugin-specific automation |
 | req-plugin-arch-runtime | [Runtime Boundaries](#runtime-boundaries) | Implemented | TAP-facing startup behavior flows through the plugin contract |
 | req-plugin-arch-tests | [Testing Requirements](#testing-requirements) | Implemented | Plugins include plugin-specific tests and participate in shared validation |
 | req-plugin-arch-iterative-dev | [Iterative Development](#iterative-development) | Implemented | Canonical patterns for revising GRIFT content during and after initial import |
-| req-plugin-arch-python-deps | [Plugin Python Dependencies](#plugin-python-dependencies) | Implemented | uv workspace seam wired at root; first plugin proof is `github_core` (PyYAML resolves into root `uv.lock`) |
+| req-plugin-arch-python-deps | [Plugin Python Dependencies](#plugin-python-dependencies) | Implemented | Per-plugin `pyproject.toml` owns Tier-0 deps; plugins install profile-driven via the pre-boot `install` section (editable), not uv workspace membership (`members = []`). Deps resolve at install time — not in the root `uv.lock` during the transition (`github_core` declares `PyYAML`) |
+| req-plugin-arch-dev-deps | [Developer Mode Dependencies](#developer-mode-dependencies) | Backlog | Per-plugin PEP 735 `[dependency-groups]` `dev` group so an evicted plugin is standalone-testable; today plugins free-ride on the shared root venv's dev group. Dev deps never enter a deployed instance. Demand-gated on eviction. Not critical path (design note: `doc-plugin-dependency-scoping-backlog`) |
+| req-plugin-arch-slim-install | [Install-Footprint Slimming](#install-footprint-slimming) | Backlog | Ship only what a deployment uses, across three layers: Python extras (Layer A), Docker image variants for system binaries (Layer B), and the already-built plugin-granularity install section (Layer C). Demand-gated on a deployment that needs a smaller footprint. Not critical path (design note: `doc-plugin-dependency-scoping-backlog`) |
 | req-plugin-arch-isolation | [Plugin Type Ownership & DB Isolation](#plugin-type-ownership--db-isolation) | Proposed | Plugin-refactor pickup: owner-namespaced types + hard-included per-plugin DB guards |
 | req-plugin-arch-hooks | [Plugin Hook System](#plugin-hook-system) | Backlog | Future Simon Willison DJP/pluggy-style hook surface for plugin injection points throughout TAP |
 | req-plugin-arch-nongoals | [v0 Non-Goals](#v0-non-goals) | Proposed | Explicitly deferred concerns |
@@ -424,6 +429,48 @@ They sharpen the four-layer direction without changing its shape.
 | req-plugin-arch-install-registry-11 | Registry Report Deliverable | Implemented | `manage.py plugins` ships as a first-class read-only report, shaped like `manage.py health` (`--json` + human), text-and-json parity. | |
 | req-plugin-arch-install-registry-12 | Git Source Is Package Mode | Proposed | GitHub-first plugin consumption uses uv git-source package installs, not git submodules or vendored source under `plugins/`. | |
 
+### Slug Load-Bearing Register
+----
+RID: `req-plugin-arch-slug-register`
+Status: `Implemented`
+
+The slug is *the one stable identity* (`req-plugin-arch-identity-1`) and, by design, the most
+load-bearing identifier in the plugin system: internal code layout is free to move as long as the
+slug holds, which concentrates all stability requirements onto the slug. A slug change is therefore
+a **first-class breaking operation** — a coordinated rename across the identity quadruple + every
+profile/`depends_on`/secret-path reference, plus a data migration for the persistent-identity
+couplings — not a casual edit.
+
+Because that blast radius grows every time a new subsystem keys off the slug, it is **tracked, not
+memorized.** `docs/doc-plugin-slug-load-bearing.md` is the canonical register of every place the slug
+is load-bearing, split into the anchor (the identity quadruple), current mechanical couplings,
+current data/persistent-identity couplings, proposed/incoming couplings (things actively loading the
+slug up — e.g. secret paths and owner-namespaced entity types), and deliberate non-couplings (the
+logging path, which anchors on the module path *because* it is an internal-only label).
+
+#### Implementation
+
+- **Update trigger (the governing discipline):** any change that adds, removes, or alters a
+  slug-dependent coupling MUST update the register in the same change. Adding a subsystem that keys
+  off the slug without a register row is the drift this requirement exists to prevent.
+- **Immutable-by-guardrail:** the `conformance_gate` already makes accidental slug drift impossible
+  (the quadruple must move in lockstep or boot fails closed), so the slug is safe to anchor external
+  contracts and persistent identities on. This requirement documents *why that guarantee is
+  load-bearing* rather than adding new enforcement.
+- **The discriminator** (recorded in the register) governs *whether* a new identifier should anchor
+  on the slug at all: external contracts and persistent identities anchor on the slug (resolved from
+  declared identity, never by string-splitting `__name__`); internal-only labels anchor on the module
+  path (logging).
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-plugin-arch-slug-register-1 | Register Exists | Implemented | `docs/doc-plugin-slug-load-bearing.md` enumerates every place the slug is load-bearing, tiered by mechanical / data / proposed / non-coupling. | |
+| req-plugin-arch-slug-register-2 | Update-In-Same-Change | Implemented | Adding/removing/altering a slug-dependent coupling updates the register in the same change. | The doc's `covers:` list names the requirements whose changes trigger a review. |
+| req-plugin-arch-slug-register-3 | Slug Is Immutable-By-Guardrail | Implemented | Slug changes are gated by `conformance_gate` (quadruple lockstep, fail-closed); a slug change is treated as a first-class breaking operation. | No new enforcement; documents the existing guarantee. |
+| req-plugin-arch-slug-register-4 | Anchor Discriminator | Implemented | New identifiers anchor on the slug (resolved from declared identity) when they are external contracts or persistent identities; on the module path only when internal-only labels. | Never string-split `__name__` to recover the slug. |
+
 ### Plugin Identity & Naming
 ----
 RID: `req-plugin-arch-identity`
@@ -550,15 +597,17 @@ Source types:
 **Sequencing:** `git` carries the near-term critical path (make the samsite set
 installable for the first customer) without standing up index infra; the
 bucket+`dumb-pypi` `index` is the durable target, built when per-repo git auth and
-rebuild-from-source actually bite. `wheelhouse` is the **near-term airgapped answer**
-promoted by the monorepo-eviction work (2026-07-02): once a plugin leaves the
-monorepo its `editable` source disappears, and for a deployment that will not grant
-git/network/repo access the offline wheelhouse is the only remaining install path —
-so it is built alongside eviction, not deferred to the `index` build. Its first proof
-is a **single-plugin pilot** (`fedramp_20x_ksi`: leaf, no cross-plugin deps, imported
-by no core suite) — build wheel → mount volume → throwaway profile → boot → tests
-green, touching nothing load-bearing. The profile carries **no** secrets on any path;
-`wheelhouse` and `grid` reach for no credential at all.
+rebuild-from-source actually bite. `wheelhouse` is the offline **answer to monorepo
+eviction** — once a plugin leaves the monorepo its `editable` source disappears, and
+for a deployment that will not grant git/network/repo access the offline wheelhouse is
+the only remaining install path. It is **not critical path** (2026-07-02): the eviction
+that motivates it is itself deferred, so the design is locked and shovel-ready but the
+build is **demand-gated** on (a) a healthy leaf plugin to pilot and (b) a deployment
+that actually needs airgapped install. Its first proof — **held** — is a single-plugin
+pilot (`fedramp_20x_ksi`: leaf, no cross-plugin deps, imported by no core suite): build
+wheel → mount volume → throwaway profile → boot → tests green, touching nothing
+load-bearing. The profile carries **no** secrets on any path; `wheelhouse` and `grid`
+reach for no credential at all.
 
 #### Acceptance Criteria
 
@@ -569,7 +618,80 @@ green, touching nothing load-bearing. The profile carries **no** secrets on any 
 | req-plugin-arch-sources-3 | Index Durable Path | Proposed | The durable index is a private bucket + `dumb-pypi` (PEP 503 static); install by version; one credential via netrc. GitHub Releases/Packages rejected as backends. | Verified 2026-07-01 |
 | req-plugin-arch-sources-4 | No Secrets In Profile | Proposed | The profile carries only locators; every credential resolves from `TAP_SECRETS_ROOT`. | |
 | req-plugin-arch-sources-5 | Grid Source Reserved | Proposed | A future `grid` source (pull from another TAP instance) is a drop-in strategy; named, not built. | |
-| req-plugin-arch-sources-6 | Offline Wheelhouse Path | Proposed | A `wheelhouse` source installs plugins **and their Tier-0 dependency closure** from a mounted directory of pre-built wheels via `uv pip install --no-index --find-links <dir>`; no network, no credential. Wheels are CI-built where the git tag lives (tagless ⇒ `0.0.0` fallback); `is_satisfied` = dist present at the wheel version; the mounted volume is the trust boundary, with an optional `sha256` manifest + signing sharing the deferred edge of `-versioning-5`. | Filesystem twin of `-3`; near-term airgapped answer to monorepo eviction. Pilot: `fedramp_20x_ksi` |
+| req-plugin-arch-sources-6 | Offline Wheelhouse Path | Proposed | A `wheelhouse` source installs plugins **and their Tier-0 dependency closure** from a mounted directory of pre-built wheels via `uv pip install --no-index --find-links <dir>`; no network, no credential. Wheels are CI-built where the git tag lives (tagless ⇒ `0.0.0` fallback); `is_satisfied` = dist present at the wheel version; the mounted volume is the trust boundary, with an optional `sha256` manifest + signing sharing the deferred edge of `-versioning-5`. | Filesystem twin of `-3`; **not critical path** — demand-gated on eviction + a healthy leaf plugin. Pilot (held): `fedramp_20x_ksi` |
+
+### Plugin-Source Credential
+----
+RID: `req-plugin-arch-source-secret`
+Status: `Proposed`
+
+The `git` source's private-repo auth (`req-plugin-arch-sources-2`) needs a credential. It is a
+regular TAP secret (`spec-tap-cares-secrets`), specified here as its owning consumer
+(`req-tap-cares-secrets-consumer-kinds`: a kind's `data` shape is owned by the consuming spec). The
+first GitHub distribution target is `git+https` package installs (`req-plugin-arch-install-registry-12`),
+so this is the credential that unblocks it.
+
+- **Kind `github_pat`** — the same credential *type* the `github_core` collector uses. Sharing the
+  kind is correct (`req-tap-cares-secrets-consumer-scoping`: `kind` is the type axis); the two do
+  **not** share a `data_schema` — the collector's schema requires `repos`/`initial_run_limit`, which
+  are meaningless to a git credential.
+- **Boot-specific `data_schema`** (owned here): `token` (required), `host` (default `github.com`, GHE
+  override), `username` (default `x-access-token` — works for both PATs and App installation tokens
+  over https). No `repos` — the git credential helper scopes by **host**, not a repo list.
+- **Consumer-first `scope` `tap_plugins/source`** (`req-tap-cares-secrets-consumer-scoping`): owned by
+  the install system, **not** a plugin. A plugin must never resolve the credential that installs its
+  siblings.
+- **Resolved in the pre-boot stage** via the app-neutral `tap/runtime_secrets`
+  (`req-tap-cares-secrets-files` Shared Resolver) — **not** `tap_cares`, which is Django/app-level and
+  would violate the settings-free, no-`tap_*`-import pre-boot contract (`req-boot-preboot`). This is the
+  same shared resolver `tap_auth` calls at settings-import time.
+- **Fed to git via `GIT_ASKPASS`**, never interpolated into the URL — a token in the URL leaks into the
+  venv's `direct_url.json` (the standing rule in `req-plugin-arch-sources-2`).
+- **Conditional necessity** (`req-tap-cares-secrets-conditional-validation`): required only when the
+  profile declares an authed `git` source (a private repo). Public git, `editable`, `path`, and
+  `wheelhouse` sources need no credential, so it is not `required_for_boot` by default — it becomes
+  required exactly when an authed git source is in the install set.
+- **Description required** on the envelope (`req-tap-cares-secrets-shape-4`), scoped read-only to the
+  plugin repos (see `req-plugin-arch-source-least-priv`).
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-plugin-arch-source-secret-1 | Kind Shared, Schema Not | Proposed | Uses `kind` `github_pat` (shared type) with its own boot `data_schema` (`token`/`host`/`username`); does not reuse the collector's `repos`-bearing schema. | |
+| req-plugin-arch-source-secret-2 | Consumer-First Infra Scope | Proposed | Scoped `tap_plugins/source` (install system), never `tap_plugin/<slug>/…`. | Least privilege across plugins. |
+| req-plugin-arch-source-secret-3 | Pre-Boot App-Neutral Resolution | Proposed | Resolved via `tap/runtime_secrets` in pre-boot, not `tap_cares` (would break the settings-free / no-app-import contract). | Same resolver `tap_auth` uses. |
+| req-plugin-arch-source-secret-4 | No Token In URL | Proposed | Fed to git via `GIT_ASKPASS`; never interpolated into the source URL (leaks into `direct_url.json`). | Extends `req-plugin-arch-sources-2`. |
+| req-plugin-arch-source-secret-5 | Conditional Necessity | Proposed | Required only when an authed `git` source is declared; public/editable/path/wheelhouse need none. | Not `required_for_boot` by default. |
+
+### Least-Privilege Source Self-Check
+----
+RID: `req-plugin-arch-source-least-priv`
+Status: `Backlog`
+
+A least-privilege verifier for the plugin source: the instance should be able to **read** its source
+and nothing more. If it can **write** the source, the credential or the mount is over-scoped — surface
+a warning. This is the cheap, foundational defensive edge the security posture favors
+(`spec-security-posture.md`, `req-sec-cheap-edges`), and it catches the most common credential
+misconfiguration (an operator grabbing a broad token because it was easy).
+
+- **Generalizes across source types** — one principle, one probe per type: a `git` source →
+  `GET /repos/{owner}/{repo}` and warn if `.permissions.push` is true (reflects *effective* access
+  across classic PAT / fine-grained PAT / App token, not just declared scopes); a `wheelhouse` / `path`
+  source → `os.access(dir, W_OK)` (a source volume mounted read-write when it only needs read is the
+  same over-scoping).
+- **It is a health probe**, so it belongs in the plugin-source secret's per-consumer conditional-
+  validation logic (`req-tap-cares-secrets-conditional-validation`) — the git check is a network call.
+- **Non-dev, warn-only.** Gate the warning off developer mode (a broad key is often legitimate in dev),
+  and keep it a warning, not fail-closed — it is a misconfiguration hint, not a boot gate.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-plugin-arch-source-least-priv-1 | Write Access Is A Warning | Backlog | If the instance can write its plugin source, emit a warning (over-scoped credential/mount). | |
+| req-plugin-arch-source-least-priv-2 | Per-Source Probe | Backlog | `git` → repo `permissions.push`; `wheelhouse`/`path` → directory `W_OK`. One principle, per-type probe. | |
+| req-plugin-arch-source-least-priv-3 | Non-Dev, Warn-Only | Backlog | Gated off developer mode; a warning, never fail-closed. | |
 
 ### Version Naming & Integrity
 ----
@@ -845,15 +967,15 @@ Status: `Implemented`
 
 Plugins may need third-party Python packages that are not required by TAP core. Examples include cloud SDKs for collectors, service-specific API clients, file parsers, or emitter transports.
 
-The shape is plugin-local dependency ownership without fragmenting a TAP deployment into unrelated Python environments. TAP uses uv workspace support to provide this seam.
+The shape is plugin-local dependency ownership without fragmenting a TAP deployment into unrelated Python environments. Each plugin owns its dependency declaration in its own `pyproject.toml`, and installation is driven by the pre-boot `install` section.
 
 Under this shape:
 
-- the root TAP `pyproject.toml` remains the workspace root and owns TAP core dependencies
-- the root TAP `pyproject.toml` declares plugin workspace members explicitly (`members = ["plugins/<slug>", ...]`), naming only plugins that carry a `pyproject.toml`
-- each plugin that needs Python dependencies may include its own `pyproject.toml`
+- the root TAP `pyproject.toml` owns TAP core dependencies and the developer `[dependency-groups]`
+- **plugin installation is profile-driven via the pre-boot `install` section** (`req-boot-install-section`), **not** uv workspace membership: the root workspace is deliberately empty (`[tool.uv.workspace] members = []`), and `tap/preboot.py` editable-installs (during the monorepo transition) only the plugins a boot profile declares+enables — matching the reconciliation guard's "undeclared code must not load". Blanket workspace membership (which would install every plugin regardless of profile) was superseded by this in the package-mode migration (2026-07-02, `74b71fdc`)
+- each plugin that needs Python dependencies includes its own `pyproject.toml`
 - plugin-local `pyproject.toml` files declare ordinary Python package dependencies for that plugin
-- the root `uv.lock` records one resolved environment for the full TAP installation
+- the root `uv.lock` records the **root/core** environment (incl. the dev group); a plugin's Tier-0 deps resolve at its (editable) install time from its own `pyproject.toml` and are **not** pinned in the root lock during the transition — pinned reproducibility for plugin deps arrives with pinned sources (wheel version / git rev / index version; the `wheelhouse` carries the fully-pinned closure, `req-plugin-arch-sources-6`)
 - plugin `tap-plugin.toml` continues to declare TAP-facing surfaces such as models, edges, searches, and GRIFT; it does not become a Python package manager manifest
 
 This keeps plugin directories self-contained enough to be split back into standalone repositories later. A plugin-local `pyproject.toml` can move with the plugin repo, while the TAP installation can consume it as a uv workspace member, path dependency, or git dependency depending on the deployment shape.
@@ -864,12 +986,116 @@ This requirement provides dependency declaration and lockfile ownership, not run
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-plugin-arch-python-deps-1 | Workspace Root | Implemented | TAP's root `pyproject.toml` declares a uv workspace whose `members` list names every plugin directory that carries a `pyproject.toml`. | Explicit list (not glob): uv errors when a glob match lacks a `pyproject.toml`. Plugins without local deps stay out of the list. |
+| req-plugin-arch-python-deps-1 | Profile-Driven Install | Implemented | Plugin installation is driven by the pre-boot `install` section (editable during the monorepo transition), not uv workspace membership; the root workspace is deliberately empty (`members = []`). Only profile-declared+enabled plugins install. | Superseded blanket workspace membership in the package-mode migration (`74b71fdc`), so installation matches the install-section + reconciliation-guard model. |
 | req-plugin-arch-python-deps-2 | Plugin Local pyproject | Implemented | A plugin that needs third-party Python packages declares them in `plugins/<slug>/pyproject.toml`. | Plugin-local dependency metadata moves with a future standalone plugin repo. First proof: `plugins/github_core/pyproject.toml` declaring `PyYAML`. |
-| req-plugin-arch-python-deps-3 | Shared Lockfile | Implemented | Plugin dependencies resolve into the root `uv.lock` so a TAP installation has one reproducible Python environment. | `docker/entrypoint.sh` runs `uv sync --all-packages` so workspace member deps land in the runtime venv. |
+| req-plugin-arch-python-deps-3 | Dependency Resolution | Implemented | A plugin's Tier-0 deps resolve at its (editable) install time from its own `pyproject.toml`; the root `uv.lock` covers the core/dev environment. `docker/entrypoint.sh` runs `uv sync --all-packages` (root + dev group), then pre-boot editable-installs each declared plugin. | Plugin deps are not pinned in the root lock during the transition; pinned reproducibility arrives with `wheelhouse`/git/index sources (`req-plugin-arch-sources`). |
 | req-plugin-arch-python-deps-4 | Manifest Separation | Implemented | `tap-plugin.toml` does not declare uv-installable Python package dependencies; Python dependencies stay in `pyproject.toml`. | The TAP manifest remains the TAP-facing load contract. |
 | req-plugin-arch-python-deps-5 | No Isolation Claim | Implemented | The spec explicitly states that uv workspaces do not enforce runtime import isolation between plugins. | Future linting may detect undeclared imports. |
 | req-plugin-arch-python-deps-6 | Standalone Repo Compatible | Implemented | The dependency shape works whether a plugin is in-tree, a git submodule, a path dependency, or a standalone repository. | |
+
+
+### Developer Mode Dependencies
+----
+RID: `req-plugin-arch-dev-deps`
+Status: `Backlog`
+
+A plugin's **develop/test** dependency closure (test framework, factories, linters) is a
+separate axis from its runtime closure (`req-plugin-arch-python-deps`, Tier 0). This
+requirement records per-plugin **developer mode** as a deliberate backlog target. Full
+rationale, mechanism, and the boot-boundary rule: `doc-plugin-dependency-scoping-backlog`
+(Part A). Not critical path (2026-07-02: everything runs in developer mode for the
+foreseeable future).
+
+#### Status Details
+
+Backlog, but formalizing a **current-reality** gap, not a purely-future feature. Today every
+plugin `pyproject.toml` carries `dependencies = []` and **no dev dependencies**; plugin tests
+run only because they execute inside the **shared root venv**, which carries the root's
+`[dependency-groups]` `dev` group. So a plugin **free-rides** on the root dev group and has no
+independent developer-mode story — fine in the monorepo, broken the moment a plugin is
+`uv sync`'d standalone in its own repo (runtime deps only, no `pytest`/factories → its suite
+cannot run). Developer mode is the dev-dependency sibling of the airgapped `wheelhouse`
+source (`req-plugin-arch-sources-6`): both are things a self-contained plugin needs that the
+monorepo hides.
+
+#### Implementation Direction
+
+- **PEP 735 dependency groups** — a `dev` group in the plugin's own `pyproject.toml`
+  (`[dependency-groups]`, the same standard the root uses), pulled with `uv sync --group dev`
+  / `uv run --group dev pytest`. Dev-group deps **never ship in the wheel** (development
+  metadata, not package metadata). Not `[project.optional-dependencies]` — extras are for
+  opt-in *runtime* features (`req-plugin-arch-slim-install`, Layer A), a different purpose.
+- **Boot boundary (must hold):** developer mode is a local-checkout workflow, **never** a
+  boot/install-section concept. Dev deps must not enter a deployed instance through the boot
+  `install` path — the same discipline as "the profile carries no secrets." No `dev: true` in
+  a profile, ever.
+- **Cheap edge (safe pre-demand):** the `new-plugin` scaffold seeds every new plugin with a
+  `dev` group, so the free-riding habit does not calcify.
+- **Two-tier testing (with eviction):** running each plugin's suite against *its own* dev
+  group instead of the shared root venv is the "two-tier plugin testing" build; it consumes
+  into `spec-plugin-testing.md`.
+
+#### Demand Triggers
+
+The first plugin eviction to a standalone repo, or any need to run a plugin's suite outside
+the shared root venv.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-plugin-arch-dev-deps-1 | Per-Plugin Dev Group | Backlog | A plugin declares its develop/test tooling in its own PEP 735 `[dependency-groups]` `dev` group; not in `[project.dependencies]`, not in extras. | |
+| req-plugin-arch-dev-deps-2 | Never In The Wheel | Backlog | Dev-group deps stay out of wheel metadata and out of any deployed instance; there is no boot/install-section path that installs them. | Same discipline as no-secrets-in-profile |
+| req-plugin-arch-dev-deps-3 | Standalone Testable | Backlog | With its `dev` group installed, a plugin's suite runs in its own checkout without the shared root venv. | The two-tier-testing target; pairs with eviction |
+| req-plugin-arch-dev-deps-4 | Scaffold Seeds It | Backlog | The `new-plugin` scaffold gives a new plugin a baseline `dev` group so free-riding does not calcify. | Cheap edge, safe pre-demand |
+
+### Install-Footprint Slimming
+----
+RID: `req-plugin-arch-slim-install`
+Status: `Backlog`
+
+An instance should not ship packages (or system binaries) it does not use. This records
+install-footprint slimming as a deliberate backlog target. Full model:
+`doc-plugin-dependency-scoping-backlog` (Part B). Not critical path — the plugin system
+already delivers the coarse version (Layer C below), and the expensive layers wait for a
+deployment that genuinely needs a smaller footprint.
+
+#### Status Details
+
+Backlog. The slim-down spans **three layers, three tools** — the common error is assuming
+Python extras reach all three:
+
+- **Layer A — Python packages → extras.** `[project.optional-dependencies]` gate PyPI deps
+  (`pip install tap[saml]`). Real win for providers with heavy deps (`django-allauth[saml]`
+  → `python3-saml` + `xmlsec` system libs). Caveat: Google/generic-OIDC ship *inside* core
+  allauth, so slimming those is **config-level, not package-level** — extras help features
+  that pull their *own* PyPI deps.
+- **Layer B — system binaries → Docker image variants / build args.** `git`,
+  `postgresql-client`, `curl` come from `apt-get`; **extras cannot touch the OS layer.**
+  Dropping git is an image-build switch. It correlates with the source strategy: a
+  `wheelhouse`-only airgapped deployment (`req-plugin-arch-sources-6`) needs no git binary,
+  no network, no credential — the slimmest image drops out of that choice.
+- **Layer C — TAP plugins → already delivered (coarse).** The boot `install` section +
+  per-plugin Tier-0 deps already means an instance does not ship `boto3` unless it installs
+  `aws_core`, etc. Extras (Layer A) would add sub-plugin granularity.
+
+Cross-cutting discipline (cheap edge to keep now): **fail loud at boot if config activates a
+feature whose dependency or binary is absent** — the NetBox failure-mode TAP's static
+coherence guards already prevent for plugin slugs (`req-boot-install-section-3`).
+
+#### Demand Triggers
+
+A deployment (early adopter / customer) whose footprint, attack surface, or airgap
+constraints make the full image genuinely too large — not before.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-plugin-arch-slim-install-1 | Extras For Optional Python Deps | Backlog | Optional *runtime* Python features are gated with `[project.optional-dependencies]` (in-wheel, consumer opt-in), distinct from dev groups. | Layer A; e.g. `[saml]` |
+| req-plugin-arch-slim-install-2 | Image Variants For Binaries | Backlog | System binaries (git, etc.) are slimmed via Docker build args / image variants, not Python packaging. | Layer B; correlates with `wheelhouse` |
+| req-plugin-arch-slim-install-3 | Plugin Granularity Already Built | Backlog | The install section + per-plugin Tier-0 deps already scope dependencies at plugin granularity; extras add sub-plugin granularity. | Layer C, existing |
+| req-plugin-arch-slim-install-4 | Coherence Fail-Loud | Backlog | Config that activates a feature whose dep/binary is absent fails loud at boot, not at first request. | Extends `req-boot-install-section-3` |
 
 
 ### Plugin Hook System

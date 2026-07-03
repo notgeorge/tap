@@ -12,7 +12,7 @@ def _orm_character_search():
         name="All Characters",
         search_type="orm",
         root="node",
-        definition={"filters": {"entity_type": "character"}},
+        definition={"filters": {"entity_type": "grid_fixtures__constrained_source"}},
     )
 
 
@@ -41,9 +41,9 @@ class TestExecuteSearch:
         assert body["info"]["search_type"] == "orm"
 
     def test_happy_path_with_results(self, logged_in_client):
-        from tap_plugin.lotr.models import Character
+        from tap_plugin.grid_fixtures.models import ConstrainedSource
 
-        Character.objects.create(bio="Hobbit")
+        ConstrainedSource.objects.create(description="Hobbit")
         search = _orm_character_search()
         response = logged_in_client.post(
             f"/api/v1/searches/{search.entity_id}/execute",
@@ -84,7 +84,7 @@ class TestExecuteSearch:
             name="With Schema",
             search_type="orm",
             root="node",
-            definition={"filters": {"entity_type": "character"}},
+            definition={"filters": {"entity_type": "grid_fixtures__constrained_source"}},
             input_schema={
                 "type": "object",
                 "required": ["query"],

@@ -18,8 +18,8 @@ import uuid
 import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from tap_plugin.grid_fixtures.models import ConstrainedSource
 
-from tap_plugin.lotr.models import Character
 from tap_grid.exceptions import (
     ServiceConflictError,
     ServiceNotFoundError,
@@ -41,13 +41,13 @@ from tap_grid.services import (
 @pytest.mark.django_db
 class TestDebugGate:
     def test_purge_refused_when_debug_false(self, settings):
-        entity = create_entity("character", name="Tom Bombadil")
+        entity = create_entity("grid_fixtures__constrained_source", name="Tom Bombadil")
         settings.DEBUG = False
         with pytest.raises(ServiceConflictError, match="purge_refused_production"):
             purge_node(entity.pk, reason="should not happen")
 
     def test_purge_allowed_when_debug_true(self, settings):
-        entity = create_entity("character", name="Goldberry")
+        entity = create_entity("grid_fixtures__constrained_source", name="Goldberry")
         settings.DEBUG = True
         result = purge_node(entity.pk, reason="dev reset")
         assert result.success
@@ -63,11 +63,11 @@ class TestDebugGate:
 class TestEdgeCascade:
     def test_touching_edges_purged_both_directions(self, settings):
         settings.DEBUG = True
-        target = create_entity("character", name="Boromir")
-        other = create_entity("location", name="Gondor")
-        third = create_entity("character", name="Faramir")
-        edge_out = create_edge(target, other, "LOCATED_IN")
-        edge_in = create_edge(third, target, "ALLIES_WITH")
+        target = create_entity("grid_fixtures__constrained_source", name="Boromir")
+        other = create_entity("grid_fixtures__constrained_target", name="Gondor")
+        third = create_entity("grid_fixtures__constrained_source", name="Faramir")
+        edge_out = create_edge(target, other, "CONSTRAINED_LINK__grid_fixtures")
+        edge_in = create_edge(third, target, "SYMMETRIC_LINK__grid_fixtures")
         out_uuid = str(edge_out.entity_id)
         in_uuid = str(edge_in.entity_id)
         # sanity
@@ -83,9 +83,9 @@ class TestEdgeCascade:
 
     def test_neighbor_entities_not_purged(self, settings):
         settings.DEBUG = True
-        target = create_entity("character", name="Denethor")
-        neighbor = create_entity("location", name="Minas Tirith")
-        create_edge(target, neighbor, "LOCATED_IN")
+        target = create_entity("grid_fixtures__constrained_source", name="Denethor")
+        neighbor = create_entity("grid_fixtures__constrained_target", name="Minas Tirith")
+        create_edge(target, neighbor, "CONSTRAINED_LINK__grid_fixtures")
 
         purge_node(target.pk, reason="dev")
 
@@ -103,23 +103,23 @@ class TestHistoryRowRemoval:
     def test_typed_model_history_purged(self, settings):
         settings.DEBUG = True
         result = create_node(
-            "character",
-            {"name": "Eowyn", "bio": "Shieldmaiden of Rohan."},
+            "grid_fixtures__constrained_source",
+            {"name": "Eowyn", "description": "Shieldmaiden of Rohan."},
         )
-        Character.objects.get(entity_id=result.entity_id)  # exists (raises if purged)
+        ConstrainedSource.objects.get(entity_id=result.entity_id)  # exists (raises if purged)
         # Sanity: history rows exist for the create.
-        assert Character.history.filter(entity_id=result.entity_id).exists()
+        assert ConstrainedSource.history.filter(entity_id=result.entity_id).exists()
 
         purge_node(result.entity_id, reason="dev")
 
-        assert not Character.history.filter(entity_id=result.entity_id).exists()
-        assert not Character.objects.filter(entity_id=result.entity_id).exists()
+        assert not ConstrainedSource.history.filter(entity_id=result.entity_id).exists()
+        assert not ConstrainedSource.objects.filter(entity_id=result.entity_id).exists()
 
     def test_edge_history_purged_with_node(self, settings):
         settings.DEBUG = True
-        a = create_entity("character", name="Merry")
-        b = create_entity("location", name="Buckland")
-        edge = create_edge(a, b, "LOCATED_IN")
+        a = create_entity("grid_fixtures__constrained_source", name="Merry")
+        b = create_entity("grid_fixtures__constrained_target", name="Buckland")
+        edge = create_edge(a, b, "CONSTRAINED_LINK__grid_fixtures")
         edge_uuid = edge.entity_id
         # Sanity: edge history exists.
         assert Edge.history.filter(entity_id=edge_uuid).exists()
@@ -140,7 +140,7 @@ class TestHistoryRowRemoval:
 class TestBatchEventRemoval:
     def test_batch_events_for_entity_purged(self, settings):
         settings.DEBUG = True
-        result = create_node("character", {"name": "Galadriel"})
+        result = create_node("grid_fixtures__constrained_source", {"name": "Galadriel"})
         # The create should have produced at least one BatchEvent referencing
         # this entity (the create itself).
         assert BatchEvent.objects.filter(entity_id=result.entity_id).exists()
@@ -159,19 +159,19 @@ class TestBatchEventRemoval:
 class TestReasonRequired:
     def test_empty_reason_rejected(self, settings):
         settings.DEBUG = True
-        entity = create_entity("character", name="Arwen")
+        entity = create_entity("grid_fixtures__constrained_source", name="Arwen")
         with pytest.raises(ServiceValidationError, match="non-empty `reason`"):
             purge_node(entity.pk, reason="")
 
     def test_whitespace_reason_rejected(self, settings):
         settings.DEBUG = True
-        entity = create_entity("character", name="Elrond")
+        entity = create_entity("grid_fixtures__constrained_source", name="Elrond")
         with pytest.raises(ServiceValidationError, match="non-empty `reason`"):
             purge_node(entity.pk, reason="   ")
 
     def test_reason_logged(self, settings, caplog):
         settings.DEBUG = True
-        entity = create_entity("character", name="Glorfindel")
+        entity = create_entity("grid_fixtures__constrained_source", name="Glorfindel")
         with caplog.at_level("INFO", logger="tap_grid.services"):
             purge_node(entity.pk, reason="cleanup before rebenchmark")
         assert any("cleanup before rebenchmark" in rec.getMessage() for rec in caplog.records)
@@ -197,9 +197,9 @@ class TestTargetValidation:
 
     def test_purge_edge_entity_refused(self, settings):
         settings.DEBUG = True
-        a = create_entity("character", name="Sam")
-        b = create_entity("location", name="Bag End")
-        edge = create_edge(a, b, "LOCATED_IN")
+        a = create_entity("grid_fixtures__constrained_source", name="Sam")
+        b = create_entity("grid_fixtures__constrained_target", name="Bag End")
+        edge = create_edge(a, b, "CONSTRAINED_LINK__grid_fixtures")
         with pytest.raises(ServiceConflictError, match="purge_node targets node entities"):
             purge_node(edge.entity_id, reason="dev")
 
@@ -213,13 +213,13 @@ class TestTargetValidation:
 class TestPurgeEntitiesCLI:
     def test_cli_all_of_type_purges_only_that_type(self, settings):
         settings.DEBUG = True
-        c1 = create_entity("character", name="Tauriel")
-        c2 = create_entity("character", name="Beorn")
-        loc = create_entity("location", name="The Carrock")
+        c1 = create_entity("grid_fixtures__constrained_source", name="Tauriel")
+        c2 = create_entity("grid_fixtures__constrained_source", name="Beorn")
+        loc = create_entity("grid_fixtures__constrained_target", name="The Carrock")
 
         call_command(
             "purge_entities",
-            "--entity-type=character",
+            "--entity-type=grid_fixtures__constrained_source",
             "--all-of-type",
             "--reason=dev reset",
         )
@@ -230,12 +230,12 @@ class TestPurgeEntitiesCLI:
 
     def test_cli_specific_entity_ids(self, settings):
         settings.DEBUG = True
-        c1 = create_entity("character", name="Bard")
-        c2 = create_entity("character", name="Bain")
+        c1 = create_entity("grid_fixtures__constrained_source", name="Bard")
+        c2 = create_entity("grid_fixtures__constrained_source", name="Bain")
 
         call_command(
             "purge_entities",
-            "--entity-type=character",
+            "--entity-type=grid_fixtures__constrained_source",
             f"--entity-id={c1.pk}",
             "--reason=dev",
         )
@@ -245,24 +245,24 @@ class TestPurgeEntitiesCLI:
 
     def test_cli_requires_reason(self, settings):
         settings.DEBUG = True
-        create_entity("character", name="Thorin")
+        create_entity("grid_fixtures__constrained_source", name="Thorin")
         with pytest.raises(CommandError):
             call_command(
                 "purge_entities",
-                "--entity-type=character",
+                "--entity-type=grid_fixtures__constrained_source",
                 "--all-of-type",
                 # no --reason
             )
 
     def test_cli_mismatched_entity_type_aborts(self, settings):
         settings.DEBUG = True
-        c = create_entity("character", name="Bilbo")
-        loc = create_entity("location", name="Erebor")
-        # Caller asks for character but gives a location id.
+        c = create_entity("grid_fixtures__constrained_source", name="Bilbo")
+        loc = create_entity("grid_fixtures__constrained_target", name="Erebor")
+        # Caller asks for constrained_source but gives a constrained_target id.
         with pytest.raises(CommandError, match="mismatch"):
             call_command(
                 "purge_entities",
-                "--entity-type=character",
+                "--entity-type=grid_fixtures__constrained_source",
                 f"--entity-id={loc.pk}",
                 "--reason=test",
             )
@@ -275,7 +275,7 @@ class TestPurgeEntitiesCLI:
         with pytest.raises(CommandError, match="not found"):
             call_command(
                 "purge_entities",
-                "--entity-type=character",
+                "--entity-type=grid_fixtures__constrained_source",
                 f"--entity-id={bogus}",
                 "--reason=test",
             )
@@ -285,18 +285,18 @@ class TestPurgeEntitiesCLI:
         with pytest.raises(CommandError, match="purge_refused_production"):
             call_command(
                 "purge_entities",
-                "--entity-type=character",
+                "--entity-type=grid_fixtures__constrained_source",
                 "--all-of-type",
                 "--reason=test",
             )
 
     def test_cli_all_of_type_empty_is_a_warning_not_error(self, settings):
         settings.DEBUG = True
-        # No characters in this test DB.
+        # No constrained-source nodes in this test DB.
         # Should not raise.
         call_command(
             "purge_entities",
-            "--entity-type=character",
+            "--entity-type=grid_fixtures__constrained_source",
             "--all-of-type",
             "--reason=test",
         )
@@ -325,9 +325,9 @@ class TestPurgeEdge:
         from tap_grid.services import purge_edge
 
         settings.DEBUG = True
-        a = create_entity("character", name="A")
-        b = create_entity("location", name="B")
-        edge = create_edge(a, b, "LOCATED_IN")
+        a = create_entity("grid_fixtures__constrained_source", name="A")
+        b = create_entity("grid_fixtures__constrained_target", name="B")
+        edge = create_edge(a, b, "CONSTRAINED_LINK__grid_fixtures")
         settings.DEBUG = False
         with pytest.raises(ServiceConflictError, match="purge_refused_production"):
             purge_edge(edge.entity_id, reason="should fail")
@@ -336,9 +336,9 @@ class TestPurgeEdge:
         from tap_grid.services import purge_edge
 
         settings.DEBUG = True
-        a = create_entity("character", name="A")
-        b = create_entity("location", name="B")
-        edge = create_edge(a, b, "LOCATED_IN")
+        a = create_entity("grid_fixtures__constrained_source", name="A")
+        b = create_entity("grid_fixtures__constrained_target", name="B")
+        edge = create_edge(a, b, "CONSTRAINED_LINK__grid_fixtures")
         eid = edge.entity_id
 
         result = purge_edge(eid, reason="dev")
@@ -354,7 +354,7 @@ class TestPurgeEdge:
         from tap_grid.services import purge_edge
 
         settings.DEBUG = True
-        node = create_entity("character", name="Frodo")
+        node = create_entity("grid_fixtures__constrained_source", name="Frodo")
         with pytest.raises(ServiceConflictError, match="purge_edge_wrong_type"):
             purge_edge(node.pk, reason="dev")
         assert Entity.objects.filter(pk=node.pk).exists()
@@ -363,9 +363,9 @@ class TestPurgeEdge:
         from tap_grid.services import purge_edge
 
         settings.DEBUG = True
-        a = create_entity("character", name="A")
-        b = create_entity("location", name="B")
-        edge = create_edge(a, b, "LOCATED_IN")
+        a = create_entity("grid_fixtures__constrained_source", name="A")
+        b = create_entity("grid_fixtures__constrained_target", name="B")
+        edge = create_edge(a, b, "CONSTRAINED_LINK__grid_fixtures")
 
         purge_edge(edge.entity_id, reason="dev")
 
@@ -376,9 +376,9 @@ class TestPurgeEdge:
         from tap_grid.services import purge_edge
 
         settings.DEBUG = True
-        a = create_entity("character", name="A")
-        b = create_entity("location", name="B")
-        edge = create_edge(a, b, "LOCATED_IN")
+        a = create_entity("grid_fixtures__constrained_source", name="A")
+        b = create_entity("grid_fixtures__constrained_target", name="B")
+        edge = create_edge(a, b, "CONSTRAINED_LINK__grid_fixtures")
         eid = edge.entity_id
 
         # Edge model uses django-simple-history; creation logged a historical row.
@@ -394,9 +394,9 @@ class TestPurgeEdge:
         from tap_grid.services import purge_edge
 
         settings.DEBUG = True
-        a = create_entity("character", name="A")
-        b = create_entity("location", name="B")
-        edge = create_edge(a, b, "LOCATED_IN")
+        a = create_entity("grid_fixtures__constrained_source", name="A")
+        b = create_entity("grid_fixtures__constrained_target", name="B")
+        edge = create_edge(a, b, "CONSTRAINED_LINK__grid_fixtures")
         eid = edge.entity_id
 
         # Manually emit a BatchEvent referencing this edge so the post-purge
@@ -420,9 +420,9 @@ class TestPurgeEdge:
         from tap_grid.services import purge_edge
 
         settings.DEBUG = True
-        a = create_entity("character", name="A")
-        b = create_entity("location", name="B")
-        edge = create_edge(a, b, "LOCATED_IN")
+        a = create_entity("grid_fixtures__constrained_source", name="A")
+        b = create_entity("grid_fixtures__constrained_target", name="B")
+        edge = create_edge(a, b, "CONSTRAINED_LINK__grid_fixtures")
         with pytest.raises(ServiceValidationError):
             purge_edge(edge.entity_id, reason="")
         with pytest.raises(ServiceValidationError):
@@ -449,9 +449,9 @@ class TestPurgeEdge:
         from tap_grid.services import purge_edge
 
         settings.DEBUG = True
-        a = create_entity("character", name="A")
-        b = create_entity("location", name="B")
-        edge = create_edge(a, b, "LOCATED_IN")
+        a = create_entity("grid_fixtures__constrained_source", name="A")
+        b = create_entity("grid_fixtures__constrained_target", name="B")
+        edge = create_edge(a, b, "CONSTRAINED_LINK__grid_fixtures")
         caplog.set_level(logging.INFO, logger="tap_grid.services")
         purge_edge(edge.entity_id, reason="manual edge cleanup")
         assert any("manual edge cleanup" in rec.message for rec in caplog.records)
@@ -459,9 +459,9 @@ class TestPurgeEdge:
     def test_cli_routes_edge_purges_to_purge_edge(self, settings):
         """`manage.py purge_entities --entity-type=edge` routes targets to purge_edge."""
         settings.DEBUG = True
-        a = create_entity("character", name="A")
-        b = create_entity("location", name="B")
-        edge = create_edge(a, b, "LOCATED_IN")
+        a = create_entity("grid_fixtures__constrained_source", name="A")
+        b = create_entity("grid_fixtures__constrained_target", name="B")
+        edge = create_edge(a, b, "CONSTRAINED_LINK__grid_fixtures")
         eid = str(edge.entity_id)
 
         call_command(

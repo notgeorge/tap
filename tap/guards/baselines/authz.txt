@@ -1,5 +1,6 @@
 # Authz-coverage ratchet baseline (req-tap-auth-policy-9). One line per ungated
-# privileged-sink call site: <path>:<lineno>. EMPTY = strict (zero tolerated).
+# privileged-sink call site, keyed by enclosing scope: <path>::<qualname>::<sink>
+# (line-drift-proof). EMPTY = strict (zero tolerated).
 #
 # Emptied 2026-07-02: the scanner was recalibrated to drop the self-gating read
 # executors (execute_search/execute_gryphon_raw/explain_gryphon_raw) from

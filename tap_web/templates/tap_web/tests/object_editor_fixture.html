@@ -1,0 +1,19 @@
+{# Test-fixture typed-editor template (tap_web-owned).
+
+   Renders a custom form-field block so tap_web's object-editor/viewer feature
+   tests can assert a *typed* editor template is included — without depending on
+   any plugin's editor. Paired with FixtureObjectEditorDescriptor in conftest.py.
+   Deliberately minimal; this is a fixture, not a shipped UI. #}
+<div data-fixture-editor="grid_fixtures__constrained_source">
+    <label for="{{ form.name.id_for_label }}">Name <span>*</span></label>
+    {% if form.name.errors %}
+    <ul>{% for e in form.name.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+    {% endif %}
+    <input id="{{ form.name.id_for_label }}" name="name" type="text" value="{{ form.name.value|default:'' }}">
+
+    <label for="{{ form.description.id_for_label }}">Description</label>
+    {% if form.description.errors %}
+    <ul>{% for e in form.description.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+    {% endif %}
+    <textarea id="{{ form.description.id_for_label }}" name="description" rows="4">{{ form.description.value|default:'' }}</textarea>
+</div>

@@ -3,7 +3,7 @@
 Covers all 15 ACIDs. Test models defined at module level use managed=False so
 Django registers them but never creates tables — full_validate() is the only
 thing exercised on those models (no saves). save() integration tests monkeypatch
-FIELD_VALIDATION_SCHEMA onto the existing Character model.
+FIELD_VALIDATION_SCHEMA onto the existing ConstrainedSource model.
 """
 
 from typing import ClassVar
@@ -11,8 +11,8 @@ from typing import ClassVar
 import pytest
 from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.db import models
+from tap_plugin.grid_fixtures.models import ConstrainedSource
 
-from tap_plugin.lotr.models import Character
 from tap_grid.models import BaseModel, dangerously_ignore_validator
 
 # ---------------------------------------------------------------------------
@@ -133,7 +133,7 @@ class TestFieldSchemasDeclaration:
 
     def test_default_is_empty(self) -> None:
         """Subclasses without FIELD_VALIDATION_SCHEMA inherit the empty dict default."""
-        assert Character.FIELD_VALIDATION_SCHEMA == {}
+        assert ConstrainedSource.FIELD_VALIDATION_SCHEMA == {}
 
     def test_declared_schemas_accessible(self) -> None:
         """Models that declare FIELD_VALIDATION_SCHEMA expose it as a class attribute."""
@@ -141,8 +141,8 @@ class TestFieldSchemasDeclaration:
 
     def test_unlisted_fields_ignored_by_full_validate(self) -> None:
         """Fields absent from FIELD_VALIDATION_SCHEMA are not validated."""
-        # Character.bio is not in FIELD_VALIDATION_SCHEMA, so any value (including empty) passes.
-        c = Character(bio="")
+        # ConstrainedSource.description is not in FIELD_VALIDATION_SCHEMA, so any value (including empty) passes.
+        c = ConstrainedSource(description="")
         c.full_validate()  # must not raise
 
 
@@ -223,8 +223,8 @@ class TestStartupInvariants:
 
     def test_empty_field_schemas_does_not_require_methods(self) -> None:
         """ACID-1: FIELD_VALIDATION_SCHEMA = {} (or omitted) requires no validate_*() methods."""
-        # Character has no FIELD_VALIDATION_SCHEMA and no validate_*() methods — clean at startup.
-        assert Character.FIELD_VALIDATION_SCHEMA == {}
+        # ConstrainedSource has no FIELD_VALIDATION_SCHEMA and no validate_*() methods — clean at startup.
+        assert ConstrainedSource.FIELD_VALIDATION_SCHEMA == {}
 
 
 # ---------------------------------------------------------------------------
@@ -386,7 +386,7 @@ class TestWholeRecordHook:
 
     def test_base_validate_is_noop(self) -> None:
         """Base validate() implementation raises nothing."""
-        c = Character(bio="anything")
+        c = ConstrainedSource(description="anything")
         c.validate()  # must not raise
 
 
@@ -452,55 +452,55 @@ class TestSaveIntegration:
     def test_save_blocks_on_invalid_data(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """ACID-12: save() raises ValidationError before any DB write."""
         monkeypatch.setattr(
-            Character,
+            ConstrainedSource,
             "FIELD_VALIDATION_SCHEMA",
-            {"bio": {"validation": "jsonschema", "schema": {"type": "string", "minLength": 1}}},
+            {"description": {"validation": "jsonschema", "schema": {"type": "string", "minLength": 1}}},
         )
         with pytest.raises(ValidationError):
-            Character.objects.create(bio="")
+            ConstrainedSource.objects.create(description="")
 
     def test_save_succeeds_with_valid_data(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """ACID-12: save() proceeds normally when validation passes."""
         monkeypatch.setattr(
-            Character,
+            ConstrainedSource,
             "FIELD_VALIDATION_SCHEMA",
-            {"bio": {"validation": "jsonschema", "schema": {"type": "string", "minLength": 1}}},
+            {"description": {"validation": "jsonschema", "schema": {"type": "string", "minLength": 1}}},
         )
-        c = Character.objects.create(bio="Non-empty summary")
+        c = ConstrainedSource.objects.create(description="Non-empty summary")
         assert c.pk is not None
 
     def test_validation_failure_leaves_no_db_row(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """ACID-12: validation failure before DB write leaves the table unchanged."""
         monkeypatch.setattr(
-            Character,
+            ConstrainedSource,
             "FIELD_VALIDATION_SCHEMA",
-            {"bio": {"validation": "jsonschema", "schema": {"type": "string", "minLength": 1}}},
+            {"description": {"validation": "jsonschema", "schema": {"type": "string", "minLength": 1}}},
         )
-        count_before = Character.objects.count()
+        count_before = ConstrainedSource.objects.count()
         with pytest.raises(ValidationError):
-            Character.objects.create(bio="")
-        assert Character.objects.count() == count_before
+            ConstrainedSource.objects.create(description="")
+        assert ConstrainedSource.objects.count() == count_before
 
     def test_skip_validation_bypasses_full_validate(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """ACID-13: save(skip_validation=True) skips full_validate() entirely."""
         monkeypatch.setattr(
-            Character,
+            ConstrainedSource,
             "FIELD_VALIDATION_SCHEMA",
-            {"bio": {"validation": "jsonschema", "schema": {"type": "string", "minLength": 1}}},
+            {"description": {"validation": "jsonschema", "schema": {"type": "string", "minLength": 1}}},
         )
-        c = Character(bio="")  # would fail validation
+        c = ConstrainedSource(description="")  # would fail validation
         c.save(skip_validation=True)
         assert c.pk is not None
 
     def test_skip_validation_false_still_validates(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """ACID-13: save(skip_validation=False) is the same as the default."""
         monkeypatch.setattr(
-            Character,
+            ConstrainedSource,
             "FIELD_VALIDATION_SCHEMA",
-            {"bio": {"validation": "jsonschema", "schema": {"type": "string", "minLength": 1}}},
+            {"description": {"validation": "jsonschema", "schema": {"type": "string", "minLength": 1}}},
         )
         with pytest.raises(ValidationError):
-            Character(bio="").save(skip_validation=False)
+            ConstrainedSource(description="").save(skip_validation=False)
 
 
 # ---------------------------------------------------------------------------
@@ -517,8 +517,8 @@ class TestEdgeValidationCompatibility:
         from tap_grid.models import Edge
         from tap_grid.services import create_entity
 
-        a = create_entity("wanderer")
-        b = create_entity("wanderer")
+        a = create_entity("grid_fixtures__unconstrained")
+        b = create_entity("grid_fixtures__unconstrained")
         edge = Edge(from_entity=a, to_entity=b, edge_type="ANY_EDGE", properties={})
         edge.full_validate()  # must not raise
 
@@ -536,8 +536,8 @@ class TestEdgeValidationCompatibility:
                 "TYPED_COMPAT",
                 {"type": "object", "required": ["x"], "properties": {"x": {"type": "integer"}}},
             )
-            a = create_entity("wanderer")
-            b = create_entity("wanderer")
+            a = create_entity("grid_fixtures__unconstrained")
+            b = create_entity("grid_fixtures__unconstrained")
             edge = Edge(from_entity=a, to_entity=b, edge_type="TYPED_COMPAT", properties={})
             with pytest.raises(EdgePropertyValidationError):
                 edge.save()

@@ -1,0 +1,5 @@
+{
+  "slug": "GUARD_LINK__grid_fixtures",
+  "name": "Guard Link",
+  "description": "Edge emitted by an inbound-blocked node toward a constrained target (tests an edge whose source rejects all inbound)."
+}

@@ -1,0 +1,5 @@
+{
+  "slug": "ALT_LINK__grid_fixtures",
+  "name": "Alt Link",
+  "description": "A SECOND edge type permitted between the same node pair as CONSTRAINED_LINK (tests multiple edge types between one pair)."
+}

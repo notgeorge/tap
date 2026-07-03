@@ -69,14 +69,14 @@
       title: "Last Edited",
       field: "updated_at",
       width: 160,
+      // Route through the shared localtime helper so panel cells localize to the
+      // viewer's browser zone with zone disclosure, identical to server-rendered
+      // <time> elements (spec-web-time-display, req-web-time-single-helper).
       formatter: function (cell) {
         var val = cell.getValue();
         if (!val) return "";
-        try {
-          return new Date(val).toLocaleString();
-        } catch (e) {
-          return val;
-        }
+        if (window.TapLocalTime) return window.TapLocalTime.formatEl(val);
+        return String(val);
       },
     },
     {
@@ -113,16 +113,13 @@
   var FORMATTERS = {
     plaintext: function (cell) { return _safeStr(cell.getValue()); },
     datetime: function (cell) {
+      // Local timestamp with zone disclosure, via the shared localtime helper
+      // (spec-web-time-display, req-web-time-single-helper). The incoming value
+      // is UTC ISO-8601; the helper localizes to the viewer's browser zone.
       var v = cell.getValue();
       if (!v) return "";
-      try {
-        var d = new Date(v);
-        if (isNaN(d)) return _safeStr(v);
-        // Compact local rendering: yyyy-mm-dd hh:mm.
-        var pad = function (n) { return String(n).padStart(2, "0"); };
-        return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) +
-          " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
-      } catch (e) { return _safeStr(v); }
+      if (window.TapLocalTime) return window.TapLocalTime.formatEl(v);
+      return _safeStr(v);
     },
     tickCross: function (cell) {
       var v = cell.getValue();

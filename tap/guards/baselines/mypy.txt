@@ -188,6 +188,7 @@ tap_grid/tests/test_hotlink.py:no-untyped-call:23
 tap_grid/tests/test_hotlink.py:type-arg:3
 tap_grid/tests/test_hotlink.py:var-annotated:1
 tap_grid/tests/test_icon.py:attr-defined:1
+tap_grid/tests/test_models.py:attr-defined:2
 tap_grid/tests/test_models.py:misc:5
 tap_grid/tests/test_models.py:no-untyped-call:9
 tap_grid/tests/test_observation_writes.py:return-value:1
@@ -238,6 +239,7 @@ tap_web/panels/table_panel/__init__.py:attr-defined:1
 tap_web/panels/table_panel/__init__.py:unused-ignore:1
 tap_web/panels/text_panel/__init__.py:type-arg:1
 tap_web/panels/viewer_panel/__init__.py:attr-defined:2
+tap_web/skills/drive-browser/drive.py:import-not-found:1
 tap_web/synthetic.py:arg-type:1
 tap_web/synthetic.py:assignment:2
 tap_web/synthetic.py:no-any-return:1

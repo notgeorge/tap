@@ -1,0 +1,5 @@
+{
+  "slug": "RIVAL_LINK__grid_fixtures",
+  "name": "Rival Link",
+  "description": "A second symmetric self-referential fixture edge, paired with SYMMETRIC_LINK (tests two self-edge types on one pair)."
+}

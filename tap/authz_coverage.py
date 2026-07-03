@@ -29,8 +29,6 @@ import ast
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from tap.source_scan import CallSite
-
 # Privileged graph sinks that are NOT gated at their own definition — a call to one
 # must be reached through a gate, else it is ungated. `write_batch` is the
 # undecorated write chokepoint (only the runtime backstop guards it); `grift_import`
@@ -68,12 +66,31 @@ _GATE_CONTEXT = "authorized"
 _EXEMPT_TOKEN = "TAP-AUTHZ-COV"
 
 
+@dataclass(frozen=True)
+class SinkSite:
+    """One privileged-sink call site, keyed stably by enclosing scope + sink name.
+
+    The baseline key is `<relpath>::<qualname>::<sink>` — NOT the line number — so
+    an ungated sink does not drift in the baseline when unrelated edits move it up
+    or down its file (the recurring `path:lineno` churn this replaces). `lineno` is
+    retained only for human-friendly error messages, never for identity.
+    """
+
+    path: Path
+    lineno: int
+    qualname: str
+    sink: str
+
+    def key(self, repo_root: Path) -> str:
+        return f"{self.path.relative_to(repo_root)}::{self.qualname}::{self.sink}"
+
+
 @dataclass
 class AuthzScanResult:
     """Ungated privileged-sink call sites found by `scan_authz_coverage()`."""
 
-    ungated_sinks: list[CallSite] = field(default_factory=list)
-    exempt_skipped: list[CallSite] = field(default_factory=list)
+    ungated_sinks: list[SinkSite] = field(default_factory=list)
+    exempt_skipped: list[SinkSite] = field(default_factory=list)
 
 
 def _decorator_name(decorator: ast.expr) -> str | None:
@@ -126,19 +143,33 @@ class _AuthzVisitor(ast.NodeVisitor):
         self.path = path
         self.source_lines = source_lines
         self.gated_depth = 0
+        # Enclosing def/class names, for the stable `qualname` half of the key.
+        # Pushed unconditionally (name tracking) — distinct from `gated_depth`,
+        # which only counts *gated* frames.
+        self.scope_stack: list[str] = []
         self.result = AuthzScanResult()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         gated = _is_gated_function(node)
         self.gated_depth += int(gated)
+        self.scope_stack.append(node.name)
         self.generic_visit(node)
+        self.scope_stack.pop()
         self.gated_depth -= int(gated)
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
         gated = _is_gated_function(node)
         self.gated_depth += int(gated)
+        self.scope_stack.append(node.name)
         self.generic_visit(node)
+        self.scope_stack.pop()
         self.gated_depth -= int(gated)
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        # Track the class name for method qualnames; classes do not gate.
+        self.scope_stack.append(node.name)
+        self.generic_visit(node)
+        self.scope_stack.pop()
 
     def visit_With(self, node: ast.With) -> None:
         gated = _with_is_authorized(node)
@@ -153,10 +184,12 @@ class _AuthzVisitor(ast.NodeVisitor):
         self.gated_depth -= int(gated)
 
     def visit_Call(self, node: ast.Call) -> None:
-        if _call_name(node) in SINK_CALLS and self.gated_depth == 0:
+        sink = _call_name(node)
+        if sink in SINK_CALLS and self.gated_depth == 0:
             lineno = node.lineno
             line = self.source_lines[lineno - 1] if 0 < lineno <= len(self.source_lines) else ""
-            site = CallSite(self.path, lineno)
+            qualname = ".".join(self.scope_stack) if self.scope_stack else "<module>"
+            site = SinkSite(self.path, lineno, qualname, sink)
             if _EXEMPT_TOKEN in line:
                 self.result.exempt_skipped.append(site)
             else:

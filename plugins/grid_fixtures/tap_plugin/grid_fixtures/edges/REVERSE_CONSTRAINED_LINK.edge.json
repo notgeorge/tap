@@ -1,0 +1,11 @@
+{
+  "slug": "REVERSE_CONSTRAINED_LINK__grid_fixtures",
+  "name": "Reverse Constrained Link",
+  "description": "Source+target-constrained edge in the reverse direction from a dual-endpoint node (tests endpoint constraints on a node that is also a target).",
+  "sources": [
+    "grid_fixtures__dual_endpoint"
+  ],
+  "targets": [
+    "grid_fixtures__constrained_target"
+  ]
+}

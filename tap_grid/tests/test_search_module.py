@@ -203,45 +203,7 @@ class TestModuleResultNormalization:
         assert "search_type" in result["info"]
 
 
-# ---------------------------------------------------------------------------
-# Integration with example runner (real registry, real DB)
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
-@pytest.mark.no_registry_isolation
-class TestListCharactersRunner:
-    def test_runner_registered_in_meta(self):
-        """list-characters-with-bio runner is registered by AppConfig.ready()."""
-        from tap_grid.registry import search_runner_registry
-
-        assert "tap_plugin.lotr.searches.characters:list-characters-with-bio" in search_runner_registry
-
-    def test_list_characters_returns_envelope(self):
-        """list-characters-with-bio runner returns valid graph envelope via execute_search."""
-        from tap_plugin.lotr.models import Character
-
-        Character.objects.create(bio="Test character for search")
-        s = Search.objects.create(
-            name="List Characters",
-            search_type="module",
-            root="node",
-            definition={"runner_key": "tap_plugin.lotr.searches.characters:list-characters-with-bio"},
-        )
-        result = execute_search(s)
-        assert "nodes" in result
-        assert "edges" in result
-        # At least the character we just created should be present
-        entity_types = [n["entity_type"] for n in result["nodes"]]
-        assert all(et == "character" for et in entity_types)
-
-    def test_list_characters_uses_read_only_connection(self):
-        """Smoke test: execute_search doesn't crash when using search_readonly alias."""
-        s = Search.objects.create(
-            name="Readonly Test",
-            search_type="module",
-            root="node",
-            definition={"runner_key": "tap_plugin.lotr.searches.characters:list-characters-with-bio"},
-        )
-        result = execute_search(s)
-        assert isinstance(result["nodes"], list)
+# Integration coverage against a real plugin-supplied runner lives with the
+# plugin that ships it — see plugins/lotr/tests/test_lotr_searches.py. This
+# module owns the generic mechanism (synthetic runners above); tap_grid does
+# not reach into any plugin's search runner.

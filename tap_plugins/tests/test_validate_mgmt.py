@@ -15,19 +15,14 @@ PLUGINS_ROOT = Path(__file__).resolve().parent.parent.parent / "plugins"
 
 @pytest.mark.django_db
 class TestManagementCommand:
-    def test_lotr_structure_passes(self):
+    def test_administrivia_structure_passes(self):
         out = StringIO()
-        call_command("validate_plugin", str(PLUGINS_ROOT / "lotr"), stdout=out)
+        call_command("validate_plugin", str(PLUGINS_ROOT / "administrivia"), stdout=out)
         assert "PASS" in out.getvalue()
 
-    def test_lotr_loads_passes(self):
+    def test_administrivia_loads_passes(self):
         out = StringIO()
-        call_command("validate_plugin", str(PLUGINS_ROOT / "lotr"), "--level", "loads", stdout=out)
-        assert "PASS" in out.getvalue()
-
-    def test_lotr_runs_passes(self):
-        out = StringIO()
-        call_command("validate_plugin", str(PLUGINS_ROOT / "lotr"), "--level", "runs", stdout=out)
+        call_command("validate_plugin", str(PLUGINS_ROOT / "administrivia"), "--level", "loads", stdout=out)
         assert "PASS" in out.getvalue()
 
     def test_aws_core_runs_passes(self):
@@ -35,9 +30,9 @@ class TestManagementCommand:
         call_command("validate_plugin", str(PLUGINS_ROOT / "aws_core"), "--level", "runs", stdout=out)
         assert "PASS" in out.getvalue()
 
-    def test_lotr_json(self):
+    def test_aws_core_json(self):
         out = StringIO()
-        call_command("validate_plugin", str(PLUGINS_ROOT / "lotr"), "--level", "runs", "--json", stdout=out)
+        call_command("validate_plugin", str(PLUGINS_ROOT / "aws_core"), "--level", "runs", "--json", stdout=out)
         doc = json.loads(out.getvalue())
         assert doc["ok"] is True
         assert doc["level"] == "runs"

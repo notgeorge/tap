@@ -30,10 +30,10 @@ def test_load_real_samsite_profile_parses_steps():
     assert profile.on_failure == "abort"
     seeds = [s for s in profile.steps if isinstance(s, SeedPluginStep)]
     fires = [s for s in profile.steps if isinstance(s, FireCollectorStep)]
-    assert len(seeds) == 7
+    assert len(seeds) == 6
     assert len(fires) == 4
     # Declared order is preserved: all seeds precede all fires in samsite.
-    assert profile.steps[:7] == tuple(seeds)
+    assert profile.steps[:6] == tuple(seeds)
     assert profile.has_population
 
 

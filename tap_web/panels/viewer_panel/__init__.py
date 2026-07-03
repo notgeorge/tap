@@ -73,7 +73,16 @@ def _format_value(value: Any) -> tuple[str, bool]:
             return ("", False)
         rendered = json.dumps(value, indent=2, sort_keys=True, default=str)
         return (rendered, "\n" in rendered)
-    if isinstance(value, (datetime, date)):
+    # datetime is a subclass of date — check it first. A datetime is an absolute
+    # instant, so it localizes to the viewer's browser zone through the shared
+    # <time> helper (spec-web-time-display, req-web-time-single-helper). A bare
+    # date has no time or zone; localizing it could shift the calendar day, so it
+    # stays as a plain ISO date.
+    if isinstance(value, datetime):
+        from tap_web.timefmt import render_local_time
+
+        return (render_local_time(value), False)
+    if isinstance(value, date):
         return (value.isoformat(), False)
     text = str(value)
     return (text, "\n" in text)
