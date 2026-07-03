@@ -29,6 +29,8 @@ import ast
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from tap.source_scan import semantic_hash
+
 # Privileged graph sinks that are NOT gated at their own definition — a call to one
 # must be reached through a gate, else it is ungated. `write_batch` is the
 # undecorated write chokepoint (only the runtime backstop guards it); `grift_import`
@@ -74,15 +76,34 @@ class SinkSite:
     an ungated sink does not drift in the baseline when unrelated edits move it up
     or down its file (the recurring `path:lineno` churn this replaces). `lineno` is
     retained only for human-friendly error messages, never for identity.
+
+    This is the callsite-identity **anchor** (`spec-tap-callsite-identity`). Because
+    authz remediates per-function, the anchor is also the baseline key (two sinks in
+    one function are one entry). `node_dump` is the positions-stripped AST
+    serialization used only to build the occurrence **discriminator**, which keeps
+    two same-anchor sinks distinct in the SARIF fingerprint — never in the baseline.
     """
 
     path: Path
     lineno: int
     qualname: str
     sink: str
+    node_dump: str
 
     def key(self, repo_root: Path) -> str:
         return f"{self.path.relative_to(repo_root)}::{self.qualname}::{self.sink}"
+
+    def discriminator(self, repo_root: Path) -> str:
+        """Semantic hash over location-free canonical material — distinguishes two
+        sinks sharing an anchor for the SARIF occurrence_key (`req-tap-callsite-identity-discriminator`).
+        Byte-identical sinks collide and fall back to an ordinal in `disambiguate`."""
+        return semantic_hash(
+            self.path.relative_to(repo_root).as_posix(),
+            self.qualname,
+            "authz-sink",
+            self.sink,
+            self.node_dump,
+        )
 
 
 @dataclass
@@ -189,7 +210,7 @@ class _AuthzVisitor(ast.NodeVisitor):
             lineno = node.lineno
             line = self.source_lines[lineno - 1] if 0 < lineno <= len(self.source_lines) else ""
             qualname = ".".join(self.scope_stack) if self.scope_stack else "<module>"
-            site = SinkSite(self.path, lineno, qualname, sink)
+            site = SinkSite(self.path, lineno, qualname, sink, ast.dump(node, include_attributes=False))
             if _EXEMPT_TOKEN in line:
                 self.result.exempt_skipped.append(site)
             else:

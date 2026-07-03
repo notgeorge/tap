@@ -16,10 +16,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import ClassVar
 
-from tap.guards.base import REPO_ROOT, CeilingRatchet
+from tap.guards.base import REPO_ROOT
+from tap.guards.callsite import CallsiteRatchet, RemediationUnit, disambiguate
+from tap.source_scan import CallSite, CallsiteIdentity
 
 
-class AuthzCoverageRatchet(CeilingRatchet):
+class AuthzCoverageRatchet(CallsiteRatchet):
     slug = "authz-coverage"
     map_row = "Authz coverage"
     rid = "req-tap-auth-policy-9"
@@ -30,15 +32,27 @@ class AuthzCoverageRatchet(CeilingRatchet):
         "cannot regress and its remaining debt stays visible."
     )
     baseline_path: ClassVar[Path] = Path(__file__).resolve().parent / "baselines" / "authz.txt"
+    #: Per-function: one gate clears every sink in the function, so the baseline keys
+    #: on the anchor (two sinks in one function are one entry). The discriminator
+    #: lives in the SARIF occurrence_key, never in the baseline.
+    remediation_unit: ClassVar[RemediationUnit] = RemediationUnit.PER_ANCHOR
     new_hint = (
         "The call must sit inside a @requires_capability function or an authorized() block. Gate the "
         "enclosing function; if it is provably gated by a caller the per-function scanner cannot see, "
         "annotate the call `# TAP-AUTHZ-COV: <reason>`."
     )
 
-    def measure(self) -> set[str]:
+    def collect(self) -> list[CallsiteIdentity]:
         from tap.authz_coverage import scan_authz_coverage
         from tap.source_scan import first_party_source_roots
 
         result = scan_authz_coverage(first_party_source_roots(REPO_ROOT))
-        return {s.key(REPO_ROOT) for s in result.ungated_sinks}
+        identities = [
+            CallsiteIdentity(
+                location=CallSite(s.path, s.lineno),
+                anchor=s.key(REPO_ROOT),
+                discriminator=s.discriminator(REPO_ROOT),
+            )
+            for s in result.ungated_sinks
+        ]
+        return disambiguate(identities)
