@@ -189,13 +189,23 @@ def _discover_boundaries() -> list[tuple[Path, bool]]:
     return boundaries
 
 
+def discovered_boundary_packages() -> list[Path]:
+    """The `services/` boundary package dirs actively protected (reviewed opt-outs excluded).
+
+    The single discovery surface both boundary guards share — the coverage guard here and
+    the import-encapsulation guard (`service_boundary_imports`) — so the set of protected
+    boundaries is computed once and cannot drift between the two.
+    """
+    return [package for package, opt_out in _discover_boundaries() if not opt_out]
+
+
 def protected_boundaries() -> list[str]:
     """Repo-relative labels of the `services/` boundaries this guard actively protects.
 
     The visible "what do I protect" surface (`req-service-boundary-discovery-4`): an
     opted-out or undiscovered boundary is legible here, not hidden behind green.
     """
-    return [str(package.relative_to(REPO_ROOT)) for package, opt_out in _discover_boundaries() if not opt_out]
+    return [str(package.relative_to(REPO_ROOT)) for package in discovered_boundary_packages()]
 
 
 class ServiceBoundaryGuard(Guard):
