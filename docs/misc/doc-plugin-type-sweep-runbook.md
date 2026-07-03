@@ -46,35 +46,48 @@ edit to tests/fixtures/GRIFT/queries.
 | `aws_core` | 41 | 23 | Sweep — uniform `aws_` prefix, clean. |
 | `github_core` | 9 | 10 | Sweep — uniform `github_` prefix. |
 | `computing_core` | 11 | 10 | Sweep — **bare `ENTITY_TYPE`s** (highest generic-collision risk). |
-| `lotr` | 9 | 12 | Sweep — bare `ENTITY_TYPE`, prefixed table (diverged). **`plugin-untangle` landed** (`origin/main` `3ada9642`): core suites migrated off lotr onto `grid_fixtures`, lotr now install-only → ripple collapsed from ~20 core modules to lotr's own tests + **one** residual core ref (see below). |
-| `fedramp_20x_ksi` | 14 | 13 | Sweep — **messy** (multi-prefix + bare; strip is unsafe). |
+| `lotr` | 9 | 12 | Sweep — bare `ENTITY_TYPE`, prefixed table (diverged). **`plugin-untangle` fully landed** (`origin/main` `19409711`): core suites migrated off lotr onto `grid_fixtures`, last residual severed (`d7a0b032`), lotr now install-only → **zero core ripple**; a clean per-plugin rename like the others. |
+| `fedramp_20x_ksi` | 14 | 13 | Sweep — multi-prefix + bare types, all verbatim-prepended (no strip). |
 | `sigstore_core` | 2 | 5 | Sweep — two prefixes (`sigstore_`, `rekor_`). |
 | `administrivia`, `genericom`, `roscale`, `samsite` | 0 | 0 | No types. **But `samsite` *consumes* others' types by string** → update refs (see Ripple). |
 
-## Decisions to ratify before running
+## Ratified rule (decisions closed 2026-07-02)
 
-1. **Strip the domain prefix, or keep the full name?** `aws_account` → `aws_core__account` (strip,
-   matches the `grid_fixtures` precedent `pg_node`→`grid_fixtures__node`) **vs** `aws_core__aws_account`
-   (keep, collision-proof but redundant). **Recommendation:** strip for the *uniform-single-prefix*
-   plugins (`aws_`, `github_`); **keep** for the multi-prefix/bare-mixed plugins where stripping
-   risks new collisions (see `fedramp`).
-2. **`fedramp` bare types** (`evidence`, `finding`, `exception`, `boundary`) — squatting core-ish
-   names. They must become `fedramp_20x_ksi__evidence` etc. (prepend, do **not** strip). Confirm the
-   plugin genuinely owns these vs. some being intended as core types.
-3. **`computing_core` generics** (`user`, `file`, `program`, `port`, `ip_address`, `public_key`, …) —
-   these are the exact collision case the spec cites. `computing_core__user`, etc.
+**One rule, no exceptions: verbatim prepend.** Every plugin type becomes `<slug>__<current_name>`
+with the existing name kept *unchanged* — no prefix stripping anywhere. Edges become
+`<NAME>__<slug>`.
+
+This is what all three ratified decisions reduce to:
+
+1. **Prefix policy → KEEP the full name** (not strip). `aws_account` → `aws_core__aws_account`,
+   `github_repository` → `github_core__github_repository`. Redundant-looking but collision-proof and
+   preserves the exact current token verbatim; matches the *verbose-explicit accepted* doctrine
+   (`req-plugin-type-verbose-doctrine`).
+2. **`sigstore_core` two prefixes → KEEP.** `sigstore_ca` → `sigstore_core__sigstore_ca`,
+   `rekor_log_entry` → `sigstore_core__rekor_log_entry` (the `rekor_` vendor distinction survives).
+3. **`fedramp_20x_ksi` bare types → all fedramp-owned, prepend.** `evidence` →
+   `fedramp_20x_ksi__evidence`, `finding` → `fedramp_20x_ksi__finding`, etc. None promoted to core.
+
+Consequences of the uniform rule:
+- **`computing_core` bare `ENTITY_TYPE`s** (`user`, `file`, `program`, …) simply prepend →
+   `computing_core__user`; nothing to strip (the exact collision case the spec cites, now namespaced).
+- **The one historical exception is `grid_fixtures`**, already landed on the *stripped* form
+   (`pg_node` → `grid_fixtures__node`, not `…__pg_node`) via the proof lineage `a40419ee`. It is
+   promoted and stays as-is; the fleet policy going forward is keep/verbatim-prepend. New plugins
+   follow the keep rule.
 
 ## Rename map
 
-### `aws_core` — strip `aws_`, prepend `aws_core__`
-`aws_account → aws_core__account`, `aws_ec2_instance → aws_core__ec2_instance`,
-`aws_iam_role → aws_core__iam_role`, … (all 41 mechanically; `ENTITY_TYPE == db_table` already, so
+### `aws_core` — verbatim prepend `aws_core__`
+`aws_account → aws_core__aws_account`, `aws_ec2_instance → aws_core__aws_ec2_instance`,
+`aws_iam_role → aws_core__aws_iam_role`, … (all 41 mechanically; `ENTITY_TYPE == db_table` already, so
 one substitution covers both). Edges: `<NAME> → <NAME>__aws_core` (`CONTAINS → CONTAINS__aws_core`,
 `PROTECTS → PROTECTS__aws_core`, …).
 
-### `github_core` — strip `github_`, prepend `github_core__`
-`github_repository → github_core__repository`, `github_actions_run → github_core__actions_run`, …
-Note `oidc_issuer` (no `github_` prefix) → `github_core__oidc_issuer`. Edges → `<NAME>__github_core`.
+### `github_core` — verbatim prepend `github_core__`
+`github_repository → github_core__github_repository`,
+`github_actions_run → github_core__github_actions_run`, …
+`oidc_issuer` (no `github_` prefix) → `github_core__oidc_issuer`. Edges → `<NAME>__github_core`.
 
 ### `computing_core` — bare `ENTITY_TYPE`, prepend `computing_core__` (HIGH RISK)
 `ENTITY_TYPE` is **bare** (`user`, `file`, `program`, `port`, `ip_address`, `network_interface`,
@@ -84,15 +97,15 @@ Note `oidc_issuer` (no `github_` prefix) → `github_core__oidc_issuer`. Edges �
 ### `lotr` — bare `ENTITY_TYPE`, `lotr_` table; converge to `lotr__`
 `ENTITY_TYPE` bare (`character`, `realm`, `race`, `faction`, `location`, `citadel`, `artifact`,
 `sentinel`, `wanderer`), `db_table` `lotr_character`. Both → `lotr__character`, … Edges → `<NAME>__lotr`.
-**Ripple now low.** `plugin-untangle` landed (`origin/main` `3ada9642`) and moved lotr's fixture role
-onto `grid_fixtures` — core suites no longer create lotr types (`_make_wanderer` now returns
-`grid_fixtures__unconstrained`, not a lotr wanderer). What remains for lotr's sweep is its **own**
-tests/fixtures/GRIFT plus exactly **one** residual core reference:
-`tap_web/tests/test_table_panel.py::TestTablePanelIconEnrichment` still seeds lotr `EntityType`s from
-the lotr manifest and asserts icon resolution for `character` (`/static/lotr/icons/character.svg`). The
-manifest-driven seeding auto-follows the rename; only the hardcoded `"character"` string and the icon
-path assertion need the `character → lotr__character` update (~2 lines). *(If `plugin-untangle`
-migrates that icon test off lotr in a follow-up, this residual disappears — confirm before sweeping.)*
+**Ripple now minimal — core fully severed.** `plugin-untangle` landed (`origin/main` `19409711`,
+merge `70c500c4`) and moved lotr's fixture role onto `grid_fixtures`: core suites no longer create
+lotr types (`_make_wanderer` returns `grid_fixtures__unconstrained`), and its follow-up `d7a0b032`
+("sever the last load-bearing lotr dependencies") migrated the final residual — the
+`test_table_panel` icon-enrichment test and the `tap_viz` / `test_flaws` / `test_models` illustrative
+refs. Verified zero `get_app_config("lotr")` / `/static/lotr/` references remain in `tap_web`/`tap_grid`
+core tests. So lotr's sweep is now **purely its own** files — model `ENTITY_TYPE`/`db_table`, edge
+JSON, manifest, and `plugins/lotr/tests/*` — with no core ripple. It's a clean per-plugin rename like
+the others, no longer a special case.
 
 ### `fedramp_20x_ksi` — KEEP names, prepend `fedramp_20x_ksi__` (do NOT strip)
 Multi-prefix + bare, and stripping collides (`vdr_finding`→`finding` == bare `finding`). So prepend
@@ -100,10 +113,9 @@ the whole current name: `compliance_artifact → fedramp_20x_ksi__compliance_art
 `ksi_signal → fedramp_20x_ksi__ksi_signal`, `vdr_finding → fedramp_20x_ksi__vdr_finding`,
 `finding → fedramp_20x_ksi__finding`, `evidence → fedramp_20x_ksi__evidence`, … Edges → `<NAME>__fedramp_20x_ksi`.
 
-### `sigstore_core` — KEEP names, prepend `sigstore_core__`
-Two prefixes: `sigstore_ca → sigstore_core__sigstore_ca`, `rekor_log_entry → sigstore_core__rekor_log_entry`.
-(Or strip both prefixes → `sigstore_core__ca`, `sigstore_core__log_entry` — cleaner; ratify with #1.)
-Edges → `<NAME>__sigstore_core`.
+### `sigstore_core` — verbatim prepend `sigstore_core__` (ratified: keep)
+Two prefixes, both kept: `sigstore_ca → sigstore_core__sigstore_ca`,
+`rekor_log_entry → sigstore_core__rekor_log_entry`. Edges → `<NAME>__sigstore_core`.
 
 ## Collision hotspots (why the sweep matters, not just tidiness)
 
@@ -133,7 +145,7 @@ and the `db_table` single→double-underscore is a *delimiter* change, not a slu
 ## Runbook (last session standing)
 
 1. **Confirm you're solo** — `plugin-untangle` **already landed** (`origin/main` `3ada9642`); the remaining gate is `validation-creation` closed/promoted. Then merge fresh `origin/main` into this session and confirm it's synced.
-2. **Ratify the three decisions** above (strip-vs-keep, fedramp bare, sigstore strip).
+2. **Decisions already ratified** (2026-07-02, above): verbatim prepend `<slug>__<name>` everywhere, no strip. No ratification step remains — apply the map as written.
 3. **Per producer plugin, in order** (leaves → `samsite`-consumed → `lotr` last): apply the map to model files (`ENTITY_TYPE` + `Meta.db_table` + edge JSON `slug`), then sweep every string reference (its tests, fixtures, GRIFT, expected JSON) **plus** every cross-plugin consumer's reference.
 4. **Regenerate migrations** (`makemigrations` → table renames) and **reset the dev DB**.
 5. **Full suite** (`scripts/test`) — the corpus is the net; a missed reference fails loudly. Iterate until green.

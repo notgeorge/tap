@@ -40,7 +40,7 @@ The chrome budget is fixed: product mark, breadcrumb, session tag, command-palet
 | req-web-nav-page-discoverable | [Page Discoverability Gate](#page-discoverability-gate) | Implemented | Pages requiring URL parameters opt out of all browse-discovery surfaces via a `discoverable=False` flag |
 | req-web-nav-page-weight | [Page Sort Weight](#page-sort-weight) | Implemented | `Page.nav_weight` integer floats pages up (+) or sinks down (−) in discovery surfaces; default 0 = alphabetical |
 | req-web-nav-chrome-read-free | [Chrome Is Read-Free For Unauthorized Callers](#chrome-is-read-free-for-unauthorized-callers) | Implemented | The always-present chrome renders without a graph read when the caller lacks `grid.read`; enrichment is gated, degradation is URL-derived plain text |
-| req-web-nav-panel | [Navigation As A Built-In Panel](#navigation-as-a-built-in-panel) | Proposed | Navigation (breadcrumb + palette + popovers) becomes a standard built-in Panel type running a gated Search, mounted by the page builder — not a per-render context processor |
+| req-web-nav-panel | [Navigation As A Built-In Panel](#navigation-as-a-built-in-panel) | Deprecated | Superseded by `tap_web/specs/spec-web-chrome.md`: navigation becomes built-in `ChromeEntry` objects on a persistent `ChromeSurface`, not a Panel mounted by every Page |
 
 ## Requirements
 
@@ -500,7 +500,7 @@ The always-present chrome renders on **every** response, including renders where
 
 #### Status Details
 
-This requirement records a **fixed regression**. The breadcrumb context processor (landed 2026-05-28) read `Page` on every render; that was inert until the structural ORM read backstop landed (2026-07-01), which retroactively made the per-render read fail closed for any capability-less caller — 500ing the login page, the no-access page, and the landing page for no-cap users. Root cause: an unconditional guarded read on a surface that renders before authorization is known. The fix makes the shell read-free; the enrichment moves fully into a gated Panel under `req-web-nav-panel`.
+This requirement records a **fixed regression**. The breadcrumb context processor (landed 2026-05-28) read `Page` on every render; that was inert until the structural ORM read backstop landed (2026-07-01), which retroactively made the per-render read fail closed for any capability-less caller — 500ing the login page, the no-access page, and the landing page for no-cap users. Root cause: an unconditional guarded read on a surface that renders before authorization is known. The fix makes the shell read-free; the replacement path moves graph-backed navigation into the gated chrome system under `spec-web-chrome.md`.
 
 #### Implementation
 
@@ -511,7 +511,7 @@ This requirement records a **fixed regression**. The breadcrumb context processo
 
 #### Development
 
-The decomposition this forces — a read-free URL shell plus a gated enrichment — is the same seam `req-web-nav-panel` builds on: the shell is always-safe chrome; the enrichment is a Search-backed Panel that only runs on authenticated, page-builder-rendered surfaces. The interim fix is a down payment on that structure, not throwaway.
+The decomposition this forces — a read-free URL shell plus a gated enrichment — is the same seam `spec-web-chrome.md` builds on: static/login surfaces stay self-rendered and read-free, while graph-backed navigation runs only after the Page/chrome read gate. The interim fix is a down payment on that structure, not throwaway.
 
 #### Acceptance Criteria
 
@@ -525,27 +525,27 @@ The decomposition this forces — a read-free URL shell plus a gated enrichment 
 ### Navigation As A Built-In Panel
 ----
 RID: `req-web-nav-panel`
-Status: `Proposed`
+Status: `Deprecated`
 
-Navigation — the breadcrumb, the sibling/column popovers, and the command palette — becomes a **standard built-in Panel type** that runs a gated Search and is mounted by the page builder, rather than a context processor that reads the grid on every render. This is the target shape; `req-web-nav-chrome-read-free` is the interim stop-gap on the way to it.
+Navigation — the breadcrumb, the sibling/column popovers, and the command palette — was previously proposed as a **standard built-in Panel type** that runs a gated Search and is mounted by the page builder. That target is superseded by [`spec-web-chrome.md`](spec-web-chrome.md): navigation is now modeled as built-in `ChromeEntry` objects mounted on a persistent graph-backed `ChromeSurface`. `req-web-nav-chrome-read-free` remains the implemented interim security fix until the chrome migration replaces the context-processor path.
 
-#### Rationale
+#### Historical Rationale
 
-The root defect behind the login outage was architectural, not a one-line bug: navigation is **universal chrome that does a graph read on every render**, which forces every pre-auth and error surface to either read the grid or 500. Modeling nav as a Panel inverts the boundary so that "who reads the grid" falls out of "who is an authenticated page-builder surface":
+The root defect behind the login outage was architectural, not a one-line bug: navigation is **universal chrome that does a graph read on every render**, which forces every pre-auth and error surface to either read the grid or 500. The deprecated Panel approach attempted to invert the boundary so that "who reads the grid" fell out of "who is an authenticated page-builder surface":
 
 - A Panel renders **inside the authenticated request flow**, where the caller holds `grid.read`, so its Search is naturally authorized — no backstop trip, and the read flows through the Search/service layer instead of a raw `Page.objects` call in a context processor.
 - Non-page-builder surfaces (login, allauth flows, error pages, admin) **do not mount the panel** and therefore do **zero graph reads** — which is exactly correct for those pages.
 - It reuses all existing panel plumbing (registry, config, resolution, rendering, the page builder's slot model) instead of a bespoke nav code path.
 
-#### Implementation (Proposed)
+#### Historical Proposed Implementation
 
 - A built-in navigation Panel type whose data comes from a Search over `Page` (the same discoverable/`nav_weight` semantics as `req-web-nav-page-discoverable` / `req-web-nav-page-weight`), gated on `grid.read` like every other panel read.
 - The page builder **auto-injects** the nav panel into a reserved chrome slot on every page-builder `Page`, so navigation stays always-present for grid-backed pages (honoring `req-web-nav-chrome-budget`) while being structurally absent on the pre-auth/error shell.
 - The breadcrumb context processor is **removed**; `base.html` chrome for non-grid pages degrades to the product mark only (zero graph reads) — the permanent form of the `req-web-nav-chrome-read-free` shell.
 - The modal pop-in behavior and the Cmd-K/Ctrl-K keyboard summon (today in `palette.js`) move under the panel, so the palette is a mode of the nav panel rather than free-floating chrome JS.
-- The `/__nav-index.json` endpoint already authorizes `grid.read` (`nav_index_view` → `_authorize_grid_read`); under this model it stays gated (or is explicitly documented as an unauthenticated surface if a public index is reintroduced via `unguarded_read()`), superseding the spec's original "unauthenticated for v0" note in `req-web-nav-index-endpoint`.
+- The `/__nav-index.json` endpoint already authorizes `grid.read` (`nav_index_view` -> `_authorize_grid_read`); under this model it stays gated (or is explicitly documented as an unauthenticated surface if a public index is reintroduced via `unguarded_read()`), superseding the spec's original "unauthenticated for v0" note in `req-web-nav-index-endpoint`.
 
-#### Open Questions
+#### Historical Open Questions
 
 - Whether the auto-injected slot is a true Panel instance on each `Page` or a chrome-level singleton the page builder renders — affects how per-page overrides (future `Page.parent_url`) compose.
 - How the palette's cross-page reach (it searches *all* Pages, not just the current subtree) maps onto a panel that is nominally mounted on one Page.
@@ -555,10 +555,10 @@ The root defect behind the login outage was architectural, not a one-line bug: n
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-web-nav-panel-1 | Nav Is A Built-In Panel | Proposed | Navigation renders through a standard built-in Panel type running a gated Search, not a per-render context processor. | |
-| req-web-nav-panel-2 | Page Builder Mounts It | Proposed | The page builder auto-injects the nav panel into a reserved chrome slot on every page-builder Page; non-page-builder surfaces do not mount it and do no graph reads. | |
-| req-web-nav-panel-3 | Context Processor Removed | Proposed | The `tap_web.navigation.breadcrumb` context processor is removed; non-grid pages render product-mark-only chrome. | |
-| req-web-nav-panel-4 | Palette + Modal Under The Panel | Proposed | The command palette (Cmd-K) and modal pop-in are owned by the nav panel, reusing panel plumbing. | |
+| req-web-nav-panel-1 | Nav Is A Built-In Panel | Deprecated | Superseded by `req-web-chrome-entry`: navigation renders as built-in `ChromeEntry` objects, not a Panel type. | |
+| req-web-nav-panel-2 | Page Builder Mounts It | Deprecated | Superseded by `req-web-chrome-surface`: chrome is a persistent surface, not auto-injected into every Page. | |
+| req-web-nav-panel-3 | Context Processor Removed | Deprecated | Replacement tracked by `req-web-chrome-migration`; static/login pages remain self-rendered and graph-backed chrome is gated. | |
+| req-web-nav-panel-4 | Palette + Modal Under The Panel | Deprecated | Superseded by `req-web-chrome-activation` and `req-web-chrome-shortcuts`: palette activation belongs to a chrome entry and central shortcut system. | |
 
 ## Future Seams
 
