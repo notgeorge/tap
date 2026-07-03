@@ -153,8 +153,10 @@ Refusing to promote an unvalidated tree to origin/main (req-dev-validation-promo
   info "Cold-boot gate GREEN. Lean-boot independence gate (scripts/gate-lean) ..."
   if ! scripts/gate-lean; then
     fail "Lean-boot gate RED — aborting promote. origin/main is NOT advanced \
-(req-dev-validation-promote-hook-2). A core module likely imports a plugin-only \
-dependency; see the *-diag.log and the /diagnose-failed-session-spawn skill."
+(req-dev-validation-promote-hook-2). Read the VERDICT line in the *-diag.log for the \
+classified cause — image-build/infra (a network flake, not your code) vs. import-leak \
+(a core module importing a plugin-only dependency) vs. boot/health — then the \
+/diagnose-failed-session-spawn skill."
   fi
   info "Validation GREEN (full lane + cold-boot gate + lean-boot gate) — proceeding to push."
 fi

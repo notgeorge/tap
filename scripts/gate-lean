@@ -61,14 +61,33 @@ teardown() {
   local rc=$?
   if [[ $rc -ne 0 ]]; then
     bold "LEAN-BOOT RED (rc=$rc) — capturing diagnostics before teardown"
+    # Classify the failure so a build/network flake is never misread as an import
+    # leak. Discriminator: did the `web` container ever exist? `ps -aq` lists even an
+    # exited container, so empty == the image build/spawn died before any container
+    # (infra); a present container that crashed on a missing module == the leak class
+    # this gate exists to catch; anything else == boot/health.
+    local web_cid ps_out web_out verdict
+    web_cid="$(docker compose -p "$PROJECT" ps -aq web 2>/dev/null || true)"
+    ps_out="$(docker compose -p "$PROJECT" ps -a 2>&1 || true)"
+    web_out="$(docker compose -p "$PROJECT" logs --tail 200 web 2>&1 || true)"
+    if [[ -z "$web_cid" ]]; then
+      verdict="IMAGE BUILD / SPAWN INFRA — no container was ever created, so Python never ran; this is NOT an import leak. Typical cause: a registry-pull timeout (e.g. ghcr.io/astral-sh/uv:latest) inside the timed build. The gate pre-warms these now; if it recurs, run 'docker pull ghcr.io/astral-sh/uv:latest' and re-run."
+    elif grep -qiE 'ModuleNotFoundError|ImportError' <<<"$web_out"; then
+      verdict="LIKELY IMPORT LEAK — the container booted then crashed on a missing module (a core module importing a plugin-only dependency, the class this gate exists to catch). See web logs below."
+    else
+      verdict="BOOT/HEALTH — the container started but did not reach healthy (migrate/boot/health), not necessarily an import leak. See web logs below."
+    fi
     {
       echo "### gate-lean failure  rc=$rc  profile=$PROFILE  project=$PROJECT"
-      echo "### compose ps"
-      docker compose -p "$PROJECT" ps 2>&1 || true
+      echo "### VERDICT: $verdict"
+      echo
+      echo "### compose ps -a"
+      echo "$ps_out"
       echo
       echo "### web logs (tail 200)"
-      docker compose -p "$PROJECT" logs --tail 200 web 2>&1 || true
+      echo "$web_out"
     } >"$DIAG" 2>&1 || true
+    info "VERDICT: $verdict"
     info "diagnostics: $DIAG"
     info "post-mortem: run the /diagnose-failed-session-spawn skill"
   fi
@@ -86,6 +105,24 @@ trap teardown EXIT INT TERM
 # Idempotent pre-clean: torch any leftover from a prior aborted run so spawn's
 # name/branch/worktree collision guards don't false-fail.
 WORKTREE_BASE="$WORKTREE_BASE" scripts/despawn-session.sh "$NAME" --yes >/dev/null 2>&1 || true
+
+# Pre-warm the throwaway build's base images so a slow registry can't time the
+# `docker compose build` OUT from under a healthy tree. A DeadlineExceeded pulling
+# `ghcr.io/astral-sh/uv:latest` INSIDE the timed build once red-flagged a clean
+# tree as an "import leak" (2026-07-03) — the build failed before Python ran. The
+# image list is parsed from the Dockerfile so it can't drift; a failed pre-pull only
+# warns (the build still tries over the network).
+bold "Pre-warming base images (so the timed build hits local cache, not the network)"
+while IFS= read -r img; do
+  [[ -z "$img" ]] && continue
+  if docker image inspect "$img" >/dev/null 2>&1; then
+    info "cached: $img"
+  elif docker pull "$img" >/dev/null 2>&1; then
+    info "pulled: $img"
+  else
+    info "WARN: pre-pull failed for $img (build will retry over the network)"
+  fi
+done < <(grep -oE '^(FROM [^ ]+|COPY --from=[^ ]+)' Dockerfile | sed -E 's/^FROM +//; s/^COPY --from=//' | grep -E '[/:]' | sort -u)
 
 bold "Lean-boot independence gate — spawning throwaway '$NAME'"
 info "profile=$PROFILE (isolated core-only venv)   worktree_base=$WORKTREE_BASE"
