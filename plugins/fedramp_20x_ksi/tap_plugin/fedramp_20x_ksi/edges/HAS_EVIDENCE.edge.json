@@ -1,9 +1,9 @@
 {
-  "slug": "HAS_EVIDENCE",
+  "slug": "HAS_EVIDENCE__fedramp_20x_ksi",
   "name": "Has Evidence",
   "description": "A finding has supporting evidence. The support_kind property classifies the verdict the evidence supports (passing, violation, informational). Multiple HAS_EVIDENCE edges per finding are expected; the finding's effective verdict is aggregated from its evidence.",
-  "sources": ["finding"],
-  "targets": ["evidence"],
+  "sources": ["fedramp_20x_ksi__finding"],
+  "targets": ["fedramp_20x_ksi__evidence"],
   "property_schema": {
     "type": "object",
     "required": ["support_kind"],

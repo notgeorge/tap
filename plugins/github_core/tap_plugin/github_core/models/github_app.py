@@ -19,7 +19,7 @@ class GithubApp(BaseModel):
     Spec: plugins/github_core/specs/spec-github-core-v0.md (req-github-core-app)
     """
 
-    ENTITY_TYPE: ClassVar[str] = "github_app"
+    ENTITY_TYPE: ClassVar[str] = "github_core__github_app"
     ENTITY_NAME: ClassVar[str] = "GitHub App"
     ENTITY_DESCRIPTION: ClassVar[str] = (
         "A GitHub App or first-party platform app (e.g. Dependabot) enabled on a repository."
@@ -69,7 +69,7 @@ class GithubApp(BaseModel):
     tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "github_app"
+        db_table = "github_core__github_app"
 
     def get_name(self) -> str:
         return self.name or self.slug

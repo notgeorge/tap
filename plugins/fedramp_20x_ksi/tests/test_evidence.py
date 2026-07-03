@@ -20,7 +20,7 @@ def ctx():
 def finding(ctx):
     op = WriteOperation(
         verb="create_node",
-        type_slug="finding",
+        type_slug="fedramp_20x_ksi__finding",
         payload={"name": "Test finding", "description": "fixture", "status": "open"},
     )
     result = write_batch([op], caller_context=ctx)
@@ -35,7 +35,7 @@ class TestEvidenceModel:
     def test_create_via_service_layer(self, ctx):
         op = WriteOperation(
             verb="create_node",
-            type_slug="evidence",
+            type_slug="fedramp_20x_ksi__evidence",
             payload={
                 "name": "AWS Config screenshot",
                 "description": "Shows MFA is enabled.",
@@ -51,7 +51,7 @@ class TestEvidenceModel:
     def test_required_fields_enforced(self, ctx):
         op = WriteOperation(
             verb="create_node",
-            type_slug="evidence",
+            type_slug="fedramp_20x_ksi__evidence",
             payload={"description": "no name, no kind"},
         )
         result = write_batch([op], caller_context=ctx)
@@ -60,7 +60,7 @@ class TestEvidenceModel:
     def test_kind_enum_enforced(self, ctx):
         op = WriteOperation(
             verb="create_node",
-            type_slug="evidence",
+            type_slug="fedramp_20x_ksi__evidence",
             payload={"name": "bad kind", "kind": "bogus_kind"},
         )
         result = write_batch([op], caller_context=ctx)
@@ -69,7 +69,7 @@ class TestEvidenceModel:
     def test_default_dimensions_applied(self, ctx):
         op = WriteOperation(
             verb="create_node",
-            type_slug="evidence",
+            type_slug="fedramp_20x_ksi__evidence",
             payload={"name": "dim test", "kind": "other"},
         )
         result = write_batch([op], caller_context=ctx)
@@ -80,7 +80,7 @@ class TestEvidenceModel:
     def test_display_name_synced_to_spine(self, ctx):
         op = WriteOperation(
             verb="create_node",
-            type_slug="evidence",
+            type_slug="fedramp_20x_ksi__evidence",
             payload={"name": "Spine sync test", "kind": "attestation"},
         )
         result = write_batch([op], caller_context=ctx)
@@ -94,7 +94,7 @@ class TestHasEvidenceEdge:
     def _make_evidence(self, ctx, name: str = "ev") -> str:
         op = WriteOperation(
             verb="create_node",
-            type_slug="evidence",
+            type_slug="fedramp_20x_ksi__evidence",
             payload={"name": name, "kind": "scanner_output"},
         )
         result = write_batch([op], caller_context=ctx)
@@ -107,13 +107,13 @@ class TestHasEvidenceEdge:
             verb="create_edge",
             from_target=str(finding.entity_id),
             to_target=ev_id,
-            edge_type="HAS_EVIDENCE",
+            edge_type="HAS_EVIDENCE__fedramp_20x_ksi",
             payload={"properties": {"support_kind": "passing"}},
         )
         result = write_batch([op], caller_context=ctx)
         assert result.results[0].success
         edge = Edge.objects.get(entity_id=result.results[0].entity_id)
-        assert edge.edge_type == "HAS_EVIDENCE"
+        assert edge.edge_type == "HAS_EVIDENCE__fedramp_20x_ksi"
         assert edge.properties["support_kind"] == "passing"
 
     def test_create_violation_edge(self, ctx, finding):
@@ -122,7 +122,7 @@ class TestHasEvidenceEdge:
             verb="create_edge",
             from_target=str(finding.entity_id),
             to_target=ev_id,
-            edge_type="HAS_EVIDENCE",
+            edge_type="HAS_EVIDENCE__fedramp_20x_ksi",
             payload={"properties": {"support_kind": "violation"}},
         )
         result = write_batch([op], caller_context=ctx)
@@ -134,7 +134,7 @@ class TestHasEvidenceEdge:
             verb="create_edge",
             from_target=str(finding.entity_id),
             to_target=ev_id,
-            edge_type="HAS_EVIDENCE",
+            edge_type="HAS_EVIDENCE__fedramp_20x_ksi",
             payload={"properties": {"support_kind": "informational"}},
         )
         result = write_batch([op], caller_context=ctx)
@@ -146,7 +146,7 @@ class TestHasEvidenceEdge:
             verb="create_edge",
             from_target=str(finding.entity_id),
             to_target=ev_id,
-            edge_type="HAS_EVIDENCE",
+            edge_type="HAS_EVIDENCE__fedramp_20x_ksi",
             payload={"properties": {"support_kind": "bogus"}},
         )
         result = write_batch([op], caller_context=ctx)
@@ -158,7 +158,7 @@ class TestHasEvidenceEdge:
             verb="create_edge",
             from_target=str(finding.entity_id),
             to_target=ev_id,
-            edge_type="HAS_EVIDENCE",
+            edge_type="HAS_EVIDENCE__fedramp_20x_ksi",
             payload={"properties": {}},
         )
         result = write_batch([op], caller_context=ctx)
@@ -170,7 +170,7 @@ class TestHasEvidenceEdge:
             verb="create_edge",
             from_target=str(finding.entity_id),
             to_target=ev_id,
-            edge_type="HAS_EVIDENCE",
+            edge_type="HAS_EVIDENCE__fedramp_20x_ksi",
             payload={"properties": {"support_kind": "passing", "rogue": "field"}},
         )
         result = write_batch([op], caller_context=ctx)
@@ -182,7 +182,7 @@ class TestHasEvidenceEdge:
             verb="create_edge",
             from_target=str(finding.entity_id),
             to_target=ev_id,
-            edge_type="HAS_EVIDENCE",
+            edge_type="HAS_EVIDENCE__fedramp_20x_ksi",
             payload={"properties": {"support_kind": "passing"}},
         )
         result = write_batch([op], caller_context=ctx)

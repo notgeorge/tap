@@ -156,7 +156,7 @@ class _FakeSts:
     def get_caller_identity(self, **_kw):
         return {
             "Account": "180731181784",
-            "Arn": "arn:aws:iam::180731181784:user/collector",
+            "Arn": "arn:aws:iam::180731181784:computing_core__user/collector",
             "UserId": "AIDAEXAMPLE",
             "ResponseMetadata": {"RequestId": "strip-me"},
         }

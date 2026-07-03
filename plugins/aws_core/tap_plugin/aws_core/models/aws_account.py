@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class AwsAccount(BaseModel):
     """An AWS account."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_account"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_account"
     ENTITY_NAME: ClassVar[str] = "AWS Account"
     ENTITY_DESCRIPTION: ClassVar[str] = "An AWS account within an organization."
     ENTITY_ICON: ClassVar[str] = "aws-account"
@@ -50,7 +50,7 @@ class AwsAccount(BaseModel):
     tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_account"
+        db_table = "aws_core__aws_account"
 
     def get_name(self) -> str:
         return self.name or self.account_id

@@ -128,13 +128,13 @@ def decompose_ksi_signal(
     ownership = signal.get("ownership") or {}
     disclosure = signal.get("disclosure") or {}
 
-    signal_node_id = str(node_entity_id("ksi_signal", signal_id))
+    signal_node_id = str(node_entity_id("fedramp_20x_ksi__ksi_signal", signal_id))
     out.anchor_entity_id = signal_node_id
     out.ksi_signal_by_system[system_id] = signal_node_id
     signal_name = f"KSI signal {signal_id} @ {signal.get('emitted_at', '')}"
     out.nodes.append(
         _node_envelope(
-            "ksi_signal",
+            "fedramp_20x_ksi__ksi_signal",
             signal_node_id,
             signal_name,
             _DIM_KSI_SIGNAL,
@@ -168,13 +168,13 @@ def decompose_ksi_signal(
         component_id = component.get("component_id") or ""
         if not component_id:
             continue
-        comp_node_id = str(node_entity_id("ksi_component", component_id))
+        comp_node_id = str(node_entity_id("fedramp_20x_ksi__ksi_component", component_id))
         out.ksi_component_by_id[component_id] = comp_node_id
         global_id = component.get("global_id") or {}
         security_category = component.get("security_category") or {}
         out.nodes.append(
             _node_envelope(
-                "ksi_component",
+                "fedramp_20x_ksi__ksi_component",
                 comp_node_id,
                 component_id,
                 _DIM_KSI_SIGNAL,
@@ -195,8 +195,8 @@ def decompose_ksi_signal(
         )
         out.edges.append(
             _edge_envelope(
-                "DECLARES_COMPONENT",
-                str(edge_entity_id("DECLARES_COMPONENT", signal_id, component_id)),
+                "DECLARES_COMPONENT__fedramp_20x_ksi",
+                str(edge_entity_id("DECLARES_COMPONENT__fedramp_20x_ksi", signal_id, component_id)),
                 signal_node_id,
                 comp_node_id,
             )
@@ -208,7 +208,7 @@ def decompose_ksi_signal(
         if not validation_id:
             continue
         val_key = f"{signal_id}/{validation_id}"
-        val_node_id = str(node_entity_id("ksi_validation", val_key))
+        val_node_id = str(node_entity_id("fedramp_20x_ksi__ksi_validation", val_key))
         policy = validation.get("policy") or {}
         # Name is the closest thing to "what does this validation check?" we
         # can derive without joining — the validation_id is opaque on its own,
@@ -222,7 +222,7 @@ def decompose_ksi_signal(
             val_name = validation_id
         out.nodes.append(
             _node_envelope(
-                "ksi_validation",
+                "fedramp_20x_ksi__ksi_validation",
                 val_node_id,
                 val_name,
                 _DIM_KSI_SIGNAL,
@@ -236,8 +236,8 @@ def decompose_ksi_signal(
         )
         out.edges.append(
             _edge_envelope(
-                "DECLARES_VALIDATION",
-                str(edge_entity_id("DECLARES_VALIDATION", signal_id, val_key)),
+                "DECLARES_VALIDATION__fedramp_20x_ksi",
+                str(edge_entity_id("DECLARES_VALIDATION__fedramp_20x_ksi", signal_id, val_key)),
                 signal_node_id,
                 val_node_id,
             )
@@ -250,8 +250,8 @@ def decompose_ksi_signal(
                 continue  # validation referenced a component the signal didn't declare; skip
             out.edges.append(
                 _edge_envelope(
-                    "EVALUATES_COMPONENT",
-                    str(edge_entity_id("EVALUATES_COMPONENT", val_key, component_ref)),
+                    "EVALUATES_COMPONENT__fedramp_20x_ksi",
+                    str(edge_entity_id("EVALUATES_COMPONENT__fedramp_20x_ksi", val_key, component_ref)),
                     val_node_id,
                     comp_node_id,
                 )
@@ -260,12 +260,12 @@ def decompose_ksi_signal(
         # REPORTS_VIOLATION — each violation becomes its own ksi_violation node.
         for index, violation in enumerate(validation.get("violations") or []):
             violation_key = f"{val_key}/{index}"
-            violation_node_id = str(node_entity_id("ksi_violation", violation_key))
+            violation_node_id = str(node_entity_id("fedramp_20x_ksi__ksi_violation", violation_key))
             violation_type = violation.get("type") or ""
             violation_name = f"{violation_type or 'violation'} @ {validation_id}#{index}"
             out.nodes.append(
                 _node_envelope(
-                    "ksi_violation",
+                    "fedramp_20x_ksi__ksi_violation",
                     violation_node_id,
                     violation_name,
                     _DIM_KSI_SIGNAL,
@@ -279,8 +279,8 @@ def decompose_ksi_signal(
             )
             out.edges.append(
                 _edge_envelope(
-                    "REPORTS_VIOLATION",
-                    str(edge_entity_id("REPORTS_VIOLATION", val_key, violation_key)),
+                    "REPORTS_VIOLATION__fedramp_20x_ksi",
+                    str(edge_entity_id("REPORTS_VIOLATION__fedramp_20x_ksi", val_key, violation_key)),
                     val_node_id,
                     violation_node_id,
                 )
@@ -306,12 +306,12 @@ def decompose_vdr_report(
     if not report_id:
         return out
 
-    report_node_id = str(node_entity_id("vdr_report", report_id))
+    report_node_id = str(node_entity_id("fedramp_20x_ksi__vdr_report", report_id))
     out.anchor_entity_id = report_node_id
     report_name = f"VDR report {report_id[:8]} @ {report.get('emitted_at', '')}"
     out.nodes.append(
         _node_envelope(
-            "vdr_report",
+            "fedramp_20x_ksi__vdr_report",
             report_node_id,
             report_name,
             _DIM_VDR,
@@ -333,8 +333,8 @@ def decompose_vdr_report(
     if sibling_signal_id:
         out.edges.append(
             _edge_envelope(
-                "REFERENCES_SIGNAL",
-                str(edge_entity_id("REFERENCES_SIGNAL", report_id, sibling_signal_id)),
+                "REFERENCES_SIGNAL__fedramp_20x_ksi",
+                str(edge_entity_id("REFERENCES_SIGNAL__fedramp_20x_ksi", report_id, sibling_signal_id)),
                 report_node_id,
                 sibling_signal_id,
             )
@@ -347,12 +347,12 @@ def decompose_vdr_report(
         if not tracking_id:
             return
         finding_key = f"{report_id}/{tracking_id}"
-        finding_node_id = str(node_entity_id("vdr_finding", finding_key))
+        finding_node_id = str(node_entity_id("fedramp_20x_ksi__vdr_finding", finding_key))
         finding_name = (record.get("title") or tracking_id)[:200]
         disposition = record.get("current_disposition") or default_disposition
         out.nodes.append(
             _node_envelope(
-                "vdr_finding",
+                "fedramp_20x_ksi__vdr_finding",
                 finding_node_id,
                 finding_name,
                 _DIM_VDR,
@@ -382,8 +382,8 @@ def decompose_vdr_report(
         )
         out.edges.append(
             _edge_envelope(
-                "REPORTS_FINDING",
-                str(edge_entity_id("REPORTS_FINDING", report_id, tracking_id)),
+                "REPORTS_FINDING__fedramp_20x_ksi",
+                str(edge_entity_id("REPORTS_FINDING__fedramp_20x_ksi", report_id, tracking_id)),
                 report_node_id,
                 finding_node_id,
             )
@@ -397,8 +397,8 @@ def decompose_vdr_report(
         if component_node_id:
             out.edges.append(
                 _edge_envelope(
-                    "AFFECTS_RESOURCE",
-                    str(edge_entity_id("AFFECTS_RESOURCE", finding_key, resource)),
+                    "AFFECTS_RESOURCE__fedramp_20x_ksi",
+                    str(edge_entity_id("AFFECTS_RESOURCE__fedramp_20x_ksi", finding_key, resource)),
                     finding_node_id,
                     component_node_id,
                 )
@@ -428,7 +428,7 @@ def decompose_compliance_artifact(
     # per-run discriminator; the same kind re-fetched at a different time
     # produces a different node (per-emission, per the spec).
     natural_key = f"{artifact_kind}/{fetched_at}"
-    artifact_node_id = str(node_entity_id("compliance_artifact", natural_key))
+    artifact_node_id = str(node_entity_id("fedramp_20x_ksi__compliance_artifact", natural_key))
     out.anchor_entity_id = artifact_node_id
 
     if content_format == "json":
@@ -445,7 +445,7 @@ def decompose_compliance_artifact(
     artifact_name = f"{artifact_kind} @ {fetched_at}"
     out.nodes.append(
         _node_envelope(
-            "compliance_artifact",
+            "fedramp_20x_ksi__compliance_artifact",
             artifact_node_id,
             artifact_name,
             _DIM_ARTIFACT,

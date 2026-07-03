@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class IpAddress(BaseModel):
     """A generic IPv4 or IPv6 address."""
 
-    ENTITY_TYPE: ClassVar[str] = "ip_address"
+    ENTITY_TYPE: ClassVar[str] = "computing_core__ip_address"
     ENTITY_NAME: ClassVar[str] = "IP Address"
     ENTITY_DESCRIPTION: ClassVar[str] = "A generic IPv4 or IPv6 address."
     ENTITY_ICON: ClassVar[str] = "ip-address"
@@ -43,7 +43,7 @@ class IpAddress(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "computing_ip_address"
+        db_table = "computing_core__ip_address"
 
     def get_name(self) -> str:
         return self.name or self.address

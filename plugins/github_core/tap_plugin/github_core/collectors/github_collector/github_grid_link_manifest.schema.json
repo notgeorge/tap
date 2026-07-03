@@ -37,7 +37,7 @@
           },
           "target_entity_type": {"type": "string"},
           "target_field": {"type": "string"},
-          "edge_type": {"type": "string", "pattern": "^[A-Z][A-Z_]+$"},
+          "edge_type": {"type": "string", "pattern": "^[A-Z][A-Z_]+__[a-z0-9_]+$"},
           "match_mode": {"enum": ["exact"]},
           "zero_candidates": {"enum": ["silent", "info", "warn"]},
           "multiple_candidates": {"enum": ["silent", "warn_no_edge"]},

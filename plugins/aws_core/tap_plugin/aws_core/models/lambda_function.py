@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class LambdaFunction(BaseModel):
     """An AWS Lambda serverless function."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_lambda"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_lambda"
     ENTITY_NAME: ClassVar[str] = "Lambda Function"
     ENTITY_DESCRIPTION: ClassVar[str] = "An AWS Lambda serverless function."
     ENTITY_ICON: ClassVar[str] = "aws-lambda"
@@ -56,7 +56,7 @@ class LambdaFunction(BaseModel):
     tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_lambda_function"
+        db_table = "aws_core__aws_lambda"
 
     def get_name(self) -> str:
         return self.name

@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class KsiTheme(BaseModel):
     """A top-level KSI theme such as KSI-IAM or KSI-CNA."""
 
-    ENTITY_TYPE: ClassVar[str] = "ksi_theme"
+    ENTITY_TYPE: ClassVar[str] = "fedramp_20x_ksi__ksi_theme"
     ENTITY_NAME: ClassVar[str] = "KSI Theme"
     ENTITY_DESCRIPTION: ClassVar[str] = (
         "A top-level grouping of related FedRAMP 20x Key Security Indicators."
@@ -60,7 +60,7 @@ class KsiTheme(BaseModel):
     sort_order = models.PositiveIntegerField(default=0, db_index=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "ksi_theme"
+        db_table = "fedramp_20x_ksi__ksi_theme"
         ordering = ["sort_order", "code"]
 
     def get_name(self) -> str:

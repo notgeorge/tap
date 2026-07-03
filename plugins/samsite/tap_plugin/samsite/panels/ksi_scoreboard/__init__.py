@@ -45,14 +45,14 @@ DEFAULT_SSP_VAR = "oscal_ssp_artifact_entity_id"
 DEFAULT_POAM_VAR = "oscal_poam_artifact_entity_id"
 
 _SSP_FALLBACK_QUERY = (
-    "MATCH (a:compliance_artifact) "
+    "MATCH (a:fedramp_20x_ksi__compliance_artifact) "
     'WHERE a.data.kind = "oscal_ssp" AND a.data.fetched_at IS NOT NULL '
     "ORDER BY a.data.fetched_at DESC LIMIT 1"
 )
 _SSP_FALLBACK_DESCRIPTION = "Latest oscal_ssp compliance artifact by fetched_at."
 
 _POAM_FALLBACK_QUERY = (
-    "MATCH (a:compliance_artifact) "
+    "MATCH (a:fedramp_20x_ksi__compliance_artifact) "
     'WHERE a.data.kind = "oscal_poam" AND a.data.fetched_at IS NOT NULL '
     "ORDER BY a.data.fetched_at DESC LIMIT 1"
 )
@@ -69,7 +69,7 @@ def _load_indicators() -> list[dict]:
         root="node",
         name="samsite-ksi-scoreboard-indicators",
         input_schema={"type": "object", "properties": {}, "required": []},
-        definition={"query": ["MATCH (i:ksi_indicator)"]},
+        definition={"query": ["MATCH (i:fedramp_20x_ksi__ksi_indicator)"]},
         default_limit=500,
         max_limit=2000,
     )
@@ -93,7 +93,7 @@ def _load_themes() -> dict[str, dict]:
         root="node",
         name="samsite-ksi-scoreboard-themes",
         input_schema={"type": "object", "properties": {}, "required": []},
-        definition={"query": ["MATCH (t:ksi_theme)"]},
+        definition={"query": ["MATCH (t:fedramp_20x_ksi__ksi_theme)"]},
         default_limit=100,
         max_limit=500,
     )

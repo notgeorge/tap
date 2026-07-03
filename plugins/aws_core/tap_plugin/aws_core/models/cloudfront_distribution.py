@@ -18,7 +18,7 @@ class CloudfrontDistribution(BaseModel):
     resolves by matching an alias record's target against this value.
     """
 
-    ENTITY_TYPE: ClassVar[str] = "aws_cloudfront_distribution"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_cloudfront_distribution"
     ENTITY_NAME: ClassVar[str] = "CloudFront Distribution"
     ENTITY_DESCRIPTION: ClassVar[str] = "An Amazon CloudFront content delivery distribution."
     ENTITY_ICON: ClassVar[str] = "aws-cloudfront"
@@ -60,7 +60,7 @@ class CloudfrontDistribution(BaseModel):
     tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_cloudfront_distribution"
+        db_table = "aws_core__aws_cloudfront_distribution"
 
     def get_name(self) -> str:
         return self.name

@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class SecretsManagerSecret(BaseModel):
     """An AWS Secrets Manager secret."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_secrets_manager_secret"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_secrets_manager_secret"
     ENTITY_NAME: ClassVar[str] = "Secrets Manager Secret"
     ENTITY_DESCRIPTION: ClassVar[str] = "An AWS Secrets Manager secret."
     ENTITY_ICON: ClassVar[str] = "aws-secrets-manager"
@@ -44,7 +44,7 @@ class SecretsManagerSecret(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_secrets_manager_secret"
+        db_table = "aws_core__aws_secrets_manager_secret"
 
     def get_name(self) -> str:
         return self.name

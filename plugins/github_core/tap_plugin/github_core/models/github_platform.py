@@ -19,7 +19,7 @@ class GithubPlatform(BaseModel):
     Spec: plugins/github_core/specs/spec-github-core-v0.md (req-github-core-models)
     """
 
-    ENTITY_TYPE: ClassVar[str] = "github_platform"
+    ENTITY_TYPE: ClassVar[str] = "github_core__github_platform"
     ENTITY_NAME: ClassVar[str] = "GitHub Platform"
     ENTITY_DESCRIPTION: ClassVar[str] = "A GitHub platform instance (github.com or a GHES host)."
     ENTITY_ICON: ClassVar[str] = "github-platform"
@@ -57,7 +57,7 @@ class GithubPlatform(BaseModel):
     tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "github_platform"
+        db_table = "github_core__github_platform"
 
     def get_name(self) -> str:
         return self.host

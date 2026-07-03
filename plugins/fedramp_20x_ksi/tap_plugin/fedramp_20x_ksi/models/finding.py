@@ -19,7 +19,7 @@ class Finding(BaseModel):
     Spec: plugins/fedramp_20x_ksi/specs/spec-fedramp-20x-ksi-finding.md
     """
 
-    ENTITY_TYPE: ClassVar[str] = "finding"
+    ENTITY_TYPE: ClassVar[str] = "fedramp_20x_ksi__finding"
     ENTITY_NAME: ClassVar[str] = "Finding"
     ENTITY_DESCRIPTION: ClassVar[str] = (
         "A single instance of non-compliance or risk observed against an asset, "
@@ -57,7 +57,7 @@ class Finding(BaseModel):
     status = models.CharField(max_length=16, blank=True, default="open", db_index=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "finding"
+        db_table = "fedramp_20x_ksi__finding"
 
     def get_name(self) -> str:
         return self.name

@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class ElasticacheCluster(BaseModel):
     """An Amazon ElastiCache cluster."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_elasticache_cluster"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_elasticache_cluster"
     ENTITY_NAME: ClassVar[str] = "ElastiCache Cluster"
     ENTITY_DESCRIPTION: ClassVar[str] = "An Amazon ElastiCache cluster (Redis or Memcached)."
     ENTITY_ICON: ClassVar[str] = "aws-elasticache"
@@ -55,7 +55,7 @@ class ElasticacheCluster(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_elasticache_cluster"
+        db_table = "aws_core__aws_elasticache_cluster"
 
     def get_name(self) -> str:
         return self.name or self.cluster_id

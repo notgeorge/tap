@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class EcrRepository(BaseModel):
     """An Amazon ECR container image repository."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_ecr_repository"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_ecr_repository"
     ENTITY_NAME: ClassVar[str] = "ECR Repository"
     ENTITY_DESCRIPTION: ClassVar[str] = "An Amazon ECR container image repository."
     ENTITY_ICON: ClassVar[str] = "aws-ecr"
@@ -44,7 +44,7 @@ class EcrRepository(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_ecr_repository"
+        db_table = "aws_core__aws_ecr_repository"
 
     def get_name(self) -> str:
         return self.name

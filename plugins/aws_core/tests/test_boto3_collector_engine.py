@@ -71,17 +71,17 @@ class TestIdentity:
         assert NAMESPACE_AWS_COLLECTOR == uuid.uuid5(uuid.NAMESPACE_DNS, "tap.aws_core.boto3_collector")
 
     def test_node_id_deterministic(self):
-        a = node_entity_id("aws_lambda", "arn:x")
-        b = node_entity_id("aws_lambda", "arn:x")
+        a = node_entity_id("aws_core__aws_lambda", "arn:x")
+        b = node_entity_id("aws_core__aws_lambda", "arn:x")
         assert a == b
-        assert node_entity_id("aws_lambda", "arn:y") != a
-        assert node_entity_id("aws_s3_bucket", "arn:x") != a
+        assert node_entity_id("aws_core__aws_lambda", "arn:y") != a
+        assert node_entity_id("aws_core__aws_s3_bucket", "arn:x") != a
 
     def test_edge_id_deterministic_and_directional(self):
-        e = edge_entity_id("ASSUMES_ROLE", "arn:fn", "arn:role")
-        assert e == edge_entity_id("ASSUMES_ROLE", "arn:fn", "arn:role")
-        assert edge_entity_id("ASSUMES_ROLE", "arn:role", "arn:fn") != e
-        assert edge_entity_id("WRITES_LOGS", "arn:fn", "arn:role") != e
+        e = edge_entity_id("ASSUMES_ROLE__aws_core", "arn:fn", "arn:role")
+        assert e == edge_entity_id("ASSUMES_ROLE__aws_core", "arn:fn", "arn:role")
+        assert edge_entity_id("ASSUMES_ROLE__aws_core", "arn:role", "arn:fn") != e
+        assert edge_entity_id("WRITES_LOGS__aws_core", "arn:fn", "arn:role") != e
 
 
 class TestManifest:

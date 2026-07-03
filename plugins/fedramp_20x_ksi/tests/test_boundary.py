@@ -21,7 +21,7 @@ def ctx():
 def _make_boundary(ctx, name="Test Boundary"):
     op = WriteOperation(
         verb="create_node",
-        type_slug="boundary",
+        type_slug="fedramp_20x_ksi__boundary",
         payload={"name": name, "description": "fixture boundary"},
     )
     result = write_batch([op], caller_context=ctx)
@@ -32,7 +32,7 @@ def _make_boundary(ctx, name="Test Boundary"):
 def _make_finding(ctx, name="Test Finding"):
     op = WriteOperation(
         verb="create_node",
-        type_slug="finding",
+        type_slug="fedramp_20x_ksi__finding",
         payload={"name": name},
     )
     result = write_batch([op], caller_context=ctx)
@@ -51,7 +51,7 @@ class TestBoundaryModel:
     def test_name_required(self, ctx):
         op = WriteOperation(
             verb="create_node",
-            type_slug="boundary",
+            type_slug="fedramp_20x_ksi__boundary",
             payload={"description": "no name"},
         )
         result = write_batch([op], caller_context=ctx)
@@ -79,13 +79,13 @@ class TestScopedToBoundaryEdge:
             verb="create_edge",
             from_target=fid,
             to_target=bid,
-            edge_type="SCOPED_TO_BOUNDARY",
+            edge_type="SCOPED_TO_BOUNDARY__fedramp_20x_ksi",
             payload={},
         )
         result = write_batch([op], caller_context=ctx)
         assert result.results[0].success
         edge = Edge.objects.get(entity_id=result.results[0].entity_id)
-        assert edge.edge_type == "SCOPED_TO_BOUNDARY"
+        assert edge.edge_type == "SCOPED_TO_BOUNDARY__fedramp_20x_ksi"
 
     def test_edge_targets_constraint_is_boundary_only(self):
         """The edge declares `targets = ["boundary"]`.
@@ -98,8 +98,8 @@ class TestScopedToBoundaryEdge:
         """
         from tap_grid.constraints import _edge_allows_target
 
-        assert _edge_allows_target("boundary", "SCOPED_TO_BOUNDARY") is True
-        assert _edge_allows_target("finding", "SCOPED_TO_BOUNDARY") is False
+        assert _edge_allows_target("fedramp_20x_ksi__boundary", "SCOPED_TO_BOUNDARY__fedramp_20x_ksi") is True
+        assert _edge_allows_target("fedramp_20x_ksi__finding", "SCOPED_TO_BOUNDARY__fedramp_20x_ksi") is False
 
     def test_default_dimensions_applied(self, ctx):
         bid = _make_boundary(ctx)
@@ -108,7 +108,7 @@ class TestScopedToBoundaryEdge:
             verb="create_edge",
             from_target=fid,
             to_target=bid,
-            edge_type="SCOPED_TO_BOUNDARY",
+            edge_type="SCOPED_TO_BOUNDARY__fedramp_20x_ksi",
             payload={},
         )
         result = write_batch([op], caller_context=ctx)

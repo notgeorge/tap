@@ -18,7 +18,7 @@ class VdrReport(BaseModel):
     Spec: spec-fedramp-20x-ksi-compliance-artifacts-v0.md.
     """
 
-    ENTITY_TYPE: ClassVar[str] = "vdr_report"
+    ENTITY_TYPE: ClassVar[str] = "fedramp_20x_ksi__vdr_report"
     ENTITY_NAME: ClassVar[str] = "VDR Report"
     ENTITY_DESCRIPTION: ClassVar[str] = (
         "One emission of a FedRAMP 20x Vulnerability Detection and Response "
@@ -71,7 +71,7 @@ class VdrReport(BaseModel):
     summary = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "vdr_report"
+        db_table = "fedramp_20x_ksi__vdr_report"
 
     def get_name(self) -> str:
         return self.name

@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class EcsService(BaseModel):
     """An Amazon ECS service."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_ecs_service"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_ecs_service"
     ENTITY_NAME: ClassVar[str] = "ECS Service"
     ENTITY_DESCRIPTION: ClassVar[str] = "An Amazon ECS service managing task instances."
     ENTITY_ICON: ClassVar[str] = "aws-ecs"
@@ -53,7 +53,7 @@ class EcsService(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_ecs_service"
+        db_table = "aws_core__aws_ecs_service"
 
     def get_name(self) -> str:
         return self.name

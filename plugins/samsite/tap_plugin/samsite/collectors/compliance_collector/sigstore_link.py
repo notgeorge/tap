@@ -73,7 +73,7 @@ def resolve_workflow_entity_id(full_name: str, workflow_path: str) -> str | None
         },
         definition={
             "query": [
-                "MATCH (w:github_workflow)",
+                "MATCH (w:github_core__github_workflow)",
                 "WHERE w.data.full_name = $fn AND w.data.path = $path",
                 "RETURN w",
             ]
@@ -128,7 +128,7 @@ def oidc_issuer_node_envelope(issuer_url: str) -> dict[str, Any]:
     return {
         "entity": {
             "entity_id": oidc_issuer_entity_id(issuer_url),
-            "entity_type": "oidc_issuer",
+            "entity_type": "github_core__oidc_issuer",
             "name": issuer_url,
             "dimensions": {"identity.protocol": "oidc"},
         },
@@ -175,7 +175,7 @@ def fragment_to_envelopes(fragment: Any) -> tuple[list[dict[str, Any]], list[dic
     for ent in fragment.entities:
         et = ent["entity_type"]
         fields = dict(ent.get("fields") or {})
-        name = _entry_name(fields) if et == "rekor_log_entry" else _ca_name(fields)
+        name = _entry_name(fields) if et == "sigstore_core__rekor_log_entry" else _ca_name(fields)
         nodes.append(
             {
                 "entity": {

@@ -32,7 +32,7 @@ export async function execute(context) {
     const {cy} = context;
 
     // Step 1. Reuse hidden artifacts from a prior visit, else fetch.
-    const hiddenArtifacts = cy.nodes('[entity_type="artifact"].' + ELEVATION_HIDDEN_CLASS);
+    const hiddenArtifacts = cy.nodes('[entity_type="lotr__artifact"].' + ELEVATION_HIDDEN_CLASS);
     if (hiddenArtifacts.length > 0) {
         hiddenArtifacts.removeClass(ELEVATION_HIDDEN_CLASS);
         cy.edges('[edge_type="WIELDS"].' + ELEVATION_HIDDEN_CLASS).removeClass(ELEVATION_HIDDEN_CLASS);
@@ -48,19 +48,19 @@ export async function execute(context) {
         relationships: [
             {
                 name: "realm-contains-location",
-                gryphon: "(parent:realm)-[:CONTAINS]->(child:location)",
+                gryphon: "(parent:lotr__realm)-[:CONTAINS__lotr]->(child:lotr__location)",
             },
             {
                 name: "location-contains-location",
-                gryphon: "(parent:location)-[:CONTAINS]->(child:location)",
+                gryphon: "(parent:lotr__location)-[:CONTAINS__lotr]->(child:lotr__location)",
             },
             {
                 name: "location-contains-character",
-                gryphon: "(parent:location)<-[:LOCATED_IN]-(child:character)",
+                gryphon: "(parent:lotr__location)<-[:LOCATED_IN__lotr]-(child:lotr__character)",
             },
             {
                 name: "character-contains-artifact",
-                gryphon: "(parent:character)-[:WIELDS]->(child:artifact)",
+                gryphon: "(parent:lotr__character)-[:WIELDS__lotr]->(child:lotr__artifact)",
             },
         ],
         baseSizes: {
@@ -99,14 +99,14 @@ async function _fetchAndAddArtifacts(cy) {
 
     (result.nodes || []).forEach((n) => {
         const ent = n.entity || {};
-        if (ent.entity_type !== "artifact") return;
+        if (ent.entity_type !== "lotr__artifact") return;
         if (existingNodeIds.has(ent.entity_id)) return;
         newElements.push({
             group: "nodes",
             data: {
                 id: ent.entity_id,
                 label: ent.name || "",
-                entity_type: "artifact",
+                entity_type: "lotr__artifact",
                 icon_url: n.icon_url || "",
                 shape: n.shape || "ellipse",
                 url_id: n.url_id || "",

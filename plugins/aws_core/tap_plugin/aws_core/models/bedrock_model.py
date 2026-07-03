@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class BedrockModel(BaseModel):
     """An Amazon Bedrock foundation model."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_bedrock_model"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_bedrock_model"
     ENTITY_NAME: ClassVar[str] = "Bedrock Model"
     ENTITY_DESCRIPTION: ClassVar[str] = "An Amazon Bedrock foundation model."
     ENTITY_ICON: ClassVar[str] = "aws-bedrock"
@@ -50,7 +50,7 @@ class BedrockModel(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_bedrock_model"
+        db_table = "aws_core__aws_bedrock_model"
 
     def get_name(self) -> str:
         return self.name

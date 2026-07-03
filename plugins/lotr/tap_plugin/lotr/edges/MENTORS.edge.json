@@ -1,9 +1,9 @@
 {
-  "slug": "MENTORS",
+  "slug": "MENTORS__lotr",
   "name": "Mentors",
   "description": "One character mentors another.",
-  "sources": ["character"],
-  "targets": ["character"],
+  "sources": ["lotr__character"],
+  "targets": ["lotr__character"],
   "property_schema": {
     "type": "object",
     "required": ["discipline"],

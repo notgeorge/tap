@@ -19,7 +19,7 @@ class Evidence(BaseModel):
     Spec: plugins/fedramp_20x_ksi/specs/spec-fedramp-20x-ksi-evidence.md
     """
 
-    ENTITY_TYPE: ClassVar[str] = "evidence"
+    ENTITY_TYPE: ClassVar[str] = "fedramp_20x_ksi__evidence"
     ENTITY_NAME: ClassVar[str] = "Evidence"
     ENTITY_DESCRIPTION: ClassVar[str] = (
         "A supporting artifact for a compliance finding — screenshot, scanner output, "
@@ -61,7 +61,7 @@ class Evidence(BaseModel):
     kind = models.CharField(max_length=32, blank=True, default="other", db_index=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "evidence"
+        db_table = "fedramp_20x_ksi__evidence"
 
     def get_name(self) -> str:
         return self.name

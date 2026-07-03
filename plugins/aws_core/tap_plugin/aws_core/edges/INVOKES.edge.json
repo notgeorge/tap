@@ -1,5 +1,5 @@
 {
-  "slug": "INVOKES",
+  "slug": "INVOKES__aws_core",
   "name": "Invokes",
   "description": "One service invokes another (Lambda calls another Lambda, ECS calls an API, etc.).",
   "property_schema": {

@@ -51,7 +51,7 @@ The `finding` entity is a TAP-managed model with a minimal field set.
 #### Implementation
 
 - Python model lives at `plugins/fedramp_20x_ksi/models/finding.py`, subclassing `BaseModel`.
-- `ENTITY_TYPE = "finding"`. Intentionally generic — no `ksi_` or `fedramp_` prefix — because the model is slated for promotion to a general compliance plugin.
+- `ENTITY_TYPE = "fedramp_20x_ksi__finding"` (owner-namespaced per `req-plugin-type-node-prefix`, 2026-07-02 sweep). The name kept `finding` verbatim under the owner prefix — no `ksi_` vendor prefix — so promotion to a general compliance plugin is a pure owner re-affix (`fedramp_20x_ksi__finding → <newowner>__finding`), not a concept rename.
 - `ENTITY_NAME = "Finding"`.
 - `ENTITY_DESCRIPTION = "A single instance of non-compliance or risk observed against an asset, related to one or more compliance requirements."`
 - `ENTITY_ICON`: a new `finding` icon registered via the plugin's static assets. If a new SVG is not ready for v1 landing, fall back to a suitable existing glyph and open a follow-on for the dedicated icon.
@@ -73,7 +73,7 @@ Keep the field list honestly minimal. Any field added here will need a migration
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-fedramp-20x-ksi-finding-model-1 | Generic Slug | Implemented | `ENTITY_TYPE` is `"finding"`, not `"ksi_finding"`. | Preserves promotion-without-rename intent |
+| req-fedramp-20x-ksi-finding-model-1 | Owner-Namespaced Slug | Implemented | `ENTITY_TYPE` is `"fedramp_20x_ksi__finding"` — owner prefix + the verbatim `finding` name (no `ksi_` vendor prefix). | Owner-namespacing (`req-plugin-type-node-prefix`) supersedes the earlier bare-`finding` choice; promotion = owner re-affix, not concept rename |
 | req-fedramp-20x-ksi-finding-model-2 | Four-Field Shape | Implemented | Model exposes exactly `name`, `summary`, `description`, `status` as writable fields in v1. | |
 | req-fedramp-20x-ksi-finding-model-3 | Standard BaseModel Integration | Implemented | Model subclasses `BaseModel` and participates in the standard entity spine, history, and service-layer write pipeline. | |
 | req-fedramp-20x-ksi-finding-model-4 | Service-Layer Writes Only | Implemented | Application code and plugin code that creates or mutates findings does so via the service layer. | Matches TAP core architectural rule |
@@ -216,7 +216,7 @@ The `exception` entity represents a formal acceptance of one or more findings �
 #### Implementation
 
 - Python model lives at `plugins/fedramp_20x_ksi/models/exception.py`, class name `ComplianceException`, subclassing `BaseModel`. The class is named `ComplianceException` rather than `Exception` to avoid shadowing the Python built-in; the entity-type slug remains `"exception"` so GRIFT and service-layer strings are unaffected.
-- `ENTITY_TYPE = "exception"`. Intentionally generic — parallel to the choice not to prefix `finding` — because the model is slated for promotion to a general compliance plugin alongside Finding.
+- `ENTITY_TYPE = "fedramp_20x_ksi__exception"` (owner-namespaced per `req-plugin-type-node-prefix`, 2026-07-02 sweep) — the verbatim `exception` name under the owner prefix, parallel to `finding`. Promotion to a general compliance plugin alongside Finding is an owner re-affix, not a concept rename.
 - `ENTITY_NAME = "Exception"`.
 - `ENTITY_DESCRIPTION = "A formal acceptance of one or more findings, typically recording the rationale for not remediating."`
 - `ENTITY_ICON`: a new `exception` icon (or an interim fallback glyph) registered via the plugin's static assets.
@@ -239,7 +239,7 @@ The temptation to put `expiration_date`, `approver`, and `business_justification
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-fedramp-20x-ksi-exception-model-1 | Generic Slug | Implemented | `ENTITY_TYPE` is `"exception"`, not `"ksi_exception"` or `"compliance_exception"`. | Preserves promotion-without-rename intent |
+| req-fedramp-20x-ksi-exception-model-1 | Owner-Namespaced Slug | Implemented | `ENTITY_TYPE` is `"fedramp_20x_ksi__exception"` — owner prefix + the verbatim `exception` name (no `ksi_` vendor prefix). | Owner-namespacing (`req-plugin-type-node-prefix`) supersedes the earlier bare-`exception` choice; promotion = owner re-affix |
 | req-fedramp-20x-ksi-exception-model-2 | Three-Field Shape | Implemented | Model exposes exactly `name`, `description`, `status` as writable fields in v1. | |
 | req-fedramp-20x-ksi-exception-model-3 | Standard BaseModel Integration | Implemented | Model subclasses `BaseModel` and participates in the standard entity spine, history, and service-layer write pipeline. | |
 | req-fedramp-20x-ksi-exception-model-4 | Service-Layer Writes Only | Implemented | Application code and plugin code that creates or mutates exceptions does so via the service layer. | |

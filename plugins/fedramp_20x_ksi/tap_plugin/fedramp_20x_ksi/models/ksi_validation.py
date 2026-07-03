@@ -19,7 +19,7 @@ class KsiValidation(BaseModel):
     Spec: spec-fedramp-20x-ksi-compliance-artifacts-v0.md.
     """
 
-    ENTITY_TYPE: ClassVar[str] = "ksi_validation"
+    ENTITY_TYPE: ClassVar[str] = "fedramp_20x_ksi__ksi_validation"
     ENTITY_NAME: ClassVar[str] = "KSI Validation"
     ENTITY_DESCRIPTION: ClassVar[str] = (
         "One validation result a KSI signal carries — a policy pass/fail "
@@ -52,7 +52,7 @@ class KsiValidation(BaseModel):
     result = models.CharField(max_length=16, blank=True, default="", db_index=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "ksi_validation"
+        db_table = "fedramp_20x_ksi__ksi_validation"
 
     def get_name(self) -> str:
         return self.name

@@ -22,7 +22,7 @@ def _ctx() -> CallerContext:
 class TestObservationWrites:
     def _create(self, payload: dict, ctx: CallerContext | None = None) -> tuple[NetworkInterface, str]:
         ctx = ctx or _ctx()
-        result = create_node("network_interface", payload, caller_context=ctx)
+        result = create_node("computing_core__network_interface", payload, caller_context=ctx)
         assert result.success, result.errors
         return NetworkInterface.objects.get(entity_id=result.entity_id), ctx.batch_id
 

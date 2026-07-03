@@ -33,7 +33,7 @@ from .source import CustomFnRegistry
 def _s3_hydrate_ops() -> list[dict[str, str]]:
     """The manifest-declared S3 hydrate list (manifest is the source)."""
     for entry in manifest_entries():
-        if entry["entity_type"] == "aws_s3_bucket":
+        if entry["entity_type"] == "aws_core__aws_s3_bucket":
             ops: list[dict[str, str]] = entry.get("hydrate", [])
             return ops
     return []

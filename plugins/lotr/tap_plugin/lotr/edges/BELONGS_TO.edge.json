@@ -1,5 +1,5 @@
 {
-  "slug": "BELONGS_TO",
+  "slug": "BELONGS_TO__lotr",
   "name": "Belongs To",
   "description": "Character belongs to a race."
 }

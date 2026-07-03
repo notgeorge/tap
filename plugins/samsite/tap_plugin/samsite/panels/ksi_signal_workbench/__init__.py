@@ -35,7 +35,7 @@ def _children(signal_entity_id: str, edge_type: str, child_type: str) -> list[di
     The traversal envelope includes the source signal node too, so filter to
     the requested child type.
     """
-    query = f"MATCH (s:ksi_signal)-[:{edge_type}]->(c:{child_type}) WHERE s.entity_id = $id RETURN c"
+    query = f"MATCH (s:fedramp_20x_ksi__ksi_signal)-[:{edge_type}]->(c:{child_type}) WHERE s.entity_id = $id RETURN c"
     envelope = execute_gryphon_raw(query, {"id": signal_entity_id}, layer="extended")
     return [n.get("data") or {} for n in (envelope.get("nodes") or []) if n.get("entity_type") == child_type]
 
@@ -95,9 +95,9 @@ def build_context(panel: Any, request: Any) -> dict[str, Any]:
         "remarks": data.get("disclosure_remarks"),
     }
 
-    components = _children(sid, "DECLARES_COMPONENT", "ksi_component")
-    validations = _children(sid, "DECLARES_VALIDATION", "ksi_validation")
-    violations = _children(sid, "REPORTS_VIOLATION", "ksi_violation")
+    components = _children(sid, "DECLARES_COMPONENT__fedramp_20x_ksi", "fedramp_20x_ksi__ksi_component")
+    validations = _children(sid, "DECLARES_VALIDATION__fedramp_20x_ksi", "fedramp_20x_ksi__ksi_validation")
+    violations = _children(sid, "REPORTS_VIOLATION__fedramp_20x_ksi", "fedramp_20x_ksi__ksi_violation")
 
     comp_rows = [
         {

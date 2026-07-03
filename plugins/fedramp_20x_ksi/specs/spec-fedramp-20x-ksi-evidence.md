@@ -43,7 +43,7 @@ The `evidence` entity is a TAP-managed BaseModel with a minimal field set.
 
 `Evidence` is a `BaseModel` subclass at `plugins/fedramp_20x_ksi/models/evidence.py` with:
 
-- `ENTITY_TYPE = "evidence"`
+- `ENTITY_TYPE = "fedramp_20x_ksi__evidence"` (owner-namespaced per `req-plugin-type-node-prefix`, 2026-07-02 sweep)
 - `ENTITY_NAME = "Evidence"`
 - `ENTITY_ICON = "evidence"` (icon SVG deferred; sibling models like `finding` and `exception` follow the same pattern)
 - `DEFAULT_DIMENSIONS = {"compliance": "fedramp-20x"}`

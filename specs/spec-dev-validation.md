@@ -88,6 +88,7 @@ block. Rich per-surface rationale lives in each owning spec and in each guard's
 | Per-profile boot resolution | `req-dev-validation-smoke-gate` | Per-commit (`pytest`) + pre-push (`cold_boot_gate`) | CI-guarded + Gate-guarded | `tap_boot.guards.profile_resolution` (via `tap/tests/test_guards.py`) |
 | Plugin dependency consistency | `req-plugin-arch-dependencies-4` | Pre-boot (`python -m tap.preboot`) + per-commit (`pytest`) | CI-guarded | `tap_plugins.guards.dependency_consistency` (via `tap/tests/test_guards.py`) |
 | Plugin report contract | `req-plugin-arch-install-registry-3` | Per-commit (`pytest`) + on every report build | CI-guarded | `tap_plugins/tests/test_report.py` (schema validation) |
+| Plugin type-ownership affixes | `req-plugin-type-collision-loud` | Per-commit (`pytest`) | CI-guarded | `tap_plugins.guards.type_ownership` (via `tap/tests/test_guards.py`) |
 | Read-only search write detection | `req-grid-search-readonly` | Per-commit (`pytest`) | CI-guarded | `tap_grid/tests/test_search_readonly_guard.py` |
 | Recurring-task uniqueness | `req-tap-cares-task-backend-recurring-scope-4` | Per-commit (`pytest`) | CI-guarded | `tap_cares.guards.recurring` (via `tap/tests/test_guards.py`) |
 | Schedule grift target integrity | `req-tap-cares-collector-model-10` | Per-commit (`pytest`) | CI-guarded | `tap_cares.guards.schedule_grift` (via `tap/tests/test_guards.py`) |

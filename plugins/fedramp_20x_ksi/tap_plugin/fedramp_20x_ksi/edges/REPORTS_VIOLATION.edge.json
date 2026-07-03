@@ -1,9 +1,9 @@
 {
-  "slug": "REPORTS_VIOLATION",
+  "slug": "REPORTS_VIOLATION__fedramp_20x_ksi",
   "name": "Reports Violation",
   "description": "A failed KSI validation reports a specific policy violation. One edge per violations[] entry.",
-  "sources": ["ksi_validation"],
-  "targets": ["ksi_violation"],
+  "sources": ["fedramp_20x_ksi__ksi_validation"],
+  "targets": ["fedramp_20x_ksi__ksi_violation"],
   "default_dimensions": {
     "compliance": "ksi-signal"
   }

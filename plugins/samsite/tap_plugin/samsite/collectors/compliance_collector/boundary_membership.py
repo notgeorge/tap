@@ -53,7 +53,7 @@ SAMSITE_BOUNDARY_ENTITY_ID = "019e4afc-3e9f-76c9-8771-73ea77b8ff13"
 # same edge id rather than accumulating duplicates.
 _NAMESPACE_SAMSITE = uuid.uuid5(uuid.NAMESPACE_DNS, "tap.samsite.compliance_collector")
 
-_SCOPED_TO_BOUNDARY = "SCOPED_TO_BOUNDARY"
+_SCOPED_TO_BOUNDARY = "SCOPED_TO_BOUNDARY__fedramp_20x_ksi"
 
 # Machine-readable marker stamped on every kludge edge (see FUTURE SEAM above).
 KLUDGE_MARKER = "all-aws-accounts-auto-in-boundary-v0"
@@ -79,7 +79,7 @@ def fetch_aws_account_entity_ids() -> list[str]:
     # unit tests that don't touch the grid.
     from tap_grid.gryphon import execute_gryphon_raw
 
-    envelope = execute_gryphon_raw("MATCH (a:aws_account) RETURN a", inputs={})
+    envelope = execute_gryphon_raw("MATCH (a:aws_core__aws_account) RETURN a", inputs={})
     ids: list[str] = []
     for node in envelope.get("nodes", []) or []:
         # execute_gryphon_raw returns the flat canonical node envelope, where

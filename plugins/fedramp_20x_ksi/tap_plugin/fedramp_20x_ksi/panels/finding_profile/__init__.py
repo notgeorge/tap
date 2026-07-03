@@ -169,7 +169,7 @@ class KsiFindingProfilePanelType:
                 nodes_by_id[eid] = n
 
         finding_node = nodes_by_id.get(entity_id)
-        if finding_node is None or (finding_node.get("entity") or {}).get("entity_type") != "finding":
+        if finding_node is None or (finding_node.get("entity") or {}).get("entity_type") != "fedramp_20x_ksi__finding":
             return {"finding_error": "Finding not found.", "finding": None}
 
         f_ent = finding_node.get("entity") or {}
@@ -186,7 +186,7 @@ class KsiFindingProfilePanelType:
             to_id = ebody.get("to_entity_id")
             props = ebody.get("properties") or {}
 
-            if etype == "HAS_FINDING" and to_id == entity_id:
+            if etype == "HAS_FINDING__fedramp_20x_ksi" and to_id == entity_id:
                 sys_node = nodes_by_id.get(from_id or "")
                 if sys_node is None:
                     continue
@@ -199,7 +199,7 @@ class KsiFindingProfilePanelType:
                         "name": sys_ent.get("name") or sys_body.get("name") or "",
                     }
                 )
-            elif etype == "RELATED_INDICATOR" and from_id == entity_id:
+            elif etype == "RELATED_INDICATOR__fedramp_20x_ksi" and from_id == entity_id:
                 ksi_node = nodes_by_id.get(to_id or "")
                 if ksi_node is None:
                     continue
@@ -214,7 +214,7 @@ class KsiFindingProfilePanelType:
                         "relationship_type": props.get("relationship_type", ""),
                     }
                 )
-            elif etype == "HAS_EVIDENCE" and from_id == entity_id:
+            elif etype == "HAS_EVIDENCE__fedramp_20x_ksi" and from_id == entity_id:
                 ev_node = nodes_by_id.get(to_id or "")
                 if ev_node is None:
                     continue

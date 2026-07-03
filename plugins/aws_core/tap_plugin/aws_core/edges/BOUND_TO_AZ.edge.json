@@ -1,12 +1,12 @@
 {
-  "slug": "BOUND_TO_AZ",
+  "slug": "BOUND_TO_AZ__aws_core",
   "name": "Bound To AZ",
   "description": "A subnet is bound to one availability zone.",
   "sources": [
-    "aws_subnet"
+    "aws_core__aws_subnet"
   ],
   "targets": [
-    "aws_az"
+    "aws_core__aws_az"
   ],
   "default_dimensions": {
     "tap.cloud": "aws"

@@ -53,7 +53,7 @@ def resolve_kev_catalog_entity_id() -> str | None:
         },
         definition={
             "query": [
-                "MATCH (d:web_document)",
+                "MATCH (d:computing_core__web_document)",
                 "WHERE d.data.url = $url",
                 "RETURN d",
             ]
@@ -70,7 +70,7 @@ def resolve_kev_catalog_entity_id() -> str | None:
 
 def fetches_edge_envelope(deploy_workflow_entity_id: str, kev_catalog_entity_id: str) -> dict[str, Any]:
     """Build the ``FETCHES`` edge envelope: deploy workflow → KEV catalog."""
-    edge_id = str(edge_entity_id("FETCHES", deploy_workflow_entity_id, kev_catalog_entity_id))
+    edge_id = str(edge_entity_id("FETCHES__computing_core", deploy_workflow_entity_id, kev_catalog_entity_id))
     return {
         "entity": {
             "entity_id": edge_id,
@@ -81,7 +81,7 @@ def fetches_edge_envelope(deploy_workflow_entity_id: str, kev_catalog_entity_id:
         "edge": {
             "from_entity_id": deploy_workflow_entity_id,
             "to_entity_id": kev_catalog_entity_id,
-            "edge_type": "FETCHES",
+            "edge_type": "FETCHES__computing_core",
             "properties": {},
         },
     }

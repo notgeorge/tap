@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class NetworkInterface(BaseModel):
     """An operating-system-level network interface."""
 
-    ENTITY_TYPE: ClassVar[str] = "network_interface"
+    ENTITY_TYPE: ClassVar[str] = "computing_core__network_interface"
     ENTITY_NAME: ClassVar[str] = "Network Interface"
     ENTITY_DESCRIPTION: ClassVar[str] = "An OS-level network interface such as eth0 or a virtual equivalent."
     ENTITY_ICON: ClassVar[str] = "network-interface"
@@ -70,7 +70,7 @@ class NetworkInterface(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "computing_network_interface"
+        db_table = "computing_core__network_interface"
 
     def get_name(self) -> str:
         return self.name or self.interface_name

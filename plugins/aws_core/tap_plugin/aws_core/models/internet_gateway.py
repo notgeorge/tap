@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class InternetGateway(BaseModel):
     """An Amazon VPC internet gateway."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_internet_gateway"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_internet_gateway"
     ENTITY_NAME: ClassVar[str] = "Internet Gateway"
     ENTITY_DESCRIPTION: ClassVar[str] = "An Amazon VPC internet gateway."
     ENTITY_ICON: ClassVar[str] = "aws-internet-gateway"
@@ -44,7 +44,7 @@ class InternetGateway(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_internet_gateway"
+        db_table = "aws_core__aws_internet_gateway"
 
     def get_name(self) -> str:
         return self.name or self.igw_id

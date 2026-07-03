@@ -96,7 +96,7 @@ class TestFourPieceFragment:
             dimensions={},
         )
         types = {e["entity_type"] for e in fragment.entities}
-        assert types == {"sigstore_ca", "rekor_log_entry"}
+        assert types == {"sigstore_core__sigstore_ca", "sigstore_core__rekor_log_entry"}
 
     def test_edges_are_cert_issued_by_and_attested_by(self) -> None:
         fragment = bundle_to_grift_fragment(
@@ -106,7 +106,7 @@ class TestFourPieceFragment:
             dimensions={},
         )
         types = {e["edge_type"] for e in fragment.edges}
-        assert types == {"CERT_ISSUED_BY", "ATTESTED_BY"}
+        assert types == {"CERT_ISSUED_BY__sigstore_core", "ATTESTED_BY__sigstore_core"}
 
 
 class TestFivePieceFragmentWithIdentity:
@@ -129,10 +129,10 @@ class TestFivePieceFragmentWithIdentity:
         assert len(fragment.edges) == 4
         types = {e["edge_type"] for e in fragment.edges}
         assert types == {
-            "CERT_ISSUED_BY",
-            "ATTESTED_BY",
-            "SIGNED_BY_IDENTITY",
-            "REQUESTS_SIGSTORE_SIGNATURE",
+            "CERT_ISSUED_BY__sigstore_core",
+            "ATTESTED_BY__sigstore_core",
+            "SIGNED_BY_IDENTITY__sigstore_core",
+            "REQUESTS_SIGSTORE_SIGNATURE__sigstore_core",
         }
 
     def test_requests_signature_edge_runs_identity_to_ca(self) -> None:
@@ -143,10 +143,10 @@ class TestFivePieceFragmentWithIdentity:
             dimensions={},
             signing_identity_entity_id="github-workflow-42",
         )
-        requests = next(e for e in fragment.edges if e["edge_type"] == "REQUESTS_SIGSTORE_SIGNATURE")
+        requests = next(e for e in fragment.edges if e["edge_type"] == "REQUESTS_SIGSTORE_SIGNATURE__sigstore_core")
         # Source is the signing identity; target is the issuing Fulcio CA node.
         assert requests["source_entity_id"] == "github-workflow-42"
-        ca = next(e for e in fragment.entities if e["entity_type"] == "sigstore_ca")
+        ca = next(e for e in fragment.entities if e["entity_type"] == "sigstore_core__sigstore_ca")
         assert requests["target_entity_id"] == ca["entity_id"]
 
     def test_signed_by_identity_edge_targets_the_supplied_entity(self) -> None:
@@ -157,10 +157,10 @@ class TestFivePieceFragmentWithIdentity:
             dimensions={},
             signing_identity_entity_id="github-workflow-42",
         )
-        signed = next(e for e in fragment.edges if e["edge_type"] == "SIGNED_BY_IDENTITY")
+        signed = next(e for e in fragment.edges if e["edge_type"] == "SIGNED_BY_IDENTITY__sigstore_core")
         assert signed["target_entity_id"] == "github-workflow-42"
         # Source is the Rekor entry — same id as the log_entry node's entity_id.
-        entry = next(e for e in fragment.entities if e["entity_type"] == "rekor_log_entry")
+        entry = next(e for e in fragment.entities if e["entity_type"] == "sigstore_core__rekor_log_entry")
         assert signed["source_entity_id"] == entry["entity_id"]
 
 
@@ -186,7 +186,7 @@ class TestFailedVerdictEmitted:
             policy=_policy(),
             dimensions={},
         )
-        attested = next(e for e in fragment.edges if e["edge_type"] == "ATTESTED_BY")
+        attested = next(e for e in fragment.edges if e["edge_type"] == "ATTESTED_BY__sigstore_core")
         assert attested["properties"]["signature_verified"] is False
         assert attested["properties"]["verification_failure_code"] == "policy_mismatch"
         assert attested["properties"]["verification_failure_detail"] == "wrong repo"
@@ -203,8 +203,8 @@ class TestAttestedByPolicyAttributes:
             policy=_policy(),
             dimensions={},
         )
-        attested = next(e for e in fragment.edges if e["edge_type"] == "ATTESTED_BY")
-        assert attested["properties"]["policy_kind"] == "github_workflow"
+        attested = next(e for e in fragment.edges if e["edge_type"] == "ATTESTED_BY__sigstore_core")
+        assert attested["properties"]["policy_kind"] == "github_core__github_workflow"
         assert attested["properties"]["policy_oidc_issuer"] == "https://token.actions.githubusercontent.com"
         assert attested["properties"]["policy_github_repository"] == "example/repo"
 
@@ -222,7 +222,7 @@ class TestAttestedByPolicyAttributes:
             policy=policy,
             dimensions={},
         )
-        attested = next(e for e in fragment.edges if e["edge_type"] == "ATTESTED_BY")
+        attested = next(e for e in fragment.edges if e["edge_type"] == "ATTESTED_BY__sigstore_core")
         assert attested["properties"]["policy_workflow_identity_uri"].endswith("@refs/heads/main")
         assert attested["properties"]["policy_workflow_ref"] == "refs/heads/main"
         assert attested["properties"]["policy_workflow_sha"].startswith("0123456789")
@@ -234,7 +234,7 @@ class TestAttestedByPolicyAttributes:
             policy=_policy(),  # only required fields
             dimensions={},
         )
-        attested = next(e for e in fragment.edges if e["edge_type"] == "ATTESTED_BY")
+        attested = next(e for e in fragment.edges if e["edge_type"] == "ATTESTED_BY__sigstore_core")
         for absent_key in ("policy_workflow_identity_uri", "policy_workflow_ref", "policy_workflow_sha"):
             assert absent_key not in attested["properties"]
 
@@ -247,7 +247,7 @@ class TestSigstoreCaUpsert:
             policy=_policy(),
             dimensions={},
         )
-        ca = next(e for e in fragment.entities if e["entity_type"] == "sigstore_ca")
+        ca = next(e for e in fragment.entities if e["entity_type"] == "sigstore_core__sigstore_ca")
         assert ca["fields"]["ca_url"] == PUBLIC_GOOD_FULCIO_URL
         assert ca["fields"]["ca_kind"] == "fulcio"
         assert ca["fields"]["trust_root_source"] == "tuf-public-good"
@@ -266,7 +266,7 @@ class TestRekorLogEntryFields:
             policy=_policy(),
             dimensions={},
         )
-        entry = next(e for e in fragment.entities if e["entity_type"] == "rekor_log_entry")
+        entry = next(e for e in fragment.entities if e["entity_type"] == "sigstore_core__rekor_log_entry")
         verdict_leakage = {
             "signature_verified",
             "verified_at",
@@ -285,7 +285,7 @@ class TestRekorLogEntryFields:
             policy=_policy(),
             dimensions={},
         )
-        entry = next(e for e in fragment.entities if e["entity_type"] == "rekor_log_entry")
+        entry = next(e for e in fragment.entities if e["entity_type"] == "sigstore_core__rekor_log_entry")
         f = entry["fields"]
         assert f["log_key_id"] == "abcdef0123456789"
         assert f["log_index"] == 42
@@ -322,8 +322,8 @@ class TestDeterministicEntityIds:
         r2.rekor_log_index = "99"
         f1 = bundle_to_grift_fragment(r1, anchor_entity_id="anchor-1", policy=_policy(), dimensions={})
         f2 = bundle_to_grift_fragment(r2, anchor_entity_id="anchor-1", policy=_policy(), dimensions={})
-        e1 = next(e for e in f1.entities if e["entity_type"] == "rekor_log_entry")
-        e2 = next(e for e in f2.entities if e["entity_type"] == "rekor_log_entry")
+        e1 = next(e for e in f1.entities if e["entity_type"] == "sigstore_core__rekor_log_entry")
+        e2 = next(e for e in f2.entities if e["entity_type"] == "sigstore_core__rekor_log_entry")
         assert e1["entity_id"] != e2["entity_id"]
 
 

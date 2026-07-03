@@ -1,12 +1,12 @@
 {
-  "slug": "LISTENS_ON",
+  "slug": "LISTENS_ON__computing_core",
   "name": "Listens On",
   "description": "A program listens on a port for incoming connections.",
   "sources": [
-    "program"
+    "computing_core__program"
   ],
   "targets": [
-    "port"
+    "computing_core__port"
   ],
   "default_dimensions": {
     "tap.computing": "runtime"

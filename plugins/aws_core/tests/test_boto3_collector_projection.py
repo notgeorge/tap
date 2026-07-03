@@ -20,7 +20,7 @@ from tap_plugin.aws_core.collectors.boto3_collector.projection import (
 
 # A representative manifest entry (the v0 Lambda entry's shape).
 LAMBDA_ENTRY = {
-    "entity_type": "aws_lambda",
+    "entity_type": "aws_core__aws_lambda",
     "service": "lambda",
     "source": {"aws_op": "ListFunctions"},
     "why": "Enumerate Lambda functions.",
@@ -51,7 +51,7 @@ def _lambda_item():
 class TestProjectItem:
     def test_declared_fields_mapped(self):
         node = project_item(LAMBDA_ENTRY, _lambda_item())
-        assert node.entity_type == "aws_lambda"
+        assert node.entity_type == "aws_core__aws_lambda"
         assert node.fields == {
             "name": "sam-handler",
             "function_arn": "arn:aws:lambda:us-east-1:1:function:sam-handler",
@@ -99,7 +99,7 @@ class TestProjectItem:
         a = project_item(LAMBDA_ENTRY, _lambda_item())
         b = project_item(LAMBDA_ENTRY, _lambda_item())
         assert a.entity_id == b.entity_id
-        assert a.entity_id == node_entity_id("aws_lambda", a.natural_key)
+        assert a.entity_id == node_entity_id("aws_core__aws_lambda", a.natural_key)
         other = _lambda_item()
         other["FunctionArn"] = "arn:aws:lambda:us-east-1:1:function:other"
         assert project_item(LAMBDA_ENTRY, other).entity_id != a.entity_id

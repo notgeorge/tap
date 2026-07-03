@@ -1,5 +1,5 @@
 {
-  "slug": "GENERATES_FILE",
+  "slug": "GENERATES_FILE__computing_core",
   "name": "Generates File",
   "description": "A producing entity generated this file/artifact. Vendor-neutral: source = the producer (e.g. a CI/CD workflow or a program), target = the produced file. Both sides are intentionally wildcard for now — v0 is emitted by the samsite collector as github_workflow -> signed compliance artifact, and the target will become computing_core.file once dedicated file nodes are minted. The producer is, in v0, taken from the Sigstore signing identity (the deploy workflow both builds and signs the artifact, so the signer is inferred to be the producer); that inference is disclosed per-edge in properties.basis rather than treated as collected build provenance.",
   "property_schema": {

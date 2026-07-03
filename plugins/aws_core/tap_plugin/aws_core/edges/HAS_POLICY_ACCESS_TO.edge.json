@@ -1,10 +1,10 @@
 {
-  "slug": "HAS_POLICY_ACCESS_TO",
+  "slug": "HAS_POLICY_ACCESS_TO__aws_core",
   "name": "Has Policy Access To",
   "description": "IAM identity has access to a resource via policy grants.",
   "sources": [
-    "aws_iam_user",
-    "aws_iam_role"
+    "aws_core__aws_iam_user",
+    "aws_core__aws_iam_role"
   ],
   "property_schema": {
     "type": "object",

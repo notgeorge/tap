@@ -4,10 +4,25 @@ spec: tap_plugins/specs/spec-plugin-type-ownership-v0.md
 audience:
   - llm
   - developer
-status: runbook
+status: executed
 ---
 
 # Plugin Type-Ownership Rename Sweep — Runbook & Rename Map
+
+> **EXECUTED 2026-07-02.** The sweep landed: all 6 producer plugins + `samsite`
+> cross-refs renamed to `<slug>__<name>` (node) / `<NAME>__<slug>` (edge), table
+> renames migrated, `req-plugin-type-node-prefix` / `-edge-suffix` /
+> `-collision-loud` marked Implemented, and the fail-CI affix guard
+> (`tap_plugins.guards.type_ownership`) added. Beyond the map below, execution
+> surfaced reference classes the prep under-counted: edge-JSON `sources`/`targets`
+> endpoint arrays; collector-manifest `source_entity_type`/`target_entity_type`
+> keys; cross-*producer* refs (github→aws), not just samsite; core-test refs
+> (`tap_grid`/`tap_api` gryphon + observation tests use `computing_core__network_interface`
+> / `lotr__character`); constraint-test error-message substrings; gridkin SQL-snapshot
+> oracles; the collector-manifest slug schema `pattern`; and a `by_entity_type`
+> dict-key assertion. **Not** renamed (a separate namespace): dimension VALUES —
+> the `compliance` dimension keeps the bare `"boundary"`. The runbook below is
+> retained as the historical rename map.
 
 Prep for the deferred `<slug>__<name>` / `<NAME>__<slug>` sweep
 (`spec-plugin-type-ownership-v0`, `req-plugin-type-node-prefix` / `-edge-suffix`, both `Proposed`).

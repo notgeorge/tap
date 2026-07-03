@@ -1,5 +1,5 @@
 {
-  "slug": "BACKED_BY",
+  "slug": "BACKED_BY__aws_core",
   "name": "Backed By",
   "description": "Service is backed by an underlying resource (ECS service by target group, ALB by ACM cert, etc.).",
   "property_schema": {

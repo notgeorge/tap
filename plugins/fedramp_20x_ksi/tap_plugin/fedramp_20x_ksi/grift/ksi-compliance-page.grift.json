@@ -32,7 +32,7 @@
             "search_type": "gryphon",
             "root": "node",
             "definition": {
-              "query": "MATCH (t:ksi_theme)-[e:CONTAINS_INDICATOR]->(i:ksi_indicator)"
+              "query": "MATCH (t:fedramp_20x_ksi__ksi_theme)-[e:CONTAINS_INDICATOR__fedramp_20x_ksi]->(i:fedramp_20x_ksi__ksi_indicator)"
             },
             "default_limit": 200,
             "max_limit": 500

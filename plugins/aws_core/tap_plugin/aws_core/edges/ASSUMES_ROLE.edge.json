@@ -1,15 +1,15 @@
 {
-  "slug": "ASSUMES_ROLE",
+  "slug": "ASSUMES_ROLE__aws_core",
   "name": "Assumes Role",
   "description": "An IAM user, IAM role, Lambda function, or EventBridge rule assumes an IAM role.",
   "sources": [
-    "aws_iam_user",
-    "aws_iam_role",
-    "aws_lambda",
-    "aws_eventbridge_rule"
+    "aws_core__aws_iam_user",
+    "aws_core__aws_iam_role",
+    "aws_core__aws_lambda",
+    "aws_core__aws_eventbridge_rule"
   ],
   "targets": [
-    "aws_iam_role"
+    "aws_core__aws_iam_role"
   ],
   "default_dimensions": {
     "tap.cloud": "aws"

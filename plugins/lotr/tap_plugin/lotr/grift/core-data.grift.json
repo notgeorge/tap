@@ -20,7 +20,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e7227af51213",
-            "entity_type": "character",
+            "entity_type": "lotr__character",
             "name": "Frodo Baggins",
             "dimensions": {}
           },
@@ -32,7 +32,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e72302b48397",
-            "entity_type": "character",
+            "entity_type": "lotr__character",
             "name": "Gandalf",
             "dimensions": {}
           },
@@ -44,7 +44,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e72464f31a6c",
-            "entity_type": "character",
+            "entity_type": "lotr__character",
             "name": "Aragorn",
             "dimensions": {}
           },
@@ -56,7 +56,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e72528647a90",
-            "entity_type": "character",
+            "entity_type": "lotr__character",
             "name": "Samwise Gamgee",
             "dimensions": {}
           },
@@ -68,7 +68,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e726b466c82c",
-            "entity_type": "character",
+            "entity_type": "lotr__character",
             "name": "Legolas",
             "dimensions": {}
           },
@@ -80,7 +80,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e7274200a5de",
-            "entity_type": "character",
+            "entity_type": "lotr__character",
             "name": "Gimli",
             "dimensions": {}
           },
@@ -92,7 +92,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e728bd6dfff6",
-            "entity_type": "character",
+            "entity_type": "lotr__character",
             "name": "Sauron",
             "dimensions": {}
           },
@@ -104,7 +104,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e7290b82793f",
-            "entity_type": "character",
+            "entity_type": "lotr__character",
             "name": "Bilbo Baggins",
             "dimensions": {}
           },
@@ -116,7 +116,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e72a450d9cbb",
-            "entity_type": "location",
+            "entity_type": "lotr__location",
             "name": "The Shire",
             "dimensions": {}
           },
@@ -129,7 +129,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e72bef051c2c",
-            "entity_type": "location",
+            "entity_type": "lotr__location",
             "name": "Rivendell",
             "dimensions": {}
           },
@@ -142,7 +142,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e72c3d66223e",
-            "entity_type": "location",
+            "entity_type": "lotr__location",
             "name": "Mordor",
             "dimensions": {}
           },
@@ -155,7 +155,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e72dc2c0fafa",
-            "entity_type": "location",
+            "entity_type": "lotr__location",
             "name": "Gondor",
             "dimensions": {}
           },
@@ -168,7 +168,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e72e599154d9",
-            "entity_type": "location",
+            "entity_type": "lotr__location",
             "name": "Minas Tirith",
             "dimensions": {}
           },
@@ -181,7 +181,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e72fb90a0e5d",
-            "entity_type": "location",
+            "entity_type": "lotr__location",
             "name": "Mount Doom",
             "dimensions": {}
           },
@@ -194,7 +194,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e73069874610",
-            "entity_type": "location",
+            "entity_type": "lotr__location",
             "name": "Mirkwood",
             "dimensions": {}
           },
@@ -207,7 +207,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e731376dd21a",
-            "entity_type": "artifact",
+            "entity_type": "lotr__artifact",
             "name": "The One Ring",
             "dimensions": {}
           },
@@ -220,7 +220,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e732044e5419",
-            "entity_type": "artifact",
+            "entity_type": "lotr__artifact",
             "name": "Sting",
             "dimensions": {}
           },
@@ -233,7 +233,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e733978ef16a",
-            "entity_type": "artifact",
+            "entity_type": "lotr__artifact",
             "name": "Anduril",
             "dimensions": {}
           },
@@ -246,7 +246,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e73408b97621",
-            "entity_type": "artifact",
+            "entity_type": "lotr__artifact",
             "name": "Glamdring",
             "dimensions": {}
           },
@@ -259,7 +259,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e73596623921",
-            "entity_type": "race",
+            "entity_type": "lotr__race",
             "name": "Hobbits",
             "dimensions": {}
           },
@@ -272,7 +272,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e736455044bb",
-            "entity_type": "race",
+            "entity_type": "lotr__race",
             "name": "Elves",
             "dimensions": {}
           },
@@ -285,7 +285,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e737ea57fbae",
-            "entity_type": "race",
+            "entity_type": "lotr__race",
             "name": "Dwarves",
             "dimensions": {}
           },
@@ -298,7 +298,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e738875ad282",
-            "entity_type": "race",
+            "entity_type": "lotr__race",
             "name": "Men",
             "dimensions": {}
           },
@@ -311,7 +311,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e7390cc2b5bf",
-            "entity_type": "race",
+            "entity_type": "lotr__race",
             "name": "Wizards",
             "dimensions": {}
           },
@@ -324,7 +324,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e73aa970d070",
-            "entity_type": "faction",
+            "entity_type": "lotr__faction",
             "name": "Fellowship of the Ring",
             "dimensions": {}
           },
@@ -336,7 +336,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e73b346d97b1",
-            "entity_type": "faction",
+            "entity_type": "lotr__faction",
             "name": "Forces of Mordor",
             "dimensions": {}
           },
@@ -348,7 +348,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e73cf30f5c71",
-            "entity_type": "faction",
+            "entity_type": "lotr__faction",
             "name": "Rohan",
             "dimensions": {}
           },
@@ -360,7 +360,7 @@
         {
           "entity": {
             "entity_id": "019dd143-3e8f-73e4-b0fa-e78a7eeceb2e",
-            "entity_type": "realm",
+            "entity_type": "lotr__realm",
             "name": "Middle-earth",
             "dimensions": {}
           },
@@ -381,7 +381,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e7227af51213",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e731376dd21a",
-            "edge_type": "WIELDS",
+            "edge_type": "WIELDS__lotr",
             "properties": {}
           }
         },
@@ -395,7 +395,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e7227af51213",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e732044e5419",
-            "edge_type": "WIELDS",
+            "edge_type": "WIELDS__lotr",
             "properties": {}
           }
         },
@@ -409,7 +409,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72464f31a6c",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e733978ef16a",
-            "edge_type": "WIELDS",
+            "edge_type": "WIELDS__lotr",
             "properties": {}
           }
         },
@@ -423,7 +423,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72302b48397",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e73408b97621",
-            "edge_type": "WIELDS",
+            "edge_type": "WIELDS__lotr",
             "properties": {}
           }
         },
@@ -437,7 +437,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e7227af51213",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e73596623921",
-            "edge_type": "BELONGS_TO",
+            "edge_type": "BELONGS_TO__lotr",
             "properties": {}
           }
         },
@@ -451,7 +451,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72528647a90",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e73596623921",
-            "edge_type": "BELONGS_TO",
+            "edge_type": "BELONGS_TO__lotr",
             "properties": {}
           }
         },
@@ -465,7 +465,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e7290b82793f",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e73596623921",
-            "edge_type": "BELONGS_TO",
+            "edge_type": "BELONGS_TO__lotr",
             "properties": {}
           }
         },
@@ -479,7 +479,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72302b48397",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e7390cc2b5bf",
-            "edge_type": "BELONGS_TO",
+            "edge_type": "BELONGS_TO__lotr",
             "properties": {}
           }
         },
@@ -493,7 +493,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72464f31a6c",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e738875ad282",
-            "edge_type": "BELONGS_TO",
+            "edge_type": "BELONGS_TO__lotr",
             "properties": {}
           }
         },
@@ -507,7 +507,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e726b466c82c",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e736455044bb",
-            "edge_type": "BELONGS_TO",
+            "edge_type": "BELONGS_TO__lotr",
             "properties": {}
           }
         },
@@ -521,7 +521,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e7274200a5de",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e737ea57fbae",
-            "edge_type": "BELONGS_TO",
+            "edge_type": "BELONGS_TO__lotr",
             "properties": {}
           }
         },
@@ -535,7 +535,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e7227af51213",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72c3d66223e",
-            "edge_type": "LOCATED_IN",
+            "edge_type": "LOCATED_IN__lotr",
             "properties": {}
           }
         },
@@ -549,7 +549,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e7290b82793f",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72a450d9cbb",
-            "edge_type": "LOCATED_IN",
+            "edge_type": "LOCATED_IN__lotr",
             "properties": {}
           }
         },
@@ -563,7 +563,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e728bd6dfff6",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72c3d66223e",
-            "edge_type": "LOCATED_IN",
+            "edge_type": "LOCATED_IN__lotr",
             "properties": {}
           }
         },
@@ -577,7 +577,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e726b466c82c",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72dc2c0fafa",
-            "edge_type": "LOCATED_IN",
+            "edge_type": "LOCATED_IN__lotr",
             "properties": {}
           }
         },
@@ -591,7 +591,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e7227af51213",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e73aa970d070",
-            "edge_type": "MEMBER_OF",
+            "edge_type": "MEMBER_OF__lotr",
             "properties": {}
           }
         },
@@ -605,7 +605,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72302b48397",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e73aa970d070",
-            "edge_type": "MEMBER_OF",
+            "edge_type": "MEMBER_OF__lotr",
             "properties": {}
           }
         },
@@ -619,7 +619,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72464f31a6c",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e73aa970d070",
-            "edge_type": "MEMBER_OF",
+            "edge_type": "MEMBER_OF__lotr",
             "properties": {}
           }
         },
@@ -633,7 +633,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72528647a90",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e73aa970d070",
-            "edge_type": "MEMBER_OF",
+            "edge_type": "MEMBER_OF__lotr",
             "properties": {}
           }
         },
@@ -647,7 +647,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e726b466c82c",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e73aa970d070",
-            "edge_type": "MEMBER_OF",
+            "edge_type": "MEMBER_OF__lotr",
             "properties": {}
           }
         },
@@ -661,7 +661,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e7274200a5de",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e73aa970d070",
-            "edge_type": "MEMBER_OF",
+            "edge_type": "MEMBER_OF__lotr",
             "properties": {}
           }
         },
@@ -675,7 +675,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e728bd6dfff6",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e73b346d97b1",
-            "edge_type": "MEMBER_OF",
+            "edge_type": "MEMBER_OF__lotr",
             "properties": {}
           }
         },
@@ -689,7 +689,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e7227af51213",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72528647a90",
-            "edge_type": "ALLIES_WITH",
+            "edge_type": "ALLIES_WITH__lotr",
             "properties": {}
           }
         },
@@ -703,7 +703,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72464f31a6c",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72302b48397",
-            "edge_type": "ALLIES_WITH",
+            "edge_type": "ALLIES_WITH__lotr",
             "properties": {}
           }
         },
@@ -717,7 +717,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e726b466c82c",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e7274200a5de",
-            "edge_type": "ALLIES_WITH",
+            "edge_type": "ALLIES_WITH__lotr",
             "properties": {}
           }
         },
@@ -731,7 +731,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72302b48397",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e728bd6dfff6",
-            "edge_type": "ENEMIES_WITH",
+            "edge_type": "ENEMIES_WITH__lotr",
             "properties": {}
           }
         },
@@ -745,7 +745,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72464f31a6c",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e728bd6dfff6",
-            "edge_type": "ENEMIES_WITH",
+            "edge_type": "ENEMIES_WITH__lotr",
             "properties": {}
           }
         },
@@ -759,7 +759,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e731376dd21a",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72fb90a0e5d",
-            "edge_type": "FORGED_IN",
+            "edge_type": "FORGED_IN__lotr",
             "properties": {}
           }
         },
@@ -773,7 +773,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72c3d66223e",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72fb90a0e5d",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__lotr",
             "properties": {}
           }
         },
@@ -787,7 +787,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72dc2c0fafa",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72e599154d9",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__lotr",
             "properties": {}
           }
         },
@@ -801,7 +801,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72464f31a6c",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72dc2c0fafa",
-            "edge_type": "RULES",
+            "edge_type": "RULES__lotr",
             "properties": {}
           }
         },
@@ -815,7 +815,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e728bd6dfff6",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72c3d66223e",
-            "edge_type": "RULES",
+            "edge_type": "RULES__lotr",
             "properties": {}
           }
         },
@@ -829,7 +829,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e73aa970d070",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e73b346d97b1",
-            "edge_type": "ENEMIES_WITH",
+            "edge_type": "ENEMIES_WITH__lotr",
             "properties": {}
           }
         },
@@ -843,7 +843,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e73aa970d070",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e73cf30f5c71",
-            "edge_type": "ALLIES_WITH",
+            "edge_type": "ALLIES_WITH__lotr",
             "properties": {}
           }
         },
@@ -857,7 +857,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72302b48397",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e7227af51213",
-            "edge_type": "MENTORS",
+            "edge_type": "MENTORS__lotr",
             "properties": {
               "discipline": "wizardry"
             }
@@ -873,7 +873,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e7290b82793f",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e7227af51213",
-            "edge_type": "MENTORS",
+            "edge_type": "MENTORS__lotr",
             "properties": {
               "discipline": "adventure"
             }
@@ -889,7 +889,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72528647a90",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72c3d66223e",
-            "edge_type": "LOCATED_IN",
+            "edge_type": "LOCATED_IN__lotr",
             "properties": {}
           }
         },
@@ -903,7 +903,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72302b48397",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72dc2c0fafa",
-            "edge_type": "LOCATED_IN",
+            "edge_type": "LOCATED_IN__lotr",
             "properties": {}
           }
         },
@@ -917,7 +917,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e72464f31a6c",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72dc2c0fafa",
-            "edge_type": "LOCATED_IN",
+            "edge_type": "LOCATED_IN__lotr",
             "properties": {}
           }
         },
@@ -931,7 +931,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e78a7eeceb2e",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72a450d9cbb",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__lotr",
             "properties": {}
           }
         },
@@ -945,7 +945,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e78a7eeceb2e",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72bef051c2c",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__lotr",
             "properties": {}
           }
         },
@@ -959,7 +959,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e78a7eeceb2e",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72c3d66223e",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__lotr",
             "properties": {}
           }
         },
@@ -973,7 +973,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e78a7eeceb2e",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e72dc2c0fafa",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__lotr",
             "properties": {}
           }
         },
@@ -987,7 +987,7 @@
           "edge": {
             "from_entity_id": "019dd143-3e8f-73e4-b0fa-e78a7eeceb2e",
             "to_entity_id": "019dd143-3e8f-73e4-b0fa-e73069874610",
-            "edge_type": "CONTAINS",
+            "edge_type": "CONTAINS__lotr",
             "properties": {}
           }
         }

@@ -54,13 +54,13 @@ const SCOPE_BOXES = GROUPS.filter((g) => g.key !== "bootstrap").map((g) => ({lab
 // Same nesting rules as before — parent assignment is position-independent, so it
 // runs here once the leaf positions (incl. github + sigstore) are settled.
 const NESTING_RELATIONSHIPS = [
-    {name: "boundary-contains-account", gryphon: "(parent:boundary)<-[:SCOPED_TO_BOUNDARY]-(child:aws_account)"},
-    {name: "account-owns-resource",     dimension_match: {parent_type: "aws_account", dimension: "aws_account"}},
-    {name: "platform-hosts-account",    gryphon: "(parent:github_platform)-[:HOSTS_ACCOUNT]->(child:github_account)"},
-    {name: "account-owns-repo",         gryphon: "(parent:github_account)-[:OWNS_REPO]->(child:github_repository)"},
-    {name: "repo-defines-workflow",     gryphon: "(parent:github_repository)-[:DEFINES_WORKFLOW]->(child:github_workflow)"},
-    {name: "ca-contains-entries",       gryphon: "(parent:sigstore_ca)<-[:CERT_ISSUED_BY]-(child:rekor_log_entry)"},
-    {name: "host-hosts-document",       gryphon: "(parent:web_host)<-[:HOSTED_BY]-(child:web_document)"},
+    {name: "boundary-contains-account", gryphon: "(parent:fedramp_20x_ksi__boundary)<-[:SCOPED_TO_BOUNDARY__fedramp_20x_ksi]-(child:aws_core__aws_account)"},
+    {name: "account-owns-resource",     dimension_match: {parent_type: "aws_core__aws_account", dimension: "aws_account"}},
+    {name: "platform-hosts-account",    gryphon: "(parent:github_core__github_platform)-[:HOSTS_ACCOUNT__github_core]->(child:github_core__github_account)"},
+    {name: "account-owns-repo",         gryphon: "(parent:github_core__github_account)-[:OWNS_REPO__github_core]->(child:github_core__github_repository)"},
+    {name: "repo-defines-workflow",     gryphon: "(parent:github_core__github_repository)-[:DEFINES_WORKFLOW__github_core]->(child:github_core__github_workflow)"},
+    {name: "ca-contains-entries",       gryphon: "(parent:sigstore_core__sigstore_ca)<-[:CERT_ISSUED_BY__sigstore_core]-(child:sigstore_core__rekor_log_entry)"},
+    {name: "host-hosts-document",       gryphon: "(parent:computing_core__web_host)<-[:HOSTED_BY__computing_core]-(child:computing_core__web_document)"},
     // github_app (Dependabot) is enabled on the repo (ENABLED_ON) but belongs at
     // the github.com PLATFORM level, not inside the repo box. The nesting resolver
     // is single-hop and there's no app→platform edge, so it's parented to the
@@ -201,7 +201,7 @@ export async function execute(context) {
     // workflows: a clean horizontal row via adh — no label, the github_repository
     // compound box already frames them. Sorted by label (adh default) for a stable
     // left→right order; the row's y is the bootstrap row so FEDERATES_VIA reads flat.
-    const workflows = cy.nodes('[entity_type="github_workflow"]');
+    const workflows = cy.nodes('[entity_type="github_core__github_workflow"]');
     alignDistributeHorizontal(cy, {members: workflows, anchor: {x: ghLeftX, y: bootCenterY}, gap: WF_GAP});
 
     // 4. OIDC issuer (token.actions.githubusercontent.com) — it's a github.com
@@ -213,7 +213,7 @@ export async function execute(context) {
     // 5. Sigstore Rekor entries — collected here; collapsed into a single stack
     //    at the end (step 8), after nesting, so the representative already sits
     //    inside the sigstore_ca compound.
-    const rekor = cy.nodes('[entity_type="rekor_log_entry"]')
+    const rekor = cy.nodes('[entity_type="sigstore_core__rekor_log_entry"]')
         .sort((a, b) => (a.data("label") || "").localeCompare(b.data("label") || ""));
 
     // 5b. Signed files — styled as file cards, then laid out with the adh helper
@@ -259,7 +259,7 @@ export async function execute(context) {
         if (edge && edge.length > 0) edge.addClass(HIDDEN_CONTAINMENT_CLASS);
     });
     // Boundary: outline-only frame (transparent body) around the aws_account compound.
-    cy.nodes('[entity_type="boundary"]').style({"background-opacity": 0});
+    cy.nodes('[entity_type="fedramp_20x_ksi__boundary"]').style({"background-opacity": 0});
 
     // 7. Scope boxes — labeled overlays per AWS cluster, drawn from the settled
     //    member positions.
@@ -300,8 +300,8 @@ export async function execute(context) {
     // down to wrap them under the account. The issuer is on the LEFT, closest to the
     // box edge, so its TRUSTS_ISSUER hop across to the AWS account and the up-hop to
     // Sigstore stay short.
-    const platform = cy.nodes('[entity_type="github_platform"]').first();
-    const account = cy.nodes('[entity_type="github_account"]').first();
+    const platform = cy.nodes('[entity_type="github_core__github_platform"]').first();
+    const account = cy.nodes('[entity_type="github_core__github_account"]').first();
     if (platform.nonempty() && account.nonempty()) {
         // Anchor below the notgeorge account compound (which wraps repo + workflows).
         const frontBB = account.boundingBox();
@@ -309,7 +309,7 @@ export async function execute(context) {
         const leftX = frontBB.x1 + 30;
         // Issuer pinned far-left (static) — closest to the box edge for its hops out
         // to AWS / up to Sigstore.
-        cy.nodes('[entity_type="oidc_issuer"]').forEach((n) => {
+        cy.nodes('[entity_type="github_core__oidc_issuer"]').forEach((n) => {
             n.position({x: leftX, y: appRowY});
             n.move({parent: platform.id()});
         });
@@ -318,7 +318,7 @@ export async function execute(context) {
         // adh's anchorNode re-resolves on the account's "bounds"/"position" events
         // (like applyScopeBoxes tracks its members), keeping it dead-centered through
         // the settle. Cross-axis pinned to the shared row y via `anchor.y`.
-        const apps = cy.nodes('[entity_type="github_app"]');
+        const apps = cy.nodes('[entity_type="github_core__github_app"]');
         apps.forEach((a) => a.move({parent: platform.id()}));
         alignDistributeHorizontal(cy, {
             members: apps,
@@ -332,7 +332,7 @@ export async function execute(context) {
     // default is top/center; github_app inherits a baked default). Drive it through
     // the standard label-position data fields so the node[label_valign][label_halign]
     // rule applies it.
-    cy.nodes('[entity_type="oidc_issuer"], [entity_type="github_app"]').forEach((n) => {
+    cy.nodes('[entity_type="github_core__oidc_issuer"], [entity_type="github_core__github_app"]').forEach((n) => {
         n.data("label_valign", "bottom");
         n.data("label_halign", "center");
         n.data("label_margin_y", 4);
@@ -343,14 +343,14 @@ export async function execute(context) {
     // right of the github.com box; Readers / george sit the same gap outside the
     // FedRAMP boundary, aligned with the system part they touch.
     const OUTSIDE_GAP = 130;
-    const userByName = (re) => cy.nodes('[entity_type="user"]').filter((n) => re.test(n.data("label") || ""));
-    const boundary = cy.nodes('[entity_type="boundary"]').first();
+    const userByName = (re) => cy.nodes('[entity_type="computing_core__user"]').filter((n) => re.test(n.data("label") || ""));
+    const boundary = cy.nodes('[entity_type="fedramp_20x_ksi__boundary"]').first();
     const bndBB = boundary.nonempty() ? boundary.boundingBox() : null;
     // Readers → left of the boundary, level with the CloudFront CDN they read from.
-    const cf = cy.nodes('[entity_type="aws_cloudfront_distribution"]').first();
+    const cf = cy.nodes('[entity_type="aws_core__aws_cloudfront_distribution"]').first();
     if (cf.nonempty() && bndBB) userByName(/reader/i).forEach((n) => n.position({x: bndBB.x1 - OUTSIDE_GAP, y: cf.position("y")}));
     // george → below the boundary, under the bootstrap tfstate S3 bucket he manages.
-    const tfstate = cy.nodes('[entity_type="aws_s3_bucket"]')
+    const tfstate = cy.nodes('[entity_type="aws_core__aws_s3_bucket"]')
         .filter((n) => (n.data("tags") || {}).Component === "bootstrap").first();
     if (tfstate.nonempty() && bndBB) userByName(/george/i).forEach((n) => n.position({x: tfstate.position("x"), y: bndBB.y2 + OUTSIDE_GAP}));
     // Sam → right of the github.com box (recompute its bbox now the app is inside).
@@ -362,8 +362,8 @@ export async function execute(context) {
     // CISA (web_host) contains the KEV catalog (web_document, nested via the
     // host-hosts-document rule). Position the catalog to the right of the Sigstore
     // box — CISA, the compound that auto-wraps it, then sits right of Sigstore.
-    const sigCa = cy.nodes('[entity_type="sigstore_ca"]').first();
-    const kevDoc = cy.nodes('[entity_type="web_document"]').first();
+    const sigCa = cy.nodes('[entity_type="sigstore_core__sigstore_ca"]').first();
+    const kevDoc = cy.nodes('[entity_type="computing_core__web_document"]').first();
     if (sigCa.nonempty() && kevDoc.nonempty()) {
         const sb = sigCa.boundingBox();
         kevDoc.position({x: sb.x2 + 180, y: (sb.y1 + sb.y2) / 2});
@@ -383,5 +383,5 @@ export async function execute(context) {
     //     (z 0) — issuer connection visible — while the account/repo "auto" group still
     //     floats above and occludes it. account/repo untouched. (Edge label = type.)
     cy.edges('[label="IDENTITY_VOUCHED_BY"]').style({"z-compound-depth": "bottom", "z-index": 1, "z-index-compare": "manual"});
-    cy.nodes('[entity_type="github_platform"]').style({"z-compound-depth": "bottom", "z-index": 0, "z-index-compare": "manual"});
+    cy.nodes('[entity_type="github_core__github_platform"]').style({"z-compound-depth": "bottom", "z-index": 0, "z-index-compare": "manual"});
 }

@@ -18,7 +18,7 @@ class GithubRunner(BaseModel):
     Spec: plugins/github_core/specs/spec-github-core-v0.md (req-github-core-models, req-github-core-runner)
     """
 
-    ENTITY_TYPE: ClassVar[str] = "github_runner"
+    ENTITY_TYPE: ClassVar[str] = "github_core__github_runner"
     ENTITY_NAME: ClassVar[str] = "GitHub Runner"
     ENTITY_DESCRIPTION: ClassVar[str] = "A durable registered self-hosted GitHub Actions runner."
     ENTITY_ICON: ClassVar[str] = "github-runner"
@@ -63,7 +63,7 @@ class GithubRunner(BaseModel):
     tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "github_runner"
+        db_table = "github_core__github_runner"
 
     def get_name(self) -> str:
         return self.name or (f"Runner {self.runner_id}" if self.runner_id else self.full_name)

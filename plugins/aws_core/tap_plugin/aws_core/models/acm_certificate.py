@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class AcmCertificate(BaseModel):
     """An AWS Certificate Manager TLS/SSL certificate."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_acm_certificate"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_acm_certificate"
     ENTITY_NAME: ClassVar[str] = "ACM Certificate"
     ENTITY_DESCRIPTION: ClassVar[str] = "An AWS Certificate Manager TLS/SSL certificate."
     ENTITY_ICON: ClassVar[str] = "aws-acm"
@@ -53,7 +53,7 @@ class AcmCertificate(BaseModel):
     tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_acm_certificate"
+        db_table = "aws_core__aws_acm_certificate"
 
     def get_name(self) -> str:
         return self.name or self.domain_name

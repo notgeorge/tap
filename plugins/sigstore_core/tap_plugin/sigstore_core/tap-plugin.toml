@@ -5,12 +5,12 @@ name = "TAP Sigstore Core"
 description = "Sigstore-ecosystem models and the canonical TAP-side helpers for verifying Sigstore signature bundles and decomposing them into graph data."
 
 [models]
-rekor_log_entry = "tap_plugin.sigstore_core.models.rekor_log_entry.RekorLogEntry"
-sigstore_ca = "tap_plugin.sigstore_core.models.sigstore_ca.SigstoreCa"
+sigstore_core__rekor_log_entry = "tap_plugin.sigstore_core.models.rekor_log_entry.RekorLogEntry"
+sigstore_core__sigstore_ca = "tap_plugin.sigstore_core.models.sigstore_ca.SigstoreCa"
 
 [edges]
-ATTESTED_BY = "edges/ATTESTED_BY.edge.json"
-CERT_ISSUED_BY = "edges/CERT_ISSUED_BY.edge.json"
-SIGNED_BY_IDENTITY = "edges/SIGNED_BY_IDENTITY.edge.json"
-IDENTITY_VOUCHED_BY = "edges/IDENTITY_VOUCHED_BY.edge.json"
-REQUESTS_SIGSTORE_SIGNATURE = "edges/REQUESTS_SIGSTORE_SIGNATURE.edge.json"
+ATTESTED_BY__sigstore_core = "edges/ATTESTED_BY.edge.json"
+CERT_ISSUED_BY__sigstore_core = "edges/CERT_ISSUED_BY.edge.json"
+SIGNED_BY_IDENTITY__sigstore_core = "edges/SIGNED_BY_IDENTITY.edge.json"
+IDENTITY_VOUCHED_BY__sigstore_core = "edges/IDENTITY_VOUCHED_BY.edge.json"
+REQUESTS_SIGSTORE_SIGNATURE__sigstore_core = "edges/REQUESTS_SIGSTORE_SIGNATURE.edge.json"

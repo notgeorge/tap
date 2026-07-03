@@ -2822,28 +2822,28 @@ class TestGryphonObservationExecutor:
     def test_is_unknown_selects_unobserved(self):
         """req-grid-traversal-lang-observation-1: IS UNKNOWN returns only the NULL-mac rows."""
         self._setup_interfaces()
-        nodes = self._run("MATCH (n:network_interface) WHERE n.data.mac_address IS UNKNOWN")
+        nodes = self._run("MATCH (n:computing_core__network_interface) WHERE n.data.mac_address IS UNKNOWN")
         assert len(nodes) == 2
 
     def test_is_known_selects_observed(self):
         """req-grid-traversal-lang-observation-2: IS KNOWN returns only the non-NULL-mac rows."""
         self._setup_interfaces()
-        nodes = self._run("MATCH (n:network_interface) WHERE n.data.mac_address IS KNOWN")
+        nodes = self._run("MATCH (n:computing_core__network_interface) WHERE n.data.mac_address IS KNOWN")
         assert len(nodes) == 3
 
     def test_known_and_unknown_partition_the_set(self):
         """The two predicates partition the null axis: |KNOWN| + |UNKNOWN| == total."""
         self._setup_interfaces()
-        known = self._run("MATCH (n:network_interface) WHERE n.data.mac_address IS KNOWN")
-        unknown = self._run("MATCH (n:network_interface) WHERE n.data.mac_address IS UNKNOWN")
-        all_nodes = self._run("MATCH (n:network_interface)")
+        known = self._run("MATCH (n:computing_core__network_interface) WHERE n.data.mac_address IS KNOWN")
+        unknown = self._run("MATCH (n:computing_core__network_interface) WHERE n.data.mac_address IS UNKNOWN")
+        all_nodes = self._run("MATCH (n:computing_core__network_interface)")
         assert len(known) + len(unknown) == len(all_nodes) == 5
 
     def test_is_unknown_composes_with_and(self):
         """req-grid-traversal-lang-observation-3: AND with IS UNKNOWN narrows the set."""
         self._setup_interfaces()
         nodes = self._run(
-            'MATCH (n:network_interface) WHERE n.data.mac_address IS UNKNOWN AND n.data.interface_name = "lo0"'
+            'MATCH (n:computing_core__network_interface) WHERE n.data.mac_address IS UNKNOWN AND n.data.interface_name = "lo0"'
         )
         assert len(nodes) == 1
         assert nodes[0]["name"] == "lo0"

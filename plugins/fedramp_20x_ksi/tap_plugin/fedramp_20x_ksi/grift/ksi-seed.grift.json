@@ -34,7 +34,7 @@
         {
           "entity": {
             "entity_id": "a695945a-8c0d-54fc-a177-5a11a0d9b90a",
-            "entity_type": "ksi_theme",
+            "entity_type": "fedramp_20x_ksi__ksi_theme",
             "name": "Cybersecurity Education",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -52,7 +52,7 @@
         {
           "entity": {
             "entity_id": "4c4ca97d-9076-5bb0-bb49-500e3d1a0bad",
-            "entity_type": "ksi_theme",
+            "entity_type": "fedramp_20x_ksi__ksi_theme",
             "name": "Change Management",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -70,7 +70,7 @@
         {
           "entity": {
             "entity_id": "bea670fa-1c69-5d9b-b176-fd7912e9c5bd",
-            "entity_type": "ksi_theme",
+            "entity_type": "fedramp_20x_ksi__ksi_theme",
             "name": "Cloud Native Architecture",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -88,7 +88,7 @@
         {
           "entity": {
             "entity_id": "6d55e05f-f4ce-5b67-8915-5ed680bcecfe",
-            "entity_type": "ksi_theme",
+            "entity_type": "fedramp_20x_ksi__ksi_theme",
             "name": "Identity and Access Management",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -106,7 +106,7 @@
         {
           "entity": {
             "entity_id": "0c34865f-4a9a-5dfc-a43b-a987524db1ca",
-            "entity_type": "ksi_theme",
+            "entity_type": "fedramp_20x_ksi__ksi_theme",
             "name": "Incident Response",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -124,7 +124,7 @@
         {
           "entity": {
             "entity_id": "856f4615-f8b7-5a3a-8588-e3d83d985d19",
-            "entity_type": "ksi_theme",
+            "entity_type": "fedramp_20x_ksi__ksi_theme",
             "name": "Monitoring, Logging, and Auditing",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -142,7 +142,7 @@
         {
           "entity": {
             "entity_id": "10203353-75c3-5c98-8e84-7f35d59d0d42",
-            "entity_type": "ksi_theme",
+            "entity_type": "fedramp_20x_ksi__ksi_theme",
             "name": "Policy and Inventory",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -160,7 +160,7 @@
         {
           "entity": {
             "entity_id": "20f22c94-b674-5360-a35e-ac943a10bab1",
-            "entity_type": "ksi_theme",
+            "entity_type": "fedramp_20x_ksi__ksi_theme",
             "name": "Recovery Planning",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -178,7 +178,7 @@
         {
           "entity": {
             "entity_id": "a1e67d87-376b-50cf-8eed-84357d1e8c36",
-            "entity_type": "ksi_theme",
+            "entity_type": "fedramp_20x_ksi__ksi_theme",
             "name": "Supply Chain Risk",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -196,7 +196,7 @@
         {
           "entity": {
             "entity_id": "944c3fce-41d8-55cb-b295-a0cddb56656b",
-            "entity_type": "ksi_theme",
+            "entity_type": "fedramp_20x_ksi__ksi_theme",
             "name": "Service Configuration",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -214,7 +214,7 @@
         {
           "entity": {
             "entity_id": "8b859f9c-0a0e-54cd-91c2-ffb424a5a024",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Reviewing All Training",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -264,7 +264,7 @@
         {
           "entity": {
             "entity_id": "605faedc-390e-50c5-960a-467b4893c186",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Logging Changes",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -306,7 +306,7 @@
         {
           "entity": {
             "entity_id": "f219e31f-a55e-5cee-8595-a54d60c19bbc",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Redeploying vs Modifying",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -349,7 +349,7 @@
         {
           "entity": {
             "entity_id": "11cc3ca7-aa6d-5fe1-b9ed-7e24e1d9102e",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Reviewing Change Procedures",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -390,7 +390,7 @@
         {
           "entity": {
             "entity_id": "7fb38e9a-ed3f-5015-be48-f033d704b977",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Validating Throughout Deployment",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -430,7 +430,7 @@
         {
           "entity": {
             "entity_id": "19edad6e-918d-5a92-b12c-5caf0e748b03",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Defining Functionality and Privileges",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -465,7 +465,7 @@
         {
           "entity": {
             "entity_id": "aa31709d-de45-5667-a637-ab12b784e19e",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Enforcing Intended State",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -510,7 +510,7 @@
         {
           "entity": {
             "entity_id": "26fb8249-23b7-59a0-bb8b-276f7e18ba16",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Implementing Best Practices",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -550,7 +550,7 @@
         {
           "entity": {
             "entity_id": "f7d3201a-e39e-5ce4-a106-ab39f5795059",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Minimizing Attack Surface",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -601,7 +601,7 @@
         {
           "entity": {
             "entity_id": "0274c0ea-4491-57de-a69a-b12f8ce2596a",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Optimizing for Availability",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -637,7 +637,7 @@
         {
           "entity": {
             "entity_id": "6add504d-f2e5-5ff5-9d1f-f9529199243b",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Restricting Network Traffic",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -679,7 +679,7 @@
         {
           "entity": {
             "entity_id": "c2538cc0-e405-5b39-bf43-b5c18c8b56fb",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Reviewing Protections",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -719,7 +719,7 @@
         {
           "entity": {
             "entity_id": "331220a6-2eb9-5ff6-9ac1-079d31a68bec",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Using Logical Networking",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -762,7 +762,7 @@
         {
           "entity": {
             "entity_id": "9683950e-50a8-573e-aa4c-a65772cff3f2",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Automating Account Management",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -804,7 +804,7 @@
         {
           "entity": {
             "entity_id": "0a3317fd-2586-507e-86ce-2630056c5786",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Adopting Passwordless Methods",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -854,7 +854,7 @@
         {
           "entity": {
             "entity_id": "5502a982-4675-55d5-8f50-6a7545781115",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Ensuring Least Privilege",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -923,7 +923,7 @@
         {
           "entity": {
             "entity_id": "beb54397-e386-5bb8-b116-a1af2348fe49",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Authorizing Just-in-Time",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -996,7 +996,7 @@
         {
           "entity": {
             "entity_id": "76ff1614-d128-5f81-b857-857a4f71566e",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Securing Non-User Authentication",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -1038,7 +1038,7 @@
         {
           "entity": {
             "entity_id": "aa60a7e1-748b-58b5-89dd-498d1eb49171",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Responding to Suspicious Activity",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -1080,7 +1080,7 @@
         {
           "entity": {
             "entity_id": "8df320f9-d6c9-5ad5-b230-2ddc2026abf1",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Generating After Action Reports",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -1120,7 +1120,7 @@
         {
           "entity": {
             "entity_id": "d5d6e76c-015f-589d-ade2-c6154cf556b7",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Reviewing Incident Response Procedures",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -1167,7 +1167,7 @@
         {
           "entity": {
             "entity_id": "21dbd178-a559-5469-9059-43100d426ab7",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Reviewing Past Incidents",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -1209,7 +1209,7 @@
         {
           "entity": {
             "entity_id": "54792ee3-9e93-5a84-a3f6-52764ce71c6a",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Authorizing Log Access",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -1251,7 +1251,7 @@
         {
           "entity": {
             "entity_id": "6492702b-98cc-5163-bee2-6b928b38dd8a",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Evaluating Configurations",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -1292,7 +1292,7 @@
         {
           "entity": {
             "entity_id": "f6dabe09-bcd1-5edc-ad47-81850d3e766b",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Logging Event Types",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -1338,7 +1338,7 @@
         {
           "entity": {
             "entity_id": "d90b2348-6af3-519a-b7bd-11358bc8d310",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Operating SIEM Capability",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -1391,7 +1391,7 @@
         {
           "entity": {
             "entity_id": "807ff29a-2d2b-57fa-996d-141ae79720be",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Reviewing Logs",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -1433,7 +1433,7 @@
         {
           "entity": {
             "entity_id": "7ea09f84-80b2-5b5e-95b0-51e16db6c211",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Generating Inventories",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -1475,7 +1475,7 @@
         {
           "entity": {
             "entity_id": "a5c4a9f7-70ff-5955-a5ba-0c8f2beb0887",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Reviewing Executive Support",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -1509,7 +1509,7 @@
         {
           "entity": {
             "entity_id": "2ddfcffe-504a-5bec-9923-361383fbeaa0",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Reviewing Investments in Security",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -1553,7 +1553,7 @@
         {
           "entity": {
             "entity_id": "c8fb53a9-49f9-5f29-bc03-95fa4cc99845",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Reviewing Security in the SDLC",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -1600,7 +1600,7 @@
         {
           "entity": {
             "entity_id": "69694d68-aaf8-5aa2-92cd-216ad2e62ae4",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Reviewing Vulnerability Disclosures",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -1637,7 +1637,7 @@
         {
           "entity": {
             "entity_id": "e9c32bef-37f3-5993-95fb-f342cf3e0894",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Aligning Backups with Objectives",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -1680,7 +1680,7 @@
         {
           "entity": {
             "entity_id": "6b2b8ce9-d8a3-5e34-8bf7-4e4986b9d3a7",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Aligning Recovery Plan",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -1731,7 +1731,7 @@
         {
           "entity": {
             "entity_id": "a5f1ba55-b969-5f3d-861b-7daef1fbf3d9",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Reviewing Recovery Objectives",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -1768,7 +1768,7 @@
         {
           "entity": {
             "entity_id": "81bd2765-7b76-50f8-9ccb-0c575cec7288",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Testing Recovery Capabilities",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -1814,7 +1814,7 @@
         {
           "entity": {
             "entity_id": "e88f4649-f444-5fda-8da3-cce026727e80",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Mitigating Supply Chain Risk",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -1861,7 +1861,7 @@
         {
           "entity": {
             "entity_id": "63d04011-a9fd-5eaa-881c-8dc331d20f44",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Monitoring Supply Chain Risk",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -1907,7 +1907,7 @@
         {
           "entity": {
             "entity_id": "4365d6b0-65bb-5680-8aa9-28b1a59c4464",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Automating Configuration Management",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -1956,7 +1956,7 @@
         {
           "entity": {
             "entity_id": "c85d3c5b-a017-56c2-ba42-b6023b998f32",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Automating Secret Management",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -1997,7 +1997,7 @@
         {
           "entity": {
             "entity_id": "fdbe63cb-45e0-5157-a505-bb791e403ae4",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Evaluating and Improving Security",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -2042,7 +2042,7 @@
         {
           "entity": {
             "entity_id": "742bb019-a628-58e5-ac3f-659981723d6f",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Preventing Residual Risk",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -2087,7 +2087,7 @@
         {
           "entity": {
             "entity_id": "39c0b5dc-999a-5011-93af-fc83bf9883a2",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Removing Unwanted Data",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -2132,7 +2132,7 @@
         {
           "entity": {
             "entity_id": "39301287-1b39-5358-82c3-f9aee118eb7b",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Securing Network Traffic",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -2175,7 +2175,7 @@
         {
           "entity": {
             "entity_id": "3e9e25c8-7bee-5108-8601-bcb0be83af0f",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Validating Communications",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -2221,7 +2221,7 @@
         {
           "entity": {
             "entity_id": "a6936d71-9693-5110-9e39-b89b66048aa1",
-            "entity_type": "ksi_indicator",
+            "entity_type": "fedramp_20x_ksi__ksi_indicator",
             "name": "Validating Resource Integrity",
             "dimensions": {
               "compliance": "fedramp-20x"
@@ -2275,7 +2275,7 @@
           "edge": {
             "from_entity_id": "a695945a-8c0d-54fc-a177-5a11a0d9b90a",
             "to_entity_id": "8b859f9c-0a0e-54cd-91c2-ffb424a5a024",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2290,7 +2290,7 @@
           "edge": {
             "from_entity_id": "4c4ca97d-9076-5bb0-bb49-500e3d1a0bad",
             "to_entity_id": "605faedc-390e-50c5-960a-467b4893c186",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2305,7 +2305,7 @@
           "edge": {
             "from_entity_id": "4c4ca97d-9076-5bb0-bb49-500e3d1a0bad",
             "to_entity_id": "f219e31f-a55e-5cee-8595-a54d60c19bbc",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2320,7 +2320,7 @@
           "edge": {
             "from_entity_id": "4c4ca97d-9076-5bb0-bb49-500e3d1a0bad",
             "to_entity_id": "11cc3ca7-aa6d-5fe1-b9ed-7e24e1d9102e",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2335,7 +2335,7 @@
           "edge": {
             "from_entity_id": "4c4ca97d-9076-5bb0-bb49-500e3d1a0bad",
             "to_entity_id": "7fb38e9a-ed3f-5015-be48-f033d704b977",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2350,7 +2350,7 @@
           "edge": {
             "from_entity_id": "bea670fa-1c69-5d9b-b176-fd7912e9c5bd",
             "to_entity_id": "19edad6e-918d-5a92-b12c-5caf0e748b03",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2365,7 +2365,7 @@
           "edge": {
             "from_entity_id": "bea670fa-1c69-5d9b-b176-fd7912e9c5bd",
             "to_entity_id": "aa31709d-de45-5667-a637-ab12b784e19e",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2380,7 +2380,7 @@
           "edge": {
             "from_entity_id": "bea670fa-1c69-5d9b-b176-fd7912e9c5bd",
             "to_entity_id": "26fb8249-23b7-59a0-bb8b-276f7e18ba16",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2395,7 +2395,7 @@
           "edge": {
             "from_entity_id": "bea670fa-1c69-5d9b-b176-fd7912e9c5bd",
             "to_entity_id": "f7d3201a-e39e-5ce4-a106-ab39f5795059",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2410,7 +2410,7 @@
           "edge": {
             "from_entity_id": "bea670fa-1c69-5d9b-b176-fd7912e9c5bd",
             "to_entity_id": "0274c0ea-4491-57de-a69a-b12f8ce2596a",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2425,7 +2425,7 @@
           "edge": {
             "from_entity_id": "bea670fa-1c69-5d9b-b176-fd7912e9c5bd",
             "to_entity_id": "6add504d-f2e5-5ff5-9d1f-f9529199243b",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2440,7 +2440,7 @@
           "edge": {
             "from_entity_id": "bea670fa-1c69-5d9b-b176-fd7912e9c5bd",
             "to_entity_id": "c2538cc0-e405-5b39-bf43-b5c18c8b56fb",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2455,7 +2455,7 @@
           "edge": {
             "from_entity_id": "bea670fa-1c69-5d9b-b176-fd7912e9c5bd",
             "to_entity_id": "331220a6-2eb9-5ff6-9ac1-079d31a68bec",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2470,7 +2470,7 @@
           "edge": {
             "from_entity_id": "6d55e05f-f4ce-5b67-8915-5ed680bcecfe",
             "to_entity_id": "9683950e-50a8-573e-aa4c-a65772cff3f2",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2485,7 +2485,7 @@
           "edge": {
             "from_entity_id": "6d55e05f-f4ce-5b67-8915-5ed680bcecfe",
             "to_entity_id": "0a3317fd-2586-507e-86ce-2630056c5786",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2500,7 +2500,7 @@
           "edge": {
             "from_entity_id": "6d55e05f-f4ce-5b67-8915-5ed680bcecfe",
             "to_entity_id": "5502a982-4675-55d5-8f50-6a7545781115",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2515,7 +2515,7 @@
           "edge": {
             "from_entity_id": "6d55e05f-f4ce-5b67-8915-5ed680bcecfe",
             "to_entity_id": "beb54397-e386-5bb8-b116-a1af2348fe49",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2530,7 +2530,7 @@
           "edge": {
             "from_entity_id": "6d55e05f-f4ce-5b67-8915-5ed680bcecfe",
             "to_entity_id": "76ff1614-d128-5f81-b857-857a4f71566e",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2545,7 +2545,7 @@
           "edge": {
             "from_entity_id": "6d55e05f-f4ce-5b67-8915-5ed680bcecfe",
             "to_entity_id": "aa60a7e1-748b-58b5-89dd-498d1eb49171",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2560,7 +2560,7 @@
           "edge": {
             "from_entity_id": "0c34865f-4a9a-5dfc-a43b-a987524db1ca",
             "to_entity_id": "8df320f9-d6c9-5ad5-b230-2ddc2026abf1",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2575,7 +2575,7 @@
           "edge": {
             "from_entity_id": "0c34865f-4a9a-5dfc-a43b-a987524db1ca",
             "to_entity_id": "d5d6e76c-015f-589d-ade2-c6154cf556b7",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2590,7 +2590,7 @@
           "edge": {
             "from_entity_id": "0c34865f-4a9a-5dfc-a43b-a987524db1ca",
             "to_entity_id": "21dbd178-a559-5469-9059-43100d426ab7",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2605,7 +2605,7 @@
           "edge": {
             "from_entity_id": "856f4615-f8b7-5a3a-8588-e3d83d985d19",
             "to_entity_id": "54792ee3-9e93-5a84-a3f6-52764ce71c6a",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2620,7 +2620,7 @@
           "edge": {
             "from_entity_id": "856f4615-f8b7-5a3a-8588-e3d83d985d19",
             "to_entity_id": "6492702b-98cc-5163-bee2-6b928b38dd8a",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2635,7 +2635,7 @@
           "edge": {
             "from_entity_id": "856f4615-f8b7-5a3a-8588-e3d83d985d19",
             "to_entity_id": "f6dabe09-bcd1-5edc-ad47-81850d3e766b",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2650,7 +2650,7 @@
           "edge": {
             "from_entity_id": "856f4615-f8b7-5a3a-8588-e3d83d985d19",
             "to_entity_id": "d90b2348-6af3-519a-b7bd-11358bc8d310",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2665,7 +2665,7 @@
           "edge": {
             "from_entity_id": "856f4615-f8b7-5a3a-8588-e3d83d985d19",
             "to_entity_id": "807ff29a-2d2b-57fa-996d-141ae79720be",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2680,7 +2680,7 @@
           "edge": {
             "from_entity_id": "10203353-75c3-5c98-8e84-7f35d59d0d42",
             "to_entity_id": "7ea09f84-80b2-5b5e-95b0-51e16db6c211",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2695,7 +2695,7 @@
           "edge": {
             "from_entity_id": "10203353-75c3-5c98-8e84-7f35d59d0d42",
             "to_entity_id": "a5c4a9f7-70ff-5955-a5ba-0c8f2beb0887",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2710,7 +2710,7 @@
           "edge": {
             "from_entity_id": "10203353-75c3-5c98-8e84-7f35d59d0d42",
             "to_entity_id": "2ddfcffe-504a-5bec-9923-361383fbeaa0",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2725,7 +2725,7 @@
           "edge": {
             "from_entity_id": "10203353-75c3-5c98-8e84-7f35d59d0d42",
             "to_entity_id": "c8fb53a9-49f9-5f29-bc03-95fa4cc99845",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2740,7 +2740,7 @@
           "edge": {
             "from_entity_id": "10203353-75c3-5c98-8e84-7f35d59d0d42",
             "to_entity_id": "69694d68-aaf8-5aa2-92cd-216ad2e62ae4",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2755,7 +2755,7 @@
           "edge": {
             "from_entity_id": "20f22c94-b674-5360-a35e-ac943a10bab1",
             "to_entity_id": "e9c32bef-37f3-5993-95fb-f342cf3e0894",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2770,7 +2770,7 @@
           "edge": {
             "from_entity_id": "20f22c94-b674-5360-a35e-ac943a10bab1",
             "to_entity_id": "6b2b8ce9-d8a3-5e34-8bf7-4e4986b9d3a7",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2785,7 +2785,7 @@
           "edge": {
             "from_entity_id": "20f22c94-b674-5360-a35e-ac943a10bab1",
             "to_entity_id": "a5f1ba55-b969-5f3d-861b-7daef1fbf3d9",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2800,7 +2800,7 @@
           "edge": {
             "from_entity_id": "20f22c94-b674-5360-a35e-ac943a10bab1",
             "to_entity_id": "81bd2765-7b76-50f8-9ccb-0c575cec7288",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2815,7 +2815,7 @@
           "edge": {
             "from_entity_id": "a1e67d87-376b-50cf-8eed-84357d1e8c36",
             "to_entity_id": "e88f4649-f444-5fda-8da3-cce026727e80",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2830,7 +2830,7 @@
           "edge": {
             "from_entity_id": "a1e67d87-376b-50cf-8eed-84357d1e8c36",
             "to_entity_id": "63d04011-a9fd-5eaa-881c-8dc331d20f44",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2845,7 +2845,7 @@
           "edge": {
             "from_entity_id": "944c3fce-41d8-55cb-b295-a0cddb56656b",
             "to_entity_id": "4365d6b0-65bb-5680-8aa9-28b1a59c4464",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2860,7 +2860,7 @@
           "edge": {
             "from_entity_id": "944c3fce-41d8-55cb-b295-a0cddb56656b",
             "to_entity_id": "c85d3c5b-a017-56c2-ba42-b6023b998f32",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2875,7 +2875,7 @@
           "edge": {
             "from_entity_id": "944c3fce-41d8-55cb-b295-a0cddb56656b",
             "to_entity_id": "fdbe63cb-45e0-5157-a505-bb791e403ae4",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2890,7 +2890,7 @@
           "edge": {
             "from_entity_id": "944c3fce-41d8-55cb-b295-a0cddb56656b",
             "to_entity_id": "742bb019-a628-58e5-ac3f-659981723d6f",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2905,7 +2905,7 @@
           "edge": {
             "from_entity_id": "944c3fce-41d8-55cb-b295-a0cddb56656b",
             "to_entity_id": "39c0b5dc-999a-5011-93af-fc83bf9883a2",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2920,7 +2920,7 @@
           "edge": {
             "from_entity_id": "944c3fce-41d8-55cb-b295-a0cddb56656b",
             "to_entity_id": "39301287-1b39-5358-82c3-f9aee118eb7b",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2935,7 +2935,7 @@
           "edge": {
             "from_entity_id": "944c3fce-41d8-55cb-b295-a0cddb56656b",
             "to_entity_id": "3e9e25c8-7bee-5108-8601-bcb0be83af0f",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         },
@@ -2950,7 +2950,7 @@
           "edge": {
             "from_entity_id": "944c3fce-41d8-55cb-b295-a0cddb56656b",
             "to_entity_id": "a6936d71-9693-5110-9e39-b89b66048aa1",
-            "edge_type": "CONTAINS_INDICATOR",
+            "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
             "properties": {}
           }
         }

@@ -55,7 +55,7 @@
             "config": {
               "entity_id_var": "iiw_artifact_entity_id",
               "fallback": {
-                "query": "MATCH (a:compliance_artifact) WHERE a.data.kind = \"iiw\" AND a.data.fetched_at IS NOT NULL ORDER BY a.data.fetched_at DESC LIMIT 1",
+                "query": "MATCH (a:fedramp_20x_ksi__compliance_artifact) WHERE a.data.kind = \"iiw\" AND a.data.fetched_at IS NOT NULL ORDER BY a.data.fetched_at DESC LIMIT 1",
                 "description": "Latest iiw compliance artifact by fetched_at."
               }
             }
@@ -76,7 +76,7 @@
             "config": {
               "entity_id_var": "iiw_artifact_entity_id",
               "sequence": {
-                "query": "MATCH (a:compliance_artifact) WHERE a.data.kind = \"iiw\" AND a.data.fetched_at IS NOT NULL ORDER BY a.data.fetched_at DESC LIMIT 200",
+                "query": "MATCH (a:fedramp_20x_ksi__compliance_artifact) WHERE a.data.kind = \"iiw\" AND a.data.fetched_at IS NOT NULL ORDER BY a.data.fetched_at DESC LIMIT 200",
                 "label_field": "fetched_at",
                 "label": "IIW"
               }

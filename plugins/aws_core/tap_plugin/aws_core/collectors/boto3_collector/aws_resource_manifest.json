@@ -2,7 +2,7 @@
   "manifest_version": "0",
   "entries": [
     {
-      "entity_type": "aws_account",
+      "entity_type": "aws_core__aws_account",
       "service": "sts",
       "scope": "global",
       "source": { "custom_fn": "aws_account_singleton" },
@@ -15,7 +15,7 @@
       }
     },
     {
-      "entity_type": "aws_lambda",
+      "entity_type": "aws_core__aws_lambda",
       "service": "lambda",
       "scope": "regional",
       "source": { "aws_op": "ListFunctions" },
@@ -38,22 +38,22 @@
       "edges": [
         {
           "value_path": "Role",
-          "target_type": "aws_iam_role",
+          "target_type": "aws_core__aws_iam_role",
           "key_kind": "arn",
-          "edge_type": "ASSUMES_ROLE",
+          "edge_type": "ASSUMES_ROLE__aws_core",
           "direction": "outbound"
         },
         {
           "value_path": "LoggingConfig.LogGroup",
-          "target_type": "aws_cloudwatch_log_group",
+          "target_type": "aws_core__aws_cloudwatch_log_group",
           "key_kind": "name",
-          "edge_type": "WRITES_LOGS",
+          "edge_type": "WRITES_LOGS__aws_core",
           "direction": "outbound"
         }
       ]
     },
     {
-      "entity_type": "aws_iam_role",
+      "entity_type": "aws_core__aws_iam_role",
       "service": "iam",
       "scope": "global",
       "source": { "aws_op": "ListRoles" },
@@ -79,15 +79,15 @@
       "edges": [
         {
           "value_path": "AssumeRolePolicyDocument.Statement[].Principal.Federated",
-          "target_type": "aws_iam_oidc_provider",
+          "target_type": "aws_core__aws_iam_oidc_provider",
           "key_kind": "arn",
-          "edge_type": "FEDERATES_INTO",
+          "edge_type": "FEDERATES_INTO__aws_core",
           "direction": "inbound"
         }
       ]
     },
     {
-      "entity_type": "aws_eventbridge_rule",
+      "entity_type": "aws_core__aws_eventbridge_rule",
       "service": "events",
       "scope": "regional",
       "source": { "custom_fn": "eventbridge_rules_with_targets" },
@@ -109,22 +109,22 @@
       "edges": [
         {
           "value_path": "RoleArn",
-          "target_type": "aws_iam_role",
+          "target_type": "aws_core__aws_iam_role",
           "key_kind": "arn",
-          "edge_type": "ASSUMES_ROLE",
+          "edge_type": "ASSUMES_ROLE__aws_core",
           "direction": "outbound"
         },
         {
           "value_path": "_lambda_target_arns",
-          "target_type": "aws_lambda",
+          "target_type": "aws_core__aws_lambda",
           "key_kind": "arn",
-          "edge_type": "INVOKES",
+          "edge_type": "INVOKES__aws_core",
           "direction": "outbound"
         }
       ]
     },
     {
-      "entity_type": "aws_cloudwatch_log_group",
+      "entity_type": "aws_core__aws_cloudwatch_log_group",
       "service": "logs",
       "scope": "regional",
       "source": { "aws_op": "DescribeLogGroups" },
@@ -145,7 +145,7 @@
       "edges": []
     },
     {
-      "entity_type": "aws_acm_certificate",
+      "entity_type": "aws_core__aws_acm_certificate",
       "service": "acm",
       "scope": "regional",
       "source": { "aws_op": "ListCertificates" },
@@ -166,7 +166,7 @@
       "edges": []
     },
     {
-      "entity_type": "aws_cloudfront_distribution",
+      "entity_type": "aws_core__aws_cloudfront_distribution",
       "service": "cloudfront",
       "scope": "global",
       "source": { "custom_fn": "cloudfront_distributions_with_oac" },
@@ -193,23 +193,23 @@
       "edges": [
         {
           "value_path": "Origins.Items[].DomainName",
-          "target_type": "aws_s3_bucket",
+          "target_type": "aws_core__aws_s3_bucket",
           "key_kind": "arn",
-          "edge_type": "RETRIEVES_CONTENT_FROM",
+          "edge_type": "RETRIEVES_CONTENT_FROM__aws_core",
           "direction": "outbound",
           "transform": "s3_bucket_name_from_origin_domain"
         },
         {
           "value_path": "ViewerCertificate.ACMCertificateArn",
-          "target_type": "aws_acm_certificate",
+          "target_type": "aws_core__aws_acm_certificate",
           "key_kind": "arn",
-          "edge_type": "RETRIEVES_CERT_FROM",
+          "edge_type": "RETRIEVES_CERT_FROM__aws_core",
           "direction": "outbound"
         }
       ]
     },
     {
-      "entity_type": "aws_s3_bucket",
+      "entity_type": "aws_core__aws_s3_bucket",
       "service": "s3",
       "scope": "global",
       "source": { "custom_fn": "s3_buckets_hydrated" },
@@ -264,7 +264,7 @@
       "edges": []
     },
     {
-      "entity_type": "aws_route53_zone",
+      "entity_type": "aws_core__aws_route53_zone",
       "service": "route53",
       "scope": "global",
       "source": { "custom_fn": "route53_zones_with_alias_targets" },
@@ -291,15 +291,15 @@
       "edges": [
         {
           "value_path": "alias_cloudfront_arns[]",
-          "target_type": "aws_cloudfront_distribution",
+          "target_type": "aws_core__aws_cloudfront_distribution",
           "key_kind": "arn",
-          "edge_type": "ROUTES_TRAFFIC",
+          "edge_type": "ROUTES_TRAFFIC__aws_core",
           "direction": "outbound"
         }
       ]
     },
     {
-      "entity_type": "aws_dynamodb_table",
+      "entity_type": "aws_core__aws_dynamodb_table",
       "service": "dynamodb",
       "scope": "regional",
       "source": { "custom_fn": "dynamodb_tables_described" },
@@ -320,7 +320,7 @@
       "edges": []
     },
     {
-      "entity_type": "aws_iam_oidc_provider",
+      "entity_type": "aws_core__aws_iam_oidc_provider",
       "service": "iam",
       "scope": "global",
       "source": { "custom_fn": "iam_oidc_providers_described" },

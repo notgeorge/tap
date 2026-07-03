@@ -19,7 +19,7 @@ class ComplianceArtifact(BaseModel):
     Spec: spec-fedramp-20x-ksi-compliance-artifacts-v0.md.
     """
 
-    ENTITY_TYPE: ClassVar[str] = "compliance_artifact"
+    ENTITY_TYPE: ClassVar[str] = "fedramp_20x_ksi__compliance_artifact"
     ENTITY_NAME: ClassVar[str] = "Compliance Artifact"
     ENTITY_DESCRIPTION: ClassVar[str] = (
         "A fetched compliance rendering kept whole — an OSCAL SSP, OSCAL "
@@ -80,7 +80,7 @@ class ComplianceArtifact(BaseModel):
     verified_at = models.CharField(max_length=64, blank=True, default="")
 
     class Meta(BaseModel.Meta):
-        db_table = "compliance_artifact"
+        db_table = "fedramp_20x_ksi__compliance_artifact"
 
     def get_name(self) -> str:
         return self.name

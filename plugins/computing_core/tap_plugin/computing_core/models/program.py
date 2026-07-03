@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class Program(BaseModel):
     """An application-level program that may spawn processes and use resources."""
 
-    ENTITY_TYPE: ClassVar[str] = "program"
+    ENTITY_TYPE: ClassVar[str] = "computing_core__program"
     ENTITY_NAME: ClassVar[str] = "Program"
     ENTITY_DESCRIPTION: ClassVar[str] = "Execution of an application that may spawn multiple processes."
     ENTITY_ICON: ClassVar[str] = "program"
@@ -46,7 +46,7 @@ class Program(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "computing_program"
+        db_table = "computing_core__program"
 
     def get_name(self) -> str:
         return self.name or self.program_name

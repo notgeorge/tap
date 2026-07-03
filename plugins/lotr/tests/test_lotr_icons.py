@@ -38,10 +38,10 @@ def register_lotr_types(db):
 
 
 # Entity types that declare icons in plugins/lotr/apps.py
-LOTR_ICON_SLUGS = ["character", "location", "artifact", "race"]
+LOTR_ICON_SLUGS = ["lotr__character", "lotr__location", "lotr__artifact", "lotr__race"]
 
 # Entity types that intentionally have no icon
-LOTR_NO_ICON_SLUGS = ["faction", "sentinel", "citadel", "wanderer"]
+LOTR_NO_ICON_SLUGS = ["lotr__faction", "lotr__sentinel", "lotr__citadel", "lotr__wanderer"]
 
 
 @pytest.mark.django_db
