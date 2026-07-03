@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class EksCluster(BaseModel):
     """An Amazon EKS Kubernetes cluster."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_eks_cluster"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_eks_cluster"
     ENTITY_NAME: ClassVar[str] = "EKS Cluster"
     ENTITY_DESCRIPTION: ClassVar[str] = "An Amazon Elastic Kubernetes Service cluster."
     ENTITY_ICON: ClassVar[str] = "aws-eks"
@@ -50,7 +50,7 @@ class EksCluster(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_eks_cluster"
+        db_table = "aws_core__aws_eks_cluster"
 
     def get_name(self) -> str:
         return self.name

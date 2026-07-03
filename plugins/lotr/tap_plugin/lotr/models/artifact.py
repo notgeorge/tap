@@ -12,7 +12,7 @@ _NAME_SCHEMA: dict[str, Any] = {"type": "string", "minLength": 1}
 class Artifact(BaseModel):
     """A significant object (The One Ring, Sting, Andúril, etc.)."""
 
-    ENTITY_TYPE: ClassVar[str] = "artifact"
+    ENTITY_TYPE: ClassVar[str] = "lotr__artifact"
     ENTITY_NAME: ClassVar[str] = "Artifact"
     ENTITY_DESCRIPTION: ClassVar[str] = "A significant object of power."
     ENTITY_ICON: ClassVar[str] = "artifact"
@@ -32,7 +32,7 @@ class Artifact(BaseModel):
                     {
                         "name": "artifact-inside-character",
                         "description": "An artifact may be visually nested inside a wielding character.",
-                        "gryphon": "(parent:character)-[:WIELDS]->(child:artifact)",
+                        "gryphon": "(parent:lotr__character)-[:WIELDS__lotr]->(child:lotr__artifact)",
                     }
                 ]
             },
@@ -40,11 +40,11 @@ class Artifact(BaseModel):
     }
 
     OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
-        {"nodes": [{"type": "location"}], "edges": [{"type": "FORGED_IN"}]},
+        {"nodes": [{"type": "lotr__location"}], "edges": [{"type": "FORGED_IN__lotr"}]},
     ]
 
     INBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
-        {"nodes": [{"type": "character"}], "edges": [{"type": "WIELDS"}]},
+        {"nodes": [{"type": "lotr__character"}], "edges": [{"type": "WIELDS__lotr"}]},
     ]
 
     name = models.CharField(max_length=255, blank=True, default="")
@@ -52,7 +52,7 @@ class Artifact(BaseModel):
     origin = models.CharField(max_length=255, blank=True, default="")
 
     class Meta(BaseModel.Meta):
-        db_table = "lotr_artifact"
+        db_table = "lotr__artifact"
 
     def get_name(self) -> str:
         return self.name

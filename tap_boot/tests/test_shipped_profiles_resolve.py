@@ -25,7 +25,7 @@ from tap_boot.profile import BootProfile, FireCollectorStep, profile_ids
 def test_shipped_profiles_discovered():
     """The house profiles are present, so the guard is non-empty."""
     ids = set(profile_ids())
-    assert {"base", "samsite"} <= ids, f"expected the base + samsite profiles; found {sorted(ids)}"
+    assert {"test_all", "samsite"} <= ids, f"expected the test_all + samsite profiles; found {sorted(ids)}"
 
 
 def test_guard_has_teeth_rotted_collector_key_fails():

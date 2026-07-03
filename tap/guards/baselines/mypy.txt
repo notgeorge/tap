@@ -146,6 +146,7 @@ tap_grid/hotlink.py:type-arg:2
 tap_grid/management/commands/purge_entities.py:no-untyped-def:2
 tap_grid/management/commands/runserver_nocache.py:no-untyped-def:2
 tap_grid/models.py:attr-defined:3
+tap_grid/models.py:import-untyped:4
 tap_grid/models.py:no-any-return:2
 tap_grid/models.py:type-arg:25
 tap_grid/models.py:unused-ignore:2
@@ -240,7 +241,6 @@ tap_web/panels/table_panel/__init__.py:attr-defined:1
 tap_web/panels/table_panel/__init__.py:unused-ignore:1
 tap_web/panels/text_panel/__init__.py:type-arg:1
 tap_web/panels/viewer_panel/__init__.py:attr-defined:2
-tap_web/skills/drive-browser/drive.py:import-not-found:1
 tap_web/synthetic.py:arg-type:1
 tap_web/synthetic.py:assignment:2
 tap_web/synthetic.py:no-any-return:1

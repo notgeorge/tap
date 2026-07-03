@@ -119,19 +119,27 @@ fi
 # it (there is no push to gate). It requires the session's stack to be up.
 # ---------------------------------------------------------------------------
 if [[ "$DRY_RUN" -eq 1 ]]; then
-  info "[dry-run] would: scripts/test (full lane) then scripts/gate (cold-boot gate)"
+  info "[dry-run] would: scripts/test (full lane) then scripts/gate (cold-boot gate) then scripts/gate-lean (lean-boot independence)"
 else
   bold "Development-validation gate on the merged tree"
   if ! scripts/dc ps --status running --services 2>/dev/null | grep -qx web; then
     fail "Validation gate requires this session's stack to be up (scripts/dc up -d). \
 Refusing to promote an unvalidated tree to origin/main (req-dev-validation-promote-hook)."
   fi
-  # Two composed surfaces (req-dev-validation-suite-tiers-1, req-dev-validation-promote-hook):
+  # Three composed surfaces (req-dev-validation-suite-tiers-1, req-dev-validation-promote-hook):
   #   1. Full pytest lane — catches unit/functional regressions (e.g. a stale
   #      collector key red'ing a unit test — the exact class that shipped to main
   #      before this hook existed).
   #   2. Cold-boot gate — catches what the suite structurally cannot: a cold boot
   #      from zero, per-profile resolution, the real backend, real health.
+  #   3. Lean-boot independence gate — catches what BOTH above structurally cannot:
+  #      a core module importing a plugin-only dependency (requests/jwt class). The
+  #      cold-boot gate reuses this stack's FULL venv where the leak is invisible;
+  #      gate-lean stands up a separate stack with a core-only venv (~1 min) where
+  #      the leak fails loud. It branches the throwaway off HEAD (the just-merged
+  #      session tree — the exact tree about to become origin/main; local `main`
+  #      isn't advanced until after the push) and nukes itself on exit.
+  #      (req-dev-validation-lean-boot)
   info "Full test lane (scripts/test) ..."
   if ! scripts/test; then
     fail "Full test lane RED — aborting promote. origin/main is NOT advanced \
@@ -142,7 +150,13 @@ Refusing to promote an unvalidated tree to origin/main (req-dev-validation-promo
     fail "Cold-boot gate RED — aborting promote. origin/main is NOT advanced \
 (req-dev-validation-promote-hook-2). Fix the failing step and re-run."
   fi
-  info "Validation GREEN (full lane + cold-boot gate) — proceeding to push."
+  info "Cold-boot gate GREEN. Lean-boot independence gate (scripts/gate-lean) ..."
+  if ! scripts/gate-lean; then
+    fail "Lean-boot gate RED — aborting promote. origin/main is NOT advanced \
+(req-dev-validation-promote-hook-2). A core module likely imports a plugin-only \
+dependency; see the *-diag.log and the /diagnose-failed-session-spawn skill."
+  fi
+  info "Validation GREEN (full lane + cold-boot gate + lean-boot gate) — proceeding to push."
 fi
 
 # ---------------------------------------------------------------------------

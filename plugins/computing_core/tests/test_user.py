@@ -25,16 +25,16 @@ def _create(type_slug: str, payload: dict):
 @pytest.mark.django_db
 class TestUserCreation:
     def test_create_via_service_layer(self):
-        node = _create("user", {"name": "Ada Lovelace", "description": "First programmer."})
+        node = _create("computing_core__user", {"name": "Ada Lovelace", "description": "First programmer."})
         assert node.name == "Ada Lovelace"
         assert node.description == "First programmer."
 
     def test_description_defaults_to_empty(self):
-        node = _create("user", {"name": "Grace Hopper"})
+        node = _create("computing_core__user", {"name": "Grace Hopper"})
         assert node.description == ""
 
     def test_name_required_on_create(self):
-        result = create_node("user", {"description": "no name given"})
+        result = create_node("computing_core__user", {"description": "no name given"})
         assert not result.success
         assert result.errors
 
@@ -42,12 +42,12 @@ class TestUserCreation:
 @pytest.mark.django_db
 class TestUserDisplayProjection:
     def test_entity_name_synced_from_get_name(self):
-        node = _create("user", {"name": "Alan Turing"})
+        node = _create("computing_core__user", {"name": "Alan Turing"})
         node.entity.refresh_from_db()
         assert node.entity.name == "Alan Turing"
 
     def test_entity_name_resynced_on_save(self):
-        node = _create("user", {"name": "Alan Turing"})
+        node = _create("computing_core__user", {"name": "Alan Turing"})
         node.name = "Alan M. Turing"
         node.save()
         node.entity.refresh_from_db()
@@ -57,5 +57,5 @@ class TestUserDisplayProjection:
 @pytest.mark.django_db
 class TestUserDimensions:
     def test_default_dimensions_applied(self):
-        node = _create("user", {"name": "Margaret Hamilton"})
+        node = _create("computing_core__user", {"name": "Margaret Hamilton"})
         assert node.entity.dimensions.get("tap.computing") == "identity"

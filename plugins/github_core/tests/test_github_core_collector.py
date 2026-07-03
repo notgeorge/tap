@@ -50,7 +50,7 @@ class TestManifests:
         # YAML-ref rules emit REFERENCES_RESOURCE; the structural OIDC rule emits
         # FEDERATES_VIA (repo -> aws_iam_oidc_provider); the issuer-convergence
         # rule emits TRUSTS_ISSUER (aws_iam_oidc_provider -> oidc_issuer).
-        assert edge_types == {"REFERENCES_RESOURCE", "FEDERATES_VIA", "TRUSTS_ISSUER"}
+        assert edge_types == {"REFERENCES_RESOURCE__github_core", "FEDERATES_VIA__github_core", "TRUSTS_ISSUER__github_core"}
 
     def test_link_manifest_oneof_source_enforced(self) -> None:
         """Schema must reject rules with both source_field_path and source_constant."""
@@ -66,12 +66,12 @@ class TestManifests:
             "rules": [
                 {
                     "name": "bad",
-                    "source_entity_type": "github_repository",
+                    "source_entity_type": "github_core__github_repository",
                     "source_field_path": "x.y",
                     "source_constant": "z",
-                    "target_entity_type": "aws_iam_oidc_provider",
+                    "target_entity_type": "aws_core__aws_iam_oidc_provider",
                     "target_field": "url",
-                    "edge_type": "REFERENCES_RESOURCE",
+                    "edge_type": "REFERENCES_RESOURCE__github_core",
                     "match_mode": "exact",
                 }
             ],
@@ -81,14 +81,14 @@ class TestManifests:
 
     def test_link_manifest_includes_oidc_rule(self) -> None:
         manifest = load_link_manifest()
-        oidc = [r for r in manifest["rules"] if r.get("target_entity_type") == "aws_iam_oidc_provider"]
+        oidc = [r for r in manifest["rules"] if r.get("target_entity_type") == "aws_core__aws_iam_oidc_provider"]
         assert len(oidc) == 1
         rule = oidc[0]
         assert rule["source_constant"] == "token.actions.githubusercontent.com"
         assert rule["near_match_pattern"] == r"(?i)githubusercontent\.com"
         # The federation rule emits the dedicated FEDERATES_VIA edge (not the
         # generic REFERENCES_RESOURCE) — repo -> aws_iam_oidc_provider.
-        assert rule["edge_type"] == "FEDERATES_VIA"
+        assert rule["edge_type"] == "FEDERATES_VIA__github_core"
 
 
 class TestPATSchema:
@@ -153,8 +153,8 @@ class TestIdentity:
         a = account_id("notgeorge")
         b = repository_id("notgeorge/samsite")
         c = repository_id("notgeorge/other")
-        assert edge_id("OWNS_REPO", a, b) != edge_id("OWNS_REPO", a, c)
-        assert edge_id("OWNS_REPO", a, b) != edge_id("DEFINES_WORKFLOW", a, b)
+        assert edge_id("OWNS_REPO__github_core", a, b) != edge_id("OWNS_REPO__github_core", a, c)
+        assert edge_id("OWNS_REPO__github_core", a, b) != edge_id("DEFINES_WORKFLOW__github_core", a, b)
 
 
 class TestParser:

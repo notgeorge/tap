@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class IamUser(BaseModel):
     """An AWS IAM user."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_iam_user"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_iam_user"
     ENTITY_NAME: ClassVar[str] = "IAM User"
     ENTITY_DESCRIPTION: ClassVar[str] = "An AWS IAM user identity."
     ENTITY_ICON: ClassVar[str] = "aws-iam"
@@ -47,7 +47,7 @@ class IamUser(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_iam_user"
+        db_table = "aws_core__aws_iam_user"
 
     def get_name(self) -> str:
         return self.name

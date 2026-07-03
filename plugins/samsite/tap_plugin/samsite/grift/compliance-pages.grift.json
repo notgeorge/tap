@@ -66,7 +66,7 @@
             "config": {
               "entity_id_var": "oscal_ssp_artifact_entity_id",
               "fallback": {
-                "query": "MATCH (a:compliance_artifact) WHERE a.data.kind = \"oscal_ssp\" AND a.data.fetched_at IS NOT NULL ORDER BY a.data.fetched_at DESC LIMIT 1",
+                "query": "MATCH (a:fedramp_20x_ksi__compliance_artifact) WHERE a.data.kind = \"oscal_ssp\" AND a.data.fetched_at IS NOT NULL ORDER BY a.data.fetched_at DESC LIMIT 1",
                 "description": "Latest oscal_ssp compliance artifact by fetched_at."
               }
             }
@@ -89,7 +89,7 @@
             "config": {
               "entity_id_var": "oscal_ssp_artifact_entity_id",
               "sequence": {
-                "query": "MATCH (a:compliance_artifact) WHERE a.data.kind = \"oscal_ssp\" AND a.data.fetched_at IS NOT NULL ORDER BY a.data.fetched_at DESC LIMIT 200",
+                "query": "MATCH (a:fedramp_20x_ksi__compliance_artifact) WHERE a.data.kind = \"oscal_ssp\" AND a.data.fetched_at IS NOT NULL ORDER BY a.data.fetched_at DESC LIMIT 200",
                 "label_field": "fetched_at",
                 "label": "OSCAL SSP"
               }
@@ -145,7 +145,7 @@
             "config": {
               "entity_id_var": "oscal_poam_artifact_entity_id",
               "fallback": {
-                "query": "MATCH (a:compliance_artifact) WHERE a.data.kind = \"oscal_poam\" AND a.data.fetched_at IS NOT NULL ORDER BY a.data.fetched_at DESC LIMIT 1",
+                "query": "MATCH (a:fedramp_20x_ksi__compliance_artifact) WHERE a.data.kind = \"oscal_poam\" AND a.data.fetched_at IS NOT NULL ORDER BY a.data.fetched_at DESC LIMIT 1",
                 "description": "Latest oscal_poam compliance artifact by fetched_at."
               }
             }
@@ -168,7 +168,7 @@
             "config": {
               "entity_id_var": "oscal_poam_artifact_entity_id",
               "sequence": {
-                "query": "MATCH (a:compliance_artifact) WHERE a.data.kind = \"oscal_poam\" AND a.data.fetched_at IS NOT NULL ORDER BY a.data.fetched_at DESC LIMIT 200",
+                "query": "MATCH (a:fedramp_20x_ksi__compliance_artifact) WHERE a.data.kind = \"oscal_poam\" AND a.data.fetched_at IS NOT NULL ORDER BY a.data.fetched_at DESC LIMIT 200",
                 "label_field": "fetched_at",
                 "label": "OSCAL POA&M"
               }
@@ -327,11 +327,11 @@
               "poam_entity_id_var": "oscal_poam_artifact_entity_id",
               "fallback": {
                 "ssp": {
-                  "query": "MATCH (a:compliance_artifact) WHERE a.data.kind = \"oscal_ssp\" AND a.data.fetched_at IS NOT NULL ORDER BY a.data.fetched_at DESC LIMIT 1",
+                  "query": "MATCH (a:fedramp_20x_ksi__compliance_artifact) WHERE a.data.kind = \"oscal_ssp\" AND a.data.fetched_at IS NOT NULL ORDER BY a.data.fetched_at DESC LIMIT 1",
                   "description": "Latest oscal_ssp compliance artifact by fetched_at."
                 },
                 "poam": {
-                  "query": "MATCH (a:compliance_artifact) WHERE a.data.kind = \"oscal_poam\" AND a.data.fetched_at IS NOT NULL ORDER BY a.data.fetched_at DESC LIMIT 1",
+                  "query": "MATCH (a:fedramp_20x_ksi__compliance_artifact) WHERE a.data.kind = \"oscal_poam\" AND a.data.fetched_at IS NOT NULL ORDER BY a.data.fetched_at DESC LIMIT 1",
                   "description": "Latest oscal_poam compliance artifact by fetched_at."
                 }
               }

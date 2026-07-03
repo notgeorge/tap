@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class ElasticIp(BaseModel):
     """An Amazon VPC elastic IP address."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_elastic_ip"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_elastic_ip"
     ENTITY_NAME: ClassVar[str] = "Elastic IP"
     ENTITY_DESCRIPTION: ClassVar[str] = "An Amazon VPC elastic IP address."
     ENTITY_ICON: ClassVar[str] = "aws-elastic-ip"
@@ -47,7 +47,7 @@ class ElasticIp(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_elastic_ip"
+        db_table = "aws_core__aws_elastic_ip"
 
     def get_name(self) -> str:
         return self.name or str(self.public_ip or self.allocation_id)

@@ -44,10 +44,25 @@ name = "tap-plugin-<slug>"
 description = "TAP <Display Name> plugin — <one line>."
 requires-python = ">=3.14"
 dynamic = ["version"]
-dependencies = []                    # Tier-0 deps go here (see Dependencies below)
+dependencies = []                    # Tier-0 RUNTIME deps go here (see Dependencies below)
 
 [project.entry-points."tap.plugins"]
 <slug> = "tap_plugin.<slug>.apps:<Slug>Config"   # entry-point KEY == slug
+
+# Developer-mode (test/lint) deps — the plugin's OWN dev closure, so its suite runs
+# standalone (post-eviction) instead of free-riding on the monorepo root venv's dev
+# group (req-plugin-arch-dev-deps). PEP 735 dependency-groups: NOT [project.optional-
+# dependencies] (extras are opt-in runtime features), and NEVER a boot/install concept —
+# dev deps must not enter a deployed instance. Dev-group deps never ship in the wheel.
+# Pulled with `uv sync --group dev` / `uv run --group dev pytest` in a standalone checkout;
+# in the monorepo the shared root dev group already covers them, so this is a pre-demand
+# foundational edge (born-correct so the free-riding habit never calcifies).
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-django>=4.9",
+    "factory-boy>=3.3",
+]
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
@@ -403,7 +418,7 @@ Create or update `docs/` files for operational setup, runbooks, generated invent
 
 Package-mode plugins load via the boot profile's `install` section, **not** `INSTALLED_APPS` and **not** a submodule. To integrate:
 
-1. Add an `install` entry to the relevant boot profile(s) — including any profile the test/dev container boots (e.g. `boot/base.boot.json`, and this session's profile), so pre-boot's reconciliation guard doesn't fail closed on an installed-but-undeclared plugin:
+1. Add an `install` entry to the relevant boot profile(s) — including `boot/test_all.boot.json` (the test/gate union the full lane boots, so your plugin's tests are discoverable) and any other profile the test/dev container boots, so pre-boot's reconciliation guard doesn't fail closed on an installed-but-undeclared plugin:
    ```json
    { "slug": "<slug>", "enabled": true, "source": { "type": "editable", "path": "plugins/<slug>" },
      "note": "<what it is; install-only vs seeded>" }

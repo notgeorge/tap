@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class SagemakerEndpoint(BaseModel):
     """An Amazon SageMaker inference endpoint."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_sagemaker_endpoint"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_sagemaker_endpoint"
     ENTITY_NAME: ClassVar[str] = "SageMaker Endpoint"
     ENTITY_DESCRIPTION: ClassVar[str] = "An Amazon SageMaker inference endpoint."
     ENTITY_ICON: ClassVar[str] = "aws-sagemaker"
@@ -47,7 +47,7 @@ class SagemakerEndpoint(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_sagemaker_endpoint"
+        db_table = "aws_core__aws_sagemaker_endpoint"
 
     def get_name(self) -> str:
         return self.name

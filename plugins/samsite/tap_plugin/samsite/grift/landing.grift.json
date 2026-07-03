@@ -14,7 +14,7 @@
       "batch_node": {
         "source": "plugins.samsite",
         "name": "Samsite landing v0.1.9",
-        "description": "Landing page: cytoscape graph projection of the samsite deployment (account 180731181784). v0.1.5 is the merge of two parallel lines onto one batch: (a) the signed /.well-known/ artifacts on the board — the seed search matches ksi_signal / vdr_report / compliance_artifact, and landing-finalize.js prunes each to the latest snapshot per kind and styles them as file cards; (b) the deploy→KEV-fetch + human-actor story — the search also matches web_host / web_document (CISA host + KEV catalog, kev-fetch.grift.json) and user (the three actors Readers / george / Sam, users.grift.json). web_host / web_document / user / the compliance file types carry no per-model tags, so they are reached by explicit per-label MATCHes (like the GitHub lane), not the Project=samsite tag scan. Fresh batch_entity_id (supersedes both 019e73fb-... and 019e73fe-...) so any session seeded from either parent re-applies the combined search; the skip-if-exists guard is batch-id-keyed. The Rekor entries collapse into a stack (tap_viz stack primitive) in landing-finalize.js. v0.1.7 adds MATCH (gapp:github_app) so the Dependabot github_app (reclassified from a workflow by the collector) renders — the finalize pass parents it to the github.com platform compound. v0.1.8 existed as two parallel lines on separate branches, reconciled here in v0.1.9: (a) removed four orphaned edges left behind when the samsite-bootstrap-layout + its three samsite-bootstrap-* arrangements were retired (commit 43f0cd8) — the USES_LAYOUT edge into the layout and three USES_ARRANGEMENT edges out of it were never removed and dangled on a fresh seed; (b) added nav_rules to the graph panel config (interpreted generically by tap_viz graph_panel → display.tap_viz.nav_url → single-tap navigation in panel-graph.js): signed artifacts (compliance_artifact by kind / ksi_signal / vdr_report) open their workbench viewer pages pinned by entity_id, and GitHub nodes (repository / account / platform / workflow / app) open their html_url on github.com in a new tab. v0.1.9 merges both with a fresh batch_entity_id superseding 019e7908-... (a) and 019e7e65-... (b) so any grid seeded from either parent re-applies the combined batch."
+        "description": "Landing page: cytoscape graph projection of the samsite deployment (account 180731181784). v0.1.5 is the merge of two parallel lines onto one batch: (a) the signed /.well-known/ artifacts on the board — the seed search matches ksi_signal / vdr_report / compliance_artifact, and landing-finalize.js prunes each to the latest snapshot per kind and styles them as file cards; (b) the deploy→KEV-fetch + human-actor story — the search also matches web_host / web_document (CISA host + KEV catalog, kev-fetch.grift.json) and user (the three actors Readers / george / Sam, users.grift.json). web_host / web_document / user / the compliance file types carry no per-model tags, so they are reached by explicit per-label MATCHes (like the GitHub lane), not the Project=samsite tag scan. Fresh batch_entity_id (supersedes both 019e73fb-... and 019e73fe-...) so any session seeded from either parent re-applies the combined search; the skip-if-exists guard is batch-id-keyed. The Rekor entries collapse into a stack (tap_viz stack primitive) in landing-finalize.js. v0.1.7 adds MATCH (gapp:github_core__github_app) so the Dependabot github_app (reclassified from a workflow by the collector) renders — the finalize pass parents it to the github.com platform compound. v0.1.8 existed as two parallel lines on separate branches, reconciled here in v0.1.9: (a) removed four orphaned edges left behind when the samsite-bootstrap-layout + its three samsite-bootstrap-* arrangements were retired (commit 43f0cd8) — the USES_LAYOUT edge into the layout and three USES_ARRANGEMENT edges out of it were never removed and dangled on a fresh seed; (b) added nav_rules to the graph panel config (interpreted generically by tap_viz graph_panel → display.tap_viz.nav_url → single-tap navigation in panel-graph.js): signed artifacts (compliance_artifact by kind / ksi_signal / vdr_report) open their workbench viewer pages pinned by entity_id, and GitHub nodes (repository / account / platform / workflow / app) open their html_url on github.com in a new tab. v0.1.9 merges both with a fresh batch_entity_id superseding 019e7908-... (a) and 019e7e65-... (b) so any grid seeded from either parent re-applies the combined batch."
       },
       "nodes": [
         {
@@ -31,22 +31,22 @@
             "root": "node",
             "definition": {
               "query": [
-                "MATCH (account:aws_account)",
-                "MATCH (b:boundary)",
-                "MATCH (gp:github_platform)",
-                "MATCH (ga:github_account)",
-                "MATCH (gr:github_repository)",
-                "MATCH (gw:github_workflow)",
-                "MATCH (gapp:github_app)",
-                "MATCH (re:rekor_log_entry)",
-                "MATCH (ca:sigstore_ca)",
-                "MATCH (oi:oidc_issuer)",
-                "MATCH (sig:ksi_signal)",
-                "MATCH (vr:vdr_report)",
-                "MATCH (cart:compliance_artifact)",
-                "MATCH (wh:web_host)",
-                "MATCH (wd:web_document)",
-                "MATCH (u:user)",
+                "MATCH (account:aws_core__aws_account)",
+                "MATCH (b:fedramp_20x_ksi__boundary)",
+                "MATCH (gp:github_core__github_platform)",
+                "MATCH (ga:github_core__github_account)",
+                "MATCH (gr:github_core__github_repository)",
+                "MATCH (gw:github_core__github_workflow)",
+                "MATCH (gapp:github_core__github_app)",
+                "MATCH (re:sigstore_core__rekor_log_entry)",
+                "MATCH (ca:sigstore_core__sigstore_ca)",
+                "MATCH (oi:github_core__oidc_issuer)",
+                "MATCH (sig:fedramp_20x_ksi__ksi_signal)",
+                "MATCH (vr:fedramp_20x_ksi__vdr_report)",
+                "MATCH (cart:fedramp_20x_ksi__compliance_artifact)",
+                "MATCH (wh:computing_core__web_host)",
+                "MATCH (wd:computing_core__web_document)",
+                "MATCH (u:computing_core__user)",
                 "MATCH (n)",
                 "WHERE n.data.tags.Project = \"samsite\""
               ]
@@ -216,16 +216,16 @@
               "height": "100%",
               "hide_header": true,
               "nav_rules": [
-                {"entity_type": "compliance_artifact", "where": {"kind": "oscal_ssp"}, "url_template": "/samsite/artifacts/ssp?oscal_ssp_artifact_entity_id={entity_id}"},
-                {"entity_type": "compliance_artifact", "where": {"kind": "oscal_poam"}, "url_template": "/samsite/artifacts/poam?oscal_poam_artifact_entity_id={entity_id}"},
-                {"entity_type": "compliance_artifact", "where": {"kind": "iiw"}, "url_template": "/samsite/artifacts/iiw?iiw_artifact_entity_id={entity_id}"},
-                {"entity_type": "ksi_signal", "url_template": "/samsite/artifacts/ksi-signal?ksi_signal_entity_id={entity_id}"},
-                {"entity_type": "vdr_report", "url_template": "/samsite/artifacts/vdr-report?vdr_report_entity_id={entity_id}"},
-                {"entity_type": "github_repository", "url_field": "html_url", "external": true},
-                {"entity_type": "github_account", "url_field": "html_url", "external": true},
-                {"entity_type": "github_platform", "url_field": "html_url", "external": true},
-                {"entity_type": "github_workflow", "url_field": "html_url", "external": true},
-                {"entity_type": "github_app", "url_field": "html_url", "external": true}
+                {"entity_type": "fedramp_20x_ksi__compliance_artifact", "where": {"kind": "oscal_ssp"}, "url_template": "/samsite/artifacts/ssp?oscal_ssp_artifact_entity_id={entity_id}"},
+                {"entity_type": "fedramp_20x_ksi__compliance_artifact", "where": {"kind": "oscal_poam"}, "url_template": "/samsite/artifacts/poam?oscal_poam_artifact_entity_id={entity_id}"},
+                {"entity_type": "fedramp_20x_ksi__compliance_artifact", "where": {"kind": "iiw"}, "url_template": "/samsite/artifacts/iiw?iiw_artifact_entity_id={entity_id}"},
+                {"entity_type": "fedramp_20x_ksi__ksi_signal", "url_template": "/samsite/artifacts/ksi-signal?ksi_signal_entity_id={entity_id}"},
+                {"entity_type": "fedramp_20x_ksi__vdr_report", "url_template": "/samsite/artifacts/vdr-report?vdr_report_entity_id={entity_id}"},
+                {"entity_type": "github_core__github_repository", "url_field": "html_url", "external": true},
+                {"entity_type": "github_core__github_account", "url_field": "html_url", "external": true},
+                {"entity_type": "github_core__github_platform", "url_field": "html_url", "external": true},
+                {"entity_type": "github_core__github_workflow", "url_field": "html_url", "external": true},
+                {"entity_type": "github_core__github_app", "url_field": "html_url", "external": true}
               ]
             }
           }
@@ -276,7 +276,7 @@
         {
           "entity": {
             "entity_id": "019e4afc-3e9f-76c9-8771-73ea77b8ff13",
-            "entity_type": "boundary",
+            "entity_type": "fedramp_20x_ksi__boundary",
             "name": "Samsite Authorization Boundary",
             "dimensions": {
               "compliance": "boundary"
@@ -301,10 +301,10 @@
             "description": "Places the CloudFront distribution directly below the Route53 hosted zone — the ROUTES_TRAFFIC edge runs vertically as the user-traffic path's main spine.",
             "definition": {
               "anchor": {
-                "gryphon": "MATCH (n:aws_route53_zone) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"dns\""
+                "gryphon": "MATCH (n:aws_core__aws_route53_zone) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"dns\""
               },
               "members": {
-                "gryphon": "MATCH (n:aws_cloudfront_distribution) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"site\""
+                "gryphon": "MATCH (n:aws_core__aws_cloudfront_distribution) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"site\""
               },
               "positioning": "vertical",
               "distribution": "even",
@@ -326,10 +326,10 @@
             "description": "Places the ACM certificate to the right of Route53 — the RETRIEVES_CERT_FROM edge's lookup, kept on the same row as Route53 so the cert reads as 'paired with the zone'.",
             "definition": {
               "anchor": {
-                "gryphon": "MATCH (n:aws_route53_zone) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"dns\""
+                "gryphon": "MATCH (n:aws_core__aws_route53_zone) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"dns\""
               },
               "members": {
-                "gryphon": "MATCH (n:aws_acm_certificate) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"dns\""
+                "gryphon": "MATCH (n:aws_core__aws_acm_certificate) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"dns\""
               },
               "positioning": "horizontal",
               "distribution": "even",
@@ -351,10 +351,10 @@
             "description": "Places the S3 origin bucket to the right of CloudFront on the second row — the RETRIEVES_CONTENT_FROM edge's origin lookup.",
             "definition": {
               "anchor": {
-                "gryphon": "MATCH (n:aws_cloudfront_distribution) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"site\""
+                "gryphon": "MATCH (n:aws_core__aws_cloudfront_distribution) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"site\""
               },
               "members": {
-                "gryphon": "MATCH (n:aws_s3_bucket) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"site\""
+                "gryphon": "MATCH (n:aws_core__aws_s3_bucket) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"site\""
               },
               "positioning": "horizontal",
               "distribution": "even",
@@ -376,10 +376,10 @@
             "description": "Places the compliance Lambda directly to the right of the EventBridge rule — INVOKES, the scheduled trigger that fires the Lambda. Puts EventBridge, Lambda, and the CloudWatch log group on a single horizontal line so the compliance flow reads left-to-right.",
             "definition": {
               "anchor": {
-                "gryphon": "MATCH (n:aws_eventbridge_rule) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"compliance\""
+                "gryphon": "MATCH (n:aws_core__aws_eventbridge_rule) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"compliance\""
               },
               "members": {
-                "gryphon": "MATCH (n:aws_lambda) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"compliance\""
+                "gryphon": "MATCH (n:aws_core__aws_lambda) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"compliance\""
               },
               "positioning": "horizontal",
               "distribution": "even",
@@ -401,10 +401,10 @@
             "description": "Places the CloudWatch log group to the right of the Lambda — WRITES_LOGS branch.",
             "definition": {
               "anchor": {
-                "gryphon": "MATCH (n:aws_lambda) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"compliance\""
+                "gryphon": "MATCH (n:aws_core__aws_lambda) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"compliance\""
               },
               "members": {
-                "gryphon": "MATCH (n:aws_cloudwatch_log_group) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"compliance\""
+                "gryphon": "MATCH (n:aws_core__aws_cloudwatch_log_group) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"compliance\""
               },
               "positioning": "horizontal",
               "distribution": "even",
@@ -426,10 +426,10 @@
             "description": "Stacks the Lambda's IAM role just above the CloudWatch log group — the ASSUMES_ROLE branch off Lambda, expressed by anchoring on the previously-placed log-group node so the two right-of-Lambda branches don't overlap. Arrangement-stacking pattern per spec-viz-arrangement § Stackable.",
             "definition": {
               "anchor": {
-                "gryphon": "MATCH (n:aws_cloudwatch_log_group) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"compliance\""
+                "gryphon": "MATCH (n:aws_core__aws_cloudwatch_log_group) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"compliance\""
               },
               "members": {
-                "gryphon": "MATCH (n:aws_iam_role) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"compliance\""
+                "gryphon": "MATCH (n:aws_core__aws_iam_role) WHERE n.data.tags.Project = \"samsite\" AND n.data.tags.Component = \"compliance\""
               },
               "positioning": "vertical",
               "distribution": "even",

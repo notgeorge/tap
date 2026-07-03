@@ -20,7 +20,7 @@
         {
           "entity": {
             "entity_id": "36077809-9276-593f-b97f-e6953663f201",
-            "entity_type": "web_host",
+            "entity_type": "computing_core__web_host",
             "name": "CISA",
             "dimensions": {
               "tap.computing": "network",
@@ -36,7 +36,7 @@
         {
           "entity": {
             "entity_id": "17f81ef4-4598-55e8-b145-c61bd859e299",
-            "entity_type": "web_document",
+            "entity_type": "computing_core__web_document",
             "name": "CISA KEV Catalog",
             "dimensions": {
               "tap.computing": "storage",
@@ -65,7 +65,7 @@
           "edge": {
             "from_entity_id": "17f81ef4-4598-55e8-b145-c61bd859e299",
             "to_entity_id": "36077809-9276-593f-b97f-e6953663f201",
-            "edge_type": "HOSTED_BY",
+            "edge_type": "HOSTED_BY__computing_core",
             "properties": {}
           }
         }

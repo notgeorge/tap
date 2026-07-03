@@ -1,15 +1,15 @@
 -- statement 1 · stage: bare-type-scan
-SELECT "compliance_artifact"."entity_id" AS "entity_id"
-FROM "compliance_artifact"
-INNER JOIN "tap_entity" ON ("compliance_artifact"."entity_id" = "tap_entity"."id")
-WHERE ("tap_entity"."deleted_at" IS NULL AND "compliance_artifact"."kind" = %s)
+SELECT "fedramp_20x_ksi__compliance_artifact"."entity_id" AS "entity_id"
+FROM "fedramp_20x_ksi__compliance_artifact"
+INNER JOIN "tap_entity" ON ("fedramp_20x_ksi__compliance_artifact"."entity_id" = "tap_entity"."id")
+WHERE ("tap_entity"."deleted_at" IS NULL AND "fedramp_20x_ksi__compliance_artifact"."kind" = %s)
 -- params: ['hub']
 
 -- statement 2 · stage: bare-type-scan
-SELECT "evidence"."entity_id" AS "entity_id"
-FROM "evidence"
-INNER JOIN "tap_entity" ON ("evidence"."entity_id" = "tap_entity"."id")
-WHERE ("tap_entity"."deleted_at" IS NULL AND "evidence"."kind" = %s)
+SELECT "fedramp_20x_ksi__evidence"."entity_id" AS "entity_id"
+FROM "fedramp_20x_ksi__evidence"
+INNER JOIN "tap_entity" ON ("fedramp_20x_ksi__evidence"."entity_id" = "tap_entity"."id")
+WHERE ("tap_entity"."deleted_at" IS NULL AND "fedramp_20x_ksi__evidence"."kind" = %s)
 -- params: ['hub']
 
 -- statement 3 · stage: bare-type-scan

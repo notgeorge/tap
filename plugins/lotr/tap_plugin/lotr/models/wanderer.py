@@ -16,7 +16,7 @@ class Wanderer(BaseModel):
     any edge type to/from any node type.
     """
 
-    ENTITY_TYPE: ClassVar[str] = "wanderer"
+    ENTITY_TYPE: ClassVar[str] = "lotr__wanderer"
     ENTITY_NAME: ClassVar[str] = "Wanderer"
     ENTITY_DESCRIPTION: ClassVar[str] = "An unconstrained traveler."
 
@@ -35,7 +35,7 @@ class Wanderer(BaseModel):
     journey = models.TextField(blank=True, default="")
 
     class Meta(BaseModel.Meta):
-        db_table = "lotr_wanderer"
+        db_table = "lotr__wanderer"
 
     def get_name(self) -> str:
         return self.name

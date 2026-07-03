@@ -839,8 +839,8 @@ class KSICollector(CollectorBase):
     def _theme_node(self, code: str, state: dict[str, Any]) -> dict[str, Any]:
         return {
             "entity": {
-                "entity_id": self._ns_uuid("ksi_theme", code),
-                "entity_type": "ksi_theme",
+                "entity_id": self._ns_uuid("fedramp_20x_ksi__ksi_theme", code),
+                "entity_type": "fedramp_20x_ksi__ksi_theme",
                 "name": state.get("name") or code,
                 "dimensions": {"compliance": "fedramp-20x"},
             },
@@ -850,8 +850,8 @@ class KSICollector(CollectorBase):
     def _indicator_node(self, code: str, state: dict[str, Any]) -> dict[str, Any]:
         return {
             "entity": {
-                "entity_id": self._ns_uuid("ksi_indicator", code),
-                "entity_type": "ksi_indicator",
+                "entity_id": self._ns_uuid("fedramp_20x_ksi__ksi_indicator", code),
+                "entity_type": "fedramp_20x_ksi__ksi_indicator",
                 "name": state.get("name") or code,
                 "dimensions": {"compliance": "fedramp-20x"},
             },
@@ -861,14 +861,14 @@ class KSICollector(CollectorBase):
     def _contains_indicator_edge(self, theme_code: str, ind_code: str) -> dict[str, Any]:
         return {
             "entity": {
-                "entity_id": self._ns_uuid("edge:CONTAINS_INDICATOR", f"{theme_code}->{ind_code}"),
+                "entity_id": self._ns_uuid("edge:CONTAINS_INDICATOR__fedramp_20x_ksi", f"{theme_code}->{ind_code}"),
                 "entity_type": "edge",
                 "dimensions": {"compliance": "fedramp-20x"},
             },
             "edge": {
-                "from_entity_id": self._ns_uuid("ksi_theme", theme_code),
-                "to_entity_id": self._ns_uuid("ksi_indicator", ind_code),
-                "edge_type": "CONTAINS_INDICATOR",
+                "from_entity_id": self._ns_uuid("fedramp_20x_ksi__ksi_theme", theme_code),
+                "to_entity_id": self._ns_uuid("fedramp_20x_ksi__ksi_indicator", ind_code),
+                "edge_type": "CONTAINS_INDICATOR__fedramp_20x_ksi",
                 "properties": {},
             },
         }

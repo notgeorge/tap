@@ -40,12 +40,12 @@ def build_findings_rows(envelope: dict[str, Any]) -> list[dict[str, Any]]:
     for edge in envelope.get("edges", []):
         edge_body = edge.get("edge") or {}
         et = edge_body.get("edge_type")
-        if et == "HAS_FINDING":
+        if et == "HAS_FINDING__fedramp_20x_ksi":
             finding_id = edge_body.get("to_entity_id")
             parent_id = edge_body.get("from_entity_id")
             if finding_id and parent_id and finding_id not in parents_by_finding:
                 parents_by_finding[finding_id] = parent_id
-        elif et == "RELATED_INDICATOR":
+        elif et == "RELATED_INDICATOR__fedramp_20x_ksi":
             finding_id = edge_body.get("from_entity_id")
             ksi_id = edge_body.get("to_entity_id")
             if finding_id and ksi_id and finding_id not in ksi_links_by_finding:
@@ -58,7 +58,7 @@ def build_findings_rows(envelope: dict[str, Any]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for n in envelope.get("nodes", []):
         ent = n.get("entity") or {}
-        if ent.get("entity_type") != "finding":
+        if ent.get("entity_type") != "fedramp_20x_ksi__finding":
             continue
 
         finding_id = ent.get("entity_id")

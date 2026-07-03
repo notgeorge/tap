@@ -30,9 +30,9 @@ DEFAULT_VAR_NAME = "vdr_report_entity_id"
 
 
 def _findings(report_entity_id: str) -> list[dict[str, Any]]:
-    query = "MATCH (r:vdr_report)-[:REPORTS_FINDING]->(f:vdr_finding) WHERE r.entity_id = $id RETURN f"
+    query = "MATCH (r:fedramp_20x_ksi__vdr_report)-[:REPORTS_FINDING__fedramp_20x_ksi]->(f:fedramp_20x_ksi__vdr_finding) WHERE r.entity_id = $id RETURN f"
     envelope = execute_gryphon_raw(query, {"id": report_entity_id}, layer="extended")
-    return [n.get("data") or {} for n in (envelope.get("nodes") or []) if n.get("entity_type") == "vdr_finding"]
+    return [n.get("data") or {} for n in (envelope.get("nodes") or []) if n.get("entity_type") == "fedramp_20x_ksi__vdr_finding"]
 
 
 def build_context(panel: Any, request: Any) -> dict[str, Any]:

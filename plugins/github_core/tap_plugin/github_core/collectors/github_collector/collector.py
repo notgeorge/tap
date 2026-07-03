@@ -297,7 +297,7 @@ class GithubCollector(CollectorBase):
         nodes.append(
             node_envelope(
                 entity_id=platform_uuid,
-                entity_type="github_platform",
+                entity_type="github_core__github_platform",
                 name=_PLATFORM_HOST,
                 dimensions=dict(_PLATFORM_DIMENSIONS),
                 fields={
@@ -316,7 +316,7 @@ class GithubCollector(CollectorBase):
         nodes.append(
             node_envelope(
                 entity_id=oidc_issuer_id(_OIDC_ISSUER_URL),
-                entity_type="oidc_issuer",
+                entity_type="github_core__oidc_issuer",
                 name=_OIDC_ISSUER_NAME,
                 dimensions={"identity.protocol": "oidc"},
                 fields={
@@ -400,7 +400,7 @@ class GithubCollector(CollectorBase):
         nodes.append(
             node_envelope(
                 entity_id=account_uuid,
-                entity_type="github_account",
+                entity_type="github_core__github_account",
                 name=account_payload["login"],
                 dimensions={**repo_dims},  # owner+repo carried even on account
                 fields={
@@ -415,7 +415,7 @@ class GithubCollector(CollectorBase):
         )
         # platform hosts this account — top-of-tree containment. Deterministic
         # edge id dedupes across repos that share an owner.
-        edges.append(self._edge("HOSTS_ACCOUNT", platform_uuid, account_uuid, dict(_PLATFORM_DIMENSIONS)))
+        edges.append(self._edge("HOSTS_ACCOUNT__github_core", platform_uuid, account_uuid, dict(_PLATFORM_DIMENSIONS)))
 
         # repository (envelope name == payload name == full_name for display)
         repo_payload = client.get(f"/repos/{full_name}")
@@ -423,7 +423,7 @@ class GithubCollector(CollectorBase):
         nodes.append(
             node_envelope(
                 entity_id=repo_uuid,
-                entity_type="github_repository",
+                entity_type="github_core__github_repository",
                 name=full_name,
                 dimensions=repo_dims,
                 fields={
@@ -439,12 +439,12 @@ class GithubCollector(CollectorBase):
                 },
             )
         )
-        edges.append(self._edge("OWNS_REPO", account_uuid, repo_uuid, repo_dims))
+        edges.append(self._edge("OWNS_REPO__github_core", account_uuid, repo_uuid, repo_dims))
 
         # The Actions OIDC issuer (synthesized once as a platform singleton) is
         # enabled for every repo's workflows to mint identity tokens — mirror the
         # github_app ENABLED_ON pattern so it connects into the repo it serves.
-        edges.append(self._edge("ENABLED_ON", oidc_issuer_id(_OIDC_ISSUER_URL), repo_uuid, repo_dims))
+        edges.append(self._edge("ENABLED_ON__github_core", oidc_issuer_id(_OIDC_ISSUER_URL), repo_uuid, repo_dims))
 
         # workflows + workflow YAML
         workflows = client.get_paginated(f"/repos/{full_name}/actions/workflows", item_path="workflows")
@@ -467,7 +467,7 @@ class GithubCollector(CollectorBase):
             nodes.append(
                 node_envelope(
                     entity_id=wf_uuid,
-                    entity_type="github_workflow",
+                    entity_type="github_core__github_workflow",
                     name=wf_display_name,
                     dimensions=actions_dims,
                     fields={
@@ -482,7 +482,7 @@ class GithubCollector(CollectorBase):
                     },
                 )
             )
-            edges.append(self._edge("DEFINES_WORKFLOW", repo_uuid, wf_uuid, actions_dims))
+            edges.append(self._edge("DEFINES_WORKFLOW__github_core", repo_uuid, wf_uuid, actions_dims))
             # Local-action surfacing per req-github-core-workflow-parse-3.
             for ref in parsed_config.get("local_action_refs") or []:
                 self.record_warn(
@@ -514,7 +514,7 @@ class GithubCollector(CollectorBase):
             nodes.append(
                 node_envelope(
                     entity_id=run_uuid,
-                    entity_type="github_actions_run",
+                    entity_type="github_core__github_actions_run",
                     name=f"Run #{r.get('run_number', r['id'])}",
                     dimensions=observation_dims,
                     fields={
@@ -538,7 +538,7 @@ class GithubCollector(CollectorBase):
                 )
             )
             if wf_ref_uuid is not None:
-                edges.append(self._edge("EXECUTES_WORKFLOW", run_uuid, wf_ref_uuid, observation_dims))
+                edges.append(self._edge("EXECUTES_WORKFLOW__github_core", run_uuid, wf_ref_uuid, observation_dims))
 
             # jobs for this run (latest-attempt endpoint per req-github-core-collector-8)
             jobs = self._fetch_run_jobs(client, full_name, r["id"])
@@ -548,7 +548,7 @@ class GithubCollector(CollectorBase):
                 nodes.append(
                     node_envelope(
                         entity_id=j_uuid,
-                        entity_type="github_actions_job",
+                        entity_type="github_core__github_actions_job",
                         name=j_display_name,
                         dimensions=observation_dims,
                         fields={
@@ -571,7 +571,7 @@ class GithubCollector(CollectorBase):
                         },
                     )
                 )
-                edges.append(self._edge("HAS_ACTIONS_JOB", run_uuid, j_uuid, observation_dims))
+                edges.append(self._edge("HAS_ACTIONS_JOB__github_core", run_uuid, j_uuid, observation_dims))
 
         # runners (graceful-degrade on 403 per req-github-core-collector-5)
         try:
@@ -594,7 +594,7 @@ class GithubCollector(CollectorBase):
             nodes.append(
                 node_envelope(
                     entity_id=rn_uuid,
-                    entity_type="github_runner",
+                    entity_type="github_core__github_runner",
                     name=rn_display_name,
                     dimensions=actions_dims,
                     fields={
@@ -618,7 +618,7 @@ class GithubCollector(CollectorBase):
                 if j.get("runner_id") and j["runner_id"] in runner_uuid_by_id:
                     j_uuid = job_id(full_name, j["id"])
                     rn_uuid = runner_uuid_by_id[j["runner_id"]]
-                    edges.append(self._edge("EXECUTED_ON", j_uuid, rn_uuid, observation_dims))
+                    edges.append(self._edge("EXECUTED_ON__github_core", j_uuid, rn_uuid, observation_dims))
 
     # ---------- helpers ----------
 
@@ -640,7 +640,7 @@ class GithubCollector(CollectorBase):
             nodes.append(
                 node_envelope(
                     entity_id=app_uuid,
-                    entity_type="github_app",
+                    entity_type="github_core__github_app",
                     name=app_meta["name"],
                     dimensions=apps_dims,
                     fields={
@@ -654,7 +654,7 @@ class GithubCollector(CollectorBase):
                     },
                 )
             )
-        edges.append(self._edge("ENABLED_ON", app_uuid, repo_uuid, apps_dims))
+        edges.append(self._edge("ENABLED_ON__github_core", app_uuid, repo_uuid, apps_dims))
         self.record_info(
             _SITE_DEPENDABOT_APP,
             "GITHUB_APP_ENABLED",

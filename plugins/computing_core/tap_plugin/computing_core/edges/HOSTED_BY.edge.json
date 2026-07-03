@@ -1,12 +1,12 @@
 {
-  "slug": "HOSTED_BY",
+  "slug": "HOSTED_BY__computing_core",
   "name": "Hosted By",
   "description": "A web document is served by a web host.",
   "sources": [
-    "web_document"
+    "computing_core__web_document"
   ],
   "targets": [
-    "web_host"
+    "computing_core__web_host"
   ],
   "default_dimensions": {
     "tap.computing": "network",

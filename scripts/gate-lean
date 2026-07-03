@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# scripts/gate-lean — the lean-container boot-independence gate.
+#
+# Stands up a GENUINELY fresh, lean-INSTALLED throwaway session — its own compose
+# project (=> its own `venv` named volume => a core-only virtualenv) — and boots
+# the zero-plugin `core` profile through the real spawn-off-`main` path, gating on
+# `manage.py health`. Because the venv is core-only, ANY core module that imports a
+# plugin-only dependency (the `requests` / `jwt` leakage class) fails at
+# pre-boot / boot. The in-container cold-boot gate (`scripts/gate`) CANNOT catch
+# that: it reuses the running stack's full venv (a per-compose-project named
+# volume), where the leaked dependency is already importable and the leak stays
+# invisible. Only a separate stack with a separate venv volume has teeth here.
+#
+# Spec: req-dev-validation-lean-boot / req-boot-minimal-baseline-5 (spec-tap-boot-v0.md).
+#
+# Isolation & teardown:
+#   * The throwaway worktree is written under WORKTREE_BASE (default: system tmp),
+#     NOT ~/tap-sessions — a disposable session never clutters the real sessions dir.
+#   * On ANY exit (success, failure, interrupt) the throwaway is nuked: containers,
+#     volumes, networks, worktree, branch, registry row — via despawn-session.sh
+#     (a commitless throwaway is always CLEAN, so `--yes` tears it down unattended),
+#     with an inline `compose down -v` + `worktree remove` fallback if despawn errors.
+#   * On FAILURE, diagnostics (compose ps + web logs) are captured to a sibling log
+#     OUTSIDE the nuked worktree BEFORE teardown, so a red gate is debuggable. For a
+#     deeper post-mortem, run the /diagnose-failed-session-spawn skill.
+#
+# Usage:
+#   scripts/gate-lean                 # spawn+boot `core`, health-gate, teardown
+#   LEANBOOT_PROFILE=core_dev scripts/gate-lean   # core + grid_fixtures instead
+#
+# Exit code is the gate's: 0 == GREEN (lean profile booted healthy in isolation),
+# non-zero == RED (blocks a promote once wired into promote-to-main.sh).
+
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+NAME="${LEANBOOT_NAME:-leanboot}"
+PROFILE="${LEANBOOT_PROFILE:-core}"          # core = zero plugins = the strictest independence signal
+export WORKTREE_BASE="${LEANBOOT_BASE:-${TMPDIR:-/tmp}/tap-leanboot}"
+# A throwaway admin password: set in env so spawn's Step 0 skips the Keychain
+# stash prompt (env wins the resolution ladder) — keeps the spawn non-interactive.
+export TAP_DEV_ADMIN_PASSWORD="${TAP_DEV_ADMIN_PASSWORD:-leanboot-throwaway-$$}"
+
+PROJECT="tap_${NAME}"
+WORKTREE="$WORKTREE_BASE/$NAME"
+DIAG="$WORKTREE_BASE/${NAME}-diag.log"
+
+# Branch the throwaway from THIS worktree's HEAD, not `main`. In a promote,
+# Step 2.5 runs after the pre-push merge but before the push, so the merged tree
+# lives on the session branch HEAD while local `main` still points at the old
+# origin/main — HEAD is the exact tree about to become origin/main, so that is
+# what we must independence-test. Standalone, HEAD is simply the current commit.
+export TAP_SPAWN_BASE_REF="${TAP_SPAWN_BASE_REF:-$(git rev-parse HEAD)}"
+
+mkdir -p "$WORKTREE_BASE"
+
+bold() { printf "\n\033[1m==> %s\033[0m\n" "$1"; }
+info() { printf "    %s\n" "$1"; }
+
+teardown() {
+  local rc=$?
+  if [[ $rc -ne 0 ]]; then
+    bold "LEAN-BOOT RED (rc=$rc) — capturing diagnostics before teardown"
+    {
+      echo "### gate-lean failure  rc=$rc  profile=$PROFILE  project=$PROJECT"
+      echo "### compose ps"
+      docker compose -p "$PROJECT" ps 2>&1 || true
+      echo
+      echo "### web logs (tail 200)"
+      docker compose -p "$PROJECT" logs --tail 200 web 2>&1 || true
+    } >"$DIAG" 2>&1 || true
+    info "diagnostics: $DIAG"
+    info "post-mortem: run the /diagnose-failed-session-spawn skill"
+  fi
+  bold "Tearing down throwaway '$NAME'"
+  if ! WORKTREE_BASE="$WORKTREE_BASE" scripts/despawn-session.sh "$NAME" --yes >/dev/null 2>&1; then
+    # despawn couldn't do it (e.g. spawn died before the worktree existed) — nuke by hand.
+    docker compose -p "$PROJECT" down -v --remove-orphans >/dev/null 2>&1 || true
+    git worktree remove --force "$WORKTREE" >/dev/null 2>&1 || rm -rf "$WORKTREE"
+    git branch -D "session/$NAME" >/dev/null 2>&1 || true
+  fi
+  exit "$rc"
+}
+trap teardown EXIT INT TERM
+
+# Idempotent pre-clean: torch any leftover from a prior aborted run so spawn's
+# name/branch/worktree collision guards don't false-fail.
+WORKTREE_BASE="$WORKTREE_BASE" scripts/despawn-session.sh "$NAME" --yes >/dev/null 2>&1 || true
+
+bold "Lean-boot independence gate — spawning throwaway '$NAME'"
+info "profile=$PROFILE (isolated core-only venv)   worktree_base=$WORKTREE_BASE"
+scripts/spawn-session.sh "$NAME" --boot "$PROFILE"
+
+bold "LEAN-BOOT GREEN"
+info "'$PROFILE' booted healthy in an isolated core-only venv — no plugin-only import leaked into the core boot path."

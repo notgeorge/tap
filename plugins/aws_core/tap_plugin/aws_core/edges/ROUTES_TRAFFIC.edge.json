@@ -1,12 +1,12 @@
 {
-  "slug": "ROUTES_TRAFFIC",
+  "slug": "ROUTES_TRAFFIC__aws_core",
   "name": "Routes Traffic",
   "description": "Route table, load balancer, or DNS zone routes traffic to a target.",
   "sources": [
-    "aws_route_table",
-    "aws_alb",
-    "aws_elb",
-    "aws_route53_zone"
+    "aws_core__aws_route_table",
+    "aws_core__aws_alb",
+    "aws_core__aws_elb",
+    "aws_core__aws_route53_zone"
   ],
   "property_schema": {
     "type": "object",

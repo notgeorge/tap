@@ -64,9 +64,9 @@
     var indicators = [];
     for (var i = 0; i < nodes.length; i++) {
       var s = spine(nodes[i]);
-      if (s.entity_type === "ksi_theme") {
+      if (s.entity_type === "fedramp_20x_ksi__ksi_theme") {
         themes[s.entity_id] = nodes[i];
-      } else if (s.entity_type === "ksi_indicator") {
+      } else if (s.entity_type === "fedramp_20x_ksi__ksi_indicator") {
         indicators.push(nodes[i]);
       }
     }

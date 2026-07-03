@@ -34,10 +34,10 @@ def _projected(entity_type, key):
 
 class TestNodeEnvelope:
     def test_shape_and_payload(self):
-        env = node_envelope(_projected("aws_lambda", "arn:fn"), {"region": "us-east-1"})
+        env = node_envelope(_projected("aws_core__aws_lambda", "arn:fn"), {"region": "us-east-1"})
         assert env["entity"] == {
-            "entity_id": str(node_entity_id("aws_lambda", "arn:fn")),
-            "entity_type": "aws_lambda",
+            "entity_id": str(node_entity_id("aws_core__aws_lambda", "arn:fn")),
+            "entity_type": "aws_core__aws_lambda",
             "name": "arn:fn",
             "dimensions": {"region": "us-east-1"},
         }
@@ -66,9 +66,9 @@ class TestAssembleBatch:
         assert len(doc["batches"]) == 1  # one batch per run
 
     def test_batch_entity_and_provenance(self):
-        n1 = node_envelope(_projected("aws_lambda", "a"), {})
-        n2 = node_envelope(_projected("aws_lambda", "b"), {})
-        n3 = node_envelope(_projected("aws_iam_role", "r"), {})
+        n1 = node_envelope(_projected("aws_core__aws_lambda", "a"), {})
+        n2 = node_envelope(_projected("aws_core__aws_lambda", "b"), {})
+        n3 = node_envelope(_projected("aws_core__aws_iam_role", "r"), {})
         edge = {"entity": {"entity_type": "edge"}, "edge": {}}
         batch = self._doc([n1, n2, n3], [edge])["batches"][0]
 
@@ -88,18 +88,18 @@ class TestAssembleBatch:
         assert data["counts"] == {
             "nodes": 3,
             "edges": 1,
-            "by_entity_type": {"aws_iam_role": 1, "aws_lambda": 2},
+            "by_entity_type": {"aws_core__aws_iam_role": 1, "aws_core__aws_lambda": 2},
         }
 
     def test_nodes_and_edges_pass_through(self):
-        n = node_envelope(_projected("aws_s3_bucket", "bkt"), {})
+        n = node_envelope(_projected("aws_core__aws_s3_bucket", "bkt"), {})
         edge = {"entity": {"entity_type": "edge"}, "edge": {"edge_type": "X"}}
         batch = self._doc([n], [edge])["batches"][0]
         assert batch["nodes"] == [n]
         assert batch["edges"] == [edge]
 
     def test_no_deletion_or_tombstone_content(self):
-        batch = self._doc([node_envelope(_projected("aws_lambda", "a"), {})], [])["batches"][0]
+        batch = self._doc([node_envelope(_projected("aws_core__aws_lambda", "a"), {})], [])["batches"][0]
         # Assembler injects no deleted_at / tombstone / implied-absence keys.
         assert "deleted_at" not in batch["batch_entity"]
         assert all("deleted_at" not in n["entity"] for n in batch["nodes"])

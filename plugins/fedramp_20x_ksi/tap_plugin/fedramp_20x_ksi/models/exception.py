@@ -22,7 +22,7 @@ class ComplianceException(BaseModel):
     Spec: plugins/fedramp_20x_ksi/specs/spec-fedramp-20x-ksi-finding.md
     """
 
-    ENTITY_TYPE: ClassVar[str] = "exception"
+    ENTITY_TYPE: ClassVar[str] = "fedramp_20x_ksi__exception"
     ENTITY_NAME: ClassVar[str] = "Exception"
     ENTITY_DESCRIPTION: ClassVar[str] = (
         "A formal acceptance of one or more findings, typically recording "
@@ -57,7 +57,7 @@ class ComplianceException(BaseModel):
     status = models.CharField(max_length=16, blank=True, default="active", db_index=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "compliance_exception"
+        db_table = "fedramp_20x_ksi__exception"
 
     def get_name(self) -> str:
         return self.name

@@ -35,7 +35,7 @@ The Playwright MCP server is stateless per call and remains shared across sessio
 | req-dev-multisession-list-script | [List Script](#list-script) | Proposed | Phase 3 |
 | req-dev-multisession-named-routing | [Name-Based Routing via Reverse Proxy](#name-based-routing-via-reverse-proxy) | Backlog | Phase 3 polish |
 
-Teardown is tracked separately in [spec-dev-multisession-teardown.md](spec-dev-multisession-teardown.md). Smoke tests live in [spec-dev-multisession-smoketest.md](spec-dev-multisession-smoketest.md). First-boot collector firing — the spawn step that fires collectors to populate collected data after seeding — is specified in [spec-dev-boot-collectors.md](spec-dev-boot-collectors.md) (`req-dev-boot-collectors-spawn-integration`).
+Teardown is tracked separately in [spec-dev-multisession-teardown.md](spec-dev-multisession-teardown.md). Smoke tests live in [spec-dev-multisession-smoketest.md](spec-dev-multisession-smoketest.md). Diagnosing a spawn that fails to stand up — the *why* behind the spawn script's recovery-command trap (`req-dev-multisession-spawn-script-4`) — is standardized in [spec-dev-multisession-diagnose.md](spec-dev-multisession-diagnose.md) (the `/diagnose-failed-session-spawn` skill). First-boot collector firing — the spawn step that fires collectors to populate collected data after seeding — is specified in [spec-dev-boot-collectors.md](spec-dev-boot-collectors.md) (`req-dev-boot-collectors-spawn-integration`).
 
 ### Parameterized Compose Stack
 ----
@@ -192,7 +192,7 @@ Status: `Implemented`
 8. **Step 7 — Admin user.** Implements [req-dev-multisession-admin-bootstrap](#admin-user-bootstrap): resolves password (env var → Keychain → random), writes `.dev-credentials`, runs `createsuperuser --noinput`.
 9. **Done.** Prints labeled URL, direct URL, admin URL, admin credentials, credentials-file path, and how to attach Claude Code.
 
-The script wires a failure trap that, on any non-zero exit, prints recovery commands for the partial state (despawn + worktree-remove + branch-delete). This isolates the developer from "where did spawn fail and what do I do now" guesswork.
+The script wires a failure trap that, on any non-zero exit, prints recovery commands for the partial state (despawn + worktree-remove + branch-delete). This isolates the developer from "where did spawn fail and what do I do now" guesswork. That trap covers the *recovery*; the *root-cause read* ("why did it fail") is standardized separately in [spec-dev-multisession-diagnose.md](spec-dev-multisession-diagnose.md).
 
 Worktrees live **outside** the repo at `~/tap-sessions/<name>` to keep the main tree uncluttered.
 

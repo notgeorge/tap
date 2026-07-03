@@ -1,11 +1,11 @@
 {
-  "slug": "HOSTS",
+  "slug": "HOSTS__computing_core",
   "name": "Hosts",
   "description": "A compute environment hosts a resource such as a network interface, program, or file.",
   "targets": [
-    "network_interface",
-    "program",
-    "file"
+    "computing_core__network_interface",
+    "computing_core__program",
+    "computing_core__file"
   ],
   "default_dimensions": {
     "tap.computing": "host"

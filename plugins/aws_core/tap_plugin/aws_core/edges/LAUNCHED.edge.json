@@ -1,10 +1,10 @@
 {
-  "slug": "LAUNCHED",
+  "slug": "LAUNCHED__aws_core",
   "name": "Launched",
   "description": "IAM user or role launched or created a resource.",
   "sources": [
-    "aws_iam_user",
-    "aws_iam_role"
+    "aws_core__aws_iam_user",
+    "aws_core__aws_iam_role"
   ],
   "property_schema": {
     "type": "object",

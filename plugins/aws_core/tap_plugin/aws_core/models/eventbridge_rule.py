@@ -19,7 +19,7 @@ class EventbridgeRule(BaseModel):
     field on this model.
     """
 
-    ENTITY_TYPE: ClassVar[str] = "aws_eventbridge_rule"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_eventbridge_rule"
     ENTITY_NAME: ClassVar[str] = "EventBridge Rule"
     ENTITY_DESCRIPTION: ClassVar[str] = "An Amazon EventBridge rule."
     ENTITY_ICON: ClassVar[str] = "aws-eventbridge"
@@ -61,7 +61,7 @@ class EventbridgeRule(BaseModel):
     tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_eventbridge_rule"
+        db_table = "aws_core__aws_eventbridge_rule"
 
     def get_name(self) -> str:
         return self.name

@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class Alb(BaseModel):
     """An Amazon Application Load Balancer."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_alb"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_alb"
     ENTITY_NAME: ClassVar[str] = "Application Load Balancer"
     ENTITY_DESCRIPTION: ClassVar[str] = "An Amazon Application Load Balancer (ALB)."
     ENTITY_ICON: ClassVar[str] = "aws-alb"
@@ -49,7 +49,7 @@ class Alb(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_alb"
+        db_table = "aws_core__aws_alb"
 
     def get_name(self) -> str:
         return self.name

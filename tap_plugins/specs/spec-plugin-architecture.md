@@ -43,7 +43,8 @@ Plugins may be developed as standalone git repositories and integrated into TAP 
 | req-plugin-arch-tests | [Testing Requirements](#testing-requirements) | Implemented | Plugins include plugin-specific tests and participate in shared validation |
 | req-plugin-arch-iterative-dev | [Iterative Development](#iterative-development) | Implemented | Canonical patterns for revising GRIFT content during and after initial import |
 | req-plugin-arch-python-deps | [Plugin Python Dependencies](#plugin-python-dependencies) | Implemented | Per-plugin `pyproject.toml` owns Tier-0 deps; plugins install profile-driven via the pre-boot `install` section (editable), not uv workspace membership (`members = []`). Deps resolve at install time — not in the root `uv.lock` during the transition (`github_core` declares `PyYAML`) |
-| req-plugin-arch-dev-deps | [Developer Mode Dependencies](#developer-mode-dependencies) | Backlog | Per-plugin PEP 735 `[dependency-groups]` `dev` group so an evicted plugin is standalone-testable; today plugins free-ride on the shared root venv's dev group. Dev deps never enter a deployed instance. Demand-gated on eviction. Not critical path (design note: `doc-plugin-dependency-scoping-backlog`) |
+| req-plugin-arch-core-packaging | [Core Apps As Workspace Members](#core-apps-as-workspace-members) | Backlog | Core `tap_*` apps could each become a uv **workspace member** with its own `pyproject.toml` + deps — package-mode for core, mirroring plugins — scoping deps to their consumer (e.g. `requests`/`django-allauth[socialaccount]` → `tap_auth`). The reason plugins can't be workspace members (profile-gating breaks the reconciliation guard) does **not** apply: core apps are always installed. Payoff: dep locality + independently-shippable core (the extraction endgame). Cost: N pyprojects + it *formalizes* the inter-app dependency edges — so sequence it **after** app-interdependency reduction, not now |
+| req-plugin-arch-dev-deps | [Developer Mode Dependencies](#developer-mode-dependencies) | Partially Implemented | Per-plugin PEP 735 `[dependency-groups]` `dev` group so an evicted plugin is standalone-testable; dev deps never enter a deployed instance. **Cheap edge landed 2026-07-02:** the `new-plugin` scaffold now seeds a `dev` group so new plugins are born self-contained. **Backfill** (add a `dev` group to the ~11 existing plugins) stays demand-gated on eviction — part of the full-eviction plan. Design note: `doc-plugin-dependency-scoping-backlog` |
 | req-plugin-arch-slim-install | [Install-Footprint Slimming](#install-footprint-slimming) | Backlog | Ship only what a deployment uses, across three layers: Python extras (Layer A), Docker image variants for system binaries (Layer B), and the already-built plugin-granularity install section (Layer C). Demand-gated on a deployment that needs a smaller footprint. Not critical path (design note: `doc-plugin-dependency-scoping-backlog`) |
 | req-plugin-arch-isolation | [Plugin Type Ownership & DB Isolation](#plugin-type-ownership--db-isolation) | Proposed | Plugin-refactor pickup: owner-namespaced types + hard-included per-plugin DB guards |
 | req-plugin-arch-hooks | [Plugin Hook System](#plugin-hook-system) | Backlog | Future Simon Willison DJP/pluggy-style hook surface for plugin injection points throughout TAP |
@@ -207,6 +208,7 @@ The plugin directory is the complete, self-contained unit. Everything needed to 
 | req-plugin-arch-layout-3 | Conventions Do Not Auto-Load | Implemented | Directory presence alone does not define plugin load behavior. | |
 | req-plugin-arch-layout-4 | Self-Contained Unit | Implemented | The plugin directory contains everything needed to understand, validate, test, and maintain the plugin. | |
 | req-plugin-arch-layout-5 | Specs Directory Expected | Implemented | Plugins should include a `specs/` directory with plugin-specific specifications. | |
+| req-plugin-arch-layout-6 | Plugin-Owned Standalone-Test Profile | Implemented | A plugin MAY ship a standalone-test boot profile at `plugins/<slug>/<slug>.boot.json` (named for the slug) that stands up just that plugin on the `core` floor for standalone testing. It is plugin-owned (travels with the plugin at extraction), NOT a top-level `boot/` profile, and boots via `spawn-session.sh --boot-file <path>`. First instance: `plugins/gryphon_playground/gryphon_playground.boot.json`. | Reinforces `req-plugin-arch-layout-4` (self-contained). See `spec-tap-boot-v0` `req-boot-minimal-baseline`. |
 
 ### Repository Structure
 ----
@@ -994,10 +996,35 @@ This requirement provides dependency declaration and lockfile ownership, not run
 | req-plugin-arch-python-deps-6 | Standalone Repo Compatible | Implemented | The dependency shape works whether a plugin is in-tree, a git submodule, a path dependency, or a standalone repository. | |
 
 
+### Core Apps As Workspace Members
+----
+RID: `req-plugin-arch-core-packaging`
+Status: `Backlog`
+Revisit When: `after app-interdependency reduction has cleaned the tap_* dependency graph; when independently-shippable core apps become a concrete need (repo extraction)`
+
+Today the core `tap_*` apps (`tap_auth`, `tap_grid`, `tap_web`, `tap_api`, `tap_cares`, `tap_boot`, `tap_health`, `tap_viz`, `tap_ai`) are Django app directories inside the **single** root `tap` project — they share the one root `pyproject.toml`, so their third-party dependencies (e.g. `requests` and `django-allauth[socialaccount]`, imported directly by `tap_auth`) must be declared at the top level, not scoped to the app that uses them.
+
+**uv workspaces could change that.** A workspace is N packages, each with its own `pyproject.toml` + dependency list, sharing one lockfile and venv. Making each core app a workspace member (`tap_auth/pyproject.toml` declaring `requests`, etc.) would put dependencies **closest to their consumer** — package-mode for core, mirroring what the plugins already are.
+
+The load-bearing insight: **the reason plugins cannot be workspace members does not apply to core apps.** Plugins are excluded from the workspace (`members = []`, `req-plugin-arch-python-deps-1`) because membership installs *every* member unconditionally, which breaks the profile-gated `reconciliation_guard` ("undeclared code must not load at standup"). Core apps have no such gate — they are *always* installed, always in `INSTALLED_APPS`. The entrypoint already runs `uv sync --all-packages`, which would install exactly the core members; core apps expose no `tap.plugins` entry point, so they stay invisible to the plugin reconciliation. It is mechanically compatible.
+
+**Payoff:** dependency locality; each app's third-party surface is visible and owned; the concrete substrate for independently-shippable / extractable core apps (the same endgame as plugin repo extraction).
+
+**Cost / why not now:** it is a real refactor (a `pyproject.toml` + build backend per app, dist naming) and — more importantly — it forces the **inter-app dependencies to be declared** (`tap-auth` → `tap-grid` → …). That is double-edged: it surfaces the coupling honestly, but it also *cements* today's app-to-app edges into metadata. So this is explicitly sequenced **after** the app-interdependency reduction (push shared mechanics down into `tap/` or `tap_grid`), not as a way to solve a single undeclared dependency (for which the root `pyproject.toml` + a clear comment is correctly sized).
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-plugin-arch-core-packaging-1 | Per-App pyproject | Backlog | Each core `tap_*` app that carries third-party deps declares them in its own `pyproject.toml`, scoped to that app. | Mirrors the plugin per-slug `pyproject.toml` shape. |
+| req-plugin-arch-core-packaging-2 | Workspace Membership Allowed For Core | Backlog | Core apps are declared as uv workspace members (`[tool.uv.workspace] members`), which is safe because they are always installed — unlike plugins (`req-plugin-arch-python-deps-1`). | The profile-gating objection is plugin-specific. |
+| req-plugin-arch-core-packaging-3 | Declared Inter-App Deps | Backlog | Cross-app dependencies (`tap-auth` → `tap-grid`, …) are declared explicitly; the graph is cleaned via interdependency reduction *before* being cemented. | Sequencing gate: do the reduction first. |
+
+
 ### Developer Mode Dependencies
 ----
 RID: `req-plugin-arch-dev-deps`
-Status: `Backlog`
+Status: `Partially Implemented`
 
 A plugin's **develop/test** dependency closure (test framework, factories, linters) is a
 separate axis from its runtime closure (`req-plugin-arch-python-deps`, Tier 0). This
@@ -1029,8 +1056,11 @@ monorepo hides.
   boot/install-section concept. Dev deps must not enter a deployed instance through the boot
   `install` path — the same discipline as "the profile carries no secrets." No `dev: true` in
   a profile, ever.
-- **Cheap edge (safe pre-demand):** the `new-plugin` scaffold seeds every new plugin with a
-  `dev` group, so the free-riding habit does not calcify.
+- **Cheap edge (safe pre-demand) — DONE 2026-07-02:** the `new-plugin` scaffold
+  (`tap_plugins/skills/new-plugin/SKILL.md`) seeds every new plugin's `pyproject.toml` with a
+  `[dependency-groups]` `dev` group (`pytest`, `pytest-django`, `factory-boy`), so the
+  free-riding habit does not calcify. The **backfill** to the ~11 existing plugins remains
+  demand-gated and is folded into the full-eviction plan.
 - **Two-tier testing (with eviction):** running each plugin's suite against *its own* dev
   group instead of the shared root venv is the "two-tier plugin testing" build; it consumes
   into `spec-plugin-testing.md`.

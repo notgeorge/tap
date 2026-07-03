@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class RdsInstance(BaseModel):
     """An Amazon RDS database instance."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_rds_instance"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_rds_instance"
     ENTITY_NAME: ClassVar[str] = "RDS Instance"
     ENTITY_DESCRIPTION: ClassVar[str] = "An Amazon RDS database instance."
     ENTITY_ICON: ClassVar[str] = "aws-rds"
@@ -58,7 +58,7 @@ class RdsInstance(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_rds_instance"
+        db_table = "aws_core__aws_rds_instance"
 
     def get_name(self) -> str:
         return self.name or self.db_instance_id

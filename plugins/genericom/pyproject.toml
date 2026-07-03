@@ -9,7 +9,7 @@
 #   entry-point key  = "genericom"                (== slug)
 #
 # genericom is a demonstration plugin (grift-only, no models); it is installed only by
-# boot/genericom-install.boot.json, not the samsite profile. NOT a uv.workspace member:
+# its plugin-owned profile (genericom.boot.json in this dir), not the samsite profile. NOT a uv.workspace member:
 # package-mode plugins install via the pre-boot stage, not `uv sync --all-packages`.
 [project]
 name = "tap-plugin-genericom"

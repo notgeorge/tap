@@ -23,7 +23,7 @@ class SigstoreCa(BaseModel):
     Spec: plugins/sigstore_core/specs/spec-sigstore-core-v0.md (req-sigstore-core-models).
     """
 
-    ENTITY_TYPE: ClassVar[str] = "sigstore_ca"
+    ENTITY_TYPE: ClassVar[str] = "sigstore_core__sigstore_ca"
     ENTITY_NAME: ClassVar[str] = "Sigstore CA"
     ENTITY_DESCRIPTION: ClassVar[str] = "A certificate authority that issues Sigstore signing certificates."
     ENTITY_ICON: ClassVar[str] = "sigstore-ca"
@@ -69,7 +69,7 @@ class SigstoreCa(BaseModel):
     tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "sigstore_ca"
+        db_table = "sigstore_core__sigstore_ca"
 
     def get_name(self) -> str:
         return self.ca_name or self.ca_url or "Sigstore CA"

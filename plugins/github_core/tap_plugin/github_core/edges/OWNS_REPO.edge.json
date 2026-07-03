@@ -1,9 +1,9 @@
 {
-  "slug": "OWNS_REPO",
+  "slug": "OWNS_REPO__github_core",
   "name": "Owns Repo",
   "description": "GitHub account owns a repository.",
-  "sources": ["github_account"],
-  "targets": ["github_repository"],
+  "sources": ["github_core__github_account"],
+  "targets": ["github_core__github_repository"],
   "default_dimensions": {
     "github.platform": "github.com"
   }

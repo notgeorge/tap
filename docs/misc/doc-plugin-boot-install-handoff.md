@@ -22,7 +22,7 @@ related_specs:
 > the profile `install` section (`tap_boot/schemas/boot.schema.json`), settings consumption of
 > `TAP_PLUGINS`, the `docker/entrypoint.sh` pre-boot stage, `git` added to the Dockerfile, and the
 > dev snapshot-disable in spawn. `genericom` is migrated to package-mode as the one real install
-> target; `boot/genericom-install.boot.json` is the validation profile; `tap/tests/test_preboot.py`
+> target; `plugins/genericom/genericom.boot.json` is the validation profile (plugin-owned, booted via `--boot-file`); `tap/tests/test_preboot.py`
 > covers the units. The related boot/plugin-arch spec reqs are flipped to `Implemented`
 > (MVP) / `Partially Implemented`. **Transition state (UPDATED 2026-07-01):** the mechanical
 > follow-on is DONE — the entire samsite plugin set (`fedramp_20x_ksi`, `github_core`, `roscale`,
@@ -249,8 +249,9 @@ What shipped this session (machinery-first, minimal install set — George's cal
   container restart does not re-fire collectors.
 - **`Dockerfile`** — `git` added (was missing; required for git-source plugin installs).
 - **`plugins/genericom/`** — migrated to package-mode (nested `genericom/` package + pyproject with
-  the `tap.plugins` entry point) as the one real install target. `boot/genericom-install.boot.json`
-  is the validation profile. `tap/tests/test_preboot.py` (23 tests) covers the units.
+  the `tap.plugins` entry point) as the one real install target. `plugins/genericom/genericom.boot.json`
+  is the validation profile (plugin-owned, booted via `--boot-file`; moved out of `boot/` 2026-07-02).
+  `tap/tests/test_preboot.py` covers the units.
 - **Security edge — `tap/logging.py:discover_scan_roots`** (found + fixed this session): the authZ-
   coverage AND log-site scanners discovered plugin roots by `plugins/<slug>/tap-plugin.toml`.
   Package-mode nests it at `plugins/<slug>/<slug>/tap-plugin.toml`, so **migrating a plugin to

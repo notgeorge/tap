@@ -1,8 +1,8 @@
 {
-  "slug": "AFFECTS_RESOURCE",
+  "slug": "AFFECTS_RESOURCE__fedramp_20x_ksi",
   "name": "Affects Resource",
   "description": "A VDR finding's vulnerability is in this resource. The target is intentionally a wildcard — a finding can affect a ksi_component, a future software_package, or a collected cloud resource. v0 resolves vdr_finding.resource to a node best-effort; unresolved findings keep the resource field with no edge.",
-  "sources": ["vdr_finding"],
+  "sources": ["fedramp_20x_ksi__vdr_finding"],
   "default_dimensions": {
     "compliance": "vdr"
   }

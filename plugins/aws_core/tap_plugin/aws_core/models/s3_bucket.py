@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class S3Bucket(BaseModel):
     """An Amazon S3 storage bucket."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_s3_bucket"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_s3_bucket"
     ENTITY_NAME: ClassVar[str] = "S3 Bucket"
     ENTITY_DESCRIPTION: ClassVar[str] = "An Amazon S3 storage bucket."
     ENTITY_ICON: ClassVar[str] = "aws-s3"
@@ -67,7 +67,7 @@ class S3Bucket(BaseModel):
     tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_s3_bucket"
+        db_table = "aws_core__aws_s3_bucket"
 
     def get_name(self) -> str:
         return self.name

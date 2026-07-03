@@ -1,7 +1,7 @@
 {
-  "slug": "FORGED_IN",
+  "slug": "FORGED_IN__lotr",
   "name": "Forged In",
   "description": "Artifact was forged in a location.",
-  "sources": ["artifact"],
-  "targets": ["location"]
+  "sources": ["lotr__artifact"],
+  "targets": ["lotr__location"]
 }

@@ -12,7 +12,7 @@ _NAME_SCHEMA: dict[str, Any] = {"type": "string", "minLength": 1}
 class Race(BaseModel):
     """A race of beings (Hobbit, Elf, Dwarf, Human, Wizard, etc.)."""
 
-    ENTITY_TYPE: ClassVar[str] = "race"
+    ENTITY_TYPE: ClassVar[str] = "lotr__race"
     ENTITY_NAME: ClassVar[str] = "Race"
     ENTITY_DESCRIPTION: ClassVar[str] = "A race of beings."
     ENTITY_ICON: ClassVar[str] = "race"
@@ -30,7 +30,7 @@ class Race(BaseModel):
     OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = []
 
     INBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
-        {"nodes": [{"type": "character"}], "edges": [{"type": "BELONGS_TO"}]},
+        {"nodes": [{"type": "lotr__character"}], "edges": [{"type": "BELONGS_TO__lotr"}]},
     ]
 
     name = models.CharField(max_length=255, blank=True, default="")
@@ -38,7 +38,7 @@ class Race(BaseModel):
     traits = models.TextField(blank=True, default="")
 
     class Meta(BaseModel.Meta):
-        db_table = "lotr_race"
+        db_table = "lotr__race"
 
     def get_name(self) -> str:
         return self.name

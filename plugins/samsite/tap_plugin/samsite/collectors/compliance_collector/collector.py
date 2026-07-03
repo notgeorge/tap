@@ -158,15 +158,15 @@ class SamsiteComplianceCollector(CollectorBase):
             all_edges.append(
                 {
                     "entity": {
-                        "entity_id": str(identity.edge_entity_id("GENERATES_FILE", workflow_id, anchor_entity_id)),
+                        "entity_id": str(identity.edge_entity_id("GENERATES_FILE__computing_core", workflow_id, anchor_entity_id)),
                         "entity_type": "edge",
-                        "name": "GENERATES_FILE",
+                        "name": "GENERATES_FILE__computing_core",
                         "dimensions": {},
                     },
                     "edge": {
                         "from_entity_id": workflow_id,
                         "to_entity_id": anchor_entity_id,
-                        "edge_type": "GENERATES_FILE",
+                        "edge_type": "GENERATES_FILE__computing_core",
                         "properties": {"basis": "signer_identity_inferred"},
                     },
                 }
@@ -301,7 +301,7 @@ class SamsiteComplianceCollector(CollectorBase):
         sig_seen_node_ids: set[str] = set()
 
         for fetched_item in fetched:
-            if fetched_item["artifact"]["handling"] != "ksi_signal":
+            if fetched_item["artifact"]["handling"] != "fedramp_20x_ksi__ksi_signal":
                 continue
             artifact = fetched_item["artifact"]
             try:
@@ -324,7 +324,7 @@ class SamsiteComplianceCollector(CollectorBase):
             )
 
         for fetched_item in fetched:
-            if fetched_item["artifact"]["handling"] != "vdr_report":
+            if fetched_item["artifact"]["handling"] != "fedramp_20x_ksi__vdr_report":
                 continue
             artifact = fetched_item["artifact"]
             try:
@@ -351,7 +351,7 @@ class SamsiteComplianceCollector(CollectorBase):
 
         for fetched_item in fetched:
             artifact = fetched_item["artifact"]
-            if artifact["handling"] != "compliance_artifact":
+            if artifact["handling"] != "fedramp_20x_ksi__compliance_artifact":
                 continue
             decomp = decompose_compliance_artifact(
                 body=fetched_item["body"],

@@ -14,7 +14,7 @@ import json
 import pytest
 
 _EXECUTE_URL = "/api/v1/gryphon/execute"
-_QUERY = {"query": "MATCH (n:character) RETURN n", "inputs": {}, "layer": "lite"}
+_QUERY = {"query": "MATCH (n:lotr__character) RETURN n", "inputs": {}, "layer": "lite"}
 
 
 @pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])

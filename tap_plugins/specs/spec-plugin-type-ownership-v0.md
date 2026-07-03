@@ -53,11 +53,11 @@ The whole scheme grounds out on an identifier that is **already unique by constr
 | --- | --- | :---: | --- |
 | req-plugin-type-owner-identity | [Owner Is The Plugin Slug](#owner-is-the-plugin-slug) | Proposed | Owner = unique plugin slug; qualified id unique by inheritance |
 | req-plugin-type-flat-string | [Flat-String Identity](#flat-string-identity) | Proposed | Qualified id stays a flat opaque string, never a parsed field |
-| req-plugin-type-node-prefix | [Node/Table Owner Prefix](#nodetable-owner-prefix) | Proposed | Plugin node types + tables: `<slug>__<name>` |
-| req-plugin-type-edge-suffix | [Edge Owner Suffix](#edge-owner-suffix) | Proposed | Plugin edge types: `<NAME>__<slug>` |
+| req-plugin-type-node-prefix | [Node/Table Owner Prefix](#nodetable-owner-prefix) | Implemented | Plugin node types + tables: `<slug>__<name>` |
+| req-plugin-type-edge-suffix | [Edge Owner Suffix](#edge-owner-suffix) | Implemented | Plugin edge types: `<NAME>__<slug>` |
 | req-plugin-type-core-default | [Core Is The Default Namespace](#core-is-the-default-namespace) | Proposed | Core/platform types stay unqualified |
 | req-plugin-type-reuse | [Reuse By Qualified Reference](#reuse-by-qualified-reference) | Proposed | Reuse = reference the owner's full name; soft nudge to prefer it |
-| req-plugin-type-collision-loud | [Collisions Are Loud, Not Silent](#collisions-are-loud-not-silent) | Proposed | Replace silent-merge + boot-block with namespacing + loud lint |
+| req-plugin-type-collision-loud | [Collisions Are Loud, Not Silent](#collisions-are-loud-not-silent) | Implemented | Replace silent-merge + boot-block with namespacing + loud lint |
 | req-plugin-type-db-affordance | [DB-Level Plugin Affordance](#db-level-plugin-affordance) | Proposed | `<slug>__*` tables enable per-plugin DB ops; schema upgrade path |
 | req-plugin-type-display-strip | [Display Strips The Owner](#display-strips-the-owner) | Proposed | Human surfaces strip the owner affix; code/queries use full names |
 | req-plugin-type-verbose-doctrine | [Verbose-Explicit Naming Doctrine](#verbose-explicit-naming-doctrine) | Proposed | Long qualified names are accepted; no resolution layer |
@@ -110,7 +110,7 @@ A qualified type identifier is a **single flat opaque string** end to end. It is
 ### Node/Table Owner Prefix
 ----
 RID: `req-plugin-type-node-prefix`
-Status: `Proposed`
+Status: `Implemented`
 
 A plugin node type — and its backing table — is named `<slug>__<name>` (owner **prefix**).
 
@@ -124,15 +124,15 @@ A plugin node type — and its backing table — is named `<slug>__<name>` (owne
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-plugin-type-node-prefix-1 | Node Prefix | Proposed | Plugin node types are `<slug>__<name>`. | |
-| req-plugin-type-node-prefix-2 | Table Prefix | Proposed | The backing table carries the same `<slug>__` prefix. | |
+| req-plugin-type-node-prefix-1 | Node Prefix | Implemented | Plugin node types are `<slug>__<name>`. | |
+| req-plugin-type-node-prefix-2 | Table Prefix | Implemented | The backing table carries the same `<slug>__` prefix. | |
 
 ---
 
 ### Edge Owner Suffix
 ----
 RID: `req-plugin-type-edge-suffix`
-Status: `Proposed`
+Status: `Implemented`
 
 A plugin edge type is named `<NAME>__<slug>` (owner **suffix**).
 
@@ -146,7 +146,7 @@ A plugin edge type is named `<NAME>__<slug>` (owner **suffix**).
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-plugin-type-edge-suffix-1 | Edge Suffix | Proposed | Plugin edge types are `<NAME>__<slug>`. | |
+| req-plugin-type-edge-suffix-1 | Edge Suffix | Implemented | Plugin edge types are `<NAME>__<slug>`. | |
 
 ---
 
@@ -197,7 +197,7 @@ Cross-plugin reuse of a canonical type is done by **referencing the owner's full
 ### Collisions Are Loud, Not Silent
 ----
 RID: `req-plugin-type-collision-loud`
-Status: `Proposed`
+Status: `Implemented`
 
 Owner-namespacing makes true collisions impossible; what remains — a *convention* violation (a forgotten affix, two plugins claiming the same qualified name) — is surfaced **loudly** by a dev-validation lint, never resolved silently.
 
@@ -206,15 +206,15 @@ Owner-namespacing makes true collisions impossible; what remains — a *conventi
 - This **replaces** the two current bad resolutions: the edge registry's silent merge (`req-grid-registry-3b`) becomes harmless once names are qualified (only identical qualified names ever merge, which by construction is intentional co-extension); the node registry's hard boot-block becomes unnecessary (namespacing removes the collision).
 - The remaining enforcement is **detection**: a lint that flags (a) a plugin type missing its owner affix, and (b) any qualified name claimed by two plugins. Loud at validation/CI time, the platform's standing posture (`spec-tap-logging.md`: visible failure over forced coordination; the research's "warn, not silent-merge").
 - The merge mechanism itself does **not** need to change for safety — qualification makes it safe. The lint is what turns *convention* into *reliability* (a forgotten affix can't silently re-open the hole).
-- Open choice for the lint's strictness (warn vs. fail-CI) and exact rule is left to the implementing refactor; the invariant is *loud, never silent*.
+- **Implemented (2026-07-02)** as a **fail-CI** guard, `tap_plugins.guards.type_ownership.PluginTypeOwnershipGuard` (the harness guard set, per-commit via `tap/tests/test_guards.py`). It reads every in-repo plugin's `tap-plugin.toml` and asserts each `[models]`/`[editors]` key carries the `<slug>__` prefix, each `[edges]` key the `__<slug>` suffix, and no qualified name is claimed by two plugins. No warn phase was needed: the `<slug>__<name>` sweep landed atomically, so the guard went straight to fail-CI on a fully-qualified tree.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-plugin-type-collision-loud-1 | No Silent Merge | Proposed | Qualification makes merge safe; unrelated types never silently union. | |
-| req-plugin-type-collision-loud-2 | No Boot-Block | Proposed | Node collisions are removed by namespacing, not by refusing to boot. | |
-| req-plugin-type-collision-loud-3 | Loud Lint | Proposed | A dev-validation lint loudly flags missing affixes and duplicate qualified names. | |
+| req-plugin-type-collision-loud-1 | No Silent Merge | Implemented | Qualification makes merge safe; unrelated types never silently union. | |
+| req-plugin-type-collision-loud-2 | No Boot-Block | Implemented | Node collisions are removed by namespacing, not by refusing to boot. | |
+| req-plugin-type-collision-loud-3 | Loud Lint | Implemented | A dev-validation lint loudly flags missing affixes and duplicate qualified names. | |
 
 ---
 

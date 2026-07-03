@@ -23,29 +23,29 @@ def _create(type_slug: str, payload: dict):
 @pytest.mark.django_db
 class TestGithubApp:
     def test_create_and_display(self):
-        app = _create("github_app", {"slug": "dependabot", "name": "Dependabot"})
+        app = _create("github_core__github_app", {"slug": "dependabot", "name": "Dependabot"})
         app.entity.refresh_from_db()
         assert app.slug == "dependabot"
         assert app.entity.name == "Dependabot"
         assert app.entity.dimensions.get("github.surface") == "apps"
 
     def test_name_falls_back_to_slug(self):
-        app = _create("github_app", {"slug": "dependabot"})
+        app = _create("github_core__github_app", {"slug": "dependabot"})
         app.entity.refresh_from_db()
         assert app.entity.name == "dependabot"
 
     def test_slug_required(self):
-        result = create_node("github_app", {"name": "no slug"})
+        result = create_node("github_core__github_app", {"name": "no slug"})
         assert not result.success
 
 
 @pytest.mark.django_db
 class TestEnabledOnEdge:
     def test_app_enabled_on_repository(self):
-        app = _create("github_app", {"slug": "dependabot", "name": "Dependabot"})
-        repo = _create("github_repository", {"full_name": "notgeorge/samsite"})
-        edge = create_edge(app.entity, repo.entity, "ENABLED_ON")
-        assert edge.edge_type == "ENABLED_ON"
+        app = _create("github_core__github_app", {"slug": "dependabot", "name": "Dependabot"})
+        repo = _create("github_core__github_repository", {"full_name": "notgeorge/samsite"})
+        edge = create_edge(app.entity, repo.entity, "ENABLED_ON__github_core")
+        assert edge.edge_type == "ENABLED_ON__github_core"
 
 
 class TestGithubAppIdentity:

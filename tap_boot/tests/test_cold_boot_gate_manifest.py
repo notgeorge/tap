@@ -19,7 +19,7 @@ _VALID_STEP_IDS = {
     "schema:migrate",
     "schema:makemigrations",
     "profiles:resolve",
-    "seed:boot-base",
+    "seed:boot-test_all",
     "collector:cycle",
     "health",
 }

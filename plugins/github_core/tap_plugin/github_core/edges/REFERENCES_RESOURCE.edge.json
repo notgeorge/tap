@@ -1,9 +1,9 @@
 {
-  "slug": "REFERENCES_RESOURCE",
+  "slug": "REFERENCES_RESOURCE__github_core",
   "name": "References Resource",
   "description": "GitHub plumbing names or depends on a resource on the grid (conservative exact-match link via the github_grid_link_manifest). Does not claim deployment, ownership, or runtime control. Derived link — not hotlink-backed.",
-  "sources": ["github_workflow", "github_actions_run", "github_actions_job"],
-  "targets": ["aws_route53_zone", "aws_region", "aws_cloudfront_distribution"],
+  "sources": ["github_core__github_workflow", "github_core__github_actions_run", "github_core__github_actions_job"],
+  "targets": ["aws_core__aws_route53_zone", "aws_core__aws_region", "aws_core__aws_cloudfront_distribution"],
   "default_dimensions": {
     "github.platform": "github.com"
   }

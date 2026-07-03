@@ -45,7 +45,7 @@ class CrossGridReferencesPanelType:
             source_ids = _source_entity_ids_for_repo(res.repo)
             edges = list(
                 Edge.objects.filter(
-                    edge_type="REFERENCES_RESOURCE",
+                    edge_type="REFERENCES_RESOURCE__github_core",
                     from_entity_id__in=source_ids,
                 )
             )

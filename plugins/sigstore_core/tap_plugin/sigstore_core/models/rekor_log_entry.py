@@ -28,7 +28,7 @@ class RekorLogEntry(BaseModel):
     Spec: plugins/sigstore_core/specs/spec-sigstore-core-v0.md (req-sigstore-core-models).
     """
 
-    ENTITY_TYPE: ClassVar[str] = "rekor_log_entry"
+    ENTITY_TYPE: ClassVar[str] = "sigstore_core__rekor_log_entry"
     ENTITY_NAME: ClassVar[str] = "Rekor Log Entry"
     ENTITY_DESCRIPTION: ClassVar[str] = "An entry in a Rekor transparency log recording a Sigstore signature."
     ENTITY_ICON: ClassVar[str] = "rekor-log-entry"
@@ -54,7 +54,7 @@ class RekorLogEntry(BaseModel):
             "selector_type": "scalar",
             "selector": "",
             "edge_direction": "outbound",
-            "edge_type": "IDENTITY_VOUCHED_BY",
+            "edge_type": "IDENTITY_VOUCHED_BY__sigstore_core",
             "mode": "exact",
         }
     ]
@@ -110,7 +110,7 @@ class RekorLogEntry(BaseModel):
     tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "rekor_log_entry"
+        db_table = "sigstore_core__rekor_log_entry"
 
     def get_name(self) -> str:
         if self.log_index is not None:

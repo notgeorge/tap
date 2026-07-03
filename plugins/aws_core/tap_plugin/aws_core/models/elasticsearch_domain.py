@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class ElasticsearchDomain(BaseModel):
     """An Amazon OpenSearch (Elasticsearch) Service domain."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_elasticsearch_domain"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_elasticsearch_domain"
     ENTITY_NAME: ClassVar[str] = "Elasticsearch Domain"
     ENTITY_DESCRIPTION: ClassVar[str] = "An Amazon OpenSearch / Elasticsearch Service domain."
     ENTITY_ICON: ClassVar[str] = "aws-elasticsearch"
@@ -53,7 +53,7 @@ class ElasticsearchDomain(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_elasticsearch_domain"
+        db_table = "aws_core__aws_elasticsearch_domain"
 
     def get_name(self) -> str:
         return self.name

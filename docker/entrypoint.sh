@@ -15,6 +15,13 @@
 # Exit immediately if any command failsals
 set -e
 
+# Emit the reserved ABORT signal (req-tap-logging-abort-signal / req-boot-abort-signal)
+# for the bash-driven standup steps, mirroring tap.logging.abort() for the Python
+# ones. A supervising watcher (scripts/spawn-session.sh Step 5, scripts/gate-lean)
+# tails the container log for this exact `TAP-ABORT:` prefix and fast-fails the
+# instant it appears, instead of waiting out its readiness timeout.
+emit_abort() { echo "TAP-ABORT: $1: $2" >&2; }
+
 echo "==> Syncing Python dependencies (uv sync --all-packages)..."
 # --all-packages installs every workspace member and its deps into the venv,
 # so plugin-local third-party requirements (declared in
@@ -38,9 +45,11 @@ uv sync --all-packages
 # aborts here, before any schema mutation, leaving the DB untouched (req-boot-preboot).
 # It is the Kubernetes initContainers shape: a run-to-completion stage before the
 # main process. `manage.py boot` (population) still runs at spawn time.
-echo "==> Pre-boot: installing declared plugins + pre-migrate snapshot (profile: ${TAP_BOOT_PROFILE:-base})..."
-if ! TAP_PLUGINS="$(uv run python -m tap.preboot --profile "${TAP_BOOT_PROFILE:-base}")"; then
-    echo "FATAL: pre-boot stage failed; aborting standup before migrate (DB untouched)." >&2
+echo "==> Pre-boot: installing declared plugins + pre-migrate snapshot (profile: ${TAP_BOOT_PROFILE:-core_dev})..."
+if ! TAP_PLUGINS="$(uv run python -m tap.preboot --profile "${TAP_BOOT_PROFILE:-core_dev}")"; then
+    # tap.preboot already emits its own `TAP-ABORT: preboot: …` on a PrebootError;
+    # this covers the case where the process died without one (e.g. uv itself failed).
+    emit_abort preboot "pre-boot stage failed; aborting standup before migrate (DB untouched)"
     exit 1
 fi
 export TAP_PLUGINS
@@ -63,10 +72,14 @@ echo "==> Pre-boot complete. TAP_PLUGINS=[${TAP_PLUGINS:-<none>}]"
 # against an as-yet-unmigrated DB; it creates the table via the schema editor
 # independently of migration state.
 echo "==> Provisioning the DatabaseCache table (createcachetable)..."
-uv run python manage.py createcachetable
+uv run python manage.py createcachetable || { emit_abort migrate "createcachetable failed"; exit 1; }
 
 echo "==> Running database migrations..."
-uv run python manage.py migrate --noinput
+# The canonical fatal spot for a core->plugin-dep import leak (req-dev-validation-lean-boot):
+# migrate runs django.setup(), which imports every INSTALLED_APPS module; a core module
+# reaching a plugin-only dependency raises ModuleNotFoundError here. The sentinel turns that
+# from a 300s readiness-timeout into a seconds-long fast-fail with the reason.
+uv run python manage.py migrate --noinput || { emit_abort migrate "database migration failed (see traceback above)"; exit 1; }
 
 # Note: tailwindcss is NOT rebuilt at container start. The committed
 # tap_web/static/tap_web/css/tailwind.css is served as-is. Dev work that

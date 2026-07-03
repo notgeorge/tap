@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:tap:samsite:compliance-collector:artifact-manifest:v0",
+  "$id": "urn:tap:samsite:compliance-collector:lotr__artifact-manifest:v0",
   "title": "Samsite Compliance Collector Artifact Manifest v0",
   "description": "The declarative set of /.well-known/ compliance artifacts the samsite compliance collector fetches. See plugins/samsite/specs/spec-samsite-compliance-collector-v0.md (req-samsite-collector-manifest). Validated at load; an invalid manifest fails the run visibly.",
   "type": "object",

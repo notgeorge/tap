@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class NatGateway(BaseModel):
     """An Amazon VPC NAT gateway."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_nat_gateway"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_nat_gateway"
     ENTITY_NAME: ClassVar[str] = "NAT Gateway"
     ENTITY_DESCRIPTION: ClassVar[str] = "An Amazon VPC NAT gateway for outbound internet access."
     ENTITY_ICON: ClassVar[str] = "aws-nat-gateway"
@@ -47,7 +47,7 @@ class NatGateway(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_nat_gateway"
+        db_table = "aws_core__aws_nat_gateway"
 
     def get_name(self) -> str:
         return self.name or self.nat_gateway_id

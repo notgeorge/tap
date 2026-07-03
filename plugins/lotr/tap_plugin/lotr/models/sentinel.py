@@ -12,7 +12,7 @@ _NAME_SCHEMA: dict[str, Any] = {"type": "string", "minLength": 1}
 class Sentinel(BaseModel):
     """A watcher that can reference anything (wildcard test case)."""
 
-    ENTITY_TYPE: ClassVar[str] = "sentinel"
+    ENTITY_TYPE: ClassVar[str] = "lotr__sentinel"
     ENTITY_NAME: ClassVar[str] = "Sentinel"
     ENTITY_DESCRIPTION: ClassVar[str] = "A watcher (wildcard test)."
 
@@ -26,18 +26,18 @@ class Sentinel(BaseModel):
 
     # No "nodes" key = wildcard: REFERENCES can point to ANY node type
     OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
-        {"edges": [{"type": "REFERENCES"}]},
+        {"edges": [{"type": "REFERENCES__lotr"}]},
     ]
 
     INBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
-        {"nodes": [{"type": "sentinel"}], "edges": [{"type": "REFERENCES"}]},
+        {"nodes": [{"type": "lotr__sentinel"}], "edges": [{"type": "REFERENCES__lotr"}]},
     ]
 
     name = models.CharField(max_length=255, blank=True, default="")
     watch_domain = models.TextField(blank=True, default="")
 
     class Meta(BaseModel.Meta):
-        db_table = "lotr_sentinel"
+        db_table = "lotr__sentinel"
 
     def get_name(self) -> str:
         return self.name

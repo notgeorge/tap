@@ -61,13 +61,7 @@
         "slug": "grid_fixtures",
         "enabled": true,
         "source": { "type": "editable", "path": "plugins/grid_fixtures" },
-        "note": "Package-mode (tap_plugin.grid_fixtures). Install-only: the neutral grid_fixtures__* node/edge vocabulary the core suites + the Gryphon playground build fixtures from. No GRIFT seed, no cross-plugin deps. Listed before gryphon_playground, which depends_on it."
-      },
-      {
-        "slug": "gryphon_playground",
-        "enabled": true,
-        "source": { "type": "editable", "path": "plugins/gryphon_playground" },
-        "note": "Package-mode (tap_plugin.gryphon_playground), 2026-07-02. Install-only: the Gridkin scenario corpus + harness for the Gryphon test suites. Owns no vocabulary — depends_on grid_fixtures (installed above), whose grid_fixtures__* types its corpus references by string. Declared here so the pre-boot reconciliation guard passes on the session container (which boots this profile); no GRIFT population seed."
+        "note": "Package-mode (tap_plugin.grid_fixtures). Install-only: the neutral grid_fixtures__* node/edge vocabulary the core suites build fixtures from. No GRIFT seed, no cross-plugin deps. (gryphon_playground, which depends_on it, is NOT installed in this customer-demo profile — the Gryphon test corpus stands up via its own plugin-owned profile, plugins/gryphon_playground/gryphon_playground.boot.json.)"
       }
     ]
   },

@@ -26,22 +26,22 @@ def _create(type_slug: str, payload: dict):
 @pytest.mark.django_db
 class TestWebHost:
     def test_create_and_display(self):
-        node = _create("web_host", {"name": "CISA", "hostname": "www.cisa.gov"})
+        node = _create("computing_core__web_host", {"name": "CISA", "hostname": "www.cisa.gov"})
         node.entity.refresh_from_db()
         assert node.hostname == "www.cisa.gov"
         assert node.entity.name == "CISA"
 
     def test_name_falls_back_to_hostname(self):
-        node = _create("web_host", {"hostname": "www.cisa.gov"})
+        node = _create("computing_core__web_host", {"hostname": "www.cisa.gov"})
         node.entity.refresh_from_db()
         assert node.entity.name == "www.cisa.gov"
 
     def test_hostname_required(self):
-        result = create_node("web_host", {"name": "no host"})
+        result = create_node("computing_core__web_host", {"name": "no host"})
         assert not result.success
 
     def test_web_native_marker(self):
-        node = _create("web_host", {"hostname": "www.cisa.gov"})
+        node = _create("computing_core__web_host", {"hostname": "www.cisa.gov"})
         assert node.entity.dimensions.get("tap.computing") == "network"
         assert node.entity.dimensions.get("tap.web") == "native"
 
@@ -50,7 +50,7 @@ class TestWebHost:
 class TestWebDocument:
     def test_create_with_metadata(self):
         node = _create(
-            "web_document",
+            "computing_core__web_document",
             {
                 "name": "CISA KEV catalog",
                 "url": "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json",
@@ -64,11 +64,11 @@ class TestWebDocument:
         assert node.retrieved_at is not None
 
     def test_url_required(self):
-        result = create_node("web_document", {"name": "no url"})
+        result = create_node("computing_core__web_document", {"name": "no url"})
         assert not result.success
 
     def test_web_native_marker(self):
-        node = _create("web_document", {"url": "https://example.com/doc.json"})
+        node = _create("computing_core__web_document", {"url": "https://example.com/doc.json"})
         assert node.entity.dimensions.get("tap.computing") == "storage"
         assert node.entity.dimensions.get("tap.web") == "native"
 
@@ -76,14 +76,14 @@ class TestWebDocument:
 @pytest.mark.django_db
 class TestWebEdges:
     def test_hosted_by_connects_document_to_host(self):
-        host = _create("web_host", {"hostname": "www.cisa.gov"})
-        doc = _create("web_document", {"url": "https://www.cisa.gov/feed.json"})
-        edge = create_edge(doc.entity, host.entity, "HOSTED_BY")
-        assert edge.edge_type == "HOSTED_BY"
+        host = _create("computing_core__web_host", {"hostname": "www.cisa.gov"})
+        doc = _create("computing_core__web_document", {"url": "https://www.cisa.gov/feed.json"})
+        edge = create_edge(doc.entity, host.entity, "HOSTED_BY__computing_core")
+        assert edge.edge_type == "HOSTED_BY__computing_core"
 
     def test_fetches_targets_a_web_document(self):
-        doc = _create("web_document", {"url": "https://www.cisa.gov/feed.json"})
+        doc = _create("computing_core__web_document", {"url": "https://www.cisa.gov/feed.json"})
         # Source is wildcard; a file node stands in for an arbitrary fetcher here.
-        fetcher = _create("file", {"file_path": "/tmp/fetcher"})
-        edge = create_edge(fetcher.entity, doc.entity, "FETCHES")
-        assert edge.edge_type == "FETCHES"
+        fetcher = _create("computing_core__file", {"file_path": "/tmp/fetcher"})
+        edge = create_edge(fetcher.entity, doc.entity, "FETCHES__computing_core")
+        assert edge.edge_type == "FETCHES__computing_core"

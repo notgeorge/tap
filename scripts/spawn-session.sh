@@ -87,6 +87,7 @@ trap on_failure EXIT
 # ---------------------------------------------------------------------------
 LAUNCH_TARGET=""
 BOOT_PROFILE=""
+BOOT_FILE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help)
@@ -98,7 +99,8 @@ Spawn a new isolated TAP dev session. The positional args, in order, are:
                   If omitted, the script prompts for it interactively.
   <boot-profile>  which boot/<profile>.boot.json \`manage.py boot\` applies to
                   this session (e.g. \`samsite\`). Optional — omit it and the
-                  session boots the \`base\` profile. What a profile declares and
+                  session boots the \`core_dev\` profile (core + grid_fixtures,
+                  the minimal inner-loop baseline). What a profile declares and
                   how boot applies it lives in spec-tap-boot-v0.md, not here.
 The launch target (cli|codex|vscode) is recognized by value, so it may sit
 anywhere among the positionals; the two free-form words are <name> then
@@ -116,6 +118,13 @@ The launch target auto-attaches an editor after spawn completes:
 (handy in scripts / to avoid positional ambiguity). See
 specs/spec-tap-boot-v0.md.
 
+\`--boot-file <path>\` boots an arbitrary \`*.boot.json\` file that need NOT live in
+the repo's boot/ dir — it is staged into the new worktree's boot/ under its
+basename id and booted. Use it to stand up a profile that lives anywhere: a
+plugin's own standalone-test profile (\`plugins/<slug>/<name>.boot.json\`), or a
+scratch/experimental profile, without committing it to boot/. Mutually
+exclusive with --boot / the positional boot-profile.
+
 Examples:
   $0                              # interactive, plain boot, no auto-launch
   $0 fix-arrangements             # named, plain boot
@@ -123,6 +132,8 @@ Examples:
   $0 samsite-boot cli samsite     # named + Claude + fire the samsite collectors
   $0 samsite-boot samsite         # named + fire the samsite collectors (no editor)
   $0 demo cli --boot samsite      # same, explicit-flag form
+  $0 aws-standalone --boot-file plugins/aws_core/standalone.boot.json
+                                  # boot a plugin's own profile from its directory
 
 Spec: req-dev-multisession-spawn-script in specs/spec-dev-multisession.md
 EOF
@@ -136,6 +147,16 @@ EOF
       ;;
     --boot=*)
       BOOT_PROFILE="${1#--boot=}"
+      shift
+      ;;
+    --boot-file)
+      shift
+      [[ $# -gt 0 ]] || fail "--boot-file requires a path to a *.boot.json file."
+      BOOT_FILE="$1"
+      shift
+      ;;
+    --boot-file=*)
+      BOOT_FILE="${1#--boot-file=}"
       shift
       ;;
     -*) fail "Unknown flag: $1" ;;
@@ -159,6 +180,22 @@ EOF
   esac
 done
 
+# --boot-file: validate + resolve the path NOW (before any `cd`), while relative
+# paths still resolve against the invocation CWD. The file is staged into the new
+# worktree's boot/ in Step 2 so both pre-boot and `manage.py boot` read it by id.
+# Lets a profile that lives anywhere (a plugin's own standalone-test profile, a
+# scratch file) boot without being committed to the repo's boot/ dir.
+BOOT_FILE_ID=""
+if [[ -n "$BOOT_FILE" ]]; then
+  [[ -z "$BOOT_PROFILE" ]] || fail "--boot-file and --boot/<boot-profile> are mutually exclusive."
+  [[ -f "$BOOT_FILE" ]] || fail "--boot-file: no such file: '$BOOT_FILE'"
+  [[ "$BOOT_FILE" == *.boot.json ]] || fail "--boot-file: expected a '*.boot.json' file, got: '$BOOT_FILE'"
+  BOOT_FILE="$(cd "$(dirname "$BOOT_FILE")" && pwd)/$(basename "$BOOT_FILE")"
+  BOOT_FILE_ID="$(basename "$BOOT_FILE" .boot.json)"
+  [[ "$BOOT_FILE_ID" =~ ^[a-zA-Z0-9._-]+$ ]] \
+    || fail "--boot-file: profile id derived from the filename is invalid: '$BOOT_FILE_ID' (use [A-Za-z0-9._-])."
+fi
+
 cd "$REPO"
 
 # ============================================================================
@@ -175,6 +212,10 @@ if [[ "$(uname)" != "Darwin" ]]; then
   info "Not macOS — Keychain step skipped. Falling back to env var or random per session."
 elif security find-generic-password -s tap-dev-default -a admin >/dev/null 2>&1; then
   info "Already set in Keychain (tap-dev-default / admin). Skipping."
+elif [[ -n "${TAP_DEV_ADMIN_PASSWORD:-}" ]]; then
+  info "TAP_DEV_ADMIN_PASSWORD set in env — env wins the resolution ladder; skipping the Keychain stash prompt."
+elif [[ ! -t 0 ]]; then
+  info "Non-interactive (no TTY on stdin) — skipping the Keychain stash prompt; a random per-session password is generated."
 else
   info "No 'tap-dev-default' Keychain entry found."
   info "Stash a stable admin password? Skipping is fine — a random one will be generated"
@@ -274,7 +315,12 @@ done
 
 info "Allocated: tap_$SESSION_NAME / web=$WEB_PORT / db=$POSTGRES_PORT"
 
-WORKTREE="$HOME/tap-sessions/$SESSION_NAME"
+# WORKTREE_BASE overrides where the worktree is written (default: ~/tap-sessions).
+# A throwaway consumer (e.g. the lean-boot independence gate) points this at the
+# system tmp dir so a disposable session never clutters ~/tap-sessions. Registry
+# keys by unique name, so tmp + home spawns coexist. despawn-session.sh honours
+# the SAME override, so a tmp-dir session stays teardownable by name.
+WORKTREE="${WORKTREE_BASE:-$HOME/tap-sessions}/$SESSION_NAME"
 [[ ! -e "$WORKTREE" ]] || fail "Worktree already exists at $WORKTREE. Despawn first."
 
 # Catch stale Docker state from a previous failed spawn whose `dc down -v`
@@ -358,9 +404,27 @@ fi
 #       the local `main` ref that Step 1.5 just refreshed from origin.
 # ============================================================================
 bold "Step 2: Creating worktree at $WORKTREE"
-git worktree add "$WORKTREE" -b "session/$SESSION_NAME" main
+# Base ref the new session branches from. Default `main` (a normal spawn starts a
+# fresh session from the canonical baseline). TAP_SPAWN_BASE_REF overrides it — the
+# lean-boot gate (scripts/gate-lean) sets it to the invoking worktree's HEAD so the
+# throwaway validates the exact (possibly just-merged, not-yet-pushed) tree, not
+# whatever `main` happens to point at.
+BASE_REF="${TAP_SPAWN_BASE_REF:-main}"
+git worktree add "$WORKTREE" -b "session/$SESSION_NAME" "$BASE_REF"
 cd "$WORKTREE"
-info "Created. Now on branch session/$SESSION_NAME (branched from main)."
+info "Created. Now on branch session/$SESSION_NAME (branched from $BASE_REF)."
+
+# --boot-file: stage the provided profile into this worktree's boot/ under its
+# basename id, then boot it like any named profile. The staged copy is a local,
+# uncommitted file in the throwaway worktree (fine — it goes away on despawn).
+if [[ -n "$BOOT_FILE" ]]; then
+  if [[ -f "$WORKTREE/boot/$BOOT_FILE_ID.boot.json" ]]; then
+    warn "--boot-file id '$BOOT_FILE_ID' shadows an existing boot/ profile in this worktree; using the provided file."
+  fi
+  cp "$BOOT_FILE" "$WORKTREE/boot/$BOOT_FILE_ID.boot.json"
+  BOOT_PROFILE="$BOOT_FILE_ID"
+  info "Staged --boot-file -> boot/$BOOT_FILE_ID.boot.json; booting profile '$BOOT_FILE_ID'."
+fi
 
 # ============================================================================
 # Step 3: Write .env.local
@@ -394,8 +458,10 @@ PY
 )"
 # TAP_BOOT_PROFILE names which boot/<id>.boot.json `manage.py boot` applies in Step 6.
 # It is chosen explicitly per spawn via `--boot <profile>`; an empty value means
-# Step 6 falls back to the seed-all, no-collectors `base` profile — a plain spawn
-# seeds every plugin but reaches out to nothing. See specs/spec-tap-boot-v0.md.
+# Step 6 falls back to the minimal `core_dev` profile (core + grid_fixtures) — a
+# plain spawn stands up the lean inner-loop baseline and reaches out to nothing.
+# `core` is the zero-plugin product baseline; `test_all` is the test union. See
+# specs/spec-tap-boot-v0.md (req-boot-minimal-baseline).
 # TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE=false disables the pre-boot pre-migrate
 # snapshot in dev worktrees (req-boot-snapshot-2): dev DBs reset freely, so the
 # restore point is pure overhead. The env override wins over the profile's
@@ -477,16 +543,56 @@ scripts/dc up -d --build
 # inside the container, we know uv sync + migrate are both done. Migrate is
 # already applied by the entrypoint, so we don't re-run it here.
 # ============================================================================
+# --- standup death detection (req-boot-abort-signal) -------------------------
+# The standup pipeline emits `TAP-ABORT: <domain>: <reason>` into the web container
+# log the instant it gives up (tap.logging.abort() for the Python steps, the
+# entrypoint's emit_abort for its bash steps). These two checks let ANY spawn phase
+# fail fast on "something died" — with the reason and a diagnosis pointer — instead
+# of hanging on a poll or dying under `set -e` with only the generic recovery trap.
+# Reused by Step 5 (readiness wait) and Step 6 (bootloader).
+
+# Fail with the ABORT reason if the standup emitted the signal. Returns 0 (no-op)
+# when there is none, so it is safe to call speculatively after any phase.
+abort_check() {
+  local line
+  line="$(scripts/dc logs web 2>&1 | grep -a 'TAP-ABORT:' | tail -n1 || true)"
+  [[ -z "$line" ]] && return 0
+  fail "Standup ABORTED (fast-fail).
+    Reason: ${line#*TAP-ABORT: }
+    Diagnose: the /diagnose-failed-session-spawn skill, or: scripts/dc logs web  (in $WORKTREE)"
+}
+
+# Fail if the web container has died / is crash-looping — a dead entrypoint never
+# becomes 'ready', and `exec` into a stopped container just reads as 'not ready
+# yet', so without this an exited container polls to the timeout. Prefers the
+# specific ABORT reason when one was emitted.
+web_container_dead_check() {
+  local state
+  state="$(scripts/dc ps --all --format '{{.State}}' web 2>/dev/null | head -n1 || true)"
+  case "$state" in
+    exited|dead|restarting)
+      abort_check
+      fail "The web container is not running (state=${state}) — standup crashed before serving.
+    Diagnose: the /diagnose-failed-session-spawn skill, or: scripts/dc logs web  (in $WORKTREE)" ;;
+  esac
+}
+
 bold "Step 5: Waiting for entrypoint (uv sync + migrate + runserver)"
 info "First-time uv sync downloads ~50MB of wheels — typically 1-3 minutes."
-WAIT_TIMEOUT=300   # 5 minutes
+WAIT_TIMEOUT=300   # 5 minutes — the backstop; a fatal standup fast-fails long before it.
 WAIT_START=$(date +%s)
 while true; do
-  # Use Python's urllib (always present — the base image is python:3.14-slim,
-  # which doesn't ship curl). The check passes if anything HTTP responds at
-  # all — the goal is "is runserver listening?", not "does the page load
-  # cleanly?". 500s are fine here; we just need to know uv sync + migrate
-  # finished and the dev server bound the port.
+  # Fatal-standup fast-paths (before the readiness probe, which would otherwise
+  # poll a dead/aborted container to the timeout — the 300s black-box this replaces,
+  # e.g. a core->plugin-dep import leak crashing `migrate`):
+  abort_check                 # (a) an emitted TAP-ABORT signal → fail with the reason
+  web_container_dead_check    # (b) the container exited / is crash-looping → fail
+
+  # (c) Readiness. Use Python's urllib (always present — the base image is
+  #     python:3.14-slim, which doesn't ship curl). The check passes if anything
+  #     HTTP responds at all — the goal is "is runserver listening?", not "does the
+  #     page load cleanly?". 500s are fine here; we just need to know uv sync +
+  #     migrate finished and the dev server bound the port.
   if scripts/dc exec -T web python -c "
 import urllib.request, sys
 try:
@@ -502,7 +608,7 @@ except Exception:
   fi
   elapsed=$(($(date +%s) - WAIT_START))
   if [[ $elapsed -gt $WAIT_TIMEOUT ]]; then
-    fail "Web did not become ready in ${WAIT_TIMEOUT}s. Check 'scripts/dc logs web' in $WORKTREE."
+    fail "Web did not become ready in ${WAIT_TIMEOUT}s (no ABORT signal seen). Check 'scripts/dc logs web' in $WORKTREE."
   fi
   printf "    waiting... %ds\r" "$elapsed"
   sleep 3
@@ -529,13 +635,13 @@ echo
 # resolved password is written to .dev-credentials (gitignored) — the runtime
 # interface the attached Claude / developer reads on demand.
 #
-# Profile default: the explicit `--boot` profile if given, else `base`
-# (seed-all / no-collectors) — a plain spawn seeds every plugin but reaches out
-# to nothing.
+# Profile default: the explicit `--boot` profile if given, else `core_dev`
+# (core + grid_fixtures) — a plain spawn stands up the lean inner-loop baseline
+# and reaches out to nothing.
 # ============================================================================
 bold "Step 6: Standing the instance up (manage.py boot)"
 
-BOOT_PROFILE_EFFECTIVE="${BOOT_PROFILE:-base}"
+BOOT_PROFILE_EFFECTIVE="${BOOT_PROFILE:-core_dev}"
 
 # Resolution order matches req-dev-multisession-admin-bootstrap.
 # (--admin-password CLI flag isn't supported in v1; add later if needed.)
@@ -561,11 +667,18 @@ GENERATED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 EOF
 
 info "Booting with profile '$BOOT_PROFILE_EFFECTIVE'."
-scripts/dc exec \
+# The bootloader emits `TAP-ABORT: boot: <reason>` on a fatal population/auth
+# failure (req-boot-abort-signal). Guard the exec so that surfaces as a clean
+# fast-fail with the reason + diagnosis pointer, rather than a bare `set -e` death
+# into the generic recovery trap.
+if ! scripts/dc exec \
   -e DJANGO_SUPERUSER_USERNAME=admin \
   -e DJANGO_SUPERUSER_PASSWORD="$ADMIN_PASSWORD" \
   -e DJANGO_SUPERUSER_EMAIL="$ADMIN_EMAIL" \
-  web uv run python manage.py boot --profile "$BOOT_PROFILE_EFFECTIVE"
+  web uv run python manage.py boot --profile "$BOOT_PROFILE_EFFECTIVE"; then
+  abort_check   # surface the specific TAP-ABORT: boot reason if one was emitted
+  fail "manage.py boot failed (profile '$BOOT_PROFILE_EFFECTIVE') — see the output above, or scripts/dc logs web (in $WORKTREE). Diagnose: the /diagnose-failed-session-spawn skill."
+fi
 
 info "Instance booted via manage.py boot. Credentials saved to $WORKTREE/.dev-credentials (gitignored)."
 

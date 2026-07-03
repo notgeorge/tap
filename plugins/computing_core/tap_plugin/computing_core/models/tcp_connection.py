@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class TcpConnection(BaseModel):
     """A TCP session between two endpoints, modeled as a node."""
 
-    ENTITY_TYPE: ClassVar[str] = "tcp_connection"
+    ENTITY_TYPE: ClassVar[str] = "computing_core__tcp_connection"
     ENTITY_NAME: ClassVar[str] = "TCP Connection"
     ENTITY_DESCRIPTION: ClassVar[str] = "A TCP session represented as a node for lifecycle and protocol attachment."
     ENTITY_ICON: ClassVar[str] = "tcp-connection"
@@ -58,7 +58,7 @@ class TcpConnection(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "computing_tcp_connection"
+        db_table = "computing_core__tcp_connection"
 
     def get_name(self) -> str:
         return self.name or f"tcp ({self.state})" if self.state else "tcp"

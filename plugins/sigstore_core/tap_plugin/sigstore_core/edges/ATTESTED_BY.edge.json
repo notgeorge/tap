@@ -1,8 +1,8 @@
 {
-  "slug": "ATTESTED_BY",
+  "slug": "ATTESTED_BY__sigstore_core",
   "name": "Attested By",
   "description": "Signed entity's Sigstore signature was recorded in Rekor at this log entry, verified under the policy captured in the edge attributes at the captured time. Verdict + applied policy live on this edge (not on the rekor_log_entry node) because verification is a fact about (artifact bytes + bundle + policy + verification time), not an immutable property of the log entry.",
-  "targets": ["rekor_log_entry"],
+  "targets": ["sigstore_core__rekor_log_entry"],
   "property_schema": {
     "type": "object",
     "additionalProperties": false,

@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class PublicKey(BaseModel):
     """A public cryptographic key represented as a data blob."""
 
-    ENTITY_TYPE: ClassVar[str] = "public_key"
+    ENTITY_TYPE: ClassVar[str] = "computing_core__public_key"
     ENTITY_NAME: ClassVar[str] = "Public Key"
     ENTITY_DESCRIPTION: ClassVar[str] = "A public cryptographic key."
     ENTITY_ICON: ClassVar[str] = "public-key"
@@ -46,7 +46,7 @@ class PublicKey(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "computing_public_key"
+        db_table = "computing_core__public_key"
 
     def get_name(self) -> str:
         return self.name or self.fingerprint or "public key"

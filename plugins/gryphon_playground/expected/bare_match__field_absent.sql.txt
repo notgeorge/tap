@@ -1,6 +1,6 @@
 -- statement 1 · stage: bare-type-scan
-SELECT "lotr_character"."entity_id" AS "entity_id"
-FROM "lotr_character"
-INNER JOIN "tap_entity" ON ("lotr_character"."entity_id" = "tap_entity"."id")
-WHERE ("tap_entity"."deleted_at" IS NULL AND "lotr_character"."bio" = %s)
+SELECT "lotr__character"."entity_id" AS "entity_id"
+FROM "lotr__character"
+INNER JOIN "tap_entity" ON ("lotr__character"."entity_id" = "tap_entity"."id")
+WHERE ("tap_entity"."deleted_at" IS NULL AND "lotr__character"."bio" = %s)
 -- params: ['anything']

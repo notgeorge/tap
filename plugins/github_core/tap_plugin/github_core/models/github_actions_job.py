@@ -17,7 +17,7 @@ class GithubActionsJob(BaseModel):
     Spec: plugins/github_core/specs/spec-github-core-v0.md (req-github-core-models)
     """
 
-    ENTITY_TYPE: ClassVar[str] = "github_actions_job"
+    ENTITY_TYPE: ClassVar[str] = "github_core__github_actions_job"
     ENTITY_NAME: ClassVar[str] = "GitHub Actions Job"
     ENTITY_DESCRIPTION: ClassVar[str] = "One job within a GitHub Actions workflow run."
     ENTITY_ICON: ClassVar[str] = "github-actions-job"
@@ -67,7 +67,7 @@ class GithubActionsJob(BaseModel):
     tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "github_actions_job"
+        db_table = "github_core__github_actions_job"
 
     def get_name(self) -> str:
         return self.name or (f"Job {self.job_id}" if self.job_id else self.full_name)

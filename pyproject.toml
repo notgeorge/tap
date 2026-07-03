@@ -41,7 +41,25 @@ dependencies = [
     # owning plugin's pyproject.toml and resolve via the workspace `members`
     # entries below (the github_core PyYAML pattern). `boto3` → aws_core,
     # `sigstore` → sigstore_core, `PyYAML` → github_core.
-    "django-allauth>=65",
+    # Authentication (core tap_auth) — core tap_* apps are NOT separate packages
+    # (unlike the plugins noted above), so their third-party deps must live here in
+    # the root project; there is no per-app dependency list to scope them to.
+    # django-allauth is the auth / social-login framework tap_auth builds on. The
+    # [socialaccount] extra pulls what allauth's OpenID-Connect provider imports at
+    # startup — pyjwt[crypto] + oauthlib (+ requests) — which used to arrive only
+    # transitively (so a minimal profile crashed at allauth ready() on a missing
+    # `jwt`). Declaring the extra, rather than pinning pyjwt/oauthlib ourselves,
+    # keeps those deps owned by allauth — the thing that actually imports them.
+    "django-allauth[socialaccount]>=65",
+    # requests is a DIRECT dependency of core tap_auth — the Google OIDC provider
+    # (tap_auth/providers/google_oidc.py) and tap_auth/middleware.py import it at
+    # module load. Declared explicitly rather than relied on transitively (it used
+    # to arrive only via a plugin's deps): a minimal / headless profile that omits
+    # the AWS/etc. plugins would otherwise fail to import auth at startup — caught
+    # cold-booting boot/gryphon.boot.json. A future slim/headless install may move
+    # the auth stack to an optional extra so headless instances drop it entirely
+    # (req-plugin-arch-slim-install).
+    "requests>=2.34.2",
 ]
 
 # -----------------------------------------------------------------------------

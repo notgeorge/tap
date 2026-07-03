@@ -14,13 +14,13 @@
       "batch_node": {
         "source": "plugins.samsite",
         "name": "Samsite users seed v0.1.0",
-        "description": "Seeds the human actors in the samsite story as computing_core `user` nodes: Readers (the site's audience), george (the operator reproducing and modeling the system in TAP), and Sam (Sam Aydlette, author of the original samaydlette.com system). The `user` type carries no per-model tags field, so the landing search reaches these via an explicit MATCH (u:user) rather than the Project=samsite tag scan. Edges/roles and projection placement are intentionally not seeded here — the visualization session decides where these sit on the projection."
+        "description": "Seeds the human actors in the samsite story as computing_core `user` nodes: Readers (the site's audience), george (the operator reproducing and modeling the system in TAP), and Sam (Sam Aydlette, author of the original samaydlette.com system). The `user` type carries no per-model tags field, so the landing search reaches these via an explicit MATCH (u:computing_core__user) rather than the Project=samsite tag scan. Edges/roles and projection placement are intentionally not seeded here — the visualization session decides where these sit on the projection."
       },
       "nodes": [
         {
           "entity": {
             "entity_id": "019e73fe-33af-72c4-b998-1b69b1d5ba33",
-            "entity_type": "user",
+            "entity_type": "computing_core__user",
             "name": "Readers",
             "dimensions": {
               "tap.computing": "identity"
@@ -34,7 +34,7 @@
         {
           "entity": {
             "entity_id": "019e73fe-33af-72c4-b998-1b6a014609e9",
-            "entity_type": "user",
+            "entity_type": "computing_core__user",
             "name": "george",
             "dimensions": {
               "tap.computing": "identity"
@@ -48,7 +48,7 @@
         {
           "entity": {
             "entity_id": "019e73fe-33af-72c4-b998-1b6bc5ec7e91",
-            "entity_type": "user",
+            "entity_type": "computing_core__user",
             "name": "Sam",
             "dimensions": {
               "tap.computing": "identity"

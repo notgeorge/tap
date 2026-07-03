@@ -13,7 +13,7 @@ class GithubAccount(BaseModel):
     Spec: plugins/github_core/specs/spec-github-core-v0.md (req-github-core-models)
     """
 
-    ENTITY_TYPE: ClassVar[str] = "github_account"
+    ENTITY_TYPE: ClassVar[str] = "github_core__github_account"
     ENTITY_NAME: ClassVar[str] = "GitHub Account"
     ENTITY_DESCRIPTION: ClassVar[str] = "A GitHub user or organization account."
     ENTITY_ICON: ClassVar[str] = "github-account"
@@ -55,7 +55,7 @@ class GithubAccount(BaseModel):
     tags = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "github_account"
+        db_table = "github_core__github_account"
 
     def get_name(self) -> str:
         return self.login or (str(self.github_id) if self.github_id else "")

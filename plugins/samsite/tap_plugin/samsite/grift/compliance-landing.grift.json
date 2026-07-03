@@ -86,7 +86,7 @@
             "root": "node",
             "definition": {
               "query": [
-                "MATCH (n:ksi_signal)"
+                "MATCH (n:fedramp_20x_ksi__ksi_signal)"
               ]
             }
           }
@@ -105,7 +105,7 @@
             "root": "node",
             "definition": {
               "query": [
-                "MATCH (n:ksi_component)"
+                "MATCH (n:fedramp_20x_ksi__ksi_component)"
               ]
             }
           }
@@ -124,7 +124,7 @@
             "root": "node",
             "definition": {
               "query": [
-                "MATCH (n:ksi_validation)"
+                "MATCH (n:fedramp_20x_ksi__ksi_validation)"
               ]
             }
           }
@@ -143,7 +143,7 @@
             "root": "node",
             "definition": {
               "query": [
-                "MATCH (n:ksi_violation)"
+                "MATCH (n:fedramp_20x_ksi__ksi_violation)"
               ]
             }
           }
@@ -162,7 +162,7 @@
             "root": "node",
             "definition": {
               "query": [
-                "MATCH (n:vdr_report)"
+                "MATCH (n:fedramp_20x_ksi__vdr_report)"
               ]
             }
           }
@@ -181,7 +181,7 @@
             "root": "node",
             "definition": {
               "query": [
-                "MATCH (n:vdr_finding)"
+                "MATCH (n:fedramp_20x_ksi__vdr_finding)"
               ]
             }
           }
@@ -200,7 +200,7 @@
             "root": "node",
             "definition": {
               "query": [
-                "MATCH (n:compliance_artifact)"
+                "MATCH (n:fedramp_20x_ksi__compliance_artifact)"
               ]
             }
           }
@@ -685,7 +685,7 @@
             "root": "node",
             "definition": {
               "query": [
-                "MATCH (n:ksi_theme)"
+                "MATCH (n:fedramp_20x_ksi__ksi_theme)"
               ]
             }
           }
@@ -704,7 +704,7 @@
             "root": "node",
             "definition": {
               "query": [
-                "MATCH (n:ksi_indicator)"
+                "MATCH (n:fedramp_20x_ksi__ksi_indicator)"
               ]
             }
           }
@@ -802,7 +802,7 @@
             "config": {
               "entity_id_var": "vdr_report_entity_id",
               "fallback": {
-                "query": "MATCH (r:vdr_report) WHERE r.data.emitted_at IS NOT NULL ORDER BY r.data.emitted_at DESC LIMIT 1",
+                "query": "MATCH (r:fedramp_20x_ksi__vdr_report) WHERE r.data.emitted_at IS NOT NULL ORDER BY r.data.emitted_at DESC LIMIT 1",
                 "description": "Latest vdr_report by emitted_at \u2014 the most recent VDR aggregator emission on the grid."
               }
             }

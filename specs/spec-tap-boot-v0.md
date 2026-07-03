@@ -30,7 +30,7 @@ v0 builds the **minimal standup path**: a single `manage.py boot` command that r
 
 All boot logic — command, phase sequencing, boot context, profile handling, logging, and (when built) the section handlers + registry — lives in the **`tap_boot` app**, first in `INSTALLED_APPS`, depending on and calling the capability apps' reusable, boot-agnostic ops. The domain apps stay boot-agnostic: **no boot logic in `tap_grid`/`tap_auth`/`tap_cares`/`tap_plugins`.**
 
-> **Status — v0 landed 2026-06-24.** `manage.py boot --profile <id>` runs `auth → population` and is what `spawn-session.sh` now calls (the old `sync_auth`/`import_plugin_grift`/`reconcile_collectors`/`fire_boot_collectors`/`createsuperuser` steps are gone; `fire_boot_collectors` is removed). The profile is the ordered-steps shape (`boot/<id>.boot.json`, version 1, `population.steps` of `seed-plugin`/`fire-collector`); `boot/base.boot.json` (seed-all, no collectors) is the plain-spawn default, `boot/samsite.boot.json` the demo standup. Boot-agnostic ops added/reused: `tap_auth.sync_auth` + new `tap_auth.ensure_initial_admin`, `tap_plugins.seeding.seed_plugin`, `tap_cares.reconcile_collector_nodes` + new `tap_cares.services.fire_collector_and_await`. Phases live as functions in `tap_boot/orchestrator.py` so each becomes a section-handler body when `req-boot-sections` lands. Covered by `tap_boot/tests/` and proven live on samsite (boto3 collector fired a real AWS pull; a missing-secret collector aborted loud). Deferred per below remain `Proposed`.
+> **Status — v0 landed 2026-06-24.** `manage.py boot --profile <id>` runs `auth → population` and is what `spawn-session.sh` now calls (the old `sync_auth`/`import_plugin_grift`/`reconcile_collectors`/`fire_boot_collectors`/`createsuperuser` steps are gone; `fire_boot_collectors` is removed). The profile is the ordered-steps shape (`boot/<id>.boot.json`, version 1, `population.steps` of `seed-plugin`/`fire-collector`); `boot/core_dev.boot.json` (core + `grid_fixtures`, no collectors) is the plain-spawn default (2026-07-03 baseline flip, `req-boot-minimal-baseline`), `boot/samsite.boot.json` the demo standup, and `boot/test_all.boot.json` (the former `base` seed-all union) the test/gate superset. Boot-agnostic ops added/reused: `tap_auth.sync_auth` + new `tap_auth.ensure_initial_admin`, `tap_plugins.seeding.seed_plugin`, `tap_cares.reconcile_collector_nodes` + new `tap_cares.services.fire_collector_and_await`. Phases live as functions in `tap_boot/orchestrator.py` so each becomes a section-handler body when `req-boot-sections` lands. Covered by `tap_boot/tests/` and proven live on samsite (boto3 collector fired a real AWS pull; a missing-secret collector aborted loud). Deferred per below remain `Proposed`.
 
 Deliberately **deferred until a real consumer drives the shape** (skepticism-of-overbuilding, per the Rampart roadmap):
 
@@ -77,6 +77,7 @@ For the plugin-refactor additions (pre-boot stage, install section, snapshot, va
 | req-boot-profile | [Multi-Section Profile](#multi-section-profile) | Implemented | **v0 (minimal).** One profile drives standup (plugins to seed + collectors to fire) via the `population` section; app-owned multi-section composition deferred |
 | req-boot-preboot | [Pre-Boot Stage](#pre-boot-stage) | Implemented | **Plugin-refactor MVP (`tap/preboot.py`).** Settings-free entrypoint stage (install plugins → snapshot) before `migrate`; `tap_boot` owns the contract, the `tap/` wrapper executes it. Validated with the one package-mode plugin (`genericom`); `manage.py boot` stays at spawn-time (not relocated into the entrypoint) — deliberate, to avoid collector re-fire on every restart |
 | req-boot-install-section | [Install Section](#install-section) | Implemented | **Plugin-refactor MVP.** Profile `install` section (desired plugin set), separate from `population`; static coherence guard in pre-boot. During the transition, build-baked plugins coexist (a `BUILD_BAKED_PLUGIN_SLUGS` transition set, kept honest against `INSTALLED_APPS` by test); the runtime availability half already exists via `resolve_tap_plugin` (`req-boot-population-4`). Full samsite package-mode migration is the follow-on |
+| req-boot-minimal-baseline | [Minimal Core Baseline](#minimal-core-baseline) | Implemented | **Baseline flip + lean-boot gate landed 2026-07-03.** `core` (zero plugins) is the product baseline; `core_dev` (core + `grid_fixtures`) is the default a plain spawn / the entrypoint boots; `base` is renamed → `test_all` (the permanent test/gate union). Replaces `base = install-everything`, which does not scale and becomes unwritable once plugins live in their own repos. `core` is kept **honestly** bootable in isolation by the **lean-boot independence gate** (`scripts/gate-lean`, `req-dev-validation-lean-boot`): a fresh, lean-installed stack that catches core→plugin-dep import leakage (the `requests`/`jwt` class) the full-venv cold-boot gate cannot |
 | req-boot-snapshot | [Pre-Migrate Snapshot](#pre-migrate-snapshot) | Implemented | **Plugin-refactor MVP.** `pg_dump -Fc` full snapshot before `migrate`, switch defaults true, verify via `pg_restore --list`; restore is a human action; callable `tap/` primitive; dev disables via env (spawn writes it into `.env.local`). Volume-snapshot upgrade path still deferred |
 | req-boot-variable-resolution | [Boot Variable Resolution](#boot-variable-resolution) | Implemented | **Plugin-refactor MVP.** Ladder env > profile > default (flag layer reserved); `TAP_BOOT_<SECTION>__<KEY>` env mapping; resolve-once + provenance. Empty-env-as-absent guard (compose materializes unset `${VAR:-}` as `""`) |
 | req-boot-sections | [App-Registered Section Handlers](#app-registered-section-handlers) | Proposed | **Deferred** to first consumer (authN Google OIDC config); handlers/registry live in `tap_boot` |
@@ -91,6 +92,7 @@ For the plugin-refactor additions (pre-boot stage, install section, snapshot, va
 | req-boot-secrets | [Secret References Only](#secret-references-only) | Implemented | **v0.** Profiles reference `TAP_SECRETS_ROOT` keys / env, never embed secrets; missing secret fails loud at apply |
 | req-boot-spawn-bridge | [Spawn Bridge](#spawn-bridge) | Implemented | **v0.** `spawn-session.sh` calls the bootloader; dev == customer standup |
 | req-boot-report | [Boot Logging](#boot-logging) | Implemented | **v0.** Boot logs actions with secrets redacted; durable report deferred |
+| req-boot-abort-signal | [Standup Abort Signal](#standup-abort-signal) | Implemented | **Landed 2026-07-03.** Boot is the first consumer of the logging `ABORT` signal (`req-tap-logging-abort-signal`): preboot/migrate/boot fatal paths emit it and `spawn-session.sh` fast-fails on it (or on the container exiting) instead of the 300s readiness timeout |
 
 ---
 
@@ -208,6 +210,33 @@ The boot profile gains an `install` section — the desired plugin set — kept 
 | req-boot-install-section-3 | Static Coherence Guard | Implemented | `static_coherence_guard` fails loud pre-migrate if a `population` seed-plugin slug is neither in `install` nor build-baked. | |
 | req-boot-install-section-4 | Runtime Availability Guard | Implemented | The registered-check half is `resolve_tap_plugin` in boot pre-resolution (`req-boot-population-4`); a package-mode `population` slug not installed → not in TAP_PLUGINS → not registered → fails loud. Migration-applied depth remains a thin future extension. | |
 | req-boot-install-section-5 | Install Reconciliation Guard | Implemented | `reconciliation_guard` fails closed if a package-mode plugin is installed (exposes a `tap.plugins` entry point) but is not a declared+enabled `install` entry — undeclared code must not load at standup (declared-vs-actual, `req-sec-cheap-edges`). The inverse (declared but not installed) is already fatal in the entry-point identity check. | |
+
+---
+
+### Minimal Core Baseline
+----
+RID: `req-boot-minimal-baseline`
+Status: `Proposed`
+
+The canonical baseline is **minimal, not maximal.** The old `base` profile installed *every* plugin, which quietly served two unrelated roles: the product/dev baseline (what a fresh instance *is*) and the test-everything vehicle (the one container the FULL test lane boots so a single pytest run can import every plugin). Conflating them is why `base` grew into a kitchen sink. Installing everything does not scale as plugins proliferate, and becomes **literally unwritable** once plugins live in their own repos/dists (the core repo cannot enumerate them) — so `base` is a monorepo artifact that must not survive the plugin refactor.
+
+The replacement model:
+
+- **`core` (`boot/core.boot.json`) — the baseline.** Zero plugins: the core `tap_*` apps only (grid + auth + web + api + cares + boot + health), a bare grid with only the core-owned types (`entity`, `edge`, `batch`, `keystone`, `dimension`, `search`), reaching out to nothing. What a real deployment starts from and *adds to*; the intended default a plain spawn boots. Minimal attack surface (the reconciliation posture favours the smallest declared set). **Landed + live-verified:** a zero-plugin `core` boots healthy, reconciliation `0 == 0`.
+- **`core_dev` (`boot/core_dev.boot.json`) — the core test tier.** `core` + `grid_fixtures` (the neutral `grid_fixtures__*` vocabulary the core suites build fixtures from), nothing else. **Landed.**
+- **Every other profile is additive.** `samsite` = `core` + its plugin set. A **plugin's standalone-test profile is plugin-owned**: it lives in the plugin at `plugins/<slug>/<slug>.boot.json` (named for the slug, travels with the plugin at extraction) and boots via `spawn --boot-file`, not as a top-level `boot/` profile. First instance: `plugins/gryphon_playground/gryphon_playground.boot.json` (`core` floor + `grid_fixtures` + `gryphon_playground`).
+
+Test tiering is the corollary: the FULL lane's "one container, everything imported" model is the *only* thing `base = everything` was really buying. Moving to a minimal baseline means the core suites run on `core_dev`, each plugin's suite runs on its own per-plugin profile, and the fleet-asserting tests (e.g. `tap_plugins/tests/test_report.py`, which asserts specific plugins appear in the report) run on the union tier — see `req-dev-validation-suite-tiers`.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-boot-minimal-baseline-1 | Core Is Zero-Plugin | Implemented | `boot/core.boot.json` declares no plugins and boots healthy (reconciliation `0==0`, `TAP_PLUGINS` empty). | Live-verified via throwaway spawn. |
+| req-boot-minimal-baseline-2 | Core-Dev Test Tier | Implemented | `boot/core_dev.boot.json` = `core` + `grid_fixtures` only; the profile the core suites boot against. | |
+| req-boot-minimal-baseline-3 | Additive Profiles | Implemented | Every non-core profile is `core` + an explicit plugin set; no profile installs "everything" by default. The lone union (`test_all`) is explicitly the test/gate superset, not a deployment default. | Landed 2026-07-03. `core`/`core_dev`/`samsite`/`test_all` all additive over the `core` floor. |
+| req-boot-minimal-baseline-4 | Default Repoint | Implemented | The default spawn / entrypoint profile is repointed from `base` to `core_dev` (fast inner-loop: core + grid_fixtures). `core` is the explicit product baseline. | Landed 2026-07-03: `spawn-session.sh` `BOOT_PROFILE:-core_dev`, `docker/entrypoint.sh` `TAP_BOOT_PROFILE:-core_dev`. The full lane / promote gate explicitly boots `test_all`, not the default. |
+| req-boot-minimal-baseline-5 | Retire Base → test_all | Implemented | `base` is renamed to `test_all`: the **permanent union** the suite runs against (**landed 2026-07-03**). Lean per-profile *test lanes* are infeasible (pytest discovery is file-path — an absent plugin's tests hard-error at collection; `test_settings` sees the installed venv, not a profile), so the union stays. Core independence is bridged by the **lean-container independence gate** (`scripts/gate-lean`, `req-dev-validation-lean-boot`) that stands up a genuinely fresh, lean-installed stack (own compose project → own venv volume) and full-boots `core` — the only shape that actually catches core→plugin-dep import leakage (`requests`/`jwt`), since a shared full venv masks it. Landed + proven both directions 2026-07-03 (core boots healthy in isolation; an injected core `import boto3` is caught RED). A plugin's standalone-test profile is plugin-owned (`plugins/<slug>/*.boot.json`, `spawn --boot-file`), created only on demand. | Full spec: `req-dev-validation-lean-boot` in spec-dev-validation.md; pairs with `req-dev-validation-suite-tiers`. |
 
 ---
 
@@ -594,6 +623,30 @@ Boot logs what it did. A durable boot-report artifact is deferred.
 | --- | --- | :---: | --- | --- |
 | req-boot-report-1 | Actions Logged | Proposed | Each boot action is logged with the standard conventions. | |
 | req-boot-report-2 | Secrets Redacted | Proposed | Boot logs never contain secret values. | |
+
+### Standup Abort Signal
+----
+RID: `req-boot-abort-signal`
+Status: `Implemented`
+
+Boot standup is the **first consumer** of the app-wide `ABORT` logging signal (`req-tap-logging-abort-signal`, [spec-tap-logging.md](spec-tap-logging.md)). This requirement is that consumption, not a competing standard: the standup pipeline (`docker/entrypoint.sh` → `tap.preboot` → `migrate` → `manage.py boot`) emits an `ABORT` record on any **fatal, unrecoverable** failure, so a watcher reacts the instant it happens instead of inferring failure from an *absence* (a readiness probe that never goes green).
+
+**As built (2026-07-03).** The Python fatal exits emit via `tap.logging.abort(logger, domain, reason)`: `tap.preboot` (`domain=preboot`, replacing the old `[8ed8]` string) and the `manage.py boot` command's `BootError`/`AuthSyncError`/profile-load handlers (`domain=boot`, replacing `[916b]`/`[f750]`). The entrypoint's bash-driven steps emit the same sentinel via an `emit_abort` shell helper on `createcachetable`/`migrate` failure (`domain=migrate`) — `migrate` being where a core→plugin-dep import leak (`req-dev-validation-lean-boot`) actually crashes, since it runs `django.setup()`. `scripts/spawn-session.sh` Step 5 tails the web log for the rendered `TAP-ABORT:` line **and** checks the container state (`exited`/`dead`/`restarting`), fast-failing on either — so a fatal standup reds in seconds with its reason instead of at the timeout. `scripts/gate-lean` inherits it (it drives the same spawn). Health failures are already fast-failed by the post-readiness Step 6.5 health gate, so they need no readiness-loop emit.
+
+**The problem it solves.** Today a fatal standup failure is announced by inconsistent, human-only strings — `docker/entrypoint.sh` prints `FATAL: pre-boot stage failed …` to stderr, `tap.preboot` logs `[8ed8] pre-boot ABORT: …`, `tap_boot.orchestrator` logs `[ac13] boot population aborting …` — with no common signal. So `scripts/spawn-session.sh` Step 5 (and `scripts/gate-lean`) can only poll "is runserver listening?" and, when the answer is permanently *no* (the entrypoint `exit 1`'d, or `runserver` is crash-looping on a `ModuleNotFoundError`), they wait out the full **300s readiness timeout** before failing. The failure is caught (RED) but slowly — see `req-dev-validation-lean-boot` Future.
+
+**The signal (owned by the logging spec).** Each fatal standup path emits one `ABORT` record via `tap.logging.abort(logger, domain, reason)` — `domain` ∈ `preboot | migrate | boot | health` — replacing the ad-hoc `FATAL:` / `ABORT` strings. It is a structured record (`message_code = ABORT`, `message_data = {domain, reason}`), **not** an in-band string; the `console` handler renders it as the greppable `TAP-ABORT: <domain>: <reason>` line every shell watcher already tails, and the JSON sink emits the field. The descriptive detail still logs through the normal path; the `ABORT` record is the terminal signal, once, before non-zero exit.
+
+**Consumers.** `spawn-session.sh` Step 5 tails the web log during its readiness wait and **fast-fails** on the rendered `TAP-ABORT:` line (or on the `web` container having exited) — surfacing the reason immediately instead of at the timeout. `scripts/gate-lean` inherits that fast-fail transitively (it drives the same spawn). CI and the `/diagnose-failed-session-spawn` skill key off the same signal (`message_code == ABORT` in JSON, the sentinel in text).
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-boot-abort-signal-1 | Emits the ABORT signal | Implemented | Every fatal standup failure emits one `ABORT` record (`req-tap-logging-abort-signal`) via `tap.logging.abort(...)` (Python) or `emit_abort` (entrypoint bash), before non-zero exit — not an ad-hoc string. | Replaces the `FATAL:` / `[8ed8]` / `[916b]` / `[f750]` strings with the reserved signal; the descriptive log line stays. |
+| req-boot-abort-signal-2 | Readiness-phase stages covered | Implemented | The readiness-phase fatal stages — preboot, migrate (incl. createcachetable), boot — each emit it with the right `domain`. Health failures are caught by the post-readiness Step 6.5 health gate, so they need no readiness-loop emit. | The stages that would otherwise hang the readiness poll. |
+| req-boot-abort-signal-3 | Watchers fast-fail | Implemented | `spawn-session.sh` (and thus `gate-lean`) abort within seconds of the rendered sentinel — or of the container exiting/restarting — not at the readiness timeout. | Closes the 300s-timeout latency in `req-dev-validation-lean-boot`. |
+| req-boot-abort-signal-4 | Reason preserved | Implemented | The `reason` is surfaced in the fast-fail message and the full log context stays in `scripts/dc logs web`, not swallowed. | Feeds `spec-dev-multisession-diagnose.md`. |
 
 ---
 

@@ -1,12 +1,12 @@
 {
-  "slug": "HOSTS_VPC",
+  "slug": "HOSTS_VPC__aws_core",
   "name": "Hosts VPC",
   "description": "An AWS region hosts a VPC.",
   "sources": [
-    "aws_region"
+    "aws_core__aws_region"
   ],
   "targets": [
-    "aws_vpc"
+    "aws_core__aws_vpc"
   ],
   "default_dimensions": {
     "tap.cloud": "aws"

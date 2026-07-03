@@ -36,7 +36,7 @@ class ComplianceContext(BaseModel):
     Spec: plugins/fedramp_20x_ksi/specs/spec-fedramp-20x-ksi-compliance-context.md
     """
 
-    ENTITY_TYPE: ClassVar[str] = "compliance_context"
+    ENTITY_TYPE: ClassVar[str] = "fedramp_20x_ksi__compliance_context"
     ENTITY_NAME: ClassVar[str] = "Compliance Context"
     ENTITY_DESCRIPTION: ClassVar[str] = (
         "Per-regime compliance posture metadata on a Grid. Each instance "
@@ -93,7 +93,7 @@ class ComplianceContext(BaseModel):
     )
 
     class Meta(BaseModel.Meta):
-        db_table = "compliance_context"
+        db_table = "fedramp_20x_ksi__compliance_context"
 
     def get_name(self) -> str:
         return self.name

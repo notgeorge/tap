@@ -113,7 +113,7 @@ def _build_rows(envelope: dict[str, Any], asset_id: str) -> list[dict[str, Any]]
     findings_by_id: dict[str, dict[str, Any]] = {}
     for n in envelope.get("nodes", []):
         ent = n.get("entity") or {}
-        if ent.get("entity_type") != "finding":
+        if ent.get("entity_type") != "fedramp_20x_ksi__finding":
             continue
         fid = ent.get("entity_id")
         if not fid:
@@ -137,9 +137,9 @@ def _build_rows(envelope: dict[str, Any], asset_id: str) -> list[dict[str, Any]]
         to_id = ebody.get("to_entity_id")
         props = ebody.get("properties") or {}
 
-        if et == "HAS_FINDING" and from_id == asset_id and to_id in findings_by_id:
+        if et == "HAS_FINDING__fedramp_20x_ksi" and from_id == asset_id and to_id in findings_by_id:
             asset_findings.add(to_id)
-        elif et == "RELATED_INDICATOR" and from_id in findings_by_id:
+        elif et == "RELATED_INDICATOR__fedramp_20x_ksi" and from_id in findings_by_id:
             ksi_node = nodes_by_id.get(to_id or "")
             if ksi_node is None:
                 continue
@@ -154,7 +154,7 @@ def _build_rows(envelope: dict[str, Any], asset_id: str) -> list[dict[str, Any]]
                     "relationship_type": props.get("relationship_type", ""),
                 }
             )
-        elif et == "HAS_EVIDENCE" and from_id in findings_by_id:
+        elif et == "HAS_EVIDENCE__fedramp_20x_ksi" and from_id in findings_by_id:
             ev_node = nodes_by_id.get(to_id or "")
             if ev_node is None:
                 continue

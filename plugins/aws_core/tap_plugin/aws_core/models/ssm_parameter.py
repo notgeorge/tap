@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class SsmParameter(BaseModel):
     """An AWS Systems Manager Parameter Store parameter."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_ssm_parameter"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_ssm_parameter"
     ENTITY_NAME: ClassVar[str] = "SSM Parameter"
     ENTITY_DESCRIPTION: ClassVar[str] = "An AWS Systems Manager Parameter Store parameter."
     ENTITY_ICON: ClassVar[str] = "aws-ssm"
@@ -47,7 +47,7 @@ class SsmParameter(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_ssm_parameter"
+        db_table = "aws_core__aws_ssm_parameter"
 
     def get_name(self) -> str:
         return self.name

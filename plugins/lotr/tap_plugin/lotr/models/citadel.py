@@ -12,7 +12,7 @@ _NAME_SCHEMA: dict[str, Any] = {"type": "string", "minLength": 1}
 class Citadel(BaseModel):
     """A fortified place that accepts no incoming edges (inbound block test)."""
 
-    ENTITY_TYPE: ClassVar[str] = "citadel"
+    ENTITY_TYPE: ClassVar[str] = "lotr__citadel"
     ENTITY_NAME: ClassVar[str] = "Citadel"
     ENTITY_DESCRIPTION: ClassVar[str] = "A fortified place (inbound block test)."
 
@@ -25,7 +25,7 @@ class Citadel(BaseModel):
     DEFAULT_DISPLAY: ClassVar[dict[str, Any]] = {"tap_viz": {"shape": "rectangle"}}
 
     OUTBOUND_EDGES: ClassVar[list[dict[str, Any]]] = [
-        {"nodes": [{"type": "location"}], "edges": [{"type": "PROTECTS"}]},
+        {"nodes": [{"type": "lotr__location"}], "edges": [{"type": "PROTECTS__lotr"}]},
     ]
 
     # Empty list = block ALL inbound edges
@@ -35,7 +35,7 @@ class Citadel(BaseModel):
     fortification = models.TextField(blank=True, default="")
 
     class Meta(BaseModel.Meta):
-        db_table = "lotr_citadel"
+        db_table = "lotr__citadel"
 
     def get_name(self) -> str:
         return self.name

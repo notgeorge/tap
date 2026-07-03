@@ -20,14 +20,14 @@ from tap_plugin.aws_core.collectors.boto3_collector.identity import (
 )
 from tap_plugin.aws_core.collectors.boto3_collector.projection import ProjectedNode
 
-MODELED = {"aws_lambda", "aws_iam_role", "aws_cloudwatch_log_group", "aws_s3_bucket"}
+MODELED = {"aws_core__aws_lambda", "aws_core__aws_iam_role", "aws_core__aws_cloudwatch_log_group", "aws_core__aws_s3_bucket"}
 DIMS = {"cloud": "aws", "region": "us-east-1"}
 
 
 def _node(raw_item):
     return ProjectedNode(
-        entity_type="aws_lambda",
-        entity_id=node_entity_id("aws_lambda", "arn:fn"),
+        entity_type="aws_core__aws_lambda",
+        entity_id=node_entity_id("aws_core__aws_lambda", "arn:fn"),
         natural_key="arn:fn",
         name="fn",
         fields={"name": "fn"},
@@ -40,16 +40,16 @@ LAMBDA_EDGE_ENTRY = {
     "edges": [
         {
             "value_path": "Role",
-            "target_type": "aws_iam_role",
+            "target_type": "aws_core__aws_iam_role",
             "key_kind": "arn",
-            "edge_type": "ASSUMES_ROLE",
+            "edge_type": "ASSUMES_ROLE__aws_core",
             "direction": "outbound",
         },
         {
             "value_path": "LoggingConfig.LogGroup",
-            "target_type": "aws_cloudwatch_log_group",
+            "target_type": "aws_core__aws_cloudwatch_log_group",
             "key_kind": "name",
-            "edge_type": "WRITES_LOGS",
+            "edge_type": "WRITES_LOGS__aws_core",
             "direction": "outbound",
         },
     ]
@@ -65,11 +65,11 @@ class TestEmitEdges:
         assert result.warnings == []
         assert len(result.envelopes) == 2
 
-        assumes = next(e for e in result.envelopes if e["edge"]["edge_type"] == "ASSUMES_ROLE")
-        assert assumes["edge"]["from_entity_id"] == str(node_entity_id("aws_lambda", "arn:fn"))
-        assert assumes["edge"]["to_entity_id"] == str(node_entity_id("aws_iam_role", "arn:role"))
+        assumes = next(e for e in result.envelopes if e["edge"]["edge_type"] == "ASSUMES_ROLE__aws_core")
+        assert assumes["edge"]["from_entity_id"] == str(node_entity_id("aws_core__aws_lambda", "arn:fn"))
+        assert assumes["edge"]["to_entity_id"] == str(node_entity_id("aws_core__aws_iam_role", "arn:role"))
         assert assumes["entity"]["entity_type"] == "edge"
-        assert assumes["entity"]["entity_id"] == str(edge_entity_id("ASSUMES_ROLE", "arn:fn", "arn:role"))
+        assert assumes["entity"]["entity_id"] == str(edge_entity_id("ASSUMES_ROLE__aws_core", "arn:fn", "arn:role"))
         assert assumes["entity"]["dimensions"] == DIMS
         assert assumes["edge"]["properties"] == {}
 
@@ -78,9 +78,9 @@ class TestEmitEdges:
             "edges": [
                 {
                     "value_path": "Buckets[]",
-                    "target_type": "aws_s3_bucket",
+                    "target_type": "aws_core__aws_s3_bucket",
                     "key_kind": "name",
-                    "edge_type": "RETRIEVES_CONTENT_FROM",
+                    "edge_type": "RETRIEVES_CONTENT_FROM__aws_core",
                     "direction": "outbound",
                 }
             ]
@@ -89,7 +89,7 @@ class TestEmitEdges:
         result = emit_edges(node, entry, modeled_types=MODELED, transforms=TransformRegistry(), dimensions=DIMS)
         assert len(result.envelopes) == 3
         assert {e["edge"]["to_entity_id"] for e in result.envelopes} == {
-            str(node_entity_id("aws_s3_bucket", b)) for b in ("b1", "b2", "b3")
+            str(node_entity_id("aws_core__aws_s3_bucket", b)) for b in ("b1", "b2", "b3")
         }
 
     def test_inbound_direction_swaps_endpoints(self):
@@ -97,9 +97,9 @@ class TestEmitEdges:
             "edges": [
                 {
                     "value_path": "Owner",
-                    "target_type": "aws_iam_role",
+                    "target_type": "aws_core__aws_iam_role",
                     "key_kind": "arn",
-                    "edge_type": "ASSUMES_ROLE",
+                    "edge_type": "ASSUMES_ROLE__aws_core",
                     "direction": "inbound",
                 }
             ]
@@ -108,9 +108,9 @@ class TestEmitEdges:
         env = emit_edges(node, entry, modeled_types=MODELED, transforms=TransformRegistry(), dimensions=DIMS).envelopes[
             0
         ]
-        assert env["edge"]["from_entity_id"] == str(node_entity_id("aws_iam_role", "arn:role"))
-        assert env["edge"]["to_entity_id"] == str(node_entity_id("aws_lambda", "arn:fn"))
-        assert env["entity"]["entity_id"] == str(edge_entity_id("ASSUMES_ROLE", "arn:role", "arn:fn"))
+        assert env["edge"]["from_entity_id"] == str(node_entity_id("aws_core__aws_iam_role", "arn:role"))
+        assert env["edge"]["to_entity_id"] == str(node_entity_id("aws_core__aws_lambda", "arn:fn"))
+        assert env["entity"]["entity_id"] == str(edge_entity_id("ASSUMES_ROLE__aws_core", "arn:role", "arn:fn"))
 
     def test_unmodeled_target_dropped_with_warning(self):
         entry = {
@@ -119,7 +119,7 @@ class TestEmitEdges:
                     "value_path": "Role",
                     "target_type": "aws_not_modeled_yet",
                     "key_kind": "arn",
-                    "edge_type": "ASSUMES_ROLE",
+                    "edge_type": "ASSUMES_ROLE__aws_core",
                     "direction": "outbound",
                 }
             ]
@@ -143,9 +143,9 @@ class TestEmitEdges:
             "edges": [
                 {
                     "value_path": "Origin",
-                    "target_type": "aws_s3_bucket",
+                    "target_type": "aws_core__aws_s3_bucket",
                     "key_kind": "name",
-                    "edge_type": "RETRIEVES_CONTENT_FROM",
+                    "edge_type": "RETRIEVES_CONTENT_FROM__aws_core",
                     "direction": "outbound",
                     "transform": "strip_suffix",
                 }
@@ -158,7 +158,7 @@ class TestEmitEdges:
             transforms=reg,
             dimensions=DIMS,
         ).envelopes[0]
-        assert env["edge"]["to_entity_id"] == str(node_entity_id("aws_s3_bucket", "mybucket"))
+        assert env["edge"]["to_entity_id"] == str(node_entity_id("aws_core__aws_s3_bucket", "mybucket"))
 
     def test_list_value_path_with_transform_applies_per_element(self):
         # Regression (found live, RETRIEVES_CONTENT_FROM = 0 on the real
@@ -178,9 +178,9 @@ class TestEmitEdges:
             "edges": [
                 {
                     "value_path": "Origins.Items[].DomainName",
-                    "target_type": "aws_s3_bucket",
+                    "target_type": "aws_core__aws_s3_bucket",
                     "key_kind": "arn",
-                    "edge_type": "RETRIEVES_CONTENT_FROM",
+                    "edge_type": "RETRIEVES_CONTENT_FROM__aws_core",
                     "direction": "outbound",
                     "transform": "s3_origin",
                 }
@@ -200,7 +200,7 @@ class TestEmitEdges:
         assert result.warnings == []
         assert len(result.envelopes) == 1  # only the S3 origin; None dropped
         assert result.envelopes[0]["edge"]["to_entity_id"] == str(
-            node_entity_id("aws_s3_bucket", "arn:aws:s3:::samsite-prod-1")
+            node_entity_id("aws_core__aws_s3_bucket", "arn:aws:s3:::samsite-prod-1")
         )
 
     def test_unregistered_transform_raises(self):
@@ -208,9 +208,9 @@ class TestEmitEdges:
             "edges": [
                 {
                     "value_path": "Origin",
-                    "target_type": "aws_s3_bucket",
+                    "target_type": "aws_core__aws_s3_bucket",
                     "key_kind": "name",
-                    "edge_type": "RETRIEVES_CONTENT_FROM",
+                    "edge_type": "RETRIEVES_CONTENT_FROM__aws_core",
                     "direction": "outbound",
                     "transform": "missing",
                 }

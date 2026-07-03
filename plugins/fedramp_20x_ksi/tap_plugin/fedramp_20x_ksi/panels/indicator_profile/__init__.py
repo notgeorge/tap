@@ -131,7 +131,7 @@ class KsiIndicatorProfilePanelType:
             eid = n.get("entity", {}).get("entity_id", "")
             if eid == entity_id:
                 indicator = n
-            elif etype == "ksi_theme":
+            elif etype == "fedramp_20x_ksi__ksi_theme":
                 theme = n
 
         if indicator is None:
@@ -211,8 +211,8 @@ def _load_findings_rows(indicator_entity_id: str) -> list[dict[str, Any]]:
             name="ksi-indicator-findings",
             definition={
                 "query": [
-                    "MATCH (i)<-[r1:RELATED_INDICATOR]-(f:finding)",
-                    "MATCH (s)-[r2:HAS_FINDING]->(f)",
+                    "MATCH (i)<-[r1:RELATED_INDICATOR__fedramp_20x_ksi]-(f:fedramp_20x_ksi__finding)",
+                    "MATCH (s)-[r2:HAS_FINDING__fedramp_20x_ksi]->(f)",
                     "WHERE i.entity_id = $entity_id",
                     "RETURN f, r1, r2, s",
                 ]
@@ -240,7 +240,7 @@ def _load_findings_rows(indicator_entity_id: str) -> list[dict[str, Any]]:
     parents_by_finding: dict[str, list[str]] = {}
     for edge in edges:
         ebody = edge.get("edge") or {}
-        if ebody.get("edge_type") != "HAS_FINDING":
+        if ebody.get("edge_type") != "HAS_FINDING__fedramp_20x_ksi":
             continue
         fid = ebody.get("to_entity_id")
         sid = ebody.get("from_entity_id")
@@ -259,7 +259,7 @@ def _load_findings_rows(indicator_entity_id: str) -> list[dict[str, Any]]:
     seen_findings: set[str] = set()
     for edge in edges:
         ebody = edge.get("edge") or {}
-        if ebody.get("edge_type") != "RELATED_INDICATOR":
+        if ebody.get("edge_type") != "RELATED_INDICATOR__fedramp_20x_ksi":
             continue
         if ebody.get("to_entity_id") != indicator_entity_id:
             continue

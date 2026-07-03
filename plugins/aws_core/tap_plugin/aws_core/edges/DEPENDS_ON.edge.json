@@ -1,5 +1,5 @@
 {
-  "slug": "DEPENDS_ON",
+  "slug": "DEPENDS_ON__aws_core",
   "name": "Depends On",
   "description": "Resource has a runtime dependency on another resource.",
   "default_dimensions": {

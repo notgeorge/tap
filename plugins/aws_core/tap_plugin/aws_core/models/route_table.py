@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class RouteTable(BaseModel):
     """An Amazon VPC route table."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_route_table"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_route_table"
     ENTITY_NAME: ClassVar[str] = "Route Table"
     ENTITY_DESCRIPTION: ClassVar[str] = "An Amazon VPC route table."
     ENTITY_ICON: ClassVar[str] = "aws-route-table"
@@ -44,7 +44,7 @@ class RouteTable(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_route_table"
+        db_table = "aws_core__aws_route_table"
 
     def get_name(self) -> str:
         return self.name or self.route_table_id

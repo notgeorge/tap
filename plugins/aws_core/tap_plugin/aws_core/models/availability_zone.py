@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class AvailabilityZone(BaseModel):
     """An AWS availability zone (us-east-1a, us-east-1b, etc.)."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_az"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_az"
     ENTITY_NAME: ClassVar[str] = "Availability Zone"
     ENTITY_DESCRIPTION: ClassVar[str] = "An isolated location within an AWS region."
     ENTITY_ICON: ClassVar[str] = "aws-az"
@@ -41,7 +41,7 @@ class AvailabilityZone(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_availability_zone"
+        db_table = "aws_core__aws_az"
 
     def get_name(self) -> str:
         return self.name

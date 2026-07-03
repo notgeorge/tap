@@ -24,7 +24,7 @@ class KsiViolation(BaseModel):
     models in one place.
     """
 
-    ENTITY_TYPE: ClassVar[str] = "ksi_violation"
+    ENTITY_TYPE: ClassVar[str] = "fedramp_20x_ksi__ksi_violation"
     ENTITY_NAME: ClassVar[str] = "KSI Violation"
     ENTITY_DESCRIPTION: ClassVar[str] = (
         "One policy violation a failed KSI validation reports — type, "
@@ -56,7 +56,7 @@ class KsiViolation(BaseModel):
     resource = models.CharField(max_length=512, blank=True, default="")
 
     class Meta(BaseModel.Meta):
-        db_table = "ksi_violation"
+        db_table = "fedramp_20x_ksi__ksi_violation"
 
     def get_name(self) -> str:
         return self.name

@@ -1,12 +1,12 @@
 {
-  "slug": "HAS_IP",
+  "slug": "HAS_IP__computing_core",
   "name": "Has IP",
   "description": "A network interface has an assigned IP address.",
   "sources": [
-    "network_interface"
+    "computing_core__network_interface"
   ],
   "targets": [
-    "ip_address"
+    "computing_core__ip_address"
   ],
   "default_dimensions": {
     "tap.computing": "network"

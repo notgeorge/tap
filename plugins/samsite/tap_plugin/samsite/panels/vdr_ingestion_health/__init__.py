@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_VAR_NAME = "vdr_report_entity_id"
 
 _FALLBACK_QUERY = (
-    "MATCH (r:vdr_report) WHERE r.data.emitted_at IS NOT NULL "
+    "MATCH (r:fedramp_20x_ksi__vdr_report) WHERE r.data.emitted_at IS NOT NULL "
     "ORDER BY r.data.emitted_at DESC LIMIT 1"
 )
 _FALLBACK_DESCRIPTION = (

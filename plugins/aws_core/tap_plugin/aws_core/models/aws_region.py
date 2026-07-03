@@ -10,7 +10,7 @@ from tap_grid.models import BaseModel
 class AwsRegion(BaseModel):
     """An AWS geographic region (us-east-1, eu-west-1, etc.)."""
 
-    ENTITY_TYPE: ClassVar[str] = "aws_region"
+    ENTITY_TYPE: ClassVar[str] = "aws_core__aws_region"
     ENTITY_NAME: ClassVar[str] = "AWS Region"
     ENTITY_DESCRIPTION: ClassVar[str] = "An AWS geographic region."
     ENTITY_ICON: ClassVar[str] = "aws-region"
@@ -43,7 +43,7 @@ class AwsRegion(BaseModel):
     configuration = models.JSONField(default=dict, blank=True)
 
     class Meta(BaseModel.Meta):
-        db_table = "aws_region"
+        db_table = "aws_core__aws_region"
 
     def get_name(self) -> str:
         return self.name or self.region_code
