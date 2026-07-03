@@ -63,7 +63,19 @@ Before any plugin moves, build what the spec already designs. Both are **pre-boo
      the health-probe conditional-validation pattern from the secrets-review work
      (`secrets-conditional-validation`) — necessity is per-consumer probe logic, not a blanket
      `required_for_boot`. Editable/path/public/wheelhouse sources need no credential.
-3. **Prove it against a throwaway private repo** before touching a real plugin: a git source with the
+3. **Per-source credential selection** (George 2026-07-02 — multi-repo private sources). A single
+   fleet-wide `github_pat` is the v0 floor, but each plugin's `install` section must be able to name
+   **which** credential to use, so plugins can be pulled from **different private repos** (different
+   orgs/hosts/accounts) in one profile. Concretely: the git source entry carries an optional
+   `credential` (a secret *ref*, e.g. `{type: git, url: ..., rev: ..., credential: "acme-plugins-pat"}`);
+   pre-boot resolves that ref via `tap/runtime_secrets` and feeds the matching token to `GIT_ASKPASS`
+   for that source only. Absent `credential`, fall back to the default `tap_plugins/source` secret
+   (back-compat with the single-PAT floor). This keeps least-privilege per source (a repo's PAT never
+   sees another repo) and is the natural extension of `req-plugin-arch-source-secret` from one
+   credential to a credential *set*. Cheap, foundational edge worth laying when the source-secret
+   schema is first built — retrofitting a second credential onto a single-PAT assumption is expensive.
+   Needs a spec sub-req (`req-plugin-arch-source-secret-6`?) when the eviction work starts.
+4. **Prove it against a throwaway private repo** before touching a real plugin: a git source with the
    PAT, booted in a scratch instance, installs and imports. This de-risks the whole plan for the cost
    of one repo.
 
