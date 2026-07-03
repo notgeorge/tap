@@ -3,6 +3,13 @@
 Missing-token / convention-violation sites must equal the committed baseline
 (currently empty ⇒ strict) and ratchet toward zero, so new untokenized log calls
 cannot accrete.
+
+Remediation is **per-call** (each violation is fixed by minting a token or fixing the
+call), so this is a `CallsiteRatchet` at PER_OCCURRENCE granularity. A violation has
+no `[<hex>]` yet, so it cannot use the well-formed `path::[<hex>]` anchor; its baseline
+key is the drift-proof occurrence_key `path::qualname::<construct>::<kind>#<disc>`
+(`spec-tap-callsite-identity`, `req-tap-callsite-identity-conformance`) — never
+`path:lineno`, and never collapsed by a token-less `[<none>]`.
 """
 
 from __future__ import annotations
@@ -10,11 +17,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import ClassVar
 
-from tap.guards._log_site_scan import key, scan
-from tap.guards.base import CeilingRatchet
+from tap.guards._log_site_scan import scan
+from tap.guards.base import REPO_ROOT
+from tap.guards.callsite import CallsiteRatchet, RemediationUnit, disambiguate
+from tap.source_scan import CallSite, CallsiteIdentity
 
 
-class LogSiteBaselineRatchet(CeilingRatchet):
+class LogSiteBaselineRatchet(CallsiteRatchet):
     slug = "log-site-baseline"
     map_row = "Log-site tokens"
     rid = "req-tap-logging-site-id-scanner"
@@ -24,13 +33,18 @@ class LogSiteBaselineRatchet(CeilingRatchet):
         "ratchets toward zero, so new untokenized log calls can't accrete."
     )
     baseline_path: ClassVar[Path] = Path(__file__).resolve().parent / "baselines" / "log_site.txt"
-    new_hint = (
-        "Add a bare 4-hex site token like `[a8f3]` to each new log call (mint it with "
-        "`scripts/log-site-id`)."
-    )
+    remediation_unit: ClassVar[RemediationUnit] = RemediationUnit.PER_OCCURRENCE
+    new_hint = "Add a bare 4-hex site token like `[a8f3]` to each new log call (mint it with " "`scripts/log-site-id`)."
 
-    def measure(self) -> set[str]:
+    def collect(self) -> list[CallsiteIdentity]:
         result = scan()
-        current = {key(s) for s in result.missing_ids}
-        current |= {key(site) for site, _reason in result.convention_violations}
-        return current
+        sites = [*result.missing_ids, *result.convention_violations]
+        identities = [
+            CallsiteIdentity(
+                location=CallSite(s.path, s.lineno),
+                anchor=s.anchor(REPO_ROOT),
+                discriminator=s.discriminator(REPO_ROOT),
+            )
+            for s in sites
+        ]
+        return disambiguate(identities)

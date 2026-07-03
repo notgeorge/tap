@@ -1,10 +1,14 @@
 # Site-ID scanner baseline — spec-tap-logging.md req-tap-logging-site-id-scanner-5.
 #
-# Each non-comment line is <relative-path>:<lineno> identifying a log call
-# site that currently lacks a bare 4-hex [<hex>] site token (Option A —
+# Each non-comment line is a drift-proof per-call occurrence key
+# `path::qualname::<construct>::<kind>#<disc>` (construct = logger.<level> or
+# getLogger; kind = missing/fstring/getlogger-arg) identifying a log call site
+# that currently lacks a bare 4-hex [<hex>] site token (Option A —
 # req-tap-logging-site-ids-1) or violates a call-site convention
-# (req-tap-logging-site-id-scanner-7). The scanner test requires the live set
-# to equal this file exactly:
+# (req-tap-logging-site-id-scanner-7). A violation has no [<hex>] yet, so it is
+# keyed per-call and carries no line number (spec-tap-callsite-identity); a site
+# graduates to the well-formed `path::[<hex>]` anchor once a token is minted. The
+# scanner test requires the live set to equal this file exactly:
 #   * Adding a new uncovered call site fails the test ("baseline grew").
 #   * Fixing an entry (adding a proper token) also fails until that line is
 #     removed from this file ("baseline ratchets down").

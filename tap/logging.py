@@ -45,7 +45,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from tap.source_scan import CallSite
+from tap.source_scan import CallSite, semantic_hash
 
 _FORMAT = "%(asctime)s %(levelname)-8s %(name)s %(pathname)s:%(lineno)d — %(message)s"
 _DATEFMT = "%Y-%m-%dT%H:%M:%S%z"
@@ -315,11 +315,51 @@ _NOQA_TOKEN = "noqa: TAP-LOG-ID"
 
 @dataclass(frozen=True)
 class WellFormedSite:
-    """A log call site whose message starts with a well-formed `[<hex>]` token."""
+    """A log call site whose message starts with a well-formed `[<hex>]` token.
+
+    The convention's anchor exemplar (`spec-tap-callsite-identity`): the token is
+    unique within its file by construction, and `path::[<hex>]` namespaces it into a
+    globally-unique anchor. Carries no qualname because uniqueness is enforced on the
+    token, not discriminated after the fact.
+    """
 
     path: Path
     lineno: int
     hex_token: str
+
+
+@dataclass(frozen=True)
+class LogViolationSite:
+    """A log-site *violation* (missing token, f-string message, or bad getLogger arg).
+
+    A violation has no `[<hex>]` yet — that is the violation — so it cannot use the
+    well-formed `path::[<hex>]` anchor. It is remediated **per-call** (mint a token /
+    fix the call), so it takes an occurrence key
+    `path::qualname::<construct>::<kind>#<disc>` until a token is minted, then
+    graduates to the well-formed anchor (`spec-tap-callsite-identity`,
+    `req-tap-callsite-identity-conformance`). `construct` is `logger.<level>` (or
+    `getLogger`); `kind` is the violation class; `node_dump` is the discriminator
+    material.
+    """
+
+    path: Path
+    lineno: int
+    qualname: str
+    construct: str
+    kind: str
+    node_dump: str
+
+    def anchor(self, repo_root: Path) -> str:
+        return f"{self.path.relative_to(repo_root).as_posix()}::{self.qualname}::{self.construct}::{self.kind}"
+
+    def discriminator(self, repo_root: Path) -> str:
+        return semantic_hash(
+            self.path.relative_to(repo_root).as_posix(),
+            self.qualname,
+            self.construct,
+            self.kind,
+            self.node_dump,
+        )
 
 
 @dataclass
@@ -327,11 +367,12 @@ class ScanResult:
     """Categorized findings from `scan_log_sites()`."""
 
     well_formed: list[WellFormedSite] = field(default_factory=list)
-    missing_ids: list[CallSite] = field(default_factory=list)
+    # Violation buckets carry qualname + kind (callsite-identity occurrence keys).
+    missing_ids: list[LogViolationSite] = field(default_factory=list)
     malformed_ids: list[CallSite] = field(default_factory=list)
     noqa_skipped: list[CallSite] = field(default_factory=list)
-    # (site, reason) — captures both getLogger-not-using-__name__ and f-string messages.
-    convention_violations: list[tuple[CallSite, str]] = field(default_factory=list)
+    # getLogger-not-__name__ and f-string messages; kind carries which.
+    convention_violations: list[LogViolationSite] = field(default_factory=list)
 
 
 def _is_getlogger_call(call: ast.Call) -> bool:
@@ -356,46 +397,78 @@ def _is_logger_level_call(call: ast.Call) -> tuple[bool, str | None]:
     return True, func.attr
 
 
-def _scan_file(path: Path, source: str, result: ScanResult) -> None:
-    """Scan one Python file, appending findings into `result`."""
-    try:
-        tree = ast.parse(source, filename=str(path))
-    except SyntaxError:
-        return
-    source_lines = source.splitlines()
+class _LogSiteVisitor(ast.NodeVisitor):
+    """Classify `logger.<level>(...)` and `getLogger(...)` calls, tracking enclosing
+    scope so a violation carries a drift-proof qualname (`spec-tap-callsite-identity`).
 
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
+    Detection is unchanged from the previous flat `ast.walk`; the scope stack is the
+    only addition, so well-formed/malformed/noqa/missing classification is identical.
+    """
+
+    def __init__(self, path: Path, source_lines: list[str], result: ScanResult) -> None:
+        self.path = path
+        self.source_lines = source_lines
+        self.result = result
+        self.scope_stack: list[str] = []
+
+    def _qualname(self) -> str:
+        return ".".join(self.scope_stack) if self.scope_stack else "<module>"
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self.scope_stack.append(node.name)
+        self.generic_visit(node)
+        self.scope_stack.pop()
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self.scope_stack.append(node.name)
+        self.generic_visit(node)
+        self.scope_stack.pop()
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        self.scope_stack.append(node.name)
+        self.generic_visit(node)
+        self.scope_stack.pop()
+
+    def visit_Call(self, node: ast.Call) -> None:
+        self._classify(node)
+        self.generic_visit(node)
+
+    def _classify(self, node: ast.Call) -> None:
+        path, result = self.path, self.result
 
         if _is_getlogger_call(node):
             ok = len(node.args) == 1 and isinstance(node.args[0], ast.Name) and node.args[0].id == "__name__"
             if not ok:
-                result.convention_violations.append((CallSite(path, node.lineno), "getLogger argument is not __name__"))
-            continue
+                result.convention_violations.append(
+                    LogViolationSite(path, node.lineno, self._qualname(), "getLogger", "getlogger-arg", _dump(node))
+                )
+            return
 
         matched, level = _is_logger_level_call(node)
         if not matched:
-            continue
+            return
         assert level is not None
         # req-tap-logging-site-ids-2: no DEBUG exemption — every level checked.
+        construct = f"logger.{level}"
 
         lineno = node.lineno
-        line = source_lines[lineno - 1] if 0 < lineno <= len(source_lines) else ""
+        line = self.source_lines[lineno - 1] if 0 < lineno <= len(self.source_lines) else ""
         if _NOQA_TOKEN in line:
             result.noqa_skipped.append(CallSite(path, lineno))
-            continue
+            return
 
         if not node.args:
-            result.missing_ids.append(CallSite(path, lineno))
-            continue
+            result.missing_ids.append(
+                LogViolationSite(path, lineno, self._qualname(), construct, "missing", _dump(node))
+            )
+            return
 
         first = node.args[0]
         if isinstance(first, ast.JoinedStr):
             result.convention_violations.append(
-                (CallSite(path, lineno), f"logger.{level} first argument is an f-string")
+                LogViolationSite(path, lineno, self._qualname(), construct, "fstring", _dump(node))
             )
-            continue
+            return
         if isinstance(first, ast.Constant) and isinstance(first.value, str):
             msg = first.value
             m = _SITE_ID_PATTERN.match(msg)
@@ -404,11 +477,27 @@ def _scan_file(path: Path, source: str, result: ScanResult) -> None:
             elif _BRACKETED_PREFIX_PATTERN.match(msg):
                 result.malformed_ids.append(CallSite(path, lineno))
             else:
-                result.missing_ids.append(CallSite(path, lineno))
-            continue
+                result.missing_ids.append(
+                    LogViolationSite(path, lineno, self._qualname(), construct, "missing", _dump(node))
+                )
+            return
         # Non-literal first argument (variable, BinOp concat, function call).
         # Treat as missing — we can't statically verify a site ID is present.
-        result.missing_ids.append(CallSite(path, lineno))
+        result.missing_ids.append(LogViolationSite(path, lineno, self._qualname(), construct, "missing", _dump(node)))
+
+
+def _dump(node: ast.AST) -> str:
+    """Positions-stripped structural dump — drift-proof discriminator material."""
+    return ast.dump(node, include_attributes=False)
+
+
+def _scan_file(path: Path, source: str, result: ScanResult) -> None:
+    """Scan one Python file, appending findings into `result`."""
+    try:
+        tree = ast.parse(source, filename=str(path))
+    except SyntaxError:
+        return
+    _LogSiteVisitor(path, source.splitlines(), result).visit(tree)
 
 
 def scan_log_sites(roots: list[Path]) -> ScanResult:
