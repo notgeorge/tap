@@ -63,7 +63,7 @@ Recorded here as the reference for what exists; the sub-points below are the as-
    - `kind: github_pat` with its own boot `data_schema` (`token`/`host`/`username`) at
      `tap/schemas/github_pat_source_secret.schema.json` — `additionalProperties:false` rejects the
      github_core collector's `repos`-bearing schema (`-1`).
-   - Scope `tap_plugins/source` (the install *system*), never `tap_plugin/<slug>/…` (`-2`).
+   - Scope `tap_plugins.source` (the install *system*), never `tap_plugin/<slug>/…` (`-2`).
    - Resolved via `tap/runtime_secrets` in pre-boot, the same resolver `tap_auth` uses — **not**
      `tap_cares` (`-3`).
    - Fed to git via `GIT_ASKPASS`, never interpolated into the URL; `GIT_TERMINAL_PROMPT=0` forbids an
@@ -73,13 +73,13 @@ Recorded here as the reference for what exists; the sub-points below are the as-
      is public (no auth). No implicit default key. Not a `tap_cares` health probe (pre-boot is
      settings-free); the `credential` ref IS the declaration.
 3. **Per-source credential selection** (`-6`, George 2026-07-02) — ✅ the git source entry carries an
-   optional `credential` (a descriptive secret *key* under scope `tap_plugins/source`, e.g.
+   optional `credential` (a descriptive secret *key* under scope `tap_plugins.source`, e.g.
    `{type: git, url: ..., rev: ..., credential: "github-plugins-ro"}`); pre-boot resolves it and feeds
    the matching token to `GIT_ASKPASS` for that source only. No `credential` ⇒ public (no auth); a
    repo's PAT never sees another repo. No vague fleet default — each private repo names its credential.
 4. **Prove it against a real repo** — the remaining step. Push the pilot's current tree to
    `notgeorge/tap-plugin-fedramp-20x-ksi`, tag `v0.1.0`, drop the read-only PAT under `TAP_SECRETS_ROOT`
-   (`tap_plugins/source` scope), flip the pilot's install entry to the git source, and boot it — ideally
+   (`tap_plugins.source` scope), flip the pilot's install entry to the git source, and boot it — ideally
    through `scripts/gate-lean` (own compose project, fresh venv) so a bad credential/source fast-fails
    via the ABORT signal instead of hanging. This de-risks the fleet for the cost of one repo.
 

@@ -35,8 +35,10 @@ The grid may eventually know about secret references, health, usage, policy, and
 | req-tap-cares-secrets-rotation | [Rotation Semantics](#rotation-semantics) | Implemented | v0 is restart-to-rotate; atomic reload / staleness / rotation-due are named-deferred |
 | req-tap-cares-secrets-leak-guard | [Source-Control Leak Guard](#source-control-leak-guard) | Implemented | A committed `*.secret.json` (or an envelope-shaped file outside the mount) fails a CI-guarded scan — push-protection beyond `.gitignore` |
 | req-tap-cares-secrets-size-guard | [Secret Size Guard](#secret-size-guard) | Implemented | 1 MiB default ceiling per secret file, raised per-file via `metadata.max_bytes` — guards the dumb/malicious-oversize case while allowing a deliberately large secret |
+| req-tap-cares-secrets-cross-scope-concern | [Cross-Scope Access Concern](#cross-scope-access-concern) | Implemented | Detective `CONCERN` tripwire — a plugin resolving the install-system `tap_plugins.source` scope emits a security `CONCERN`; the interim detective half of the deferred least-privilege enforcement |
 | req-tap-cares-secrets-future-secret-model | [Future Secret BaseModel](#future-secret-basemodel) | Backlog | Future on-grid Secret metadata and file generation |
 | req-tap-cares-secrets-future-encryption | [Future Encryption At Rest](#future-encryption-at-rest) | Backlog | Encrypted file format explicitly deferred |
+| req-tap-cares-secrets-future-access-control | [Future Secret Access Control](#future-secret-access-control) | Backlog | `scope`'s least-privilege story is a naming convention today; investigate enforcing it so a caller can only resolve secrets it owns |
 
 ## Secrets Scope
 ----
@@ -350,15 +352,21 @@ consumer is stable where keying by provider is not.
   `doc-plugin-slug-load-bearing`), so the secret namespace inherits collision-freedom for free. The
   slug alone is already globally unique, so the `tap_plugin/` Python-package prefix is redundant in the
   secret namespace and is omitted (`github_core`, not `tap_plugin/github_core`). For a core app or an
-  install *system*, it is the app/system label (`tap_auth`, `tap_cares`, `tap_plugins/source`). `scope`
-  may be **multi-segment** (`tap_plugins/source`).
+  install *system*, it is the app/system label (`tap_auth`, `tap_cares`, `tap_plugins.source`).
+- **`scope` is a flat, opaque label** under the canonical scoped-token grammar
+  (`tap.registry.SCOPED_TOKEN_PATTERN`: ASCII alphanumerics plus `_.-`, no `/`) — shared with the
+  collector registry and the pre-boot resolver, so the grammar cannot drift across read paths. A
+  compound label uses `.` (`tap_plugins.source` = "the source subsystem of the install system"), not a
+  path separator: `scope` is a namespace key, never a filesystem path. Keeping it flat also keeps it a
+  clean key the deferred least-privilege enforcement can bind to
+  ([Future Secret Access Control](#future-secret-access-control)).
 - **`kind` still carries the credential *type*** (`github_pat`, `aws_static_access_key`). Location and
   type are orthogonal axes: **the `scope` says who uses it; the `kind` says what it is.** So two
   consumers can hold the same `kind` under different `scope`s, each validating with its own
   `data_schema` (`req-tap-cares-secrets-consumer-kinds`).
 - **Infrastructure credentials belong to the app that consumes them, not to a plugin.** The plugin
   *source-install* credential (the git PAT the pre-boot installer uses) is owned by the install
-  system, so its `scope` is `tap_plugins/source` — **not** under a plugin's `<slug>`. A plugin must never
+  system, so its `scope` is `tap_plugins.source` — **not** under a plugin's `<slug>`. A plugin must never
   be able to resolve the credential that installs its siblings.
 - **This is a convention on the `scope` *value*, not a change to `req-tap-cares-secrets-files-4`.**
   Directories stay non-semantic: the `scope`/`key` *fields* remain authoritative (recursively
@@ -369,19 +377,22 @@ consumer is stable where keying by provider is not.
 *provider-first* (`scope` = provider). They are now consumer-first (`github_core/collector`,
 `aws_core/boto_collector`): the file's `scope` field, its `SecretRef` callsite, and the file location
 were updated together. There is no dual-support window — `scope` is authoritative (recursively
-discovered), so code and envelope move atomically. `auth` (an app, not a plugin) and
-`tap_plugins/source` (infra, not a plugin) were deliberately left as-is.
+discovered), so code and envelope move atomically. `auth` (an app, not a plugin) was deliberately left
+as-is. The install-system credential was realigned from `tap_plugins/source` to `tap_plugins.source`
+when the token grammar was centralized and made flat (2026-07-04): the same infra-not-a-plugin meaning,
+now a valid scoped token on every read path (the pre-boot resolver previously accepted the `/` while the
+tap_cares registry rejected it — the two-loader drift that degraded the secret's registry view).
 
 ### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-tap-cares-secrets-consumer-scoping-1 | Scope Is The Consumer | Implemented | `scope` names the owning consumer's canonical namespace, not the issuing provider. | |
-| req-tap-cares-secrets-consumer-scoping-2 | Namespace Form | Implemented | Plugins scope under their `<slug>` (bare — the slug is already globally unique, so the `tap_plugin/` package prefix is omitted); core apps / install systems under the app/system label; `scope` may be multi-segment (`tap_plugins/source`). | |
+| req-tap-cares-secrets-consumer-scoping-2 | Namespace Form | Implemented | Plugins scope under their `<slug>` (bare — the slug is already globally unique, so the `tap_plugin/` package prefix is omitted); core apps / install systems under the app/system label. `scope` is a flat opaque token (`SCOPED_TOKEN_PATTERN`, no `/`); a compound label uses `.` (`tap_plugins.source`), not a path separator. | |
 | req-tap-cares-secrets-consumer-scoping-3 | Kind Carries The Type | Implemented | The credential type stays in `kind`; it is orthogonal to `scope`. Same `kind`, different `scope`s, per-consumer `data_schema`. | |
-| req-tap-cares-secrets-consumer-scoping-4 | Infra Is App-Owned | Implemented | An infrastructure credential is scoped to the app that consumes it (e.g. `tap_plugins/source`), never under a plugin's namespace. | Least privilege: a plugin cannot resolve its siblings' install credential. |
+| req-tap-cares-secrets-consumer-scoping-4 | Infra Is App-Owned | Implemented | An infrastructure credential is scoped to the app that consumes it (e.g. `tap_plugins.source`), never under a plugin's namespace. | Least privilege: a plugin cannot resolve its siblings' install credential — a naming convention today; enforcement is [Future Secret Access Control](#future-secret-access-control). |
 | req-tap-cares-secrets-consumer-scoping-5 | Directory Stays Non-Semantic | Implemented | This is a convention on the `scope` value; `req-tap-cares-secrets-files-4`/`-5` are unchanged (fields authoritative, basename==key). | |
-| req-tap-cares-secrets-consumer-scoping-6 | Legacy Migration | Implemented | The former provider-scoped `github/collector`, `aws/boto_collector` are now consumer-first (`github_core/collector`, `aws_core/boto_collector`), migrated 2026-07-03. | Fields + `SecretRef` callsites + file moves; `auth`/`tap_plugins/source` left as-is (app/infra, not plugins). |
+| req-tap-cares-secrets-consumer-scoping-6 | Legacy Migration | Implemented | The former provider-scoped `github/collector`, `aws/boto_collector` are now consumer-first (`github_core/collector`, `aws_core/boto_collector`), migrated 2026-07-03. | Fields + `SecretRef` callsites + file moves; `auth` left as-is. `tap_plugins/source` → `tap_plugins.source` (flat-grammar realign, 2026-07-04). |
 
 ## Conditional Validation Lives In Health Probes
 ----
@@ -483,6 +494,27 @@ The override lives in the secret file's `metadata` (it travels with the secret a
 | req-tap-cares-secrets-size-guard-4 | Uniform Across Paths | Implemented | The override is honored on the bulk-load path; the discovery path applies the fixed default before reading each candidate. | |
 | req-tap-cares-secrets-size-guard-5 | Hostile-Mount Ceiling Deferred | Proposed | A pre-read absolute ceiling that fails pathological files before any read. | Folds into `req-tap-json-size-guard`. |
 
+## Cross-Scope Access Concern
+----
+RID: `req-tap-cares-secrets-cross-scope-concern`
+Status: `Implemented`
+
+`resolve_secret` is an unguarded lookup today — any code that reaches it can resolve any `scope:key` (the preventive least-privilege control is deferred, [Future Secret Access Control](#future-secret-access-control)). We cannot *prevent* a plugin (arbitrary Python) from resolving a scope it does not own, but we are not powerless: we **observe and alarm**. This is the first instance of the security-posture `CONCERN` discipline (`spec-security-posture.md`, `req-sec-concern-gaps`) — the *detective* half of the same edge whose *preventive* half is the deferred enforcement.
+
+`resolve_secret` emits a `CONCERN` (`spec-tap-logging.md`, `req-tap-logging-concern-signal`; `message_code = CONCERN`, `security`-tagged, `concern_type = cross_scope_secret_access`) when a **plugin** on the call stack resolves a secret outside its own scope.
+
+**Narrow v0 — the zero-false-positive case only.** The tripwire fires solely when a `tap_plugin.<slug>` frame is resolving the install-system scope (`SOURCE_SECRET_SCOPE` = `tap_plugins.source`) — a plugin reaching for the credential that installs its siblings, which has no legitimate case. Broader plugin-resolves-another-plugin's-scope detection carries false positives (a shared-utility plugin) and is a deliberate fast-follow, not shipped in the v0 tripwire, so the concern stream stays clean. Caller identity is best-effort (`tap.caller_identity.calling_plugin_slug`, a stack read a determined plugin can evade); that residual is accepted per `req-sec-honest-risk`. The check is non-blocking (fires open — the resolution proceeds) and is skipped entirely for any non-install scope, so it adds no cost to normal secret resolution.
+
+### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-cares-secrets-cross-scope-concern-1 | Tripwire Fires | Implemented | A plugin frame resolving `SOURCE_SECRET_SCOPE` emits a `security` `CONCERN` (`concern_type = cross_scope_secret_access`). | Highest-signal, zero-false-positive case. |
+| req-tap-cares-secrets-cross-scope-concern-2 | Non-Blocking | Implemented | The concern fires open — the resolution proceeds; the check is skipped for any non-install scope. | Detective, not preventive. |
+| req-tap-cares-secrets-cross-scope-concern-3 | No False-Positive Fire | Implemented | A non-plugin caller (framework/core/pre-boot installer) resolving the install scope does not fire; nor does a plugin resolving its own scope. | Steady-state clean. |
+| req-tap-cares-secrets-cross-scope-concern-4 | Secret-Free Signal | Implemented | The concern names the plugin slug, scope, and key — never secret material. | |
+| req-tap-cares-secrets-cross-scope-concern-5 | Preventive Counterpart Named | Implemented | The requirement links its deferred preventive control (`req-tap-cares-secrets-future-access-control`) per the `CONCERN` discipline. | Detection now, prevention later. |
+
 ## Future Secret BaseModel
 ----
 RID: `req-tap-cares-secrets-future-secret-model`
@@ -516,3 +548,53 @@ Future encryption work should preserve the v0 runtime contract: after successful
 | --- | --- | :---: | --- | --- |
 | req-tap-cares-secrets-future-encryption-1 | Backlog Requirement Exists | Backlog | File encryption is tracked without committing to a format in v0. | |
 | req-tap-cares-secrets-future-encryption-2 | Runtime Shape Preserved | Backlog | Future decryption yields the v0 logical secret object shape before registration. | |
+
+## Future Secret Access Control
+----
+RID: `req-tap-cares-secrets-future-access-control`
+Status: `Backlog`
+
+**The honest gap.** `resolve_secret(ref)` is an **unguarded registry lookup** today: any
+runtime code that can reach the resolver can resolve *any* `scope:key`. The consumer-first
+`scope` convention ([Consumer-First Scoping](#consumer-first-scoping)) *names* an ownership
+boundary — and `req-tap-cares-secrets-consumer-scoping-4` even states the intent as "least
+privilege: a plugin cannot resolve its siblings' install credential" — but nothing **enforces**
+it. `scope` is a namespace label (a `dict` key on `ScopedRegistry`) that buys collision-free
+keying and a human/AI-readable owner tag; it is **not** an access-control boundary. So the
+least-privilege language in the scoping requirements is, as of v0, **aspirational** — recorded
+here per the honest-risk posture (`spec-security-posture.md` `req-sec-honest-risk`) rather than
+implied complete.
+
+**What to investigate (someday).** Harden the secret access mechanism so `scope` graduates from
+a naming convention into an *enforced* least-privilege boundary — resolution gated on the calling
+actor/capability actually owning (or being explicitly granted) the requested `scope`, so a plugin
+genuinely cannot resolve another plugin's — or the install system's `tap_plugins.source` —
+credentials. Natural design inputs when the work is picked up:
+
+- **The capability system (`tap_auth`).** Gate `resolve_secret` on a capability keyed to the
+  scope (e.g. a `secrets.resolve:<scope>` grant, or the caller's bound program-actor owning the
+  scope), so the boundary rides the same policy engine as the rest of TAP rather than a parallel
+  check. Fits the fine-grained-capabilities direction (read-vs-write, per-owner separability).
+- **The future Secret BaseModel** ([Future Secret BaseModel](#future-secret-basemodel)). An
+  on-grid Secret/SecretReference node is the obvious home for scope ownership, grant edges, and
+  policy metadata — access control and the on-grid model likely land together.
+- **Trigger.** Demand-gated like the rest of the secrets backlog: the boundary matters most once
+  more than one *mutually-distrusting* consumer (multiple customer plugins, a real multi-tenant
+  or partner deployment) shares one instance's mount. Single-operator dev/demo does not exercise
+  it. The cheap edges available *now* are (1) keeping the token grammar tight and opaque (no `/`) so a
+  scope stays a clean key an enforcement layer can bind to later, and (2) the shipped **detective**
+  counterpart — the [Cross-Scope Access Concern](#cross-scope-access-concern) tripwire
+  (`req-tap-cares-secrets-cross-scope-concern`) that alarms today where this enforcement will block
+  tomorrow. When enforcement lands, the same caller-scope-vs-`ref.scope` comparison flips from log to deny.
+
+This is investigation-not-commitment: it does not fix a cipher, a policy shape, or an enforcement
+point. It records that the enforcement is missing and names where it would attach.
+
+### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-cares-secrets-future-access-control-1 | Backlog Requirement Exists | Backlog | The gap between the named least-privilege intent and the unenforced resolver is tracked as a named future requirement. | Honest-risk: not implied complete. |
+| req-tap-cares-secrets-future-access-control-2 | Resolver Authorization | Backlog | Investigate gating `resolve_secret` on the calling actor/capability owning or being granted the requested `scope`. | Reuse `tap_auth`, not a parallel check. |
+| req-tap-cares-secrets-future-access-control-3 | Scope As Enforced Boundary | Backlog | Under the hardened mechanism, a consumer cannot resolve a `scope` it does not own — the `consumer-scoping-4` least-privilege claim becomes enforced, not aspirational. | Multi-consumer / multi-tenant trigger. |
+| req-tap-cares-secrets-future-access-control-4 | On-Grid Model Alignment | Backlog | Scope ownership / grants likely live on the future Secret BaseModel; access control and that model are expected to co-design. | Links `req-tap-cares-secrets-future-secret-model`. |

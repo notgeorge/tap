@@ -19,10 +19,48 @@ full system state is visible from one place for debugging and admin tooling.
 from __future__ import annotations
 
 import inspect
+import re
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Final
 
 from django.core.exceptions import ImproperlyConfigured
+
+# --------------------------------------------------------------------------- #
+# Canonical scoped-registry token grammar — one home for every scope/key check.
+# --------------------------------------------------------------------------- #
+# A token (a ScopedRegistry scope or key) is a flat, opaque label: ASCII
+# alphanumerics plus `_.-`, starting with an alphanumeric. Deliberately **no
+# `/`** — a scope is a namespace key, not a path. Keeping it flat keeps a scope a
+# clean key an access-control layer can later bind to (least-privilege
+# enforcement is the deferred preventive control,
+# spec-tap-cares-secrets.md `req-tap-cares-secrets-future-access-control`).
+#
+# This is the single source of truth. The tap_cares secret registry, the
+# tap_cares collector registry, and the pre-boot secret resolver
+# (`tap/runtime_secrets.py`) all defer here so the grammar cannot silently
+# diverge across read paths (the two-loader drift that produced the
+# `tap_plugins/source` degraded secret).
+SCOPED_TOKEN_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.\-]*$")
+
+
+def validate_scoped_token(value: str, *, error_cls: type[Exception], label: str) -> None:
+    """Validate a scope/key token against the canonical grammar.
+
+    Shared by every scoped-registry token check and the pre-boot secret resolver
+    so the grammar has exactly one home. Raises the caller's own domain exception
+    so each subsystem keeps its error type and message contract.
+
+    Args:
+        value: the scope or key token to check.
+        error_cls: the exception to raise on a malformed token — each caller
+            passes its own (``InvalidSecretRegistryKeyError``,
+            ``InvalidCollectorRegistryKeyError``, ``RuntimeSecretError``).
+        label: human label naming the surface in the raised message
+            (e.g. ``"secret registry"``, ``"collector registry"``,
+            ``"secret scope"``).
+    """
+    if not isinstance(value, str) or not SCOPED_TOKEN_PATTERN.fullmatch(value):
+        raise error_cls(f"Invalid {label} token {value!r}. Must match {SCOPED_TOKEN_PATTERN.pattern}.")
 
 
 class Registry[T]:
@@ -264,4 +302,4 @@ meta_registry: Registry[Any] = Registry(
 )
 
 
-__all__ = ["Registry", "ScopedRegistry", "meta_registry"]
+__all__ = ["Registry", "ScopedRegistry", "meta_registry", "SCOPED_TOKEN_PATTERN", "validate_scoped_token"]

@@ -11,7 +11,7 @@ Design constraints (why this lives in ``tap/`` next to ``runtime_secrets`` and
 - **Settings-free / no ``tap_*`` import** — pre-boot runs before Django is
   configured (`req-boot-preboot`). This module imports only stdlib +
   ``tap.runtime_secrets`` (the shared, app-neutral resolver) + ``tap.jsonfiles``.
-- **Consumer-first scope ``tap_plugins/source``** (`req-plugin-arch-source-secret-2`):
+- **Consumer-first scope ``tap_plugins.source``** (`req-plugin-arch-source-secret-2`):
   the credential belongs to the install *system*, never to a plugin — a plugin
   must never resolve the credential that installs its siblings.
 - **Conditional necessity** (`req-plugin-arch-source-secret-5`): a credential is
@@ -22,7 +22,7 @@ Design constraints (why this lives in ``tap/`` next to ``runtime_secrets`` and
   silently satisfies a source by file-presence.
 - **Per-source selection** (`req-plugin-arch-source-secret-6`): a git entry's
   optional ``credential`` names *which* secret key (under scope
-  ``tap_plugins/source``) to use, so plugins can be pulled from different private
+  ``tap_plugins.source``) to use, so plugins can be pulled from different private
   repos/orgs in one profile — a repo's PAT never sees another repo.
 
 The token is returned in memory only and never logged: :class:`GitCredential`'s
@@ -47,7 +47,12 @@ from tap.runtime_secrets import RuntimeSecretError, resolve_secret_envelope
 
 # The install-system credential scope — owned by the install system, never a
 # plugin (req-plugin-arch-source-secret-2). Every source credential lives here.
-SOURCE_SECRET_SCOPE = "tap_plugins/source"
+# Flat (dot, not slash): `scope` is an opaque namespace label under the canonical
+# scoped-token grammar (`tap.registry.SCOPED_TOKEN_PATTERN`), not a path. The `.`
+# reads "the source subsystem of tap_plugins" with the same infra-not-a-plugin
+# meaning, and stays a clean key the deferred least-privilege enforcement can bind
+# to (`req-tap-cares-secrets-future-access-control`).
+SOURCE_SECRET_SCOPE = "tap_plugins.source"
 
 # The one kind a source credential may declare — shared type-axis with the
 # github_core collector, but a different data_schema (req-plugin-arch-source-secret-1).

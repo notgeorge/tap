@@ -16,6 +16,8 @@ Three observations drive this:
 
 This doctrine deliberately **coexists with accepted risk.** TAP is not trying to be secure against everything now — plugins, for example, still have broad execution leeway, and that is a knowingly-accepted v0 posture. The doctrine is not "build all security"; it is "take the *cheap, foundational, build-once* edges when they pass the door, and let the expensive ones wait for demand." The discriminator is **marginal cost × foundational/build-once × relax-ability**, not "is it security."
 
+And where an edge cannot be built at all yet — a harm we *recognize* but are (for now) powerless to *prevent*, the recurring case being a rogue plugin running arbitrary Python — we neither shrug it off nor pretend it is closed. We **formalize the recognition in the running code as a `CONCERN`** (`req-sec-concern-gaps`): a structured, machine-routable "this permitted-but-suspicious thing just happened" signal an internal security AI can monitor and act on, and a durable map of exactly where to build the real prevention later. Detection is the cheap edge available when prevention is not.
+
 ## Goals
 
 |   |   |   |
@@ -23,10 +25,11 @@ This doctrine deliberately **coexists with accepted risk.** TAP is not trying to
 | 1. | Take Cheap Edges | When a foundational defensive edge is near-free at construction time, build it. |
 | 2. | Favor The Edge When Unsure | Prefer building a cheap edge over omitting it, since over-restriction relaxes cheaply and omission retrofits expensively. |
 | 3. | Stay Honest About Accepted Risk | Name the risks deliberately left open; the doctrine is selective, not maximalist. |
+| 4. | Concern What You Can't Yet Prevent | Where prevention isn't buildable yet, formalize the recognized harm as a runtime `CONCERN` — detection instead of silence. |
 
 ## Prior Art
 
-This is the security-engineering form of well-known principles: **secure-by-default / secure-by-design** (build the safe path as the default state), **defense in depth** (independent layers, each cheap on its own), **least privilege** (grant the minimum, widen on demand), and **shift-left** (the defect/omission is cheapest to fix at authoring time). The novel framing here is the explicit **reversibility argument**: in a codebase authored and maintained primarily by AI, laying a speculative edge and relaxing it later is cheaper than it has ever been, which tilts the build/skip decision further toward *build*.
+This is the security-engineering form of well-known principles: **secure-by-default / secure-by-design** (build the safe path as the default state), **defense in depth** (independent layers, each cheap on its own), **least privilege** (grant the minimum, widen on demand), and **shift-left** (the defect/omission is cheapest to fix at authoring time). The `CONCERN` discipline (`req-sec-concern-gaps`) is the **detective-control / tripwire** tradition — canary tokens, IDS, `WARN_ON_ONCE`, audit-and-alert where a hard block is impossible or too costly — made a first-class, in-code habit. The novel framing here is the explicit **reversibility argument**: in a codebase authored and maintained primarily by AI, laying a speculative edge and relaxing it later is cheaper than it has ever been, which tilts the build/skip decision further toward *build*.
 
 ## Requirements
 
@@ -35,6 +38,7 @@ This is the security-engineering form of well-known principles: **secure-by-defa
 | req-sec-cheap-edges | [Build Cheap Foundational Edges](#build-cheap-foundational-edges) | Proposed | Take near-free build-once defensive foundations when working the surface |
 | req-sec-reversibility | [Favor The Edge When Unsure](#favor-the-edge-when-unsure) | Proposed | Over-restriction relaxes cheaply; omission retrofits expensively |
 | req-sec-honest-risk | [Name Accepted Risk](#name-accepted-risk) | Proposed | Doctrine is selective; deliberately-open risks are stated, not hidden |
+| req-sec-concern-gaps | [Concern The Gaps You Can't Yet Close](#concern-the-gaps-you-cant-yet-close) | Proposed | Formalize recognized-but-unpreventable harms as runtime `CONCERN` signals — detection now, root-fix map for later |
 
 ---
 
@@ -119,12 +123,54 @@ The doctrine is selective. Risks deliberately left open are named honestly, not 
 
 ---
 
+### Concern The Gaps You Can't Yet Close
+----
+RID: `req-sec-concern-gaps`
+Status: `Proposed`
+
+When you recognize a way the system could be harmed that you **cannot prevent yet** — the archetype being a rogue or buggy plugin doing something malicious with the arbitrary Python it is (by v0 design) allowed to run — do not let the recognition evaporate into a code comment or a good intention. **Formalize it in the running code as a `CONCERN`** (`spec-tap-logging.md`, the reserved `CONCERN` `message_code`): a structured, machine-routable "this permitted-but-suspicious thing just happened" record, emitted at the exact point the suspicious thing is observable.
+
+This is the detective companion to `req-sec-cheap-edges` (the *preventive* cheap edge) and the active-monitoring companion to `req-sec-honest-risk` (which *names* the accepted risk in prose): the same gap gets **stated in the spec and instrumented in the code**.
+
+#### Why this is worth the habit
+
+- **The recognition is the valuable part, and it is perishable.** Spotting "a plugin could resolve another consumer's secret / reach that surface / write there" is real security insight; losing it to a comment wastes it. A `CONCERN` turns the insight into a durable, first-class, greppable artifact that travels with the code.
+- **It resolves the standing tension** — "I can see how a rogue plugin could hurt the system, but I'm powerless (for now) to stop it." You are not powerless: where prevention is expensive or impossible today, **detection is the cheap edge that is available**. Baking the `CONCERN` in scratches the itch honestly — it fails *open* (the operation proceeds) but *loud and structured*.
+- **The set of `CONCERN` sites is a map of where to harden at the root later.** Because they live *in code*, not a wiki, they cannot rot out of sync, and each one marks a concrete future preventive control — ideally paired with a deferred enforcement requirement (e.g. `req-tap-cares-secrets-future-access-control`) so the `CONCERN` is explicitly the interim tripwire for a named future fix.
+- **Interim monitorability by an internal security AI.** Until the root fix lands, the `CONCERN` stream is shaped for a security-system/on-call consumer (eventually AI) to monitor and evaluate case-by-case — the same machine-routing affordance as `FLAW` (shared `security` domain tag, `req-tap-logging-domain-tags`).
+
+#### When it's a CONCERN (the discriminator)
+
+- **`CONCERN`** — behavior that is *permitted but suspicious* and not (yet) preventable. No invariant is violated, because we do not yet guarantee against it. Non-fatal, best-effort, fails open. ("Somebody's being sus.")
+- Distinct from **`FLAW`** (`spec-tap-flaw-v0.md`) — a violated guarantee, steady-state-empty, every fire actionable-and-patchable. Filing permitted-but-suspicious behavior as a Flaw would corrode the Flaw stream's meaning; that is precisely why `CONCERN` is its own category.
+- Distinct from **`ABORT`** — a fatal, stop-now lifecycle signal.
+- A `CONCERN` may carry false positives by nature; that is acceptable because it blocks nothing. Aim for signal, but the bar is lower than `FLAW`'s "wake a human."
+
+#### Implementation
+
+- Emit through the `concern(...)` helper (`spec-tap-logging.md`), `security`-tagged (or the apt `req-tap-logging-domain-tags` tag), with a stable `concern_type` token so the stream is routable.
+- Detective, non-blocking, fail-open-but-loud. Best-effort detection is fine — a determined attacker may evade it; name that residual per `req-sec-honest-risk` at the callsite. The value is the recognition captured, not an airtight gate.
+- Pair each `CONCERN`, where one exists, with the deferred preventive requirement it stands in for — so "detection now" and "prevention later" are two ends of one recorded decision.
+- First instance: the cross-scope secret-access tripwire — a plugin resolving the install-system `tap_plugins.source` scope emits a `CONCERN`, the interim detective control for the deferred least-privilege enforcement (`req-tap-cares-secrets-future-access-control`).
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-sec-concern-gaps-1 | Formalize, Don't Shrug | Proposed | A recognized-but-unpreventable harm is captured as an in-code `CONCERN` at the observable point, not left as a comment or dropped. | Recognition made durable. |
+| req-sec-concern-gaps-2 | Detective, Fail-Open | Proposed | A `CONCERN` is non-blocking and fails open; its value is the structured signal, and the residual (the flagged op still ran) is named per `req-sec-honest-risk`. | Best-effort detection acceptable. |
+| req-sec-concern-gaps-3 | Map To Root Fix | Proposed | A `CONCERN` marks where to build real prevention later, paired where possible with a deferred preventive requirement it stands in for. | The `CONCERN` sites are the hardening backlog. |
+| req-sec-concern-gaps-4 | Monitorable | Proposed | `CONCERN`s are machine-routable (reserved `message_code`, `security` domain tag) so an internal security AI / on-call can monitor and evaluate the stream. | Shares FLAW's routing vocabulary. |
+
+---
+
 ## Relationship To Other Specs
 
 - **`spec-tap-auth-v0.md`** — the densest application of this doctrine (named actors, on-by-default authz, least privilege, recovery floor). Many of its choices are this doctrine in action.
 - **`spec-plugin-type-ownership-v0.md`** — the per-plugin DB-guard foundation (`req-plugin-type-db-affordance`) is a canonical "cheap edge during work already underway."
 - **`spec-tap-boot-v0.md`** (`req-boot-trust`) — the explicit statement of where trust is *granted* by design; the honest-accepted-risk counterpart.
 - **`spec-tap-flaw-v0.md`** — the mechanism for surfacing when a structural edge is violated at runtime (e.g. `unguarded_operation`).
+- **`spec-tap-logging.md`** — hosts the reserved `CONCERN` `message_code` and the `concern(...)` helper that `req-sec-concern-gaps` builds on, plus the shared `req-tap-logging-domain-tags` routing vocabulary that `CONCERN` and `FLAW` both inherit.
 
 ## Status Vocabulary
 

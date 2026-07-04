@@ -73,7 +73,7 @@
                         "minLength": 1
                       },
                       "credential": {
-                        "description": "Optional: the KEY of the source credential to authenticate this private repo (req-plugin-arch-source-secret-6). Names a `<key>.secret.json` under scope `tap_plugins/source` (kind `github_pat`), resolved in pre-boot and fed to git via GIT_ASKPASS — never interpolated into `url`. Omit for a public repo, or to fall back to the fleet-wide default source credential when one is mounted. Different plugins may name different credentials to pull from different private repos/orgs in one profile.",
+                        "description": "Optional: the KEY of the source credential to authenticate this private repo (req-plugin-arch-source-secret-6). Names a `<key>.secret.json` under scope `tap_plugins.source` (kind `github_pat`), resolved in pre-boot and fed to git via GIT_ASKPASS — never interpolated into `url`. Omit for a public repo, or to fall back to the fleet-wide default source credential when one is mounted. Different plugins may name different credentials to pull from different private repos/orgs in one profile.",
                         "type": "string",
                         "minLength": 1
                       }
