@@ -26,7 +26,7 @@ def test_repo_boot_records_are_coherent() -> None:
 # --- fixtures ---------------------------------------------------------------
 
 
-def _make_plugin(root: Path, slug: str, records: dict[str, dict], *, declare: dict[str, str] | None) -> Path:
+def _make_plugin(root: Path, slug: str, records: dict[str, dict[str, object]], *, declare: dict[str, str] | None) -> Path:
     """Create plugins/<slug>/tap_plugin/<slug>/boot/*.boot.json + a tap-plugin.toml.
 
     ``records`` maps record name -> record JSON body. ``declare`` maps record name ->
@@ -66,7 +66,7 @@ def test_check_clean_when_declared_matches(tmp_path: Path) -> None:
     assert boot_records.check(tmp_path) == []
 
 
-def _write_tmp_record(tmp_path: Path, body: dict) -> Path:
+def _write_tmp_record(tmp_path: Path, body: dict[str, object]) -> Path:
     p = tmp_path / "scratch.json"
     p.write_text(json.dumps(body), encoding="utf-8")
     return p
