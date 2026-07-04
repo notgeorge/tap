@@ -66,6 +66,7 @@ For the plugin-refactor additions (pre-boot stage, install section, snapshot, va
 
 ## Relationship To Other Specs
 
+- **Extended by `specs/spec-tap-boot-bootstrap.md`.** This spec owns the profile *shape* and phase application (given a profile, stand the instance up). The bootstrap spec sits one level above and owns *where the profile comes from*: a single-command `--from <pointer>` that fetches a boot record out of a versioned plugin artifact (records ship as package data), selects among multiple records per plugin, and stages it as the active profile before pre-boot proceeds. `--from` subsumes `--boot-file`; the pointer resolves through `spec-plugin-architecture.md`'s source machinery. Single-file boot → single-command boot (the netboot lineage).
 - **Absorbs `specs/spec-dev-boot-collectors.md`.** Its collector-firing mechanics — firing via `run_collection`, sequential ordered firing, per-profile `on_failure`, opt-in selection — are preserved as the `fire-collector` step-type inside this spec's population phase. The standalone `fire_boot_collectors` framing is generalized into the bootloader; the collector spec's RIDs remain the detailed contract for *how a collector is fired*.
 - **Provides the bootloader `req-tap-auth-boot` assumes.** The `auth` section is `tap_auth`'s registered section handler; the auth-boot ordering (capability sync → protected group sync → built-in actor sync → initial admin → provider validation/build → provider/domain deactivation) is that handler's internal apply sequence, run within this spec's `auth` phase.
 
