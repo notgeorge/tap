@@ -29,9 +29,11 @@ from tap_cares.secrets.models import Secret
 
 # The well-known SecretRef for the AWS collector. v0 has no per-instance
 # config (CollectorConfig carries only entity ids), so the key is a constant;
-# the operator drops ``aws/boto_collector.secret.json`` under TAP_SECRETS_ROOT
-# (no plugin config in core infra — operator-owned, off-grid).
-AWS_SECRET_REF = SecretRef(scope="aws", key="boto_collector")
+# the operator drops ``aws_core/boto_collector.secret.json`` under TAP_SECRETS_ROOT
+# (no plugin config in core infra — operator-owned, off-grid). `scope` names the
+# consuming plugin's slug, not the credential provider
+# (req-tap-cares-secrets-consumer-scoping).
+AWS_SECRET_REF = SecretRef(scope="aws_core", key="boto_collector")
 AWS_SECRET_KIND = "aws_static_access_key"
 
 # aws_core owns this schema for the kind's `data` (req-aws-core-secret-aws-static-2).

@@ -1,67 +1,109 @@
 {
   "version": 1,
-  "description": "Samsite demo — stand a fresh session up end-to-end: seed the plugin GRIFT (AWS/GitHub/KSI/samsite pages + schedules), then fire the collectors that pull the live world in. Seed order is INSTALLED_APPS order; collector order matters: samsite-compliance reads aws_account nodes (boto3) AND content-matches github_workflow nodes (github_core), so both must run before it.",
+  "description": "Samsite demo \u2014 stand a fresh session up end-to-end: seed the plugin GRIFT (AWS/GitHub/KSI/samsite pages + schedules), then fire the collectors that pull the live world in. Seed order is INSTALLED_APPS order; collector order matters: samsite-compliance reads aws_account nodes (boto3) AND content-matches github_workflow nodes (github_core), so both must run before it.",
   "install": {
     "plugins": [
       {
         "slug": "administrivia",
         "enabled": true,
-        "source": { "type": "editable", "path": "plugins/administrivia" },
+        "source": {
+          "type": "editable",
+          "path": "plugins/administrivia"
+        },
         "note": "Package-mode (tap_plugin.administrivia), 2026-07-01. TAP admin pages + grid landing + cares administrivia; seeded in population."
       },
       {
         "slug": "lotr",
         "enabled": true,
-        "source": { "type": "editable", "path": "plugins/lotr" },
-        "note": "Package-mode (tap_plugin.lotr), 2026-07-01. Install-only: the demo/test-fixture vocabulary lotr's own suites + tap_web/tap_grid feature tests use as a concrete plugin example; installed so any env that boots samsite keeps tap_plugin.lotr importable in the test suite. NOT seeded — Middle-earth data has no place in this customer-demo profile."
+        "source": {
+          "type": "editable",
+          "path": "plugins/lotr"
+        },
+        "note": "Package-mode (tap_plugin.lotr), 2026-07-01. Install-only: the demo/test-fixture vocabulary lotr's own suites + tap_web/tap_grid feature tests use as a concrete plugin example; installed so any env that boots samsite keeps tap_plugin.lotr importable in the test suite. NOT seeded \u2014 Middle-earth data has no place in this customer-demo profile."
       },
       {
         "slug": "computing_core",
         "enabled": true,
-        "source": { "type": "editable", "path": "plugins/computing_core" },
-        "note": "Package-mode (tap_plugin.computing_core), 2026-07-01. Vendor-neutral computing-primitive dimension; seeded in population."
+        "source": {
+          "type": "git",
+          "url": "https://github.com/notgeorge/tap-plugin-computing-core",
+          "rev": "v0.1.0",
+          "credential": "github-plugins-ro"
+        },
+        "note": "EVICTED to notgeorge/tap-plugin-computing-core @ v0.1.0 (2026-07-03) \u2014 git-installed via authed source. Vendor-neutral computing-primitive dimension; seeded in population. Monorepo plugins/computing_core/ retained as the offline dev/test source (removal deferred with the wheelhouse)."
       },
       {
         "slug": "roscale",
         "enabled": true,
-        "source": { "type": "editable", "path": "plugins/roscale" },
-        "note": "Package-mode (tap_plugin.roscale), 2026-07-01. Install-only: registers the OSCAL workbench panel types samsite's compliance pages consume; no grift seed, no collector, so it is not a population step."
+        "source": {
+          "type": "git",
+          "url": "https://github.com/notgeorge/tap-plugin-roscale",
+          "rev": "v0.1.0",
+          "credential": "github-plugins-ro"
+        },
+        "note": "EVICTED to notgeorge/tap-plugin-roscale @ v0.1.0 (2026-07-03) \u2014 git-installed via authed source. Install-only: registers the OSCAL workbench panel types samsite consumes; no grift seed, no collector. Monorepo copy retained as offline dev/test source (removal deferred with the wheelhouse)."
       },
       {
         "slug": "aws_core",
         "enabled": true,
-        "source": { "type": "editable", "path": "plugins/aws_core" },
-        "note": "Package-mode (tap_plugin.aws_core), 2026-07-01. Tier-0 boto3 dep (uv resolves at install). AWS dimension + the boto3 collector; seeded in population + its collector fired."
+        "source": {
+          "type": "git",
+          "url": "https://github.com/notgeorge/tap-plugin-aws-core",
+          "rev": "v0.1.0",
+          "credential": "github-plugins-ro"
+        },
+        "note": "EVICTED to notgeorge/tap-plugin-aws-core @ v0.1.0 (2026-07-03) \u2014 git-installed via authed source. Tier-0 boto3 dep. AWS dimension + boto3 collector; seeded + fired in population. Monorepo copy retained as offline dev/test source."
       },
       {
         "slug": "sigstore_core",
         "enabled": true,
-        "source": { "type": "editable", "path": "plugins/sigstore_core" },
-        "note": "Package-mode (tap_plugin.sigstore_core), 2026-07-01. Tier-0 sigstore dep. Install-only library plugin: samsite's compliance_collector consumes its verify/decompose helpers + models; no grift seed / no collector of its own."
+        "source": {
+          "type": "git",
+          "url": "https://github.com/notgeorge/tap-plugin-sigstore-core",
+          "rev": "v0.1.0",
+          "credential": "github-plugins-ro"
+        },
+        "note": "EVICTED to notgeorge/tap-plugin-sigstore-core @ v0.1.0 (2026-07-03) \u2014 git-installed via authed source. Tier-0 sigstore dep. Install-only library: samsite compliance_collector consumes its verify/decompose helpers + models. Monorepo copy retained as offline dev/test source."
       },
       {
         "slug": "github_core",
         "enabled": true,
-        "source": { "type": "editable", "path": "plugins/github_core" },
-        "note": "Package-mode (tap_plugin.github_core), 2026-07-01. Carries a Tier-0 PyYAML dep (uv resolves it at install). Editable local source during the monorepo transition."
+        "source": {
+          "type": "git",
+          "url": "https://github.com/notgeorge/tap-plugin-github-core",
+          "rev": "v0.1.0",
+          "credential": "github-plugins-ro"
+        },
+        "note": "EVICTED to notgeorge/tap-plugin-github-core @ v0.1.0 (2026-07-03) \u2014 git-installed via authed source. Tier-0 PyYAML dep. AWS/GitHub Actions plumbing + the github collector. Monorepo copy retained as offline dev/test source."
       },
       {
         "slug": "fedramp_20x_ksi",
         "enabled": true,
-        "source": { "type": "editable", "path": "plugins/fedramp_20x_ksi" },
-        "note": "First plugin migrated to package-mode (tap_plugin.fedramp_20x_ksi), 2026-07-01. Editable local source during the monorepo transition; a real deployment uses a git source pinned to a rev."
+        "source": {
+          "type": "git",
+          "url": "https://github.com/notgeorge/tap-plugin-fedramp-20x-ksi",
+          "rev": "v0.1.1",
+          "credential": "github-plugins-ro"
+        },
+        "note": "First leaf EVICTED from the monorepo (2026-07-03): pulled at boot from its own repo (notgeorge/tap-plugin-fedramp-20x-ksi) via authed git source \u2014 the github-plugins-ro PAT (scope tap_plugins/source) fed through GIT_ASKPASS, never in the URL. rev pinned to the immutable tag v0.1.1 (commit 27f0c97), which ships the ksi-seed cold-boot id fix; v0.1.0 shipped a stale seed (type-sweep hash fallout) that dangled on cold boot. samsite boots now depend on the repo + PAT + network \u2014 the intended demo-profile behavior. Reversible: flip back to {type:editable, path:plugins/fedramp_20x_ksi} to use the monorepo copy. The monorepo plugins/fedramp_20x_ksi/ tree stays in place until this boot-verifies, then is removed (per the eviction recipe)."
       },
       {
         "slug": "samsite",
         "enabled": true,
-        "source": { "type": "editable", "path": "plugins/samsite" },
-        "note": "Package-mode (tap_plugin.samsite), 2026-07-01. Last of the samsite set to migrate; the demo integration surface. DEPENDS ON the four plugins above at import time (compliance_collector + panels import tap_plugin.{sigstore_core,github_core,roscale} and read aws_core nodes) — listed last so its cross-plugin (Tier-1/2) deps are installed first. The manifest depends_on schema + boot consistency gate that would enforce this are deferred (declare-now, resolver-later); today the ordering here satisfies it structurally."
+        "source": {
+          "type": "editable",
+          "path": "plugins/samsite"
+        },
+        "note": "Package-mode (tap_plugin.samsite), 2026-07-01. Last of the samsite set to migrate; the demo integration surface. DEPENDS ON the four plugins above at import time (compliance_collector + panels import tap_plugin.{sigstore_core,github_core,roscale} and read aws_core nodes) \u2014 listed last so its cross-plugin (Tier-1/2) deps are installed first. The manifest depends_on schema + boot consistency gate that would enforce this are deferred (declare-now, resolver-later); today the ordering here satisfies it structurally."
       },
       {
         "slug": "grid_fixtures",
         "enabled": true,
-        "source": { "type": "editable", "path": "plugins/grid_fixtures" },
-        "note": "Package-mode (tap_plugin.grid_fixtures). Install-only: the neutral grid_fixtures__* node/edge vocabulary the core suites build fixtures from. No GRIFT seed, no cross-plugin deps. (gryphon_playground, which depends_on it, is NOT installed in this customer-demo profile — the Gryphon test corpus stands up via its own plugin-owned profile, plugins/gryphon_playground/gryphon_playground.boot.json.)"
+        "source": {
+          "type": "editable",
+          "path": "plugins/grid_fixtures"
+        },
+        "note": "Package-mode (tap_plugin.grid_fixtures). Install-only: the neutral grid_fixtures__* node/edge vocabulary the core suites build fixtures from. No GRIFT seed, no cross-plugin deps. (gryphon_playground, which depends_on it, is NOT installed in this customer-demo profile \u2014 the Gryphon test corpus stands up via its own plugin-owned profile, plugins/gryphon_playground/gryphon_playground.boot.json.)"
       }
     ]
   },

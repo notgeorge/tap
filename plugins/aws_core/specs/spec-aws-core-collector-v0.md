@@ -689,7 +689,7 @@ collector never reads credential files directly.
 
 #### Implementation
 
-- The collector resolves a secret via `resolve_secret(SecretRef(scope="aws",
+- The collector resolves a secret via `resolve_secret(SecretRef(scope="aws_core",
   key=<configured>))` and validates it is `kind: aws_static_access_key` with the
   required `data` fields, using `require_secret_kind(...)` with an `aws_core`-owned
   JSON Schema (consumer-side validation, `req-tap-cares-secrets-validation-2`).
