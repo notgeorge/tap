@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Mint / refresh / check the referrer-held sha256 digests of in-package boot records.
+#
+# A boot record (tap_plugin/<slug>/boot/<name>.boot.json, req-boot-bootstrap-records-in-package)
+# ships inside its plugin package and is integrity-guarded by a content sha256 declared ONE
+# LAYER UP, in the package tap-plugin.toml's [[boot.records]] table (req-boot-bootstrap-record-version).
+# The digest is derived from the record's canonicalized content and MUST be regenerated through
+# this tool, never hand-edited — the same derived-vs-declared discipline as scripts/log-site-id
+# and scripts/uuid7 (a value derived from content must come from its derivation, or it drifts
+# into a lie). tap/tests/test_boot_records.py fails closed on any drift or manifest<->files mismatch.
+#
+# Usage:
+#   scripts/boot-record-hash            # list discovered records + computed digests
+#   scripts/boot-record-hash --refresh  # rewrite the sha256 values in each package toml
+#   scripts/boot-record-hash --check    # verify declared == computed (exit 1 on drift)
+#
+# Implementation: stdlib-only (tomllib/json/hashlib), runs on the host — see tap/boot_records.py.
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
+exec python3 -m tap.boot_records "$@"

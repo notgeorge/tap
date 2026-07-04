@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "description": "Gryphon playground — the muck-around flavor. A shippable, in-package boot RECORD (rides the gryphon_playground wheel/git artifact at tap_plugin/gryphon_playground/boot/, per req-boot-bootstrap-records-in-package) that stands up the closest-to-minimal TAP instance: just the neutral grid_fixtures__* node/edge vocabulary and the gryphon_playground Gridkin corpus/harness that depends_on it, existing only to exercise the Gryphon query language and nothing else. No admin chrome, no seeded data, no collectors: the grid comes up empty and reaches out to nothing, and the Gridkin corpus builds its scenarios at query/test time rather than seeding population (hence an empty population section). The web UI and API surfaces still mount (auth/login is the only web chrome), because a truly headless boot is not yet supported (backlog: tap_web req-web-rendering-headless; tap_api headless-API disable). Install sources are GIT (the shippable-record class travels to deployments and pulls its plugins from their own repos via the github-plugins-ro PAT); a repo-local editable harness profile serves monorepo dev. Selected by pointer `<source-ref>#playground`.",
+  "install": {
+    "plugins": [
+      {
+        "slug": "grid_fixtures",
+        "enabled": true,
+        "source": {
+          "type": "git",
+          "url": "https://github.com/notgeorge/tap-plugin-grid-fixtures",
+          "rev": "v0.1.0",
+          "credential": "github-plugins-ro"
+        },
+        "note": "Package-mode (tap_plugin.grid_fixtures). Install-only: the neutral grid_fixtures__* node/edge vocabulary the Gridkin corpus references by string. Migrated so the corpus has real types to query. No GRIFT seed, no cross-plugin deps. Listed before gryphon_playground, which depends_on it. Pulled at boot from its own repo via authed git source (PAT through GIT_ASKPASS, never in the URL); rev pinned to the immutable tag v0.1.0."
+      },
+      {
+        "slug": "gryphon_playground",
+        "enabled": true,
+        "source": {
+          "type": "git",
+          "url": "https://github.com/notgeorge/tap-plugin-gryphon-playground",
+          "rev": "v0.1.0",
+          "credential": "github-plugins-ro"
+        },
+        "note": "Self-reference (app-of-apps, req-boot-bootstrap-stage0-3): the record shipped inside gryphon_playground@v0.1.0 names gryphon_playground@v0.1.0 in its own install set, so stage-0's fetch-without-import peek is followed by a proper pinned install. The Gridkin scenario corpus + harness that exercise the Gryphon query language; owns NO node/edge types of its own (references grid_fixtures__* by string → depends_on grid_fixtures, installed above). Carries NO GRIFT population seed."
+      }
+    ]
+  },
+  "population": {
+    "on_failure": "abort",
+    "steps": []
+  }
+}

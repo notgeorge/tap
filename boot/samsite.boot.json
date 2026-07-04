@@ -103,7 +103,7 @@
           "type": "editable",
           "path": "plugins/grid_fixtures"
         },
-        "note": "Package-mode (tap_plugin.grid_fixtures). Install-only: the neutral grid_fixtures__* node/edge vocabulary the core suites build fixtures from. No GRIFT seed, no cross-plugin deps. (gryphon_playground, which depends_on it, is NOT installed in this customer-demo profile \u2014 the Gryphon test corpus stands up via its own plugin-owned profile, plugins/gryphon_playground/gryphon_playground.boot.json.)"
+        "note": "Package-mode (tap_plugin.grid_fixtures). Install-only: the neutral grid_fixtures__* node/edge vocabulary the core suites build fixtures from. No GRIFT seed, no cross-plugin deps. (gryphon_playground, which depends_on it, is NOT installed in this customer-demo profile \u2014 the Gryphon test corpus stands up via its own in-package boot records, tap_plugin/gryphon_playground/boot/{playground,soak}.boot.json, selected by a bootstrap pointer.)"
       }
     ]
   },

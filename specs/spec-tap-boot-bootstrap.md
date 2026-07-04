@@ -56,18 +56,27 @@ eventually require it:
 ## v0 Scope (spec-first, code deferred)
 
 This spec is **authored ahead of its implementation** (the callsite-identity / SARIF-Phase-0
-pattern): the design is locked here so the six standardization decisions do not drift while
-the pieces land incrementally. The **content-hash integrity guard (`req-boot-bootstrap-record-version`)
-is the near-term buildable floor** — cheap, foundational, worth laying while the surface is
-being defined (`spec-security-posture.md` `req-sec-cheap-edges`). Signing
+pattern): the design is locked here so the standardization decisions do not drift while
+the pieces land incrementally. The **near-term buildable floor** is (1) *records ride the
+artifact* (`req-boot-bootstrap-records-in-package`), (2) a **referrer-held content digest** with
+its non-circular guard (`req-boot-bootstrap-record-version`), and (3) the manifest↔files coherence
+guard (`req-boot-bootstrap-discovery`) — all cheap, foundational, worth laying while the surface
+is being defined (`spec-security-posture.md` `req-sec-cheap-edges`). Crucially, a record carries
+**no version of its own** (its version is the plugin's, single-sourced) — this is what dissolves
+the stamp-circularity documented in `req-boot-bootstrap-record-version`. Signing
 (`req-boot-bootstrap-signing`) is explicitly **backlog**, demand-gated on the first
 non-George user (see the strategy note in `plan/road-rampart.md`).
 
 The pilot is **`gryphon_playground`**: it already owns a plugin-local profile, it is
 low-stakes, and it immediately exercises multi-record selection — a `playground` flavor
-(muck around: seed the Gridkin corpus, no workers) and a `soak` flavor (same install, but
-population drives the fuzz-campaign task loop). `samsite` (the demo) migrates to the
-in-package `boot/` convention once the pilot proves the path.
+(muck around: seed the Gridkin corpus, no workers) and a `soak` flavor. **Locked pilot decisions:**
+`soak` ships as a real second record (same install as `playground`) but is **reserved** for the
+fuzz-campaign task loop, which is driven out-of-band by `scripts/gryphon-fuzz-campaign` today and
+wired to boot population later — the record exercises selection now without asserting unbuilt
+runtime behavior. gryphon ships **no `default.boot.json`**: a bare pointer fails closed naming
+`playground` and `soak` (`req-boot-bootstrap-default-record-2`), exercising the fail-closed default
+path — a cheap security edge — from day one. `samsite` (the demo) migrates to the in-package
+`boot/` convention once the pilot proves the path.
 
 ## Prior Art
 
@@ -83,12 +92,19 @@ them rather than invent.
   a **named output** from a **versioned** flake with a `#fragment`. This is the pointer
   grammar TAP adopts directly: `<source-ref>#<record>`. Nix also fails loud when no
   `default` output exists rather than guessing — the model for `req-boot-bootstrap-default-record`.
-- **Lockfile integrity (npm `package-lock` SHA-512 SRI, Cargo.lock checksums, Nix narHash).**
-  Every modern package manager splits a **human-facing version that floats** from a
-  **content hash that pins and guards**: on install the artifact is re-hashed and compared,
-  and a mismatch *halts the install*. A version bump produces a new hash, so a content change
-  without a version bump is detectable. This is exactly the guard `req-boot-bootstrap-record-version`
-  adopts — "content changed ⇒ version must move, or CI fails."
+- **Content-addressing, and where the hash lives — the config-inside-a-versioned-artifact case.**
+  Keyed to *our* narrow problem (a config that ships inside an already-versioned package), the prior
+  art is unanimous on one invariant: **a thing never contains its own hash; the hash of X lives in
+  whatever refers to X, one layer up.** Python **wheels** carry a `RECORD` file that hashes every file
+  *except itself* (`…/RECORD,,` — a blank self-entry) and delegate `RECORD`'s own integrity upward to
+  the signature. **OCI** points a mutable **tag** at an immutable content **digest**, and references
+  the config blob *by digest from the manifest* — "changing content changes the digest, which changes
+  the parent reference." Signed JAR `MANIFEST.MF`, Debian `Release`→`Packages`→`.deb`, and npm/Cargo/Nix
+  locks all store the child's hash in the parent. The reason this shape is universal: **a content hash
+  is a fixed point** (it depends only on the bytes, not on the metadata being written), whereas a
+  **git-derived version is not** — so hashing content and storing it in a referrer *converges*, while
+  stamping a derived version into the file it describes is circular. This is exactly the model
+  `req-boot-bootstrap-record-version` adopts: digest in the referrer, version = the plugin's.
 - **GitOps app-of-apps (`flux bootstrap`, `argocd-autopilot`).** The bootstrap config
   references the very repo/app that manages it — the self-reference that resolves the
   chicken-and-egg. TAP's boot record names its own plugin in its install list
@@ -130,11 +146,11 @@ them rather than invent.
 | --- | --- | :---: | --- |
 | req-boot-bootstrap-command | [Single-Command Boot](#single-command-boot) | Proposed | `tap boot --from <pointer>` fetches + stages + boots; `--from` subsumes `--boot-file` (local path, or remote `pkg@ver#record`) |
 | req-boot-bootstrap-records-in-package | [Records Ride The Artifact](#records-ride-the-artifact) | Proposed | Boot records live at `tap_plugin/<slug>/boot/<name>.boot.json` as package data; shippable records in-package, harness profiles stay repo-local; supersedes the location of `req-plugin-arch-layout-6` |
-| req-boot-bootstrap-pointer-grammar | [Pointer Grammar](#pointer-grammar) | Proposed | `<source-ref>#<record>` (Nix-flake fragment); source-ref resolves via `req-plugin-arch-sources`; `#<record>` selects `boot/<record>.boot.json` |
+| req-boot-bootstrap-pointer-grammar | [Pointer Grammar](#pointer-grammar) | Proposed | `<source-ref>#<record>[@<digest>]` (Nix-flake fragment + OCI reference); three orthogonal axes — carrier version (`@ver`/`@+ver`), record selector (`#record`), record digest (`@algo:hex`, a fail-closed guard); simple cells built, ranges + digest reserved |
 | req-boot-bootstrap-default-record | [Default Record Is Explicit](#default-record-is-explicit) | Proposed | No `#` → `boot/default.boot.json` if present, else loud error naming available records; never "first"/"latest" |
-| req-boot-bootstrap-record-version | [Record Version + Integrity Guard](#record-version--integrity-guard) | Proposed | **Hash floor is the near-term build.** Record carries its own `version`, decoupled from the code tag; a content hash guards it (content change ⇒ version bump, else CI fails); install entries pin *or* float per plugin |
+| req-boot-bootstrap-record-version | [Record Integrity + Version](#record-integrity--version) | Proposed | **Near-term build.** Record carries **no version of its own** (version = the plugin's, single-sourced — dissolves the stamp-circularity); integrity = a content `sha256` in the **referrer** (`tap-plugin.toml`), never in the record; non-circular guard; install entries pin *or* float; `targets_major` compat + monotonic counter explicitly reserved/rejected |
 | req-boot-bootstrap-stage0 | [Stage-0 Fetch Without Import](#stage-0-fetch-without-import) | Proposed | Extract only `boot/<record>.boot.json` from the artifact without installing/importing the package; the record self-references its own plugin (app-of-apps) |
-| req-boot-bootstrap-discovery | [Record Discovery](#record-discovery) | Proposed | `tap-plugin.toml` enumerates records (name + description); `tap boot --list <pointer>` and spawn tab-completion read it; a CI guard reconciles the toml against `boot/*.boot.json` |
+| req-boot-bootstrap-discovery | [Record Discovery](#record-discovery) | Proposed | `tap-plugin.toml` enumerates records (name + description + content `sha256`; no per-record version); `tap boot --list <pointer>` and spawn tab-completion read it; a CI guard reconciles the toml against `boot/*.boot.json` |
 | req-boot-bootstrap-signing | [Supply-Chain Integrity Ladder](#supply-chain-integrity-ladder) | Proposed | **Backlog, surfaced sooner-than-usual.** Hash (near-term) → Sigstore keyless attestation → TUF channel security; verify primitives are a `tap/`-level helper (`sigstore` uv-installed), NOT the `sigstore_core` plugin; trigger = first non-George user |
 
 ---
@@ -203,8 +219,10 @@ source-type-agnostic.
 - **A record is an instance flavor.** A plugin MAY ship several records in its `boot/` dir, each
   a full instance recipe (install + population + behavior). The pilot: `gryphon_playground`'s
   `boot/playground.boot.json` (seed the Gridkin corpus, no workers — muck around) and
-  `boot/soak.boot.json` (same install, population drives the fuzz-campaign task loop). Same
-  package, same version, different flavor — the Kustomize-overlay / compose-profile shape.
+  `boot/soak.boot.json` (same install; **reserved** for the fuzz-campaign task loop, which is driven
+  out-of-band by `scripts/gryphon-fuzz-campaign` today and wired to boot population later — it
+  exercises multi-record selection now without asserting unbuilt runtime behavior). Same package, same
+  version, different flavor — the Kustomize-overlay / compose-profile shape.
 - **Two record classes, two homes:**
   - **Shippable / solution-set records** (samsite demo, gryphon flavors) live **in-package**,
     per this requirement — they travel to deployments.
@@ -236,23 +254,50 @@ A single-line pointer names package + version + record.
 
 #### Implementation
 
-- The grammar is the **Nix-flake fragment**: `<source-ref>#<record>`.
-  - `<source-ref>` is resolved by the **existing** source machinery (`req-plugin-arch-sources`)
-    to a **versioned artifact**. It carries the source type + locator + version exactly as an
-    `install` entry's `source` already does — e.g.
-    `git+https://github.com/notgeorge/tap-plugin-gryphon-playground@v0.1.0`, or an index/wheelhouse
-    locator. Credentials resolve from `TAP_SECRETS_ROOT`, never in the pointer
-    (`req-plugin-arch-sources-4`).
-  - `#<record>` selects `boot/<record>.boot.json` from inside that artifact.
-- Example: `git+https://github.com/notgeorge/tap-plugin-gryphon-playground@v0.1.0#soak`
+- The grammar is the **Nix-flake fragment + OCI reference**: `<source-ref>#<record>[@<digest>]`, a
+  cross-product of **three orthogonal selection axes**:
+  1. **Carrier version** — on the `<source-ref>`, *before* the `#`: which artifact the record is read
+     *out of*. `@<version>` pins (`@v0.1.0`), `@+<version>` is a floor (`@+v0.1.0` = "≥ this"), absent
+     = latest. Resolved by the **existing** source machinery (`req-plugin-arch-sources`) to a versioned
+     artifact; it carries source type + locator + version exactly as an `install` entry's `source`
+     does. Credentials resolve from `TAP_SECRETS_ROOT`, never in the pointer
+     (`req-plugin-arch-sources-4`).
+  2. **Record selector** — the `#<record>`: selects `boot/<record>.boot.json` from inside that
+     artifact. Absent = the default record (`req-boot-bootstrap-default-record`, fail-closed).
+  3. **Record digest** — `@<algo>:<hex>` *after* the record: a fail-closed **integrity guard** on the
+     fetched record's content (`req-boot-bootstrap-record-version`). Absent = accept whatever the
+     carrier ships.
+- **`@` is position-disambiguated**, OCI-style (`repo:tag@sha256:…`): before the `#` it is a
+  **version-or-range** (`@v0.1.0`, `@+v0.1.0`); after the record it is a **digest**, recognized by its
+  `<algo>:` marker (`@sha256:…`). The `#` separates the two, so one sigil serves both unambiguously.
+- **The digest is a GUARD, not a search key.** `foo#soak@sha256:abc` with an unpinned carrier means
+  *"fetch soak from the latest artifact; its content MUST be `abc`, else **fail closed**"* — it does
+  **not** search versions for the artifact whose `soak` is `abc` (that reverse lookup is deliberately
+  out of scope). This is OCI's `image:latest@sha256:abc`. To pin a *specific historical* recipe, pin
+  the carrier too (`foo@v0.1.0#soak`).
+- **Carrier ≠ installed — by design.** The carrier version says which artifact the *recipe* is read
+  from; what code the instance actually *installs* is decided **inside** the record's `install` entries
+  (each pin/float per `req-boot-bootstrap-record-version`), including the app-of-apps self-reference
+  (`req-boot-bootstrap-stage0-3`). So a digest-pinned pointer freezes the **recipe**; the recipe
+  decides how much of the **system** is frozen — install entries that pin → reproducible system;
+  install entries that float → frozen boot process over evolving code. The two coordinates are
+  intentionally decoupled.
+- **Three independent, individually-pinnable coordinates** — do not conflate them:
+  1. the **carrier** version (which artifact carries the record) — in `<source-ref>`;
+  2. the **record digest** (which exact recipe bytes) — the `@<algo>:<hex>` guard;
+  3. the **per-plugin install** versions (what code the recipe installs) — inside the record's
+     `install` entries.
+- Example (simple, pilot): `git+https://github.com/notgeorge/tap-plugin-gryphon-playground@v0.1.0#soak`
   → the `soak` record from the v0.1.0 gryphon artifact.
-- **Three independent, individually-pinnable version axes** — do not conflate them:
-  1. the **package artifact** version (which wheel carries the record) — in `<source-ref>`;
-  2. the **record contract** version (`req-boot-bootstrap-record-version`) — inside the record;
-  3. the **per-plugin install** versions — inside the record's `install` entries.
-- The pointer is a **locator, not a full profile**: it identifies the record; the record itself
-  declares the install set and population. This keeps the pointer to a single line and puts the
-  reproducibility surface (pinned plugin versions) in the record where it is reviewable.
+- The pointer is a **locator, not a full profile**: it identifies + verifies the record; the record
+  declares the install set and population. The reproducibility surface (pinned plugin versions) lives
+  in the record where it is reviewable.
+- **Scope — grammar now, resolver incrementally.** The full grammar is specified here so it does not
+  drift, but the pilot resolver implements only the three simple cells — `@<version>#<record>`,
+  `#<record>` (latest carrier), and bare `<source-ref>` (default record). **Floor ranges (`@+`) and the
+  digest guard (`@<algo>:<hex>`) are reserved grammar**, demand-gated: range resolution is its own
+  complexity (npm/Cargo semver ranges) with no pre-launch demand, and the digest guard lands when
+  fail-closed recipe pinning is actually wanted.
 
 #### Acceptance Criteria
 
@@ -260,8 +305,10 @@ A single-line pointer names package + version + record.
 | --- | --- | :---: | --- | --- |
 | req-boot-bootstrap-pointer-grammar-1 | Fragment Selects Record | Proposed | `#<record>` selects `boot/<record>.boot.json` from the resolved artifact. | |
 | req-boot-bootstrap-pointer-grammar-2 | Source-Ref Reuses Machinery | Proposed | `<source-ref>` resolves through `req-plugin-arch-sources` (git/index/wheelhouse); bootstrap adds no new fetch path. | |
-| req-boot-bootstrap-pointer-grammar-3 | No Secrets In Pointer | Proposed | The pointer carries only a locator + version + record name; credentials resolve from `TAP_SECRETS_ROOT`. | Mirrors `req-plugin-arch-sources-4` |
-| req-boot-bootstrap-pointer-grammar-4 | Three Version Axes | Proposed | Artifact version, record-contract version, and per-plugin install versions are independent and separately pinnable. | |
+| req-boot-bootstrap-pointer-grammar-3 | No Secrets In Pointer | Proposed | The pointer carries only a locator + version + record + digest; credentials resolve from `TAP_SECRETS_ROOT`. | Mirrors `req-plugin-arch-sources-4` |
+| req-boot-bootstrap-pointer-grammar-4 | Three Selection Axes | Proposed | Carrier version (`@ver`/`@+ver`, before `#`), record selector (`#record`), and record digest (`@algo:hex`, after) are orthogonal and separately optional; carrier ≠ installed. | |
+| req-boot-bootstrap-pointer-grammar-5 | Digest Is A Guard | Proposed | The record digest fail-closes on mismatch against the fetched record; it is a verification guard, not a version-search key. | OCI `image@sha256` |
+| req-boot-bootstrap-pointer-grammar-6 | Simple Cells First | Proposed | The pilot resolver implements `@ver#record`, `#record`, and bare (default); floor ranges (`@+`) and the digest guard are reserved grammar, demand-gated. | |
 
 ---
 
@@ -296,50 +343,84 @@ Selecting a record without a `#` resolves to a named default or fails loud — n
 
 ---
 
-### Record Version + Integrity Guard
+### Record Integrity + Version
 ----
 RID: `req-boot-bootstrap-record-version`
 Status: `Proposed`
 
-A boot record carries its **own** version, decoupled from the plugin's code tag, and a content
-hash guards it. **The hash guard is the near-term buildable floor of this spec.**
+A boot record's **integrity** is a content digest held **one layer up** in the referrer, never
+inside the record; its **version** is the plugin's, not a copy. **This is the near-term buildable
+floor of the spec** — cheap, foundational, non-circular.
+
+#### The circularity this avoids (why it is shaped this way)
+
+An earlier design gave the record its own SemVer `version` stamped inside the file. That is a
+**circular trap**: a plugin's version is derived from git state (hatch-vcs: a tag is `0.1.0`, a dev
+commit is `0.1.1.dev4+g<sha>`), so stamping the version into a tracked file changes the tree → changes
+the commit → changes the version → the stamp is stale. It never converges. This is the same
+derived-vs-declared drift that bit the uuid5 seed ids: a value derived from state must come from its
+derivation, never be hand-copied into that state.
+
+Every package manager avoids this the same way, and the prior art keyed to *our* case — a config
+**inside** an already-versioned artifact — is unanimous (see Prior Art):
+
+- **A thing never contains its own hash.** The hash of X lives in whatever *refers to* X, one layer
+  up. Python wheels: `RECORD` hashes every file **except itself** (`…/RECORD,,`) and delegates its own
+  integrity upward to the signature. OCI: the config blob is referenced **by digest from the
+  manifest**; a mutable **tag** points at an immutable **digest**.
+- **A content hash is a fixed point; a git-derived version is not.** `sha256(record)` depends only on
+  the record's bytes — not on the metadata being written, not on the commit sha — so writing it into a
+  sibling file does not invalidate it; it converges in one step. That is *why* the ecosystem hashes
+  content and stores it in a referrer instead of stamping a version into the file.
 
 #### Implementation
 
-- **The problem this solves.** If the record's identity were tied to the plugin's git tag alone,
-  a bugfix that bumps `gryphon@v0.1.0 → v0.1.1` would "move" the record even though its content
-  did not change — and anyone pinned to `@v0.1.0` would be frozen on stale code with no way to
-  express "same recipe, newer code." A record needs a version axis of its own.
-- **Two-layer versioning, per universal lockfile practice** (npm SRI, Cargo.lock, Nix narHash):
-  1. a **human-facing `version`** inside the record (SemVer), which the author bumps when the
-     record's content changes; and
-  2. a **content hash** (`sha256` over the canonicalized record) that pins the bytes and *guards*
-     the version.
-- **The guard (this is the cheap edge to build now).** A CI check re-hashes each record and
-  compares against its declared hash/version: **content changed ⇒ the hash changed ⇒ the declared
-  `version` must have moved, or the build fails.** This is exactly the npm `EINTEGRITY` /
-  lockfile-mismatch discipline, and it is the same derived-vs-declared drift lesson that bit the
-  uuid5 seed ids — a value derived from content must be regenerated through its derivation, not
-  hand-edited. Cheap now, foundational, worth laying while the surface is being defined.
-- **The honest tension — named, not hidden.** No system can give both "old pointers auto-receive
-  fixes" *and* "old pointers are byte-reproducible"; those contradict. What every package manager
-  ships instead is: *float a ref, pin via a lock, make re-pinning a deliberate, guarded act*
-  (`nix flake update`, `npm update`). TAP's version of that lives in the record's **install
-  entries**, each of which may:
-  - **pin** (`rev: v0.1.0`) → byte-reproducible, for lights-out / customer records; or
-  - **float** (`rev: main`, or a range) → auto-receives fixes, for daily-driver records.
-  The record's own `version` + content-hash guard makes every *recipe* change deliberate,
-  independent of whether the *code* it installs floats.
-- **Content hash is also the artifact `req-boot-bootstrap-signing` signs over** — the hash is the
-  floor of the integrity ladder; a signature binds identity on top of the same bytes.
+- **Version = the plugin's version. The record carries none of its own.** A record's version is the
+  version of the artifact it ships inside (hatch-vcs / git tag), single-sourced and never copied.
+  Selection uses it as a mutable pointer, OCI-tag-style; exact-instance pinning uses the digest below,
+  OCI-digest-style. The "same recipe, newer code" decoupling (a record version that floats free of the
+  code tag) is a real capability with **no current demand signal** — demand-gated backlog, triggered
+  when records are pinned in production (first non-George user, alongside signing).
+- **Integrity = a content digest in the referrer.** Each record's `sha256` (over the canonicalized
+  record — sorted keys, fixed separators, so cosmetic reformatting does not count) is declared **one
+  layer up**, in the package `tap-plugin.toml`'s `[[boot.records]]` table (the same table that
+  enumerates records for `req-boot-bootstrap-discovery`), never inside the record file. The digest is
+  **regenerated through its derivation** by `scripts/boot-record-hash --refresh`, never hand-typed.
+- **Two integrity layers, two jobs.** (a) The shipped wheel already hashes every boot record in its
+  standard `RECORD` file, free at build time — post-build / transit / at-rest integrity. (b) The
+  `tap-plugin.toml` digest is the **source-side declared baseline** (catches unintended edits in the
+  monorepo/editable world where there is no wheel) **and the substrate a signature attests**
+  (`req-boot-bootstrap-signing` signs over the digest). Different layers, no conflict.
+- **The guard is non-circular and needs no git baseline.** CI recomputes each record's canonical
+  digest and asserts it equals the declared `sha256` in the toml; a mismatch fails the build ("the
+  playground record changed — rerun `scripts/boot-record-hash`"). The digest *is* the tripwire; there
+  is no version to couple it to.
+- **Per-entry pin or float — unchanged.** Reproducible-vs-fresh is resolved in the record's `install`
+  entries, each of which pins (`rev: v0.1.0`, byte-reproducible) or floats (`rev: main`/range,
+  auto-fix). The digest freezes the *recipe*; the install entries decide how much of the *system* is
+  frozen (see `req-boot-bootstrap-pointer-grammar`, carrier ≠ installed).
+
+#### Compatibility fidelity (demand-gated backlog — reserved seat)
+
+There is a **good** form of "a version in the profile" that is *not* a copied derived fact: a
+hand-authored **compatibility target** — "this record is written against plugin **major** N" — like
+Kubernetes `apiVersion`, Terraform `required_version`, Helm `Chart.yaml`, `package.json` engines. It is
+authored *intent*, changes only on a breaking major (not every release), and so has neither the drift
+nor the circularity of a copied version. The acceptance gate would flag when
+`plugin.major > record.targets_major` ("you jumped to v2; your record still targets v1 — review it").
+This is **reserved, not built**: gryphon is `v0.1.0` and nothing reaches v2 before launch. A monotonic
+"revision counter" is explicitly **not** adopted — it is redundant with the digest (which already
+answers "did it change") and the compatibility target (which answers "is it still compatible").
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-boot-bootstrap-record-version-1 | Record Owns Its Version | Proposed | A record carries a SemVer `version` decoupled from the plugin's code tag; bumping code does not move it unless the record content changed. | |
-| req-boot-bootstrap-record-version-2 | Content Hash Guard | Proposed | A CI check re-hashes each record; a content change without a `version` bump fails the build (derived-vs-declared drift). | **Near-term buildable floor** |
-| req-boot-bootstrap-record-version-3 | Per-Entry Pin Or Float | Proposed | Each install entry pins (`rev: v0.1.0`, reproducible) or floats (`rev: main`/range, auto-fix); the reproducible-vs-fresh tension is resolved per entry, deliberately. | |
+| req-boot-bootstrap-record-version-1 | Version Is The Plugin's | Proposed | A record carries no version of its own; its version is the artifact's (hatch-vcs/git tag), single-sourced, never copied into the record. | Kills the stamp-circularity |
+| req-boot-bootstrap-record-version-2 | Digest In The Referrer | Proposed | Each record's canonical `sha256` is declared in the package `tap-plugin.toml` `[[boot.records]]` table (one layer up), never inside the record; refreshed via `scripts/boot-record-hash`. | **Near-term buildable floor** |
+| req-boot-bootstrap-record-version-3 | Non-Circular Guard | Proposed | CI recomputes each record's canonical digest and fails on mismatch with the declared value; no git baseline, no version coupling. | |
+| req-boot-bootstrap-record-version-4 | Per-Entry Pin Or Float | Proposed | Each install entry pins (`rev: v0.1.0`) or floats (`rev: main`/range); the digest freezes the recipe, the entries decide how much of the system is frozen. | |
+| req-boot-bootstrap-record-version-5 | Compatibility Target Reserved | Proposed | A hand-authored `targets_major` compat declaration (apiVersion-style intent) + an acceptance-gate check are reserved, demand-gated; a monotonic revision counter is explicitly rejected as redundant. | Not built pre-launch |
 
 ---
 
@@ -390,12 +471,14 @@ A plugin's available boot records are enumerable cheaply, without a full artifac
 
 #### Implementation
 
-- **`tap-plugin.toml` enumerates the records** the plugin ships: for each, its `name` (the
-  `#<record>` selector) and a one-line `description` of the flavor. The `boot/*.boot.json` files
-  remain the runtime source of truth; the manifest is the **index** of them (the entry-points /
-  flake-`show` / compose-`--profiles` shape). Each record's own `description` field
-  (`json-structures-require-descriptions`) is the long form; the manifest carries the short label
-  so listing does not require reading every record.
+- **`tap-plugin.toml` enumerates the records** the plugin ships in a `[[boot.records]]` table: for
+  each, its `name` (the `#<record>` selector), a one-line `description` of the flavor, and its content
+  `sha256` (`req-boot-bootstrap-record-version` — the referrer-held integrity digest lives here, not in
+  the record). **No per-record version is stored** — a record's version is the plugin's, single-sourced.
+  The `boot/*.boot.json` files remain the runtime source of truth; the manifest is the **index** of them
+  (the entry-points / flake-`show` / compose-`--profiles` shape). Each record's own `description` field
+  (`json-structures-require-descriptions`) is the long form; the manifest carries the short label so
+  listing does not require reading every record.
 - **`tap boot --list <source-ref>`** fetches only the manifest (one small file, source-type-agnostic)
   and prints the available records + descriptions — the netboot menu.
 - **Tab completion falls out of the grammar.** Because the pointer is enumerable at each coordinate
@@ -413,7 +496,7 @@ A plugin's available boot records are enumerable cheaply, without a full artifac
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-boot-bootstrap-discovery-1 | Manifest Enumerates Records | Proposed | `tap-plugin.toml` lists each shipped record's name + description; `boot/*.boot.json` stays the runtime truth. | |
+| req-boot-bootstrap-discovery-1 | Manifest Enumerates Records | Proposed | `tap-plugin.toml` `[[boot.records]]` lists each shipped record's name + description + content `sha256` (no per-record version); `boot/*.boot.json` stays the runtime truth. | |
 | req-boot-bootstrap-discovery-2 | List Command | Proposed | `tap boot --list <source-ref>` fetches only the manifest and prints available records + descriptions. | |
 | req-boot-bootstrap-discovery-3 | Tab Completion | Proposed | Package / version / record complete from known sets + the manifest; record completion needs no wheel download. | `spawn-session` + `tap boot` |
 | req-boot-bootstrap-discovery-4 | Manifest ↔ Files Guard | Proposed | A CI check fails closed if the manifest's record list and `boot/*.boot.json` disagree in either direction. | |

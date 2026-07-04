@@ -31,8 +31,10 @@ _ALLOWED_TOP_KEYS = {
     "editors",
     "searches",
     "grift",
+    "boot",
 }
 _DEPENDS_ON_KEYS = {"slug", "min_version", "optional", "note"}
+_BOOT_RECORD_KEYS = {"name", "description", "sha256"}
 _REQUIRED_TOP_KEYS = {"manifest_version", "plugin_version", "slug", "name"}
 
 _EDGE_SCHEMA_PATH = Path(__file__).resolve().parent.parent / "tap_grid" / "schemas" / "edge-definition.schema.json"
@@ -111,6 +113,24 @@ class GriftEntry:
 
 
 @dataclass
+class BootRecordEntry:
+    """One [[boot.records]] entry: a shippable boot record enumerated in the manifest.
+
+    The record itself lives at ``tap_plugin/<slug>/boot/<name>.boot.json`` and rides the
+    artifact (``req-boot-bootstrap-records-in-package``). The manifest is the *index* of
+    the records (``req-boot-bootstrap-discovery``): ``name`` is the ``#<record>`` selector,
+    ``description`` the short flavor label, and ``sha256`` the referrer-held integrity digest
+    (``req-boot-bootstrap-record-version``) — machine-managed by ``scripts/boot-record-hash``
+    and enforced against the record's content by the ``tap/tests/test_boot_records.py`` guard.
+    There is deliberately no per-record version: a record's version is the plugin's.
+    """
+
+    name: str
+    description: str
+    sha256: str
+
+
+@dataclass
 class PluginManifest:
     """Parsed and validated contents of a tap-plugin.toml file."""
 
@@ -125,6 +145,7 @@ class PluginManifest:
     editors: list[EditorEntry]
     searches: list[SearchEntry]
     grift: list[GriftEntry]
+    boot_records: list[BootRecordEntry]
     plugin_root: Path
 
 
@@ -158,6 +179,7 @@ def load_manifest(plugin_root: Path) -> PluginManifest:
     editors = _parse_editors(raw.get("editors", {}), manifest_path)
     searches = _parse_searches(raw.get("searches", {}), manifest_path)
     grift = _parse_grift(raw.get("grift", {}), manifest_path)
+    boot_records = _parse_boot_records(raw.get("boot", {}), manifest_path)
 
     manifest = PluginManifest(
         manifest_version=raw["manifest_version"],
@@ -171,6 +193,7 @@ def load_manifest(plugin_root: Path) -> PluginManifest:
         editors=editors,
         searches=searches,
         grift=grift,
+        boot_records=boot_records,
         plugin_root=plugin_root,
     )
 
@@ -356,6 +379,53 @@ def _parse_grift(raw_grift: Any, manifest_path: Path) -> list[GriftEntry]:
         seen_paths.add(path)
 
         entries.append(GriftEntry(name=name, path=path))
+
+    return entries
+
+
+def _parse_boot_records(raw_boot: Any, manifest_path: Path) -> list[BootRecordEntry]:
+    """Parse the optional ``[boot]`` table's ``records`` array (``req-boot-bootstrap-discovery``).
+
+    Each ``[[boot.records]]`` entry requires a non-empty ``name`` (the ``#<record>`` selector,
+    unique) and ``description`` (json-structures-require-descriptions), plus a ``sha256`` string
+    (the referrer-held integrity digest). ``sha256`` may be empty here — an empty/placeholder
+    digest is a *structural* pass but an *integrity* failure caught by the boot-records guard;
+    this validator owns shape, the guard owns content. The record files' presence/coherence is
+    likewise the guard's job (it sees the filesystem; this parser sees only the manifest).
+    """
+    if not isinstance(raw_boot, dict):
+        raise PluginManifestError(f"'boot' must be a table in {manifest_path}")
+    raw_records = raw_boot.get("records", [])
+    if not isinstance(raw_records, list):
+        raise PluginManifestError(f"'boot.records' must be an array of tables in {manifest_path}")
+
+    entries: list[BootRecordEntry] = []
+    seen: set[str] = set()
+    for item in raw_records:
+        if not isinstance(item, dict):
+            raise PluginManifestError(f"each boot.records entry must be a table in {manifest_path}")
+        unknown = set(item) - _BOOT_RECORD_KEYS
+        if unknown:
+            raise PluginManifestError(f"boot.records entry has unknown keys {sorted(unknown)} in {manifest_path}")
+
+        name = item.get("name")
+        if not isinstance(name, str) or not name:
+            raise PluginManifestError(f"boot.records entry must have a non-empty string 'name' in {manifest_path}")
+        if name in seen:
+            raise PluginManifestError(f"Duplicate boot record name '{name}' in {manifest_path}")
+        seen.add(name)
+
+        description = item.get("description")
+        if not isinstance(description, str) or not description:
+            raise PluginManifestError(
+                f"boot.records '{name}' must have a non-empty string 'description' in {manifest_path}"
+            )
+
+        sha256 = item.get("sha256", "")
+        if not isinstance(sha256, str):
+            raise PluginManifestError(f"boot.records '{name}' sha256 must be a string in {manifest_path}")
+
+        entries.append(BootRecordEntry(name=name, description=description, sha256=sha256))
 
     return entries
 

@@ -88,6 +88,8 @@ trap on_failure EXIT
 LAUNCH_TARGET=""
 BOOT_PROFILE=""
 BOOT_FILE=""
+FROM_POINTER=""
+FROM_CREDENTIAL=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help)
@@ -125,6 +127,18 @@ plugin's own standalone-test profile (\`plugins/<slug>/<name>.boot.json\`), or a
 scratch/experimental profile, without committing it to boot/. Mutually
 exclusive with --boot / the positional boot-profile.
 
+\`--from <pointer> [--credential <ref>]\` boots from a BOOTSTRAP POINTER
+(spec-tap-boot-bootstrap.md): \`<source-ref>#<record>\` names a versioned plugin
+artifact + a boot record shipped inside it, e.g.
+\`git+https://github.com/notgeorge/tap-plugin-gryphon-playground@v0.1.0#soak\`.
+Stage-0 fetches ONLY that record out of the git artifact (a blobless clone, no
+install), verifies it against the artifact's declared sha256, writes it into
+this worktree's boot/, and boots it — the record's own \`install\` section then
+git-installs its plugins (the full from-git standup). \`--credential\` names the
+source secret for a private repo: a bare name (resolved under
+TAP_SECRETS_ROOT / ~/tap-secrets) or a full path to a *.secret.json. Mutually
+exclusive with --boot / --boot-file / the positional boot-profile.
+
 Examples:
   $0                              # interactive, plain boot, no auto-launch
   $0 fix-arrangements             # named, plain boot
@@ -134,6 +148,10 @@ Examples:
   $0 demo cli --boot samsite      # same, explicit-flag form
   $0 aws-standalone --boot-file plugins/aws_core/standalone.boot.json
                                   # boot a plugin's own profile from its directory
+  $0 gryphon-soak cli --from \\
+     git+https://github.com/notgeorge/tap-plugin-gryphon-playground@v0.1.0#soak \\
+     --credential github-plugins-ro
+                                  # single-command boot from a git bootstrap pointer
 
 Spec: req-dev-multisession-spawn-script in specs/spec-dev-multisession.md
 EOF
@@ -157,6 +175,26 @@ EOF
       ;;
     --boot-file=*)
       BOOT_FILE="${1#--boot-file=}"
+      shift
+      ;;
+    --from)
+      shift
+      [[ $# -gt 0 ]] || fail "--from requires a bootstrap pointer (e.g. git+https://…@v0.1.0#soak)."
+      FROM_POINTER="$1"
+      shift
+      ;;
+    --from=*)
+      FROM_POINTER="${1#--from=}"
+      shift
+      ;;
+    --credential)
+      shift
+      [[ $# -gt 0 ]] || fail "--credential requires a source-secret name or a path to a *.secret.json."
+      FROM_CREDENTIAL="$1"
+      shift
+      ;;
+    --credential=*)
+      FROM_CREDENTIAL="${1#--credential=}"
       shift
       ;;
     -*) fail "Unknown flag: $1" ;;
@@ -195,6 +233,17 @@ if [[ -n "$BOOT_FILE" ]]; then
   [[ "$BOOT_FILE_ID" =~ ^[a-zA-Z0-9._-]+$ ]] \
     || fail "--boot-file: profile id derived from the filename is invalid: '$BOOT_FILE_ID' (use [A-Za-z0-9._-])."
 fi
+
+# --from: a bootstrap pointer (spec-tap-boot-bootstrap). The stage-0 fetch is deferred to
+# Step 2 (once the worktree exists) so the record lands directly in $WORKTREE/boot/ — no
+# temp file, nothing left behind. Here we only enforce mutual exclusivity; a pointer replaces
+# a local profile entirely (it names its own install set + record). --credential is meaningless
+# without --from.
+if [[ -n "$FROM_POINTER" ]]; then
+  [[ -z "$BOOT_PROFILE" ]] || fail "--from and --boot/<boot-profile> are mutually exclusive."
+  [[ -z "$BOOT_FILE" ]] || fail "--from and --boot-file are mutually exclusive."
+fi
+[[ -z "$FROM_CREDENTIAL" || -n "$FROM_POINTER" ]] || fail "--credential requires --from."
 
 cd "$REPO"
 
@@ -424,6 +473,23 @@ if [[ -n "$BOOT_FILE" ]]; then
   cp "$BOOT_FILE" "$WORKTREE/boot/$BOOT_FILE_ID.boot.json"
   BOOT_PROFILE="$BOOT_FILE_ID"
   info "Staged --boot-file -> boot/$BOOT_FILE_ID.boot.json; booting profile '$BOOT_FILE_ID'."
+fi
+
+# --from: resolve the bootstrap pointer NOW (worktree exists) — stage-0 fetches ONLY the boot
+# record out of the versioned git artifact (blobless clone, verified against the artifact's
+# [[boot.records]] sha256) and writes it straight into this worktree's boot/. It is then booted
+# like any named profile; the record's own `install` section git-installs its plugins in pre-boot
+# (the full download-from-git experience). tap.boot_pointer is pure-stdlib so the host python3
+# runs it venv-free; run it from $REPO so the module resolves. See spec-tap-boot-bootstrap.md.
+if [[ -n "$FROM_POINTER" ]]; then
+  cred_args=()
+  [[ -n "$FROM_CREDENTIAL" ]] && cred_args=(--credential "$FROM_CREDENTIAL")
+  info "Resolving --from pointer (stage-0 fetch): $FROM_POINTER"
+  if ! STAGED_RECORD="$(cd "$REPO" && python3 -m tap.boot_pointer "$FROM_POINTER" "${cred_args[@]}" --out "$WORKTREE/boot")"; then
+    fail "--from: stage-0 fetch failed for pointer '$FROM_POINTER' (see boot-pointer error above)."
+  fi
+  BOOT_PROFILE="$(basename "$STAGED_RECORD" .boot.json)"
+  info "Staged --from -> boot/$BOOT_PROFILE.boot.json; booting profile '$BOOT_PROFILE'."
 fi
 
 # ============================================================================
