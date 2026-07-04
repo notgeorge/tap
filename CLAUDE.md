@@ -28,6 +28,18 @@ Security posture (standing filter)
     retrofits expensively. Take the cheap, foundational, build-once edges; let the expensive ones wait
     for demand; and name the risks deliberately left open rather than implying completeness.
 
+AI integration posture (standing filter — build for Player 3)
+    specs/spec-ai-integration.md is the center of gravity for AI. The system is no longer just
+    code + humans: build for the third player — the internal / integrated / external AI assistants
+    that observe, guide, and (later) operate TAP. When building any surface, ask how an AI helper
+    observes, operates, and reasons about it, alongside the human question. Prefer machine-legible
+    signals and declarative, described, queryable metadata over human-only prose or state that needs
+    code-reading; name the AI consumer of any for-AI surface; author operational procedures as
+    AI-operable skills. This is the cheap-edge discipline (security posture) applied to AI-legibility —
+    lay it while the surface is open, especially as the plugin system wraps. v0 AI is read-only: it
+    reads/summarizes/suggests and must not write core graph state; any future write rides the service
+    layer under a named delegated actor, never a bypass.
+
 Technology Stack
     Backend: Django 6+ with Django Ninja for API
     Database: PostgreSQL

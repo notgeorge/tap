@@ -48,10 +48,10 @@ from tap.runtime_secrets import RuntimeSecretError, resolve_secret_envelope
 # The install-system credential scope — owned by the install system, never a
 # plugin (req-plugin-arch-source-secret-2). Every source credential lives here.
 # Flat (dot, not slash): `scope` is an opaque namespace label under the canonical
-# flat token grammar (`^[A-Za-z0-9][A-Za-z0-9_.\-]*$`), not a path — the `.` reads
-# "the source subsystem of tap_plugins" with the same infra-not-a-plugin semantics.
-# Realigned from the lone `tap_plugins/source` slash outlier so the pre-boot read
-# path matches the tap_cares secret-registry grammar (and the mounted .secret.json).
+# scoped-token grammar (`tap.registry.SCOPED_TOKEN_PATTERN`), not a path. The `.`
+# reads "the source subsystem of tap_plugins" with the same infra-not-a-plugin
+# meaning, and stays a clean key the deferred least-privilege enforcement can bind
+# to (`req-tap-cares-secrets-future-access-control`).
 SOURCE_SECRET_SCOPE = "tap_plugins.source"
 
 # The one kind a source credential may declare — shared type-axis with the

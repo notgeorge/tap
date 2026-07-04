@@ -68,6 +68,21 @@ class TestParseSecretEnvelope:
         with pytest.raises(RuntimeSecretError, match="description must be a non-empty string"):
             parse_secret_envelope(payload, Path("x.secret.json"))
 
+    def test_flat_dotted_scope_accepted(self) -> None:
+        # The realigned install-system scope is a valid flat token (dot, not slash).
+        env = parse_secret_envelope(_valid_payload(scope="tap_plugins.source"), Path("x.secret.json"))
+        assert env.scope == "tap_plugins.source"
+
+    def test_slash_in_scope_rejected(self) -> None:
+        # Grammar enforced on EVERY read path now — the pre-boot resolver rejects the
+        # `/` the tap_cares registry always rejected (the two-loader drift, closed).
+        with pytest.raises(RuntimeSecretError, match="Invalid secret scope token"):
+            parse_secret_envelope(_valid_payload(scope="tap_plugins/source"), Path("x.secret.json"))
+
+    def test_slash_in_key_rejected(self) -> None:
+        with pytest.raises(RuntimeSecretError, match="Invalid secret key token"):
+            parse_secret_envelope(_valid_payload(key="bad/key"), Path("x.secret.json"))
+
     def test_data_must_be_object(self) -> None:
         payload = _valid_payload()
         payload["data"] = "nope"

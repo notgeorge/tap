@@ -85,7 +85,7 @@
           "rev": "v0.1.1",
           "credential": "github-plugins-ro"
         },
-        "note": "First leaf EVICTED from the monorepo (2026-07-03): pulled at boot from its own repo (notgeorge/tap-plugin-fedramp-20x-ksi) via authed git source \u2014 the github-plugins-ro PAT (scope tap_plugins/source) fed through GIT_ASKPASS, never in the URL. rev pinned to the immutable tag v0.1.1 (commit 27f0c97), which ships the ksi-seed cold-boot id fix; v0.1.0 shipped a stale seed (type-sweep hash fallout) that dangled on cold boot. samsite boots now depend on the repo + PAT + network \u2014 the intended demo-profile behavior. Reversible: flip back to {type:editable, path:plugins/fedramp_20x_ksi} to use the monorepo copy. The monorepo plugins/fedramp_20x_ksi/ tree stays in place until this boot-verifies, then is removed (per the eviction recipe)."
+        "note": "First leaf EVICTED from the monorepo (2026-07-03): pulled at boot from its own repo (notgeorge/tap-plugin-fedramp-20x-ksi) via authed git source \u2014 the github-plugins-ro PAT (scope tap_plugins.source) fed through GIT_ASKPASS, never in the URL. rev pinned to the immutable tag v0.1.1 (commit 27f0c97), which ships the ksi-seed cold-boot id fix; v0.1.0 shipped a stale seed (type-sweep hash fallout) that dangled on cold boot. samsite boots now depend on the repo + PAT + network \u2014 the intended demo-profile behavior. Reversible: flip back to {type:editable, path:plugins/fedramp_20x_ksi} to use the monorepo copy. The monorepo plugins/fedramp_20x_ksi/ tree stays in place until this boot-verifies, then is removed (per the eviction recipe)."
       },
       {
         "slug": "samsite",

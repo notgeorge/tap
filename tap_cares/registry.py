@@ -18,29 +18,27 @@ Mirrors the search runner registry pattern in `tap_grid/registry.py`:
       that materializes the on-grid Collector node (deterministic UUIDv5
       identity) under a caller-bound actor. See
       `tap_grid/specs/spec-grid-dual-existence.md`.
-    - `_validate_collector_token` is the single source of truth for the
-      scope:key format. The Collector model's validate() hook calls it too so
-      model-side and registry-side enforcement cannot drift
-      (req-tap-cares-collector-registry-10).
+    - `_validate_collector_token` enforces the scope:key format by deferring to
+      the canonical grammar in `tap.registry` (shared with the secret registry
+      and the pre-boot resolver, so the grammar cannot drift). The Collector
+      model's validate() hook calls it too so model-side and registry-side
+      enforcement cannot drift (req-tap-cares-collector-registry-10).
 """
 
 from __future__ import annotations
 
-import re
 import uuid
 from typing import Final
 
 from django.core.exceptions import ImproperlyConfigured
 
-from tap.registry import ScopedRegistry
+from tap.registry import ScopedRegistry, validate_scoped_token
 from tap_auth.enforcement import requires_capability
 from tap_cares.collectors.base import CollectorBase
 from tap_cares.exceptions import (
     CollectorNotFoundError,
     InvalidCollectorRegistryKeyError,
 )
-
-_TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.\-]*$")
 
 # Deterministic UUIDv5 namespace for Collector grid-side identity.
 # Derived once from a stable seed string; the value is frozen for the lifetime
@@ -52,14 +50,13 @@ NAMESPACE_COLLECTOR: Final[uuid.UUID] = uuid.uuid5(uuid.NAMESPACE_DNS, "tap_care
 def _validate_collector_token(value: str) -> None:
     """Reject malformed scope or key tokens.
 
-    Used as both validate_scope and validate_key on collector_registry, and
-    invoked by Collector.validate() on each half of the persisted
-    `collector_registry` field so model and registry stay aligned.
+    Delegates to the canonical grammar in `tap.registry` so collector, secret,
+    and pre-boot-resolver token checks share one source of truth. Used as both
+    validate_scope and validate_key on collector_registry, and invoked by
+    Collector.validate() on each half of the persisted `collector_registry`
+    field so model and registry stay aligned.
     """
-    if not isinstance(value, str) or not _TOKEN_PATTERN.fullmatch(value):
-        raise InvalidCollectorRegistryKeyError(
-            f"Invalid collector registry token {value!r}. Must match {_TOKEN_PATTERN.pattern}."
-        )
+    validate_scoped_token(value, error_cls=InvalidCollectorRegistryKeyError, label="collector registry")
 
 
 collector_registry: ScopedRegistry[type[CollectorBase]] = ScopedRegistry(

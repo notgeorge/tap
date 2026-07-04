@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Any
 
 from tap.jsonfiles import JsonFileError, load_json_file
+from tap.registry import validate_scoped_token
 
 SECRET_SUFFIX = ".secret.json"
 
@@ -114,6 +115,12 @@ def parse_secret_envelope(payload: Any, path: Path) -> SecretEnvelope:
 
     if not isinstance(scope, str) or not isinstance(key, str):
         raise RuntimeSecretError(f"Secret file {path}: scope and key must be strings.")
+    # Enforce the canonical scoped-token grammar on EVERY read path (pre-boot
+    # included), so a malformed scope/key fails loud and identically everywhere
+    # instead of one path silently diverging (the two-loader drift this module
+    # and the tap_cares registries now share one grammar to prevent).
+    validate_scoped_token(scope, error_cls=RuntimeSecretError, label="secret scope")
+    validate_scoped_token(key, error_cls=RuntimeSecretError, label="secret key")
     if not isinstance(kind, str) or not kind:
         raise RuntimeSecretError(f"Secret file {path}: kind must be a non-empty string.")
     if not isinstance(description, str) or not description.strip():

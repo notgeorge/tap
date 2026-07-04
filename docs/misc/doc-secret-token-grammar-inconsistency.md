@@ -1,7 +1,13 @@
 # Issue: two secret loaders, two token grammars (`tap_plugins/source` degraded-secret)
 
-**Status:** open, non-blocking (WARNING, not `required_for_boot`). Design write-up for a
-considered fix — parked for George to pick up fresh.
+**Status:** ✅ RESOLVED 2026-07-04 (flat-grammar fix). The token grammar was centralized to one
+home (`tap.registry.SCOPED_TOKEN_PATTERN` + `validate_scoped_token`); the two copied `_TOKEN_PATTERN`s
+in `tap_cares` now defer to it; `tap/runtime_secrets` enforces it on the pre-boot read path too; and
+the outlier scope was realigned `tap_plugins/source` → `tap_plugins.source` (flat, `.` not `/`) in both
+`SOURCE_SECRET_SCOPE` and the mounted `.secret.json`. The `W001` degraded-secret warning is gone. The
+original write-up is retained below as the design record. Deferred preventive follow-on: enforcing
+`scope` as a real least-privilege boundary (`req-tap-cares-secrets-future-access-control`); interim
+detective control shipped alongside (a `CONCERN` tripwire when a plugin resolves `tap_plugins.source`).
 
 **TL;DR:** The same `/run/tap-secrets/*.secret.json` files are read by *two* subsystems that
 disagree on what a valid `scope`/`key` token is. The core pre-boot resolver accepts a `/`;

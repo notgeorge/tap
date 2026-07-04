@@ -11,8 +11,10 @@ AI on-call) never has to read code to dispatch:
 
 - ``flaw_class`` — who must fix it: ``code`` (TAP core's bug), ``app`` (a
   plugin/app broke a contract), ``instance`` (misconfig / weird instance state).
-- ``flaw_tags`` — which specialty it belongs to, from the registered
-  :data:`FLAW_TAGS` vocabulary (one or more per Flaw).
+- ``flaw_tags`` — which specialty it belongs to, from the shared registered
+  domain-tag vocabulary (:data:`tap.logging_domain_tags.DOMAIN_TAGS`, one or more
+  per Flaw) — the same vocabulary the ``CONCERN`` signal draws from, so a tag
+  means one thing across every signal (`req-tap-logging-domain-tags`).
 - severity — how urgent (the log level), derived here from the Flaw's handling.
 
 Emission rides TAP's structured logging object as the reserved
@@ -34,21 +36,14 @@ import logging
 import traceback
 from typing import Any, ClassVar
 
-# ---------------------------------------------------------------------------
-# Domain-tag vocabulary (req-flaw-domain-tags)
-# ---------------------------------------------------------------------------
-#
-# Registered, described — a Flaw's tags must come from this set. Routing reads
-# this vocabulary declaratively; an ad hoc string would defeat code-free routing,
-# so an unknown tag is itself a `code` Flaw (handled in `report`). Extend by
-# adding a registered, described entry here.
-FLAW_TAGS: dict[str, str] = {
-    "security": "Authentication, authorization, secrets, isolation.",
-    "operational": "Runtime, availability, jobs, the platform's own machinery.",
-    "data": "Grid / content integrity and consistency.",
-    "config": "Instance / boot configuration.",
-    "integration": "Collectors, plugins, and upstream systems.",
-}
+from tap.logging_domain_tags import DOMAIN_TAGS, domain_tag_problems
+
+# The domain-tag vocabulary is shared across every structured signal and now
+# lives in `tap.logging_domain_tags` (req-tap-logging-domain-tags), so `FLAW` and
+# `CONCERN` cannot drift. `FLAW_TAGS` is retained as the FLAW-facing alias — a
+# Flaw's `flaw_tags` must come from this set; an unknown tag is a producer defect
+# reported as `flaw_api_misuse` (a `code` Flaw) in `report`.
+FLAW_TAGS: dict[str, str] = DOMAIN_TAGS
 
 # ---------------------------------------------------------------------------
 # Handling (req-flaw-handling) — impact handling, recorded with the Flaw.
@@ -151,7 +146,7 @@ class Flaw(Exception):
         if cls is Flaw:
             raise TypeError("Report a concrete Flaw subclass (CodeFlaw/AppFlaw/InstanceFlaw), not Flaw itself.")
 
-        problems = _tag_problems(tags) + _handling_problems(handling)
+        problems = domain_tag_problems(tags) + _handling_problems(handling)
         if problems:
             # Misusing the Flaw API (bad tag / handling) is itself a `code` Flaw.
             # Valid tags here, so this reports exactly once with no further recursion.
@@ -317,16 +312,6 @@ def report_readonly_write_blocked(
         offending_callsite=site,
         **context,
     )
-
-
-def _tag_problems(tags: list[str]) -> list[str]:
-    """Return human-readable problems with a tag list (empty list = fine)."""
-    if not tags:
-        return ["a Flaw must carry at least one domain tag"]
-    unknown = [t for t in tags if t not in FLAW_TAGS]
-    if unknown:
-        return [f"unknown flaw tag(s) {unknown}; registered: {sorted(FLAW_TAGS)}"]
-    return []
 
 
 def _handling_problems(handling: str) -> list[str]:

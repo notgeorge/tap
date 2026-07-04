@@ -29,7 +29,10 @@ Logging is read-only by construction. Nothing in this spec describes capturing a
 | req-tap-logging-message-object | [Structured Message Object](#structured-message-object) | Proposed | Canonical record object: `v`/`ts`/`level`/`site` envelope, `message`/`message_code`/`message_data` cluster, optional `entity_id`/`task_result_id`; `message_code` discriminates `message_data` |
 | req-tap-logging-entity-ref | [Grid Entity Reference](#grid-entity-reference) | Proposed | Optional `entity_id` envelope field — the record's grid subject (run/job node), not every entity touched |
 | req-tap-logging-task-ref | [Task Result Reference](#task-result-reference) | Proposed | Optional `task_result_id` envelope field — the executing task's `TaskResult.id` for records emitted within a task |
+| req-tap-logging-reserved-signals | [Reserved Signals](#reserved-signals) | Partially Implemented | The shared model behind `FLAW` / `ABORT` / `CONCERN`: a reserved cross-cutting `message_code` with a fixed payload, level, minting helper, and console sentinel — machine-selectable, the exception to per-producer codes. Members registry + shared `emit_signal` primitive (`tap/logging_signals.py`) |
 | req-tap-logging-abort-signal | [Abort Signal](#abort-signal) | Partially Implemented | Reserved cross-cutting `message_code = ABORT` (`message_data = {domain, reason}`) — the machine-detectable "fatal, stop waiting" signal; second reserved code after `FLAW`. **`tap.logging.abort()` helper + console sentinel + watcher fast-fail built 2026-07-03; the structured `message_code`/JSON form lands with `req-tap-logging-message-object`** |
+| req-tap-logging-concern-signal | [Concern Signal](#concern-signal) | Partially Implemented | Reserved cross-cutting `message_code = CONCERN` (`message_data = {domain, concern_type, tags, reason}`) — the "permitted-but-suspicious, somebody's-being-sus" detective signal; third reserved code after `FLAW`/`ABORT`. **`tap.logging.concern()` helper + `TAP-CONCERN` console sentinel built 2026-07-04; structured/JSON form lands with `req-tap-logging-message-object`** |
+| req-tap-logging-domain-tags | [Domain Tags](#domain-tags) | Implemented | Shared registered specialty-routing vocabulary (`security`/`operational`/`data`/`config`/`integration`) inherited by both `FLAW` (`flaw_tags`) and `CONCERN` (`tags`); one home in `tap/logging_domain_tags.py` |
 | req-tap-logging-format | [Object Rendering](#object-rendering) | Proposed | Per-handler rendering of the message object — text on `console`, JSON on a structured sink |
 | req-tap-logging-app-loggers | [First-Party App Loggers](#first-party-app-loggers) | Proposed | One logger per `tap_*` app with a sensible default level |
 | req-tap-logging-plugin-loggers | [Plugin Loggers](#plugin-loggers) | Proposed | `plugins.<slug>` namespace; per-plugin level + wildcard default |
@@ -108,7 +111,7 @@ The object has exactly these fields. No others in v0.
 
 - **`message_code` is the `message_data` discriminator.** A consumer that parses `message_data` keys off `message_code` to know the payload's shape. A consumer that does not recognize the `message_code` treats `message_data` as opaque. There is no separate type tag inside `message_data` — a discriminator is a contract field, not opaque payload, so it lives in the envelope-adjacent `message_code`, never as a reserved key inside the bag.
 - **Codes must be shape-specific.** If `message_code` discriminates `message_data`, then `code → message_data shape` must be a function. This is a soft per-producer `UPPER_SNAKE` naming discipline (`STEAMPIPE_DEBUG_DUMP`, `KSI_INDICATOR_LOOKUP`), not a centrally-registered code — producers namespace their own codes by convention.
-- **`FLAW` and `ABORT` are the reserved, cross-cutting codes** (the exceptions to per-producer convention). `FLAW` ([`spec-tap-flaw-v0.md`](spec-tap-flaw-v0.md)) defines `message_code = FLAW` with a fixed `message_data` shape `{flaw_class, flaw_tags, invariant_id, handling}`, so the "should-never-happen" defect signal has one stable discriminator across every producer. `ABORT` ([Abort Signal](#abort-signal)) is the parallel operational signal — `message_code = ABORT`, `message_data = {domain, reason}` — the "fatal, unrecoverable, stop waiting" event a watcher acts on. Filtering `message_code = FLAW` selects all Flaws; `message_code = ABORT` selects all aborts; the payload fields route them. Both are structured payloads on this object, **not** new envelope fields — the object stays exactly the nine fields (`req-tap-logging-message-object-1`); a cross-cutting *signal* is a reserved code, only a correlation *identifier* earns an envelope field.
+- **`FLAW`, `ABORT`, and `CONCERN` are the reserved, cross-cutting codes** (the exceptions to per-producer convention) — the [Reserved Signals](#reserved-signals) family, which defines their shared model. `FLAW` ([`spec-tap-flaw-v0.md`](spec-tap-flaw-v0.md)) is `message_code = FLAW` with `{flaw_class, flaw_tags, invariant_id, handling}` — the "should-never-happen" defect. `ABORT` ([Abort Signal](#abort-signal)) is `message_code = ABORT`, `{domain, reason}` — the "fatal, stop waiting" event. `CONCERN` ([Concern Signal](#concern-signal)) is `message_code = CONCERN`, `{domain, concern_type, tags, reason}` — the "permitted-but-suspicious" detective signal. Filtering `message_code = <CODE>` selects all of one kind; the payload fields route them. All are structured payloads on this object, **not** new envelope fields — the object stays exactly the nine fields (`req-tap-logging-message-object-1`); a cross-cutting *signal* is a reserved code, only a correlation *identifier* earns an envelope field.
 - **Rendering is per-handler** (`req-tap-logging-format`). The object is the source of truth; the `console` handler renders the human text line, a structured sink serializes the object as JSON.
 - **Redaction is mandatory before any handler sees the object.** Producer-side streaming redaction (the `redact_credential_values()` pattern) is primary for high-volume capture; a serialization-time `tap_cares.secrets.redact()` pass over `message_data` is the required backstop. `message_data` is the only field that can carry secret-shaped values; the envelope and `message`/`message_code` do not.
 
@@ -171,6 +174,48 @@ Status: `Proposed`
 | req-tap-logging-task-ref-1 | Within-Task Records | Proposed | Records emitted within a task carry that task's `TaskResult.id`; records outside a task omit it. | |
 | req-tap-logging-task-ref-2 | Envelope Placement | Proposed | `task_result_id` is an envelope field, never inside `message_data` or named `message_*`. | |
 
+### Reserved Signals
+----
+RID: `req-tap-logging-reserved-signals`
+Status: `Partially Implemented`
+
+`FLAW`, `ABORT`, and `CONCERN` are not three unrelated features — they are three instances of **one model**: a *reserved cross-cutting signal*. Most `message_code`s are per-producer convention (`KSI_INDICATOR_LOOKUP`); a reserved signal is the **exception** — a machine-selectable, app-wide event every producer emits the same way. This requirement names the shared model once so the members stay consistent and a fourth signal has a template to join, rather than re-deriving the contract each time.
+
+#### The shared anatomy
+
+Every reserved signal has:
+
+- **A reserved `UPPER_SNAKE` `message_code`** — the contract discriminator. `message_code = <CODE>` cleanly selects every occurrence across every producer (not opaque payload), so "give me all X" is a filter on the structured sink.
+- **A fixed `message_data` payload**, discriminated by the code (`code → payload shape` is a function). No new envelope fields — the object stays the fixed nine (`req-tap-logging-message-object-1`).
+- **A severity** set by the signal's meaning, not overloaded onto the code: `FLAW` derives it from handling, `ABORT` is ERROR/CRITICAL, `CONCERN` is WARNING. The code + tags route it, never the level alone.
+- **A minting helper** — the code and sentinel are authored once, in the helper, never hand-assembled in-band at a call site.
+- **A console sentinel** — a stable, greppable line (`TAP-ABORT`, `TAP-CONCERN`; `FLAW …`) that is a *rendering of the structured field*, plus a JSON serialization of the same object. Two renderings, nothing to parse back out.
+- **Mandatory redaction** over `message_data` before any handler sees it (`req-tap-logging-message-object-5`).
+
+#### Members registry
+
+| Signal | `message_code` | `message_data` | Level | Helper | Console sentinel | Home |
+| --- | --- | --- | --- | --- | --- | --- |
+| Flaw | `FLAW` | `{flaw_class, flaw_tags, invariant_id, handling}` | derived from handling | `Flaw.report()` | `FLAW class=… ` | `tap/flaws.py` · [`spec-tap-flaw-v0.md`](spec-tap-flaw-v0.md) |
+| Abort | `ABORT` | `{domain, reason}` | ERROR / CRITICAL | `abort()` | `TAP-ABORT: <domain>: <reason>` | `tap/logging_signals.py` · [Abort Signal](#abort-signal) |
+| Concern | `CONCERN` | `{domain, concern_type, tags, reason}` | WARNING | `concern()` | `TAP-CONCERN: <domain>: <reason>` | `tap/logging_signals.py` · [Concern Signal](#concern-signal) |
+
+#### Implementation
+
+- **`FLAW` keeps its own module and spec** (it is the richest — blame class + handling axis) and is *registered* here as a member, not absorbed. `ABORT` and `CONCERN` are lightweight and live together in `tap/logging_signals.py`, sharing one `emit_signal(...)` primitive that renders the sentinel line and attaches `extra={message_code, message_data}` — so both are structured-ready today, and adding the third rendering was one function, not two.
+- The helpers are **re-exported from `tap.logging`** (`from tap.logging import abort` / `concern`) so existing call sites are undisturbed; the canonical home is `tap.logging_signals`.
+- **Signals carry [Domain Tags](#domain-tags)** where they route by specialty (`FLAW.flaw_tags`, `CONCERN.tags`) — the shared vocabulary in `req-tap-logging-domain-tags`.
+- **Adding a signal** = register a row here + add a section + (for a lightweight one) an `emit_signal`-backed helper. The v0-interim rendering note applies uniformly: until the structured message object lands, helpers render into the message string while already attaching `extra=`; the object/JSON form is a handler change, not a call-site rewrite.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-logging-reserved-signals-1 | One Model | Partially Implemented | `FLAW`/`ABORT`/`CONCERN` share the documented anatomy (reserved code, fixed payload, level, helper, sentinel) and are enumerated in one members registry. | |
+| req-tap-logging-reserved-signals-2 | Shared Primitive | Implemented | Lightweight signals (`ABORT`, `CONCERN`) emit through one `emit_signal` primitive in `tap/logging_signals.py`; `FLAW` conforms to the same contract from its own module. | |
+| req-tap-logging-reserved-signals-3 | Re-Export Stability | Implemented | `abort`/`concern` are re-exported from `tap.logging`; existing call sites are undisturbed by the module home. | |
+| req-tap-logging-reserved-signals-4 | Extensible | Partially Implemented | A new signal is a registry row + a section + (if lightweight) an `emit_signal`-backed helper — no re-derivation of the contract. | |
+
 ### Abort Signal
 ----
 RID: `req-tap-logging-abort-signal`
@@ -197,6 +242,57 @@ Status: `Partially Implemented`
 | req-tap-logging-abort-signal-3 | Helper, Not In-Band | Implemented | Producers emit via `tap.logging.abort(...)`; call sites never hand-assemble the code or the sentinel — it is authored once, in the helper. | Honors the no-micro-syntax principle at the call site. |
 | req-tap-logging-abort-signal-4 | Two Renderings | Partially Implemented | `console` renders the stable `TAP-ABORT: <domain>: <reason>` line (built). The JSON sink emitting `message_code == ABORT` lands with the message object + its JSON formatter (`req-tap-logging-format`). | Shell watchers grep today; aggregators field-match once the sink exists. |
 | req-tap-logging-abort-signal-5 | Signal, Not Level/Flaw | Implemented | `ABORT` is `ERROR`-level plus the reserved signal, orthogonal to `level` and distinct from `FLAW`; a happening may emit both a `FLAW` and an `ABORT`. | |
+
+### Concern Signal
+----
+RID: `req-tap-logging-concern-signal`
+Status: `Partially Implemented`
+
+> **Build status (2026-07-04).** The `tap.logging.concern(logger, domain, concern_type, reason)` helper and its greppable `TAP-CONCERN` console rendering are **built**, and the first consumer — the cross-scope secret-access tripwire (`spec-tap-cares-secrets.md`) — is wired. Because the structured message object (`req-tap-logging-message-object`) is still `Proposed`, the helper's **v0 interim** renders the signal into the message string rather than populating a literal `message_code = CONCERN` field; the structured/JSON form lands with the message object, and **call sites do not change** when it does.
+
+`CONCERN` is a reserved, cross-cutting `message_code` — the **third** after `FLAW` and `ABORT` — for **permitted-but-suspicious behavior**: something that should not normally happen but is not a proven defect and not fatal. "Somebody's being sus." It is the detective signal for behavior TAP cannot (yet) *prevent* — the archetype being a rogue plugin doing something malicious with the arbitrary Python it is allowed to run — where we **observe and alarm** instead of blocking. It is the logging-layer mechanism behind the security-posture `CONCERN` discipline (`spec-security-posture.md`, `req-sec-concern-gaps`).
+
+#### Implementation
+
+- **Reserved code, structured payload.** A concern is one record with `message_code = "CONCERN"` and `message_data = {domain, concern_type, tags, reason}`. `domain` is the detecting subsystem (`secrets` / `plugins` / …); `concern_type` is a stable token naming *what kind* of suspicious behavior (the routing key, e.g. `cross_scope_secret_access`); `tags` are `req-tap-logging-domain-tags` domain tags (`security` for the plugin-safety cases); `reason` is a short, **secret-free** human-legible description naming the offending party.
+- **It is a signal, not a level and not a Flaw.** Emitted at **`WARNING`** — nothing was blocked — but the reserved code + `security` tag, not the level, is what routes it. Distinct from **`FLAW`**: a Flaw is a *violated guarantee* (steady-state-empty, every fire actionable-and-patchable); a `CONCERN` makes **no invariant claim** — it flags permitted-but-suspicious behavior and may carry false positives, so filing it as a Flaw would corrode the Flaw stream. Distinct from **`ABORT`**: non-fatal; the producer continues (a tripwire, not a stop).
+- **A helper mints it.** `tap.logging.concern(logger, domain, concern_type, reason, *, tags=("security",))` builds the record (reserved code, `WARNING`, the caller's `[site]` token) so producers never hand-assemble the code or an in-band string. It validates `tags` against the shared vocabulary (`req-tap-logging-domain-tags`); an unregistered tag falls back safely (the concern still emits) rather than raising in the emit path. Emitting does not itself alter control flow — the caller proceeds.
+- **Rendering, per `req-tap-logging-format`.** The `console` handler renders a `CONCERN` record as a stable, greppable `TAP-CONCERN: <domain>: <reason>` line; the JSON sink serializes the object so a security monitor / on-call (eventually AI) keys off `message_code == "CONCERN"` and the `concern_type` / `tags` fields. Sentinel is a **rendering of the structured field**, never authored in-band.
+- **Consumers.** First consumer is the cross-scope secret-access tripwire (`spec-tap-cares-secrets.md`): a plugin resolving the install-system `tap_plugins.source` scope emits a `CONCERN`, the interim detective control for the deferred least-privilege enforcement (`req-tap-cares-secrets-future-access-control`). The signal is app-wide by construction — any surface that recognizes an unpreventable-for-now harm emits the same code.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-logging-concern-signal-1 | Reserved Code + Payload | Partially Implemented | A concern carries `{domain, concern_type, tags, reason}` and adds no new envelope field. **Interim:** rendered in the message string; the literal `message_code = CONCERN` field lands with `req-tap-logging-message-object`. | Parallel to `ABORT`. |
+| req-tap-logging-concern-signal-2 | Helper, Not In-Band | Implemented | Producers emit via `tap.logging.concern(...)`; call sites never hand-assemble the code or sentinel. | Honors the no-micro-syntax principle. |
+| req-tap-logging-concern-signal-3 | Signal, Not Level/Flaw | Implemented | `CONCERN` is `WARNING`-level plus the reserved signal, distinct from `FLAW` (no invariant claim; may have false positives) and from `ABORT` (non-fatal). | Routed by code + tag, not level. |
+| req-tap-logging-concern-signal-4 | Two Renderings | Partially Implemented | `console` renders the stable `TAP-CONCERN: <domain>: <reason>` line (built). The JSON sink keying `message_code == CONCERN` lands with the message object. | Watchers/AI grep today; field-match once the sink exists. |
+| req-tap-logging-concern-signal-5 | Secret-Free | Implemented | `reason`/`concern_type` name the offending party and behavior, never secret material. | Redaction backstop still applies to `message_data`. |
+
+### Domain Tags
+----
+RID: `req-tap-logging-domain-tags`
+Status: `Implemented`
+
+A **domain tag** names *which specialty concern* a structured signal belongs to, so a router (eventually an AI on-call) dispatches to the right specialty without reading code. It is the third routing axis — orthogonal to *who fixes it* (a `FLAW`'s `flaw_class`) and to *how urgent* (severity/level).
+
+The vocabulary lives at **this** layer — one home both reserved signals inherit — rather than inside any single signal's module, so a tag means one thing everywhere and a future signal gets the vocabulary for free. It was extracted from `spec-tap-flaw-v0.md` (`req-flaw-domain-tags`) when `CONCERN` became a second consumer; that requirement now references this one.
+
+#### Implementation
+
+- v0 vocabulary — registered and described: `security` (authn/authz/secrets/isolation), `operational` (runtime/availability/jobs), `data` (grid/content integrity), `config` (instance/boot configuration), `integration` (collectors/plugins/upstreams).
+- **Registered, not ad hoc.** A tag must come from the registered set; an ad hoc string would defeat code-free routing, so an unregistered tag is a **producer defect**. The *reaction* is the consumer's: `FLAW` reports `flaw_api_misuse` (a `code` Flaw); `concern()` falls back to a safe default so the concern still emits. The *validation* is shared (`domain_tag_problems`) so the vocabulary is enforced identically wherever used.
+- **Consumers.** `FLAW`'s `flaw_tags` and `CONCERN`'s `tags` both draw from this set. A signal may carry more than one tag; routing rules (deferred, `spec-tap-flaw-v0.md`) resolve precedence.
+- **Code home.** `tap/logging_domain_tags.py` (`DOMAIN_TAGS` + `domain_tag_problems`) — a tiny, dependency-free module both `tap/logging.py` (`concern`) and `tap/flaws.py` (`flaw_tags`) import without pulling in the logging-config builder or the Flaw hierarchy. The spec home is here; the file is the implementation.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-logging-domain-tags-1 | Single Home | Implemented | The vocabulary is defined once (`tap/logging_domain_tags.py`) and inherited by every signal that carries tags; no per-signal copy. | Extracted from `spec-tap-flaw-v0.md`. |
+| req-tap-logging-domain-tags-2 | Registered Vocabulary | Implemented | Tags come from a declared, described set; an unregistered tag is a producer defect (`domain_tag_problems`). | Enables code-free routing. |
+| req-tap-logging-domain-tags-3 | Shared By FLAW + CONCERN | Implemented | `FLAW`'s `flaw_tags` and `CONCERN`'s `tags` both draw from this vocabulary, so `security` means one thing across signals. | A third consumer inherits it for free. |
 
 ### Object Rendering
 ----
