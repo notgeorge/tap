@@ -25,7 +25,7 @@ Citing the baseline turns that boundary from a quirk into an auditable, defensib
 
 **Gryphon commandment guidance.** Any change to Gryphon syntax, AST shape, predicate semantics,
 or Cypher-subset/divergence behavior must read and apply
-[`doc-gryphon-commandments-codex.md`](../../docs/doc-gryphon-commandments-codex.md). The
+[`doc-gryphon-commandments.md`](../../docs/doc-gryphon-commandments.md). The
 commandments are not a substitute for this spec; they are the standing development discipline for
 keeping new language surface explicit, validated, and tested.
 

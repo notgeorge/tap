@@ -11,7 +11,7 @@ direct backend query execution.
 
 **Gryphon commandment guidance.** Any change to Gryphon validation, lowering, executor dispatch,
 SQL capture, result packaging, or lowering-ladder usage must read and apply
-[`doc-gryphon-commandments-codex.md`](../../docs/doc-gryphon-commandments-codex.md). The
+[`doc-gryphon-commandments.md`](../../docs/doc-gryphon-commandments.md). The
 commandments are not a substitute for this spec; they are the standing development discipline for
 preserving read-only execution, bind-parameter safety, semantic conservation, and validation.
 

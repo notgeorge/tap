@@ -14,7 +14,7 @@ The extension is scoped tight on purpose. `COUNT` is the only aggregate; `SUM`/`
 
 **Gryphon commandment guidance.** Multi-hop, anti-join, aggregation, optional-match, and future
 recursive-path work must read and apply
-[`doc-gryphon-commandments-codex.md`](../../docs/doc-gryphon-commandments-codex.md). This spec
+[`doc-gryphon-commandments.md`](../../docs/doc-gryphon-commandments.md). This spec
 owns the concrete feature requirements; the commandments supply the durable development discipline
 for avoiding silent drops, join drift, unsupported-shape approximation, and oracle/test gaps.
 

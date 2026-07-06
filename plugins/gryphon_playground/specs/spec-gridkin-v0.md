@@ -24,7 +24,7 @@ the Gridkin corpus — its playground node and edge vocabulary, its two-tier fix
 structure, and the runner's home — is specified in the companion
 [spec-gryphon-playground-v0.md](spec-gryphon-playground-v0.md). The two specs are
 designed to be read together; [`doc-dev-gryphon-wishlist.md`](../../../docs/misc/doc-dev-gryphon-wishlist.md)
-is their shared operational companion. [`doc-gryphon-commandments-codex.md`](../../../docs/doc-gryphon-commandments-codex.md)
+is their shared operational companion. [`doc-gryphon-commandments.md`](../../../docs/doc-gryphon-commandments.md)
 is the standing guidance for how Gryphon language, executor, and validation work
 must be shaped; Gridkin scenario authors should treat it as required reading
 alongside the wishlist.

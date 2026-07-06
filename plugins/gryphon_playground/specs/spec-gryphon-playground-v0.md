@@ -48,7 +48,7 @@ demand-shaped view of what Gryphon needs to grow into, plus the validation
 discipline every Gryphon extension ships under. It is required reading before
 extending Gryphon or adding scenarios.
 
-[`doc-gryphon-commandments-codex.md`](../../../docs/doc-gryphon-commandments-codex.md) is the
+[`doc-gryphon-commandments.md`](../../../docs/doc-gryphon-commandments.md) is the
 standing commandments document for Gryphon specification, development, and testing. Read it before
 changing the playground, Gridkin, the model oracle, fuzz harnesses, or any validation surface that
 defines what counts as a correct Gryphon implementation.
