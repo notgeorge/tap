@@ -1,5 +1,7 @@
 # Gridkin Scenario Format Specification (v0)
 
+> **Development doctrine (standing filter).** Before any change to the Gryphon language, executor, or tests, consult [`doc-gryphon-commandments.md`](../../../docs/doc-gryphon-commandments.md) — the standing thou-shalt/shalt-not doctrine for all Gryphon work (the §IV Testing & Validation commandments cite this harness as their Enforcement).
+
 ## Philosophy
 
 Gridkin is TAP's scenario-driven test format for the Gryphon query language. A
@@ -22,7 +24,10 @@ the Gridkin corpus — its playground node and edge vocabulary, its two-tier fix
 structure, and the runner's home — is specified in the companion
 [spec-gryphon-playground-v0.md](spec-gryphon-playground-v0.md). The two specs are
 designed to be read together; [`doc-dev-gryphon-wishlist.md`](../../../docs/misc/doc-dev-gryphon-wishlist.md)
-is their shared operational companion.
+is their shared operational companion. [`doc-gryphon-commandments-codex.md`](../../../docs/doc-gryphon-commandments-codex.md)
+is the standing guidance for how Gryphon language, executor, and validation work
+must be shaped; Gridkin scenario authors should treat it as required reading
+alongside the wishlist.
 
 ## Goals
 
