@@ -470,3 +470,4 @@ time. The genuinely-owed language features shrink to composition (`WITH`) and ag
 - **Raw aggregation (§0–§5):** workflow `wf_684476bc-36b` journal (per-repo `feature_counts`), aggregated deterministically; re-derivable from the journal.
 - **APOC scan (§7):** `neo4j/apoc` core repo, blobless clone; `apoc.*` tokens extracted from test-string literals + docs, counted once-per-literal; re-derivable by re-cloning and re-scanning.
 - **The analytics/algorithm destination (recurring):** `doc-gryphon-networkx-opportunity.md` — where `apoc.algo`/`apoc.path.subgraph*`/`apoc.graph.from*` land.
+- **The reachability answer (§5.1):** `grid-native-paths-notes.md` — the grid-native named-path design; its Future Prior Art Pass now carries a note to revisit the APOC `expandConfig` knobs (§7.3) as path-definition vocabulary.
