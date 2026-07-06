@@ -16,7 +16,11 @@ provides: |
   wishlist sequencing be set by measured demand rather than by Cypher's table
   of contents or by intuition. Includes the apoc/GDS skew caveat, the
   non-obvious findings (COLLECT ≫ numeric aggregates; UNWIND's signal has
-  arrived; CALL is library-inflated), and one live doc-drift flag.
+  arrived; CALL is library-inflated), and one live doc-drift flag. §7 adds an
+  APOC heavy-hitter map (48 namespaces → TAP destinations) reading APOC as
+  "what professional graph-DB users needed that Cypher didn't ship" — most of
+  it is non-language TAP platform surface (result export/reporting is the #1
+  unmet need), with reachability the one genuinely query-language-shaped gap.
 ---
 
 # Gryphon Feature Demand — What Real Cypher Corpora Actually Use
@@ -237,10 +241,147 @@ shipped"** (this is E1, still `wait-for-signal`). This is the same overclaim the
 caught in its own synthesis and codified as GRY-PROC-2 (source-check executor claims). **The Ledger-C
 row has since been corrected** to match the executor.
 
+## 7. APOC heavy-hitters — the "what Cypher didn't ship" map (whole-TAP lens)
+
+APOC is the de-facto standard library every serious Neo4j shop installs — so *what it contains* is
+a direct readout of **what professional graph-database users needed that Cypher itself didn't ship.**
+That signal is bigger than Gryphon: most of APOC is not query-language surface at all, it's the
+operational/ETL/admin machinery a graph *platform* needs. Cypher-the-language couldn't absorb it, so
+APOC bolted it on. TAP's job is to place each of those needs in the *right* layer — and most already
+have a deliberate home. This section maps the full APOC surface onto TAP's architecture.
+
+**Method & caveat.** Scanned the `neo4j/apoc` core repo's test-string literals + docs (blobless
+clone; 3093 `apoc.*`-bearing literals; 392 distinct procedures across 48 namespaces), counting
+distinct-literals-using-each once. **Same self-referential caveat as `CALL` in §3.3: this is APOC's
+own test suite exercising APOC, so it measures which procedures APOC considers important surface
+area, not independent third-party call frequency** (the app corpora barely call APOC — §3.3). Read it
+as "the shape of the gap APOC exists to fill," not as app demand. (`neo4j/apoc` core is also slimmer
+than the old `neo4j-contrib` full-APOC; the *distribution* is representative, absolute counts are not.)
+
+### 7.1 The headline: APOC is two libraries, and only one is Gryphon's
+
+The top-5 namespaces by volume span **three different TAP layers** — that alone kills any "Gryphon is
+missing 80% of APOC" reading:
+
+| Rank | Namespace | Count | What it is | TAP layer |
+| :--: | --- | :--: | --- | --- |
+| 1 | `apoc.export` | 323 | dump graph/results → csv/json/cypher/graphml/arrow | **TAP export/reporting (gap)** |
+| 2 | `apoc.coll` | 273 | list/collection operations | **Gryphon** (expression) |
+| 3 | `apoc.text` | 232 | string functions | **Gryphon** (expression) |
+| 4 | `apoc.trigger` | 207 | react-to-change database triggers | **TAP reactive** (FLIP/signals) |
+| 5 | `apoc.path` | 162 | expand / subgraph / reachability | **Gryphon** (Bucket E) + analytics backend |
+
+So "what Cypher didn't ship" isn't one gap — it's **get-data-out, richer expressions, reachability,
+and change-reaction**, and those belong in four different places in TAP.
+
+### 7.2 Full namespace map → TAP destination
+
+Every namespace with its architectural home. **Gryphon** = query-language expression/read;
+**Analytics** = whole-graph algorithms → the NetworkX/distinct-backend idea
+(`doc-gryphon-networkx-opportunity.md`); the rest are non-language TAP platform concerns.
+
+| Namespace | Ct | Destination | Notes / does TAP have a home? |
+| --- | :--: | --- | --- |
+| `apoc.export` | 323 | **TAP export/reporting** | ⚠ **Named gap** — TAP has no "dump this Gryphon result / subgraph to CSV/JSON/interchange" surface today. Get-data-out is the single largest APOC need. |
+| `apoc.coll` | 273 | Gryphon | list ops: `containsAll`,`toSet`,`combinations`,`occurrences` → list-comprehension / list-fn gap |
+| `apoc.text` | 232 | Gryphon | string fns (H2). Heavy-tested ones are niche (`toCypher`,`charAt`,`slug`,`snakeCase`) → confirms "one fn at a time on demand" is right |
+| `apoc.trigger` | 207 | TAP reactive | react-to-change hooks (`install`,`add`,`pause`) → TAP's FLIP/history + sparing signals; **read-only Gryphon deliberately can't and shouldn't** |
+| `apoc.path` | 162 | Gryphon (E) + Analytics | `subgraphNodes`(51),`expandConfig`(41),`subgraphAll`(23),`spanningTree`(14) → reachability, see §7.3 |
+| `apoc.refactor` | 147 | TAP service-layer | `rename`,`mergeNodes`(37!),`cloneSubgraph`,`deleteAndReconnect` → entity-merge/dedup is a real op → typed service layer + FLIP |
+| `apoc.meta` | 146 | TAP registry/discovery | `relTypeProperties`,`nodeTypeProperties`,`stats`,`graph` → schema introspection → **TAP's registry-backed discovery already IS this** (Player-3 machine-legibility) |
+| `apoc.schema` | 122 | TAP migrations | `assert`,`nodes`,`properties` → index/constraint DDL → Django migrations + index mgmt |
+| `apoc.load` | 110 | TAP ingestion | `load.json`/`xml`/`arrow` — pull external data into queries → plugin ingestion layer |
+| `apoc.import` | 110 | TAP ingestion | `import.csv`/`graphml`/`json` — bulk ingest into the graph → ingestion pipeline (Django Tasks) |
+| `apoc.nodes` | 95 | Gryphon + Analytics | `connected`(25),`group`,`collapse`,`cycles`,`isDense` → inspection (Gryphon) + graph-transform (analytics) |
+| `apoc.create` | 91 | TAP service + display-lane | `virtual`/`vNode`/`vRelationship` = *ephemeral non-persisted* nodes for return/viz → maps to display-lane / computed rows; `setProperty` = write |
+| `apoc.map` | 88 | Gryphon | `fromPairs`,`submap`,`mget`,`removeKeys` → map projection gap |
+| `apoc.convert` | 85 | Gryphon | `toTree`,`toJson`,`fromJsonMap` → type conversion / JSON (Gryphon already has JSON reach) |
+| `apoc.graph` | 70 | Analytics | `fromDB`,`fromDocument`,`fromCypher` = **named virtual-graph projection** → exactly the "project a subgraph" primitive GDS/NetworkX need |
+| `apoc.periodic` | 68 | TAP scheduling | `iterate`(29),`submit`,`repeat` = batched background mutation → Django Tasks |
+| `apoc.agg` | 67 | Gryphon (C) | `percentiles`,`median`,`product`,`statistics` → aggregation is *statistical*, beyond SUM (§7.3) |
+| `apoc.util` | 65 | TAP util | `compress`/`decompress`,`sleep`,`validatePredicate` → misc ops |
+| `apoc.date` | 59 | Gryphon | `parse`,`field`,`format` → temporal-fn gap (+ `apoc.temporal` 26) |
+| `apoc.node` | 58 | Gryphon | `relationship`,`degree`,`labels` → element inspection → projection surface |
+| `apoc.number` | 58 | Gryphon | `exact`,`format`,`parseInt` → numeric formatting/parsing (+ `apoc.math` 45, `apoc.bitwise` 6) |
+| `apoc.cypher` | 56 | TAP execution-safety | `runTimeboxed`(13!),`runManyReadOnly`(5),`runMany` → **query timeout + read-only enforcement**: Gryphon is read-only *by construction* (a credit APOC has to bolt on); timeboxing is a real exec-safety item to consider |
+| `apoc.atomic` | 47 | TAP service-layer | `add`,`subtract`,`concat` = concurrency-safe field updates → service-layer concern |
+| `apoc.math` | 45 | Gryphon | trig/`sigmoid`/`tanh` — mostly niche |
+| `apoc.any` | 44 | Gryphon | `property`(25),`properties` = dynamic property access → projection |
+| `apoc.merge` | 37 | TAP service-layer | `merge.node`/`relationship` = upsert → service layer |
+| `apoc.algo` | 36 | **Analytics** | `cover`,`dijkstra`,`allSimplePaths`,`aStar` = **graph algorithms** → NetworkX/distinct-backend, NOT Gryphon core |
+| `apoc.hashing` | 31 | TAP util | fingerprint/diff a graph or node |
+| `apoc.search` | 28 | Gryphon | multi-label/multi-prop node search → predicate power |
+| `apoc.temporal` | 26 | Gryphon | temporal formatting (with `apoc.date`) |
+| `apoc.spatial` | 21 | out-of-scope (v0) | geo — no TAP demand |
+| `apoc.neighbors` | 18 | Gryphon (E) + Analytics | n-hop neighbor gather → reachability |
+| `apoc.paths`/`apoc.rel`/`apoc.label`/`apoc.json`/`apoc.diff`/`apoc.do`/`apoc.data`/`apoc.scoring` | ≤14 ea | mixed | tail: path helpers (Gryphon-E), rel/label inspection (Gryphon), conditional write (`do`→service), scoring (analytics) |
+| `apoc.lock`/`apoc.warmup`/`apoc.stats`/`apoc.log`/`apoc.xml`/`apoc.initializer`/`apoc.example` | ≤12 ea | TAP infra | locking, cache-warm, logging, startup — pure platform infra |
+
+### 7.3 Detail on the Gryphon-relevant expression/reachability tail
+
+Top procedures within the namespaces a read query-language could actually absorb:
+
+- **`apoc.path` (reachability) — the standout, and it tells us the *shape* E1 should take.** People
+  don't want bare `*1..3`; they want `expandConfig`-style reachability: `relationshipFilter`,
+  `labelFilter`, `sequence` strings, uniqueness modes, min/max depth, allow/deny node lists
+  (`subgraphNodes`, `expandConfig`, `subgraphAll`, `spanningTree`). **Design input for Bucket E:** the
+  demanded primitive is "expand from a seed under edge-type + label + depth + node-set constraints,"
+  and `subgraph*` is literally the *bounded-subgraph-projection* the NetworkX backend needs.
+- **`apoc.coll` / `apoc.text` — the function-library gap, confirmed but diffuse.** No obvious
+  must-have-first trio; heavy-tested procedures are edge-casey (`combinations`, `occurrences`,
+  `toCypher`, `slug`). Reinforces Gryphon's demand-gated "one function at a time" posture (H2) over
+  shipping a library ahead of demand.
+- **`apoc.agg` — aggregation demand is statistical.** `percentiles`, `median`, `product`,
+  `statistics` — beyond `SUM`/`MIN`/`MAX`/`AVG`. Still thin/specialized; `COLLECT` (§3.1) remains the
+  higher-priority aggregate. `apoc.agg` is a "someday, on demand" signal for Bucket C.
+- **`apoc.map` / `apoc.convert` / `apoc.date` / `apoc.number`** — map projection, JSON/type
+  conversion, temporal, numeric formatting. Each maps to a named wishlist future-seam; none is urgent.
+
+### 7.4 What the operational half tells TAP (beyond Gryphon)
+
+Reading the ETL/admin majority as a platform-feature checklist — *what a mature graph platform needs*
+— and checking it against TAP's architecture:
+
+1. **Get-data-out is the #1 unmet need and TAP's clearest platform gap.** `export`(323) + a chunk of
+   `import`/`load`(220) = bulk interchange. TAP has a first-class *ingestion* story (plugins + Tasks)
+   but **no query-result / subgraph EXPORT or reporting surface** today. Professional users need to
+   pull graph data out (reports, backups, interchange). Worth naming as a TAP platform feature
+   (likely a service-layer + Gryphon-result → CSV/JSON exporter), explicitly *not* a Gryphon-language
+   feature.
+2. **The mutation/reaction surface is already placed by architecture — APOC validates the aim.**
+   `trigger`(207, react-to-change), `refactor`(147, merge/dedup/restructure), `merge`/`atomic`/`do`
+   (upsert/concurrency/conditional-write) are exactly what TAP routes through the **typed service
+   layer + FLIP/history + sparing signals**. That professionals lean this hard on entity-merge
+   (`mergeNodes`) and change-triggers is confirmation TAP's write-path architecture is aimed right —
+   and confirmation Gryphon should stay read-only (these must never leak into the language).
+3. **Schema introspection is a first-class need — and it's the Player-3 posture.** `meta`(146) +
+   `schema`(122) = "make the schema queryable / assert structure." TAP's **registry-backed discovery
+   system** is precisely this, and the volume here is external evidence for the machine-legibility
+   doctrine (`build-for-ai-helpers`): serious users *demand* queryable schema/stats, not just data.
+4. **The graph-algorithm + projection tail points, again, at the analytics backend.** `algo`
+   (dijkstra/aStar/allSimplePaths/cover) + `path.subgraph*` + `graph.from*` + `agg.graph` = whole-graph
+   computation and named subgraph projection — the exact class `doc-gryphon-networkx-opportunity.md`
+   scopes to a distinct backend, not to Gryphon. APOC bundling these is external validation that
+   they're a *separate* concern from pattern-query.
+5. **Execution-safety primitives worth stealing.** `apoc.cypher.runTimeboxed` / `runManyReadOnly`:
+   query **timeout** and **read-only enforcement**. Gryphon already owns read-only by construction (a
+   credit); **timeboxing / resource-bounding of a Gryphon query** is a genuine exec-safety item to
+   consider (ties to battle-hardening and the security posture).
+
+**Net for Gryphon development:** APOC re-confirms the language gap shape (collections, strings,
+reachability, maps, dates, conversion — grow on demand) and, most usefully, shows that **reachability
+(`apoc.path.expandConfig`-shaped, Bucket E) is the one place where the demanded feature is genuinely
+*query-language*-shaped rather than operational** — everything heavier than that is either the
+analytics backend or a non-language TAP platform layer that already has a home. The largest single
+platform signal is **result export/reporting**, which TAP should name as its own feature, outside
+Gryphon.
+
 ## Pointers
 
 - **Supply side (what ships):** `doc-dev-gryphon-vs-cypher.md` (the three ledgers), `doc-dev-gryphon-wishlist.md` (the buckets this re-sequences).
 - **The algorithmic-`CALL` destination:** `doc-gryphon-networkx-opportunity.md`.
 - **The doctrine this respects:** `doc-gryphon-commandments.md` (fail-closed GRY-ARCH-3, source-check GRY-PROC-2).
 - **External corroboration:** SLE 2019 Cypher-in-the-wild study; Neo4j Text2Cypher dataset; Francis et al., SIGMOD 2018 (semantic taxonomy).
-- **Raw aggregation:** workflow `wf_684476bc-36b` journal (per-repo `feature_counts`), aggregated deterministically; re-derivable from the journal.
+- **Raw aggregation (§0–§5):** workflow `wf_684476bc-36b` journal (per-repo `feature_counts`), aggregated deterministically; re-derivable from the journal.
+- **APOC scan (§7):** `neo4j/apoc` core repo, blobless clone; `apoc.*` tokens extracted from test-string literals + docs, counted once-per-literal; re-derivable by re-cloning and re-scanning.
+- **The analytics/algorithm destination (recurring):** `doc-gryphon-networkx-opportunity.md` — where `apoc.algo`/`apoc.path.subgraph*`/`apoc.graph.from*` land.
