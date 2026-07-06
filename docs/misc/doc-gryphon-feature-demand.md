@@ -19,8 +19,11 @@ provides: |
   arrived; CALL is library-inflated), and one live doc-drift flag. §7 adds an
   APOC heavy-hitter map (48 namespaces → TAP destinations) reading APOC as
   "what professional graph-DB users needed that Cypher didn't ship" — most of
-  it is non-language TAP platform surface (result export/reporting is the #1
-  unmet need), with reachability the one genuinely query-language-shaped gap.
+  it is non-language TAP platform surface that TAP has *already shipped or
+  deliberately sited* (grift envelope for get-data-out, entity/type endpoints
+  for schema, service-layer+FLIP for mutation), so it reads as validation the
+  architecture is aimed right, with reachability the one query-language gap
+  still owed.
 ---
 
 # Gryphon Feature Demand — What Real Cypher Corpora Actually Use
@@ -265,14 +268,17 @@ missing 80% of APOC" reading:
 
 | Rank | Namespace | Count | What it is | TAP layer |
 | :--: | --- | :--: | --- | --- |
-| 1 | `apoc.export` | 323 | dump graph/results → csv/json/cypher/graphml/arrow | **TAP export/reporting (gap)** |
+| 1 | `apoc.export` | 323 | dump graph/results → csv/json/cypher/graphml/arrow | **mostly met** by Gryphon's grift JSON envelope (§7.4.1) |
 | 2 | `apoc.coll` | 273 | list/collection operations | **Gryphon** (expression) |
 | 3 | `apoc.text` | 232 | string functions | **Gryphon** (expression) |
 | 4 | `apoc.trigger` | 207 | react-to-change database triggers | **TAP reactive** (FLIP/signals) |
 | 5 | `apoc.path` | 162 | expand / subgraph / reachability | **Gryphon** (Bucket E) + analytics backend |
 
 So "what Cypher didn't ship" isn't one gap — it's **get-data-out, richer expressions, reachability,
-and change-reaction**, and those belong in four different places in TAP.
+and change-reaction**, and those belong in four different places in TAP. Crucially, two of the top
+four are *already answered* by surfaces TAP has shipped: get-data-out by the Gryphon **grift JSON
+envelope** (`tap_api/routers/gryphon.py` → `SubgraphLayer`) and schema-description by the **entity /
+type endpoints** (`entity_types.py`, `entities.py`, `edges.py`). See §7.4.
 
 ### 7.2 Full namespace map → TAP destination
 
@@ -282,13 +288,13 @@ Every namespace with its architectural home. **Gryphon** = query-language expres
 
 | Namespace | Ct | Destination | Notes / does TAP have a home? |
 | --- | :--: | --- | --- |
-| `apoc.export` | 323 | **TAP export/reporting** | ⚠ **Named gap** — TAP has no "dump this Gryphon result / subgraph to CSV/JSON/interchange" surface today. Get-data-out is the single largest APOC need. |
+| `apoc.export` | 323 | **mostly met — grift envelope** | JSON get-data-out already ships: Gryphon returns the canonical grift `{nodes,edges}`+lanes envelope (`gryphon.py`→`SubgraphLayer`). Residual = thin format *adapters* (CSV/GraphML) over that envelope; bulk/backup dump is Postgres-native (`pg_dump`) and inflates this count. See §7.4.1. |
 | `apoc.coll` | 273 | Gryphon | list ops: `containsAll`,`toSet`,`combinations`,`occurrences` → list-comprehension / list-fn gap |
 | `apoc.text` | 232 | Gryphon | string fns (H2). Heavy-tested ones are niche (`toCypher`,`charAt`,`slug`,`snakeCase`) → confirms "one fn at a time on demand" is right |
 | `apoc.trigger` | 207 | TAP reactive | react-to-change hooks (`install`,`add`,`pause`) → TAP's FLIP/history + sparing signals; **read-only Gryphon deliberately can't and shouldn't** |
 | `apoc.path` | 162 | Gryphon (E) + Analytics | `subgraphNodes`(51),`expandConfig`(41),`subgraphAll`(23),`spanningTree`(14) → reachability, see §7.3 |
 | `apoc.refactor` | 147 | TAP service-layer | `rename`,`mergeNodes`(37!),`cloneSubgraph`,`deleteAndReconnect` → entity-merge/dedup is a real op → typed service layer + FLIP |
-| `apoc.meta` | 146 | TAP registry/discovery | `relTypeProperties`,`nodeTypeProperties`,`stats`,`graph` → schema introspection → **TAP's registry-backed discovery already IS this** (Player-3 machine-legibility) |
+| `apoc.meta` | 146 | **met — entity/type endpoints + registry** | `relTypeProperties`,`nodeTypeProperties`,`stats`,`graph` → schema introspection → **already shipped**: `entity_types.py` (`GET /entity_types/` → slug/name/description/plugin) + registry-backed discovery (Player-3 legibility). Thin residual = live *stats* (per-type counts / property-coverage), demand-gated. §7.4.3 |
 | `apoc.schema` | 122 | TAP migrations | `assert`,`nodes`,`properties` → index/constraint DDL → Django migrations + index mgmt |
 | `apoc.load` | 110 | TAP ingestion | `load.json`/`xml`/`arrow` — pull external data into queries → plugin ingestion layer |
 | `apoc.import` | 110 | TAP ingestion | `import.csv`/`graphml`/`json` — bulk ingest into the graph → ingestion pipeline (Django Tasks) |
@@ -342,22 +348,34 @@ Top procedures within the namespaces a read query-language could actually absorb
 Reading the ETL/admin majority as a platform-feature checklist — *what a mature graph platform needs*
 — and checking it against TAP's architecture:
 
-1. **Get-data-out is the #1 unmet need and TAP's clearest platform gap.** `export`(323) + a chunk of
-   `import`/`load`(220) = bulk interchange. TAP has a first-class *ingestion* story (plugins + Tasks)
-   but **no query-result / subgraph EXPORT or reporting surface** today. Professional users need to
-   pull graph data out (reports, backups, interchange). Worth naming as a TAP platform feature
-   (likely a service-layer + Gryphon-result → CSV/JSON exporter), explicitly *not* a Gryphon-language
-   feature.
+1. **Get-data-out is *mostly already solved* — by the grift envelope. (Corrected.)** An earlier draft
+   called this TAP's "#1 unmet gap"; that overclaimed. APOC's `export.*` is fundamentally *data
+   serialization*, and Gryphon already emits the canonical structured form: a **grift three-lane JSON
+   envelope** (`{nodes,edges}` + `data` + `display`), or a row-projection under `RETURN`, served by
+   `tap_api/routers/gryphon.py` (`SubgraphLayer`) — and it's the progressively-more-robust read path
+   Gridkin already asserts against. For the dominant "get a scoped subgraph out as structured data"
+   case, **TAP has this.** What genuinely remains is narrow: (a) **alternate serialization formats**
+   (CSV for analysts, GraphML for tool interchange) — a *thin adapter over the envelope Gryphon
+   already produces*, not a missing data-access capability; and (b) **bulk / full-DB dump at scale**
+   (backup/migration) — which is **Postgres-native (`pg_dump`)**, not a graph-platform feature, and is
+   exactly what inflates `export`(323) (much of `export.cypher`→`import.cypher` is round-trip backup
+   testing). So: format adapters are a demand-gated convenience; there is no large export gap.
 2. **The mutation/reaction surface is already placed by architecture — APOC validates the aim.**
    `trigger`(207, react-to-change), `refactor`(147, merge/dedup/restructure), `merge`/`atomic`/`do`
    (upsert/concurrency/conditional-write) are exactly what TAP routes through the **typed service
    layer + FLIP/history + sparing signals**. That professionals lean this hard on entity-merge
    (`mergeNodes`) and change-triggers is confirmation TAP's write-path architecture is aimed right —
    and confirmation Gryphon should stay read-only (these must never leak into the language).
-3. **Schema introspection is a first-class need — and it's the Player-3 posture.** `meta`(146) +
-   `schema`(122) = "make the schema queryable / assert structure." TAP's **registry-backed discovery
-   system** is precisely this, and the volume here is external evidence for the machine-legibility
-   doctrine (`build-for-ai-helpers`): serious users *demand* queryable schema/stats, not just data.
+3. **Schema description is *already shipped*, not a need. (Sharpened.)** `meta`(146) + `schema`(122) =
+   "make the schema queryable / assert structure." TAP already answers the description half with a
+   **whole entity/type endpoint surface** — `entity_types.py` (`GET /entity_types/` → slug, name,
+   description, icon, plugin), plus `entities.py` / `edges.py` — backed by the **registry-backed
+   discovery system**. So this is not a gap; it's a *confirmation* that building queryable,
+   machine-legible schema was worth it (the Player-3 / `build-for-ai-helpers` posture): professionals
+   demonstrably demand queryable schema, and TAP has it. The only thin residual is live **stats /
+   profiling** (`apoc.meta.stats`/`graph` = per-type counts, property-coverage, degree distributions),
+   which TAP could compute over the same registry when a demand signal arrives — demand-gated, minor.
+   (`apoc.schema`'s index/constraint *DDL* half is Django migrations, not an endpoint concern.)
 4. **The graph-algorithm + projection tail points, again, at the analytics backend.** `algo`
    (dijkstra/aStar/allSimplePaths/cover) + `path.subgraph*` + `graph.from*` + `agg.graph` = whole-graph
    computation and named subgraph projection — the exact class `doc-gryphon-networkx-opportunity.md`
@@ -372,9 +390,15 @@ Reading the ETL/admin majority as a platform-feature checklist — *what a matur
 reachability, maps, dates, conversion — grow on demand) and, most usefully, shows that **reachability
 (`apoc.path.expandConfig`-shaped, Bucket E) is the one place where the demanded feature is genuinely
 *query-language*-shaped rather than operational** — everything heavier than that is either the
-analytics backend or a non-language TAP platform layer that already has a home. The largest single
-platform signal is **result export/reporting**, which TAP should name as its own feature, outside
-Gryphon.
+analytics backend or a non-language TAP platform layer that already has a home. The stronger, more
+honest conclusion after the two corrections above (§7.4.1, §7.4.3): **APOC's operational majority is
+already placed in surfaces TAP has shipped or deliberately sited** — the grift envelope (get-data-out),
+the entity/type endpoints + registry (schema description), the typed service layer + FLIP (mutation /
+merge / triggers), Django Tasks (batched background work), and ingestion plugins (load/import). The
+genuinely-additive residuals are all *thin and demand-gated*: format adapters (CSV/GraphML) over the
+existing envelope, live schema stats/profiling, and query timeboxing. Read the whole exercise as
+**external validation that TAP's architecture is aimed right**, not as a backlog of large platform
+gaps — with reachability (Bucket E) the one place a real *query-language* feature is still owed.
 
 ## Pointers
 
