@@ -22,8 +22,11 @@ provides: |
   it is non-language TAP platform surface that TAP has *already shipped or
   deliberately sited* (grift envelope for get-data-out, entity/type endpoints
   for schema, service-layer+FLIP for mutation), so it reads as validation the
-  architecture is aimed right, with reachability the one query-language gap
-  still owed.
+  architecture is aimed right. A recurring theme (§3.6, §5.1, §7.4): a
+  meaningful slice of "Cypher features Gryphon lacks" are features it doesn't
+  need because the typed/declared data model answers them structurally —
+  including reachability, planned via named paths not variable-length
+  traversal. The genuinely-owed language features shrink to WITH and COLLECT.
 ---
 
 # Gryphon Feature Demand — What Real Cypher Corpora Actually Use
@@ -47,7 +50,7 @@ showing only features Gryphon does **not** fully ship today:
 | 4 | **`DISTINCT`** | **12.2%** | 7/11 repos | ❌ not in grammar | **A4** |
 | 5 | arithmetic in expressions (`a.x + b.y`) | 10.4% | 10/11 repos | ❌ not built | — (no bucket) |
 | 6 | `coalesce()` | 8.7% | 5/11 repos | ❌ not in grammar | H1 |
-| 7 | `labels()` / `type()` / `keys()` | 6.7% | 7/11 repos | ❌ not built | — |
+| ~~7~~ | `labels()` / `type()` / `keys()` | 6.7% | 7/11 repos | ✅ **not a gap** — values exported by the typed envelope (§3.6) | — |
 | 8 | string fns (`toLower`, `substring`, …) | 6.0% | 5/11 repos | ❌ not built | H2 |
 | 9 | **`shortestPath`** | 5.8% | 5/11 repos | ❌ not in grammar | E3 |
 | 10 | list ops / comprehensions | 5.0% | 9/11 repos | ❌ not built | — (deliberate subset) |
@@ -126,7 +129,7 @@ feature's apparent rank.
 | undirected edge | 10.1 | 8/11 | 5.7 | ✅ shipped |
 | `COUNT` | 9.9 | 10/11 | 11.7 | ✅ shipped |
 | `coalesce()` | 8.7 | 5/11 | 3.9 | ❌ not in grammar (H1) |
-| `labels()`/`type()`/`keys()` | 6.7 | 7/11 | 5.5 | ❌ not built |
+| `labels()`/`type()`/`keys()` | 6.7 | 7/11 | 5.5 | ✅ exported by envelope (§3.6) — scalar fn form not built (redundant) |
 | `OPTIONAL MATCH` | 6.5 | 6/11 | 3.1 | ✅ shipped (D1, narrow v0) |
 | string functions | 6.0 | 5/11 | 2.7 | ❌ not built (H2) |
 | **`shortestPath`** | 5.8 | 5/11 | 2.5 | ❌ not in grammar (E3) |
@@ -198,6 +201,30 @@ paths; it's wishlist E2 and rides with E1. So the 28.5% overstates the *fully-sh
    (var-length / shortestPath) — precisely the three the wishlist already flags as its heaviest,
    highest-value items (F1 ★, C2, E1).
 
+6. **`labels()` / `type()` / `keys()` (6.7%) is not a gap — the typed envelope already exports it.**
+   This corrects an earlier "❌ not built" classification that measured the wrong thing (the scalar
+   *function* form) instead of the capability. Cypher needs these three functions because its nodes
+   are untyped, schema-optional property bags — you must *ask* an instance "what are you / what do you
+   have?" at query time. TAP is typed-by-construction, so the values are already first-class in every
+   grift envelope element:
+   - **`type(e)`** → `edge_type`, a top-level spine field on every edge (`subgraph.py:253`).
+   - **`labels(n)`** (the *typing* sense) → `entity_type`, a top-level spine field on every node
+     (`Entity.SPINE_FIELD_NAMES`).
+   - **`labels(n)`** (the *tag / categorization* sense) → **`dimensions`**, also a top-level spine
+     field on every node. Cypher *overloads* one `:Label` for both type and tag; TAP cleanly **splits**
+     them into `entity_type` + `dimensions` — a Ledger-A credit, not a gap.
+   - **`keys(n)`** → the `data` lane is an object *keyed by field name*, so the property-key list is
+     the shape of the returned data; the authoritative key set is the declared type schema (the
+     `entity_types` endpoint / registry), which is stronger than per-instance introspection.
+   All of the above are guarded by a spine drift test (`test_entity_spine.py`). A scalar `labels()`/
+   `type()`/`keys()` usable *inside a WHERE/expression* is unbuilt but largely redundant — filtering by
+   type is `MATCH (:type)` / dimension scoping, and the values are already in the output.
+   **This is the same pattern as §7.4.1 (export) and §7.4.3 (schema): a Cypher function that exists to
+   compensate for untyped schema-optional graphs, dissolved by TAP's typed, declared, first-class-in-
+   envelope structure.** Three instances is a theme worth stating plainly — *a meaningful slice of
+   "Cypher features Gryphon lacks" are features Gryphon doesn't need because the data model already
+   answers them structurally.* Watch for this when reading any Gryphon-vs-Cypher gap as debt.
+
 ## 4. The apoc/GDS skew (why two views)
 
 The two library corpora carry disproportionate raw volume and distort per-query rates:
@@ -223,15 +250,46 @@ wishlist and all three external studies. What it changes:
   behind F1/C2 — mid-pack, not headline.)
 - **Keep `CALL` omitted** as an app-demand call, and route the genuine algorithmic slice to the
   analytics backend, not to a general `CALL`. Finding §3.3 + `doc-gryphon-networkx-opportunity.md`.
-- **Weight E1 (var-length) up *for TAP's domain specifically*** even though it's mid-rank generally —
-  TAP's asset-graph neighborhood is var-length-heavy. Finding §3.4. This is the demand signal Bucket
-  E was waiting on; it is now visible in the adjacent corpora, though not yet from a TAP customer.
+- **Reachability demand is affirmed, but the mechanism is named paths, not var-length E1.** TAP's
+  asset-graph neighborhood is reachability-heavy (§3.4), but the planned implementation replaces
+  reachability-by-traversal with **named-path membership** — see §5.1. So the earlier "weight E1 up"
+  call is superseded: var-length `-[*n..m]-` stays parse-but-reject; the demand is met structurally.
 - **The commandments (`doc-gryphon-commandments.md`) need no change from this** — the doctrine is
   about *how* features ship (fail-closed, apply-or-reject, source-checked, oracle-pinned), not
   *which*. This doc feeds the wishlist's ordering, not the commandments' rules. Its one relevant
   reinforcement: features that "parse but reject" (var-length, path-var) are the fail-closed credit
   in action (GRY-ARCH-3) — the corpus shows they're *demanded*, which is what makes fail-closed
   (vs. silent-wrong) the right posture until they're built.
+
+### 5.1 Reachability will be served by named paths, not variable-length traversal (planned, per George)
+
+The demand this study surfaces for Bucket E (attack-path / blast-radius reachability, §3.4) is real,
+but the **planned implementation replaces reachability-by-traversal with reachability-by-declared-path
+membership** — a deliberately cheaper route that sidesteps E1's recursive-CTE, the heaviest wishlist
+item. **Named paths become first-class declared structure**, and "what is reachable" collapses into
+"select the elements on named path *P*" — an indexed membership filter, not a query-time graph walk.
+Three implementations, in order (the first two targeted near-term):
+
+1. **Module / model-defined paths** — a module declares its trajectory along a named path at the model
+   level; path membership can also be carried *through an edge* (an edge type asserts the path).
+2. **User-defined paths** — users mark, in a node/edge *field*, that the element exists along a named
+   path (instance-level annotation).
+3. **Dynamic grid-level path types** — path types definable dynamically on the grid at runtime.
+
+Path *types* are thus definable both at the model level (static, by modules) and dynamically on the
+grid (by users). **This is the same architectural move as §3.6 / §7.4.1 / §7.4.3 — replace a
+query-time computation with declared, first-class structure** (the *fourth* instance of the pattern).
+Cypher/APOC users hand-roll reachability per query — `apoc.path.expandConfig` with `sequence` /
+`relationshipFilter` strings is *literally an inline trajectory definition, re-specified every call*
+(§7.3). TAP declares the trajectory once as a named path and filters by membership; the APOC `sequence`
+config is the query-time shadow of what TAP makes a first-class type.
+
+**Consequences for this study:** var-length `-[*n..m]-` stays parse-but-reject (fail-closed) and is
+*not* on the near-term path; the reachability demand it represents is met by the named-path primitive
+instead. `shortestPath` (true least-cost / centrality) is a separate concern and still routes to the
+analytics backend (`doc-gryphon-networkx-opportunity.md`), not to named paths. Design input still
+transfers: APOC's `expandConfig` knobs (edge-type / label / depth / node allow-deny, §7.3) are the
+vocabulary a named-path *definition* will want to express.
 
 ## 6. Doc-drift caught while verifying supply-side status (fixed 2026-07-06)
 
@@ -398,7 +456,10 @@ merge / triggers), Django Tasks (batched background work), and ingestion plugins
 genuinely-additive residuals are all *thin and demand-gated*: format adapters (CSV/GraphML) over the
 existing envelope, live schema stats/profiling, and query timeboxing. Read the whole exercise as
 **external validation that TAP's architecture is aimed right**, not as a backlog of large platform
-gaps — with reachability (Bucket E) the one place a real *query-language* feature is still owed.
+gaps. Even reachability (Bucket E) — the one place that looked like a genuinely-owed *query-language*
+feature — is planned to be answered structurally too, by **named paths** rather than variable-length
+traversal (§5.1): the same "declared structure over query-time computation" move, applied a fourth
+time. The genuinely-owed language features shrink to composition (`WITH`) and aggregation (`COLLECT`).
 
 ## Pointers
 
