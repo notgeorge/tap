@@ -5,6 +5,7 @@ covers:
   - ../tap_grid/specs/spec-grid-traversal-execution.md
   - ../tap_grid/specs/spec-grid-gryphon-multihop-aggregation.md
   - ../plugins/gryphon_playground/specs/spec-gridkin-v0.md
+  - ../plugins/gryphon_playground/specs/spec-gryphon-playground-v0.md
 update-triggers:
   - A commandment is added, retired, or materially reworded (bump its ID's Reason/Enforcement)
   - A "forthcoming" commandment's trigger capability ships (promote it to an active commandment and record the promotion)
@@ -30,6 +31,10 @@ provides: |
 > Drafted 2026-07-05 against the **current** state of the system, *before* the research-pass
 > hardening recommendations are implemented. Recommendations that are not yet true of the system
 > live in [§Forthcoming](#forthcoming-commandments), not among the active commandments.
+> Merged 2026-07-06 with the parallel Codex draft (bake-off): absorbed its variable-scope rule
+> (→ GRY-SEM-6), canonical-result-shape rule (→ GRY-ARCH-11), the pre-flight Agent Checklist, a
+> Baseline-facts grounding block, and the k8s-API-conventions prior-art. `doc-gryphon-commandments-codex.md`
+> is retired to a tombstone.
 
 ## How to read this
 
@@ -55,6 +60,24 @@ provides: |
   ladder), `doc-gryphon-comparative-findings.md` (ten-peer study), `doc-dev-gryphon-vs-cypher.md`
   (the Cypher ledgers), the traversal specs, and agent-memory feedback. Prior-art lineage for the
   *format* is credited in [§Prior art](#prior-art--lineage).
+
+---
+
+## Baseline facts (the current state this doctrine is anchored to)
+
+Not aspirations — the system as it stands (verify before relying on any specific line; GRY-PROC-2):
+
+- Gryphon is the **canonical read/query path** for TAP-managed graph data; raw ORM graph reads and
+  bespoke module runners are break-glass, not the normal answer to a missing construct.
+- Gryphon is **read-only**; all mutation is the typed service layer's / GRIFT's (GRY-ARCH-7).
+- The executor **compiles through the Django ORM first** (lowering ladder rung 1); higher rungs are
+  deliberate escalations (GRY-ARCH-2).
+- **Gridkin** is the committed validation format (fixture + query + expected envelope + expected SQL
+  snapshot + requirement coverage + TCK breadcrumb); the **model oracle** and **fuzz/TLP** catch
+  wrong answers the hand-picked scenarios miss.
+- **SQL snapshots are evidence about the emitted plan, not the correctness oracle** (GRY-TEST-1/6).
+- Variable-length `-[*n..m]->` **parses but the executor rejects it** (fail-closed); the planned
+  reachability mechanism is grid-native **named paths**, not recursive traversal (GRY-F-3).
 
 ---
 
@@ -157,6 +180,19 @@ Reason: a rung-4 hand-written CTE that forgets dimension scoping leaks across pa
 invariant the ORM enforces for free must be re-earned by hand when you leave it.
 Enforcement: `req-grid-traversal-exec-lowering` invariant 3; review-time for higher rungs.
 
+**GRY-ARCH-11 · Canonical result shapes only; no caller-specific views in the executor.**
+> Every result **MUST** package through TAP's canonical shapes — the grift graph envelope
+> (`{nodes, edges}` + spine / `data` / `display` lanes) or the row-projection shape. The executor
+> **MUST NOT** grow caller-specific result shapes. A consumer that needs a different view builds it
+> *outside* Gryphon, or a general envelope extension is specified first.
+
+Reason: the envelope is TAP's single structured get-data-out surface — it is *why* APOC-style export
+is a near-non-gap for TAP (`doc-gryphon-feature-demand.md` §7.4.1). Letting the executor sprout
+bespoke shapes fragments that surface, blinds the capture/oracle discipline (which asserts against the
+canonical envelope), and re-creates the per-caller drift the envelope exists to prevent.
+Enforcement: `spec-grift-envelope.md`; the subgraph serializer (`tap_grid/grift/subgraph.py`); Gridkin
+envelope assertions; review-time. *(Merged from Codex GRY-CMD-19.)*
+
 ---
 
 ## II. Semantics & Correctness — `GRY-SEM`
@@ -210,6 +246,20 @@ Enforcement: Gridkin rejection scenarios (`req-gridkin-rejection-scenario`); rev
 Reason: "whatever the ORM produced" is not a semantics; the LIMIT-without-ORDER-BY skip is the one
 place we accept executor-arbitrary order, and it is *documented* as such. Everything else is pinned.
 Enforcement: `spec-grid-traversal-language.md` ("Single-Hop Execution Semantics"); Gridkin scenarios.
+
+**GRY-SEM-6 · Variable scope is local, explicit, and read from the AST.**
+> A variable is in scope only where the language says it is. Cross-clause visibility (multi-`MATCH`,
+> `OPTIONAL MATCH`, `NOT EXISTS`, future `WITH`, future paths) **MUST** be represented explicitly in
+> the AST and pinned by tests. The executor **MUST NOT** patch scope by opportunistically resolving a
+> name against whatever bindings happen to sit in executor state.
+
+Reason: opportunistic name lookup is how a predicate silently binds to the wrong variable (or to
+none) — the far-node-binding failure is the same silent-wrong-answer class as the envelope-WHERE
+defect, but in the *binding* dimension. Scope declared in the AST is checkable; scope reconstructed at
+lowering time is a guess, and a guess in a load-bearing read path is a latent lie.
+Enforcement: per-clause binding resolution in `executor.py`; Gridkin multi-clause scenarios; the model
+oracle (divergence when a predicate binds to the wrong variable); review-time. *(Merged from Codex
+GRY-CMD-11.)*
 
 ---
 
@@ -497,12 +547,19 @@ Trigger: OPP-01 implemented. Promotes GRY-ARCH-3 from "partial (single-hop)" to 
 Trigger: the cyclic-inflation probe confirms a live class **and** OPP-03 lands. (If the probe is
 clean, this is preventive and bundles with E1.)
 
-**GRY-F-3 · Variable-length lowers in-plan, oracle-first.**
-> *Once E1 (variable-length paths, `*n..m`) is built:* it **MUST** lower *inside* the relational
-> plan (rung-4 `WITH RECURSIVE`); an out-of-plan traversal service with its own cache is
-> **forbidden**. The model oracle **MUST** model bounded repetition *before* the lowering ships.
-Trigger: E1 implemented. (Today `*1..3` correctly *parses-then-rejects*; that fail-closed rejection
-is a credit to protect, not a gap to rush — see GRY-TEST-5, `executor.py:412,1652`.)
+**GRY-F-3 · Reachability is served by named paths; if var-length is ever built, it lowers in-plan, oracle-first.**
+> *The planned reachability mechanism is grid-native **named paths** (a declared trajectory + a
+> membership filter), not variable-length traversal* — see `grid-native-paths-notes.md` and
+> `doc-gryphon-feature-demand.md` §5.1. When named paths land, "reachable" **MUST** lower to a
+> membership/selection over declared path structure, and a path *definition* **MUST** be modeled in
+> the oracle before the selection lowers. *If* variable-length `*n..m` is ever built as a separate
+> feature, it **MUST** lower *inside* the relational plan (rung-4 `WITH RECURSIVE`) — an out-of-plan
+> traversal service with its own cache is **forbidden** — and the oracle **MUST** model bounded
+> repetition first.
+Trigger: named paths implemented (near-term), and/or E1 variable-length implemented (which may never
+happen — the named-path route may subsume the demand entirely). Today `*1..3` correctly
+*parses-then-rejects*; that fail-closed rejection is a credit to protect, not a gap to rush
+(`executor.py:412,1652`, GRY-TEST-5).
 
 **GRY-F-4 · If an IR is built, invariants at construction; one layer.**
 > *Once a logical-plan IR is introduced (OPP-14, on the E1/`WITH` trigger):* there **MUST** be
@@ -541,6 +598,28 @@ Trigger: OPP-11 implemented.
 
 ---
 
+## Agent pre-flight checklist
+
+Before changing Gryphon (language, parser, AST, executor, capture, Gridkin runner, oracle, fuzz
+harness, or a Gryphon-facing spec), an agent **SHOULD** be able to answer these. If it cannot, pause
+and gather context before editing.
+
+1. **Which commandment IDs** does this work touch? (Cite them in the design note / PR.)
+2. **What demand-shape or bug** justifies the change? (GRY-LANG-1 / GRY-LANG-5 — not parity envy.)
+3. **Which spec requirement** owns the behavior? (The spec is authoritative; this doc is doctrine.)
+4. **What parsed facts are newly accepted**, and where is each one *applied or rejected*? (GRY-ARCH-3
+   — no accepted-but-unused input.)
+5. **Which lowering rung** is used, and why is the lower rung insufficient? (GRY-ARCH-2.)
+6. **What independent check** proves the answer — model oracle, Gridkin scenario, fuzz replay, TLP
+   relation, coverage gate, or rejection scenario? (GRY-TEST-1/2 — not an SQL-text proxy.)
+7. **What prior art** was consulted, and what was deliberately *not* copied? (GRY-PROC-1 / GRY-PROC-7.)
+8. **What ledger/known-issue/forthcoming entry** should move because of this change? (GRY-LANG-2,
+   GRY-TEST-7, the Forthcoming triggers.)
+
+*(Merged from the Codex draft's Agent Checklist.)*
+
+---
+
 ## Prior art & lineage
 
 This doc deliberately borrows its *form* from established engineering-doctrine genres, per GRY-PROC-1:
@@ -559,6 +638,10 @@ This doc deliberately borrows its *form* from established engineering-doctrine g
   by golden files (GRY-TEST-1/2/6/8).
 - **Rust API Guidelines** — the checklist-with-stable-IDs format that makes a guideline citable in
   review.
+- **Kubernetes API conventions** — the discipline that extension authors need durable conventions,
+  common object semantics, *explicit schemas*, and deliberate treatment of unknown / absent state.
+  Directly informs GRY-SEM-3 (observation and absence as *declared*, not incidental) and GRY-ARCH-11
+  (canonical result shapes). *(Prior-art surfaced by the Codex draft.)*
 - **TAP's own standing-filter pattern** (`CLAUDE.md`, `spec-security-posture.md`,
   `spec-ai-integration.md`) — the local precedent for a short doctrine that is *consulted before
   work*, which this doc extends to Gryphon specifically.
