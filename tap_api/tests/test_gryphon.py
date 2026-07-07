@@ -14,7 +14,10 @@ import json
 import pytest
 
 _EXECUTE_URL = "/api/v1/gryphon/execute"
-_QUERY = {"query": "MATCH (n:lotr__character) RETURN n", "inputs": {}, "layer": "lite"}
+# Neutral grid_fixtures label (present in every profile that runs the core suite) — the
+# read-gate proofs care about auth outcomes, not the data, so any valid label serves and
+# no domain plugin is required. Empty result still returns the canonical nodes/edges envelope.
+_QUERY = {"query": "MATCH (n:grid_fixtures__node) RETURN n", "inputs": {}, "layer": "lite"}
 
 
 @pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
