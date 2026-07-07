@@ -9,7 +9,7 @@ argument-hint: <feature-name>
 
 > **Consult the commandments first.** [`docs/doc-gryphon-commandments.md`](../../../docs/doc-gryphon-commandments.md) is the standing doctrine for Gryphon work — read the relevant MUST/SHOULD commandments (esp. §I Execution, §II Semantics, §IV Testing) before you extend the grammar/executor, and check the Forthcoming section in case your feature is a trigger that promotes a forthcoming commandment. GRY-PROC-6 ("a capability ships as one full cycle") *is* this skill. This skill cites commandment IDs at the steps they govern; it does not restate them — the commandments are the law, this is the procedure.
 >
-> **Run the Agent pre-flight checklist** (commandments § *Agent pre-flight checklist*) before scoping — the 8 questions it asks (which commandment IDs, what demand-shape, which spec owns it, what parsed facts are applied-or-rejected, which rung, what independent oracle, what prior art, which ledger moves) are the entry gate to this skill. The exit gate is the [Merge-readiness gate](#merge-readiness-gate-definition-of-done) below.
+> **Three gates bracket the work.** (1) The **entry gate** — the Agent pre-flight checklist (commandments § *Agent pre-flight checklist*): the 8 questions it asks (which commandment IDs, what demand-shape, which spec owns it, what parsed facts are applied-or-rejected, which rung, what independent oracle, what prior art, which ledger moves) — run it before scoping. (2) The **[Plan Review & Approval Gate](#plan-review--approval-gate)** — after the spec (Step 2), present the plan and get the user's explicit sign-off *before any code*. (3) The **exit gate** — the [Merge-readiness gate](#merge-readiness-gate-definition-of-done) before commit. Steps are numbered sequence; gates are hard stops.
 
 You are extending Gryphon — TAP's canonical graph query language and the read path
 that all graph-shaped queries route through. A Gryphon capability touches four
@@ -216,6 +216,47 @@ The capability-docs gap report (`spec-sphinx-capability-docs.md`,
 `req-sphinx-docs-gap-tracking`) is the clean way to surface these: a block whose
 `:status:` / `:limitations:` disagree with its `:implements:` requirement is
 exactly this case.
+
+## Plan Review & Approval Gate
+
+**STOP — a hard control, not a courtesy.** After the spec requirement is written (Step 2) and
+**before any grammar / AST / parser / executor code** (Step 3+), present *both* the **spec** and an
+**implementation plan** to the user and obtain **explicit, deliberate approval of each**. Gryphon is
+the load-bearing read path; a feature landing wrong is expensive, so this review is required and
+un-waivable-by-default.
+
+**What "approval" means here — and what it does not.** Approval is a specific, affirmative sign-off on
+the spec *and* the plan ("the spec looks right and the plan is approved — proceed"). It is **not**:
+
+- silence, or moving on to another topic;
+- a blanket, up-front "just build it / knock it out" issued *before* the spec and plan exist;
+- a vague "go ahead" that does not indicate the spec and plan were actually read.
+
+If all you have is a casual or pre-emptive "go," **do not treat the gate as cleared.** Say so plainly:
+present the spec and the plan, note that this is a deliberate review control, and ask the user to
+review and give an explicit sign-off on both. Hold this line even if asked to hurry — the friction is
+the feature. (The user retains final authority: an *explicit, informed* "I've read the spec and plan,
+approved" clears the gate. An assumed or hand-waved one does not.)
+
+**Present these two artifacts:**
+
+1. **The spec requirement** (the Step 2 output) — the RID, its owning spec, and the Acceptance-Criteria
+   (ACID) table, including every rejection ACID. Link it so the user can read it in place.
+2. **The implementation plan, in your own words** (not a paste of the spec) — three parts:
+   - **What it is, and what it is not.** Plain-language: what the feature will do, and an explicit
+     statement of what it will **not** do — every rejected/deferred shape from the Step 1 in/out
+     boundary named (e.g. DISTINCT: "`RETURN DISTINCT` over field projections; **not** `count(DISTINCT …)`,
+     **not** envelope-mode DISTINCT"). A reader who never opens the spec should understand the scope.
+   - **How it will be built.** The code approach in brief: the grammar rule, the AST node(s), which
+     executor dispatch path and **lowering rung**, and the concrete touch-points (lean on the
+     [Quick-recipes matrix](#quick-recipes--low-effort-shapes)).
+   - **How it will be tested.** The validation plan mapped to the
+     [Merge-readiness gate](#merge-readiness-gate-definition-of-done): which Gridkin scenarios (and
+     their hand-authored oracle), the rejection tests (one per rejected shape), the path-coverage /
+     no-`WHERE` test if it scans, the TCK folder to mine, and whether the fuzzer/TLP applies (row 10).
+
+Revise and re-present on any feedback until the user explicitly approves **both** the spec and the
+plan. Only then proceed to Step 3.
 
 ## Step 3: Grammar (`tap_grid/gryphon/grammar.lark`)
 
