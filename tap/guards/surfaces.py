@@ -75,6 +75,16 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
         enforced_by="backlog — no fork/queue/lifecycle harness yet",
     ),
     DeclaredSurface(
+        surface="All-plugins CI lane",
+        rid="req-dev-validation-all-plugins-lane",
+        cadence="Pre-push (promote-triggered) + CI",
+        status="Gate-guarded *(target)* — Named, deferred until proven in a real Actions run",
+        enforced_by=(
+            "`.github/workflows/all-plugins.yml` (boots the `test_all` union, runs the full lane); "
+            "`promote-to-main.sh` blocks on it (option B)"
+        ),
+    ),
+    DeclaredSurface(
         surface="Assembled-instance health",
         rid="req-tap-health-exposure-4",
         cadence="Per-commit (`pytest`) + per-spawn (`manage.py health` gate)",
@@ -86,7 +96,7 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
         rid="req-gridkin-stage-coverage",
         cadence="Per-commit (`pytest`)",
         status="CI-guarded",
-        enforced_by="`plugins/gryphon_playground/tests/test_gridkin_internals.py::TestStageCoverage`",
+        enforced_by="`plugins/gryphon_playground/tap_plugin/gryphon_playground/tests/test_gridkin_internals.py::TestStageCoverage`",
     ),
     DeclaredSurface(
         surface="Gryphon executor branch coverage (ratchet comparison)",
@@ -100,14 +110,14 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
         rid="req-gridkin-metamorphic-tlp",
         cadence="Per-commit (`pytest`)",
         status="CI-guarded",
-        enforced_by="`plugins/gryphon_playground/tests/test_gryphon_metamorphic.py`",
+        enforced_by="`plugins/gryphon_playground/tap_plugin/gryphon_playground/tests/test_gryphon_metamorphic.py`",
     ),
     DeclaredSurface(
         surface="Gryphon differential property fuzzer",
         rid="req-gridkin-property-fuzz",
         cadence="Per-commit (`pytest`, committed 12×15; env-tunable soak)",
         status="CI-guarded",
-        enforced_by="`plugins/gryphon_playground/tests/test_gryphon_fuzz.py`",
+        enforced_by="`plugins/gryphon_playground/tap_plugin/gryphon_playground/tests/test_gryphon_fuzz.py`",
     ),
     DeclaredSurface(
         surface="Gryphon fuzz-campaign ledger",
@@ -121,7 +131,7 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
         rid="req-gridkin-findings-ledger",
         cadence="Fix-time append + on-demand report",
         status="Split — CI-guarded for well-formedness/vocabulary; Manual for the hotspot analysis",
-        enforced_by="`plugins/gryphon_playground/tests/test_gryphon_findings_ledger.py`; ledger `gridkin/gryphon-findings.jsonl`",
+        enforced_by="`plugins/gryphon_playground/tap_plugin/gryphon_playground/tests/test_gryphon_findings_ledger.py`; ledger `gridkin/gryphon-findings.jsonl`",
     ),
     DeclaredSurface(
         surface="Cold-boot system cycle",

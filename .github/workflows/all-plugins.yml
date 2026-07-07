@@ -1,0 +1,91 @@
+# All-plugins validation lane — DRAFT (v1).
+#
+# The blocking authority for the FULL plugin set that a focused local stack can no
+# longer run once plugins leave the monorepo. Reciprocal of the local promote gate:
+# local validates what's installed in this stack; this lane owns all-plugins truth.
+# (spec-dev-validation.md — Map row + req pending, task #6.)
+#
+# STAGING
+#   v1 (this file): boots the `test_all` union from the MONOREPO checkout — every
+#     plugin source is still retained in-tree — and runs the full pytest lane in a
+#     real compose stack. Proves the CI infra + all-plugins coverage NOW, before any
+#     re-release, so we can delete the monorepo copies only once this is green.
+#   v2 (after re-release / expulsion, task #7): switch plugin sources to git-installed
+#     test-carrying wheels (github-plugins-ro credential) so the lane still covers
+#     plugins that have left the monorepo. That is the git-sourced test_all record.
+#
+# OPEN / DISCUSSION-DEPENDENT (two-mains plugin-testing model — do not harden until settled):
+#   - How this core lane composes with each plugin REPO's own CI (reverse-dependency
+#     gating vs. plugin-side compat matrix vs. contract testing). See the model decision.
+#   - How promote-to-main triggers + blocks on this run (option B: workflow_dispatch +
+#     poll, task #5) vs. a PR required-status-check.
+#
+# NOT YET VALIDATED: GitHub Actions can't be exercised from the dev loop — the gate
+#   adaptations below (cold-boot / lean-boot spawn extra stacks) need a real runner
+#   pass. This file is the reviewed shape, not a proven pipeline.
+
+name: all-plugins
+
+on:
+  workflow_dispatch: {}         # promote-to-main triggers + polls this (option B, task #5)
+  pull_request:
+    branches: [main]            # future PR-gated path; harmless until branch protection is on
+
+concurrency:
+  group: all-plugins-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  all-plugins:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # `test_all` fires no collectors and the secret loader tolerates an
+      # absent/empty secrets root (only required_for_boot=true secrets block), so an
+      # empty dir is enough to boot. Real secret VALUES are a run-time concern this
+      # lane never exercises. Replace the host symlink (tap_secrets -> ~/tap-secrets)
+      # with an empty dir the compose bind-mount can use.
+      - name: Provide empty secrets root
+        run: |
+          rm -f tap_secrets
+          mkdir -p tap_secrets
+
+      - name: Build web image
+        run: docker compose --env-file .env build web
+
+      # Entrypoint chain: uv sync --all-packages -> pre-boot (installs the test_all
+      # plugin union, emits TAP_PLUGINS) -> migrate -> server. All plugin sources are
+      # in-tree (editable) in v1, so this installs the whole union from the checkout.
+      - name: Boot the test_all union
+        env:
+          TAP_BOOT_PROFILE: test_all
+        run: |
+          docker compose --env-file .env up -d
+          # Wait for the web service to report healthy (bounded).
+          for i in $(seq 1 60); do
+            state=$(docker compose --env-file .env ps web --format '{{.Health}}' 2>/dev/null || true)
+            echo "web health: ${state:-<none>} ($i)"
+            [ "$state" = "healthy" ] && break
+            # Fast-fail on the reserved ABORT sentinel the entrypoint emits.
+            if docker compose --env-file .env logs web 2>/dev/null | grep -q 'TAP-ABORT:'; then
+              echo "::error::boot aborted (TAP-ABORT)"; docker compose --env-file .env logs web; exit 1
+            fi
+            sleep 5
+          done
+
+      # The full lane INCLUDING the gryphon corpus (no --ignore) — the all-plugins
+      # authority. Uses the container's installed union; pytest collects every
+      # installed plugin's in-package tests (tap.plugin_testing) plus the core walk.
+      - name: Full test lane (all plugins)
+        run: docker compose --env-file .env exec -T web sh -c 'cd /app && uv run pytest -n auto'
+
+      # TODO(first-runner-pass): the cold-boot + lean-boot gates spawn their own
+      # scratch DB / isolated stack; wire scripts/gate + scripts/gate-lean here once
+      # a real Actions run confirms compose-in-compose / DIND behaviour. Until then
+      # the full lane is the all-plugins guarantee; the gates still run pre-push locally.
+
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose --env-file .env logs web | tail -200
