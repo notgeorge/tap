@@ -22,6 +22,10 @@ IN-list, and OPTIONAL MATCH features. Follow it in order. Each feature is **one
 commit** — the full cycle (spec + grammar + AST + parser + executor + scenarios +
 tests) lands together, never as a follow-up.
 
+**Two modes.** The main path (Steps 1–10) builds a **new capability**. If instead a **wrong answer,
+silent drop, or crash was found in an existing feature**, use [Bug-fix mode](#bug-fix-mode--a-gryphon-wrong-answer-was-found)
+first (`GRY-TEST-7` — a Gryphon wrong-answer is never normalized).
+
 ## Authoritative Sources (read these first; do not guess from memory)
 
 - **[`docs/misc/doc-dev-gryphon-wishlist.md`](../../../docs/misc/doc-dev-gryphon-wishlist.md)** —
@@ -42,7 +46,32 @@ tests) lands together, never as a follow-up.
 
 If a spec contradicts the code, flag it to the user — do not silently work around it.
 
+## Quick recipes — low-effort shapes
+
+Most capabilities are 🟢 Low / 🟡 Medium and follow one of a handful of shapes. This matrix is the
+fast path — the touch-points for the common small features — so you don't re-read the whole epic for
+a one-operator add. Every recipe still runs Steps 1–10 and faces the merge gate; this just tells you
+*where the edits land*.
+
+| Shape | Grammar | AST | Executor | Watch-out |
+| --- | --- | --- | --- | --- |
+| New comparison **operator** (`field op value`) | extend the op terminal | extend `Comparison.op` `Literal` (no new leaf) | op→lookup entry in `_comparison_to_q` | lightest case — **no walker audit** (Step 4) |
+| Simple **clause** (`SKIP`, `DISTINCT`) | new `_KW` terminal in the `clause`/`return` rule | field on `GryphonAST` / return clause | apply in the row-projection path (`qs[n:]`, `.distinct()`) | reject a duplicate at parse time (`GRY-LANG-4`) |
+| **Scalar function** (`coalesce`, `size`, `toLower`) | a `function_call` rule | a `FunctionCall` node | map to the Django `Func` in projection/predicate | one fn at a time, on demand (H2) |
+| **Simple aggregate** (`SUM`/`MIN`/`MAX`/`AVG`) | extend `aggregate_call` | reuse `AggregateReturnItem` | add to the `_compute_rows` annotation map (parallel to `COUNT`) | alias mandatory; groups implicitly |
+| **Positive `EXISTS { }`** | mirror the `NOT EXISTS` rule | mirror the node | sign-flip `~Exists()` → `Exists()` on the anti-join path | reuses existing correlated-subquery machinery |
+| **New `Predicate` leaf** (different shape, e.g. `IN`-list) | new rule | new dataclass in the `Predicate` union | **audit every walker** — `_flatten_conjunction`, `_apply_comparison`, `_apply_typescan_predicate`, `_filter_predicate_for_bindings`, `_collect_params_from_predicate` | the heavy case — a missed walker silently drops the leaf |
+
 ## Step 1: Orient and Scope
+
+> **⚠️ Reachability is NOT this skill's work.** Variable-length paths (`-[*n..m]-`) and
+> `shortestPath` are 🔴 Very-High and do **not** run through this capability skill. Reachability is
+> planned via grid-native **named paths** — their own spec/design track
+> ([`grid-native-paths-notes.md`](../../../docs/misc/grid-native-paths-notes.md)); `shortestPath` /
+> centrality belong to the analytics-backend track
+> ([`doc-gryphon-networkx-opportunity.md`](../../../docs/misc/doc-gryphon-networkx-opportunity.md)).
+> If the request is reachability-shaped, **stop and route it to the right track**. Today `*n..m`
+> correctly parses-then-rejects — keep it that way; do not "just add" a recursive CTE here.
 
 0. **Confirm it's a build, not a non-need (structural-credit check).** Before scoping,
    check whether TAP's *typed data model already answers the request* — a recurring
@@ -54,19 +83,30 @@ If a spec contradicts the code, flag it to the user — do not silently work aro
    (Ledger A credits) and [`doc-gryphon-feature-demand.md`](../../../docs/misc/doc-gryphon-feature-demand.md)
    (§3.6, §7). If the model already answers it, the "feature" is documentation of an
    existing credit, not a build — stop here.
-1. Find your feature's bucket in the wishlist. Read its *What / Why / What pulls
-   it in / Status flag*. Note its **Difficulty** rating in `doc-gryphon-feature-demand.md`
-   §2 — a 🔴 Very-High feature (recursion, a new backend, an IR, writes) is not a
-   single-cycle capability and must be re-scoped or escalated, not run through this skill as-is.
-2. **Scope v0 tight.** Implement the demand-shape and nothing wider. The wishlist
+1. **Source-check the current behavior before trusting any doc claim (`GRY-PROC-2`).** Docs drift;
+   a claim that a shape is "shipped" / "rejected" / "parses" is a *hypothesis* until confirmed
+   against the code. Check **grammar** (`grammar.lark`), **executor** (`executor.py` — does it
+   *apply* or *reject*?), **tests** (`test_gryphon.py`), and **Gridkin status** before scoping.
+   The scar: bounded `*1..3` was once documented as "shipped" but the executor
+   *parses-then-rejects* it — a source-check caught the overclaim. Verify, don't inherit.
+2. **Priority comes from feature-demand; shape comes from the wishlist.** When they conflict,
+   [`doc-gryphon-feature-demand.md`](../../../docs/misc/doc-gryphon-feature-demand.md) is the
+   **sequencing authority** — it is newer and re-sequenced (`WITH` first, `COLLECT` before the
+   numeric aggregates, `UNWIND` promoted, `CALL` omitted, reachability via named paths) — and its
+   §2 **Difficulty** rating tells you what to brace for (a 🔴 Very-High feature is not a
+   single-cycle capability; re-scope or escalate). The
+   [wishlist](../../../docs/misc/doc-dev-gryphon-wishlist.md) supplies the **implementation shape**
+   (the bucket's *What / How it touches the executor / validation contract size*). Read the
+   feature's row in feature-demand §2, then its bucket in the wishlist.
+3. **Scope v0 tight.** Implement the demand-shape and nothing wider. The wishlist
    and the existing extension specs model this: ship the shape a real dashboard
    needs, reject everything else *with a clear error*, and name each rejected
    shape as a `Future` bullet. A silently-ignored construct is a bug; a clearly
    rejected one is a contract.
-3. Decide which spec owns the requirement: language-surface predicates ->
+4. Decide which spec owns the requirement: language-surface predicates ->
    `spec-grid-traversal-language.md`; extension clauses -> the multihop-aggregation
    spec.
-4. Note the openCypher TCK feature folder you will mine in Step 7 (e.g.
+5. Note the openCypher TCK feature folder you will mine in **Step 8** (e.g.
    `tck/features/clauses/optional-match/`).
 
 State the agreed v0 scope before writing code — it becomes the spec requirement.
@@ -372,6 +412,17 @@ scripts/dc exec web uv run pytest tap_grid/tests/test_gryphon.py -q
 scripts/dc exec web uv run pytest plugins/gryphon_playground/tests/ -q
 ```
 
+**Hardening tools — run when the feature warrants (merge-gate rows 7 & 10):**
+
+```bash
+scripts/gryphon-coverage-ratchet   # executor branch/stage-coverage gate — a new dispatch branch must not drop below the floor (row 7)
+scripts/gryphon-findings           # findings ledger — check no open finding touches your path; append a row if you fix one
+scripts/gryphon-fuzz-campaign      # differential property fuzzer / TLP — REQUIRED only if the feature adds/changes predicate, null, or multiplicity semantics (row 10); a long soak is /gryphon-fuzz-soak
+```
+
+A 🟢 Low feature that adds no predicate/null surface (e.g. `SKIP`, `DISTINCT`) records "N/A — no new
+predicate/null surface" for row 10 rather than running the fuzzer; it still runs the coverage ratchet.
+
 Then flip the spec requirement Status to `Implemented`, and follow the doc-spec
 sync rules in [`specs/spec-docs.md`](../../../specs/spec-docs.md) if any doc
 references the RIDs you changed (`grep -r <RID> docs/`).
@@ -395,16 +446,39 @@ feature. Hand off a validation-ready branch; let the promote process take it.
 | 4 | Gridkin scenarios, **hand-authored** oracle | expecteds computed from the fixture by hand, verified in **assert mode before** snapshotting — never captured | `GRY-TEST-1/2/6` |
 | 5 | Model-oracle agreement | scenario passes the zero-shared-code oracle, or a **loud** `OracleUnmodeled` skip — never a silent pass | `GRY-TEST-2/4` |
 | 6 | SQL snapshot eyeballed | JOINs / predicates / GROUP BY / ORDER BY / LIMIT mean what the query means; SQL deterministic (sorted `pk__in`, tiebroken `ORDER BY`) | `GRY-TEST-1`, `GRY-ARCH-9` |
-| 7 | Path coverage, not intent | every dispatch path that reaches the feature is exercised; a scan/union gets a **no-`WHERE`/count** over-inclusion test | `GRY-TEST-3` |
+| 7 | Path coverage, not intent | every dispatch path that reaches the feature is exercised (`scripts/gryphon-coverage-ratchet`); a scan/union gets a **no-`WHERE`/count** over-inclusion test | `GRY-TEST-3` |
 | 8 | TCK corners re-authored | corner intents mined; `inspired_by` set; **nothing copied** | `GRY-PROC-7` |
 | 9 | Semantics pinned where touched | null behavior stated + pinned; data-lane type-strictness; scope read from AST; canonical envelope only | `GRY-SEM-1/2/6`, `GRY-ARCH-11` |
-| 10 | Fuzzer / TLP extended — **conditional** | required **only if** the feature adds/changes predicate, null, or multiplicity semantics; otherwise record "N/A — no new predicate/null surface" in the spec | `GRY-TEST-8` |
+| 10 | Fuzzer / TLP extended — **conditional** | required **only if** the feature adds/changes predicate, null, or multiplicity semantics (`scripts/gryphon-fuzz-campaign` / `/gryphon-fuzz-soak`); otherwise record "N/A — no new predicate/null surface" in the spec | `GRY-TEST-8` |
 | 11 | Docs synced | capability block authored/updated; RIDs grepped in `docs/` and updated; divergence/credit ledgers updated if the feature diverges from or exceeds Cypher | `GRY-PROC-4`, `GRY-LANG-2` |
 | 12 | One commit, full cycle | spec + grammar + AST + parser + executor + scenarios + tests in a single coherent commit | `GRY-PROC-6` |
 
 Green-on-all = validation-ready. A `review-time` enforcement on a row means "no automated guard yet"
 — a **machine-enforced merge gate is a named candidate**, not built ahead of demand (name the gap;
 do not imply completeness).
+
+## Bug-fix mode — a Gryphon wrong-answer was found
+
+The main path (Steps 1–10) builds a *new capability*. A **wrong answer, silent drop, or crash in an
+existing feature** takes a different path (`GRY-TEST-7` — a Gryphon wrong-answer is never normalized,
+never worked around in callers, never filed as an accepted "known limitation"):
+
+1. **Notify the user.** Surface it explicitly; do not bury it or reshape callers around it.
+2. **Reproduce first, in the validation system — before any fix.** Write a *failing* Gridkin scenario
+   (hand-authored oracle) and/or a `test_gryphon.py` case, and/or a fuzz replay that exhibits the
+   wrong answer. If you cannot reproduce it, you cannot claim to have fixed it.
+3. **Log it.** `scripts/gryphon-findings` (the findings ledger); if it is a coverage/limitation,
+   also the wishlist § Known Issues.
+4. **Fix at the source** — executor/parser, not callers. Prefer making the bug *structurally
+   impossible* (collapse a path, tighten a type, fail-closed) over a spot patch (`GRY-ARCH-4`).
+5. **Lock it.** The failing test from step 2 now passes and stays. If it was an oracle-vs-executor
+   divergence, confirm the model oracle now agrees (`GRY-TEST-2`).
+6. **Append the findings-ledger row**, and if the fix changes documented behavior, run the doc-sync
+   (`grep -r <RID> docs/`, `GRY-PROC-4`).
+
+A bug-fix still ships as **one coherent commit** and still faces the
+[Merge-readiness gate](#merge-readiness-gate-definition-of-done) — rows 4–7 especially (the failing-
+then-passing scenario, oracle agreement, eyeballed SQL, coverage).
 
 ## Common Mistakes (do not commit any of these)
 
