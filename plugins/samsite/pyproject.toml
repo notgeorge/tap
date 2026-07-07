@@ -30,6 +30,10 @@ dynamic = ["version"]
 # grift Gryphon) and it owns the schedule that fires aws_core's collector — so aws_core
 # must be INSTALLED for samsite to function, a real install dep even though samsite does
 # not import aws_core Python (hence aws_core is correctly NOT a code-import `depends_on`).
+# fedramp_20x_ksi and computing_core are the same class of install dep: samsite's
+# compliance_collector references their ENTITY TYPES by string (fedramp KSI catalog nodes
+# in decompose.py/grift; computing_core types in kev_process.py), so both must be INSTALLED
+# — declared here per the 2026-07-07 audit (fedramp stays for now, extraction later).
 # Unversioned: monorepo editable installs report the 0.0.0 hatch-vcs fallback, so a lower
 # bound would not resolve; version pinning arrives with the index-publish work (Tier-0
 # uv-resolution model, still under discussion).
@@ -38,6 +42,8 @@ dependencies = [
     "tap-plugin-sigstore-core",
     "tap-plugin-github-core",
     "tap-plugin-roscale",
+    "tap-plugin-fedramp-20x-ksi",
+    "tap-plugin-computing-core",
 ]
 
 [project.entry-points."tap.plugins"]
