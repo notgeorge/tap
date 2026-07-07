@@ -8,6 +8,7 @@ from __future__ import annotations
 import pytest
 from django.core.exceptions import ValidationError
 
+from tap.plugin_testing import requires_plugins
 from tap_grid.exceptions import SearchExecutionError
 from tap_grid.gryphon.ast_nodes import (
     AndPred,
@@ -2796,9 +2797,14 @@ class TestGryphonObservationParser:
 # ---------------------------------------------------------------------------
 
 
+@requires_plugins("computing_core")
 @pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
 class TestGryphonObservationExecutor:
-    """Executor coverage for IS KNOWN / IS UNKNOWN on a real nullable column."""
+    """Executor coverage for IS KNOWN / IS UNKNOWN on a real nullable column.
+
+    Uses computing_core's NetworkInterface as the concrete nullable-column fixture,
+    so it is install-aware: skipped when computing_core is not in this stack (the
+    all-plugins CI lane installs it and runs this fully)."""
 
     def _setup_interfaces(self):
         """Three interfaces with an observed MAC, two with NULL (unobserved) — on the

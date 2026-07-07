@@ -16,6 +16,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.management import call_command
 
+from tap.plugin_testing import requires_plugins
 from tap_auth.errors import AuthzError
 from tap_grid.caller_context import CallerContext, set_caller_context
 from tap_plugins.report import build_report, get_plugin_report
@@ -32,6 +33,7 @@ def test_build_report_validates_and_is_self_consistent() -> None:
     assert report["plugin_count"] >= 1
 
 
+@requires_plugins("gryphon_playground", "samsite")
 def test_report_includes_migrated_gryphon_playground() -> None:
     slugs = {p["slug"] for p in build_report()["plugins"]}
     # The package-mode migration target must appear (identity via its tap.plugins entry point).
@@ -39,6 +41,7 @@ def test_report_includes_migrated_gryphon_playground() -> None:
     assert "samsite" in slugs
 
 
+@requires_plugins("samsite", "github_core", "roscale", "sigstore_core")
 def test_report_dependency_edges_are_bidirectional() -> None:
     by_slug = {p["slug"]: p for p in build_report()["plugins"]}
     samsite = by_slug["samsite"]

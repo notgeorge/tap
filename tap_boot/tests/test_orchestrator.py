@@ -11,6 +11,7 @@ import logging
 import pytest
 from django.core.management.base import BaseCommand
 
+from tap.plugin_testing import requires_plugins
 from tap_auth.actors import BOOTLOADER
 from tap_auth.models import Capability
 from tap_boot.orchestrator import BootError, run_boot
@@ -52,6 +53,7 @@ def test_auth_only_standup_syncs_auth():
     assert get_user_model().objects.filter(tap_builtin_key=BOOTLOADER).exists()
 
 
+@requires_plugins("computing_core")  # seeds computing_core's GRIFT — needs it installed
 @pytest.mark.django_db
 def test_seed_population_runs_and_is_idempotent():
     from tap_grid.models import Entity
@@ -65,6 +67,7 @@ def test_seed_population_runs_and_is_idempotent():
     assert Entity.objects.count() == after_first
 
 
+@requires_plugins("computing_core")  # uses computing_core as the valid seed alongside the unknown one
 @pytest.mark.django_db
 def test_unknown_plugin_aborts_before_any_seed():
     from tap_grid.models import Entity
@@ -97,6 +100,7 @@ def test_unknown_collector_key_aborts_before_reconcile():
     assert Collector.objects.count() == before
 
 
+@requires_plugins("computing_core")  # needs computing_core installed to reach the bundle check
 @pytest.mark.django_db
 def test_unknown_bundle_name_aborts():
     # A typo'd bundle must fail loud, not become a green boot with missing data.
