@@ -142,7 +142,7 @@ If an indicator has no `controls` array at all, it's treated as `gap` (the catal
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-samsite-scoreboard-scoring-1 | Pure Functions | Implemented | The scoring module has no Django/ORM imports; it operates on plain dicts. | Testable offline |
-| req-samsite-scoreboard-scoring-2 | Per-Control Taxonomy | Implemented | Six per-control statuses per the table above. | `test_control_evaluation` in `plugins/samsite/tests/test_ksi_scoreboard.py` |
+| req-samsite-scoreboard-scoring-2 | Per-Control Taxonomy | Implemented | Six per-control statuses per the table above. | `test_control_evaluation` in `plugins/samsite/tap_plugin/samsite/tests/test_ksi_scoreboard.py` |
 | req-samsite-scoreboard-scoring-3 | Worst-Case Aggregation | Implemented | Indicator status takes the worst-case of its controls. | `test_mixed_indicator_takes_worst_case_status` |
 | req-samsite-scoreboard-scoring-4 | POA&M Precedence | Implemented | A control with both SSP `implemented` and an open POA&M item scores as `open` (POA&M wins). | `test_ac_2_in_ssp_appears_in_poam_open` |
 | req-samsite-scoreboard-scoring-5 | controls (plural) Prop | Implemented | POA&M control references read from the `controls` (plural) prop with `control` (singular) fallback for legacy docs. | Bug discovered + fixed in `plugins/roscale/panels/_common.py` same change |
@@ -328,7 +328,7 @@ The KSI scoreboard is a multi-entity panel (SSP + POA&M roles) that currently re
   }
   ```
 
-- Update tests in `plugins/samsite/tests/test_ksi_scoreboard.py` to mock the helpers at the new module path under the new names.
+- Update tests in `plugins/samsite/tap_plugin/samsite/tests/test_ksi_scoreboard.py` to mock the helpers at the new module path under the new names.
 - The required/degraded role behavior (SSP required, POA&M degraded) stays as-is — that's a scoreboard concern, not a platform concern.
 
 #### Acceptance Criteria

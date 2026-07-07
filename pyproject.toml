@@ -165,6 +165,12 @@ allow_subclassing_any = true
 # twice") and aborting the run. Excluding the source dir makes mypy resolve each
 # plugin once, via its install, under its true `tap_plugin.<slug>` identity. Each
 # plugin ships a `py.typed` marker (PEP 561) so it is analyzed, not skipped.
+# NOTE: plugin *tests* now live INSIDE this excluded tree (tap_plugin/<slug>/tests/,
+# so they ride in the wheel — see tap.plugin_testing), so mypy no longer type-checks
+# plugin test files. Accepted trade: test files carried only tolerated/baselined
+# errors and running them is the real signal; un-excluding just the tests would
+# reintroduce the "found twice" double-walk. Plugin package code is still analyzed
+# via its `tap_plugin.<slug>` install identity.
 exclude = '(^|/)plugins/[^/]+/tap_plugin/'
 
 [[tool.mypy.overrides]]

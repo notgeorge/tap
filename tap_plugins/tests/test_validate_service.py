@@ -309,7 +309,7 @@ class TestLoadsLevel:
     # The editor-classes / search-callables loads checks only fire for a plugin
     # that DECLARES editors + searches — lotr is the only such plugin, so that
     # path is covered by lotr's own manifest self-test
-    # (plugins/lotr/tests/test_lotr_manifest.py). Here we cover the model path
+    # (plugins/lotr/tap_plugin/lotr/tests/test_lotr_manifest.py). Here we cover the model path
     # with aws_core + administrivia.
 
     def test_aws_core_loads_passes(self):
@@ -346,7 +346,7 @@ class TestLoadsLevel:
 @pytest.mark.django_db
 class TestRunsLevel:
     # grift-import runs coverage against a real grift lives in lotr's manifest
-    # self-test (plugins/lotr/tests/test_lotr_manifest.py); aws_core covers the
+    # self-test (plugins/lotr/tap_plugin/lotr/tests/test_lotr_manifest.py); aws_core covers the
     # create-nodes / create-edges runs path here.
 
     def test_aws_core_runs_passes(self):

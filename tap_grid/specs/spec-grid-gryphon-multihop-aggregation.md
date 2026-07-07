@@ -1,5 +1,7 @@
 # Gryphon Multi-Hop and Aggregation Extension Specification
 
+> **Development doctrine (standing filter).** Before any change to the Gryphon language, executor, or tests, consult [`doc-gryphon-commandments.md`](../../docs/doc-gryphon-commandments.md) — the standing thou-shalt/shalt-not doctrine for all Gryphon work (RFC-2119 commandments with Reason + Enforcement, plus a Forthcoming section). Requirements here SHOULD stay consistent with it; it cites requirements here as its Enforcement anchors.
+
 ## Philosophy
 
 Gryphon v1 is deliberately small: single-hop `MATCH` patterns, predicate `WHERE` clauses, projection-only `RETURN`. That floor fit the first wave of TAP searches — type scans, hub-and-spoke traversals, simple predicate filters — and left obvious escape valves (module-based Python runners) for anything more ambitious.
@@ -9,6 +11,12 @@ This spec extends gryphon along three axes to unlock a class of queries that are
 The choice to extend the language, rather than push the query into a custom Python runner, is deliberate. Each custom runner is a chunk of code that bypasses the gryphon compilation pipeline and its validation, read-only guarantees, and backend-agnosticism. Runners are the right tool when semantics exceed what a declarative query can express; they are the wrong tool when the semantics *can* be declared and we're just missing language surface. This extension keeps semantics declarative wherever the query shape allows it.
 
 The extension is scoped tight on purpose. `COUNT` is the only aggregate; `SUM`/`AVG`/`MIN`/`MAX` are not in scope. `NOT EXISTS` covers anti-joins but `EXISTS`, `OPTIONAL MATCH`, and `UNION` do not. Variable-length traversal (`-[*1..3]->`) remains rejected by the executor even though the grammar parses it. Each deferred item has a clear upgrade path when a real use case arrives.
+
+**Gryphon commandment guidance.** Multi-hop, anti-join, aggregation, optional-match, and future
+recursive-path work must read and apply
+[`doc-gryphon-commandments.md`](../../docs/doc-gryphon-commandments.md). This spec
+owns the concrete feature requirements; the commandments supply the durable development discipline
+for avoiding silent drops, join drift, unsupported-shape approximation, and oracle/test gaps.
 
 ## Goals
 

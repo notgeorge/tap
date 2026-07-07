@@ -251,7 +251,7 @@ def _run_structure_checks(plugin_root: Path, result: ValidationResult) -> Any:
         _check_edge_files(manifest, result)
         _check_grift_paths(manifest, result)
         _check_undeclared_files(manifest, result)
-        _check_tests_dir(plugin_root, result)
+        _check_tests_dir(package_root, result)
         _check_identity_coherence(plugin_root, package_root, manifest, result)
         _check_declared_dependencies(package_root, manifest, result)
     return manifest
@@ -402,11 +402,12 @@ def _check_undeclared_files(manifest: Any, result: ValidationResult) -> None:
     result.checks.append(check)
 
 
-def _check_tests_dir(plugin_root: Path, result: ValidationResult) -> None:
+def _check_tests_dir(package_root: Path, result: ValidationResult) -> None:
     check = CheckResult(id="tests-dir", name="Tests directory exists")
-    # tests/ lives at the plugin root in both layouts (in package-mode it sits
-    # OUTSIDE the tap_plugin/<slug>/ package so it is not shipped in the wheel).
-    tests_dir = plugin_root / "tests"
+    # tests/ lives INSIDE the namespace package (tap_plugin/<slug>/tests/) so it
+    # ships in the built wheel and travels with the plugin — the all-plugins CI
+    # lane's coverage and an AI-legible corpus (see tap.plugin_testing).
+    tests_dir = package_root / "tests"
     if tests_dir.is_dir():
         check.info("tests/ exists")
     else:

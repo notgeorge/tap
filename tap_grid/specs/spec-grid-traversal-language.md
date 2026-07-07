@@ -1,5 +1,7 @@
 # Grid gryphon Language Specification
 
+> **Development doctrine (standing filter).** Before any change to the Gryphon language, executor, or tests, consult [`doc-gryphon-commandments.md`](../../docs/doc-gryphon-commandments.md) — the standing thou-shalt/shalt-not doctrine for all Gryphon work (RFC-2119 commandments with Reason + Enforcement, plus a Forthcoming section). Requirements here SHOULD stay consistent with it; it cites requirements here as its Enforcement anchors.
+
 ## Philosophy
 
 gryphon should be pleasant to read in strings while still being structured enough to parse into
@@ -20,6 +22,12 @@ comparison against a **null literal** (`x = null`, `x STARTS_WITH null`) short-c
 `FALSE` (the two-valued "unobserved operand" rule), while a **null field value** against a non-null
 literal follows the backend's SQL three-valued behavior (the row drops from the positive filter).
 Citing the baseline turns that boundary from a quirk into an auditable, defensible design decision.
+
+**Gryphon commandment guidance.** Any change to Gryphon syntax, AST shape, predicate semantics,
+or Cypher-subset/divergence behavior must read and apply
+[`doc-gryphon-commandments.md`](../../docs/doc-gryphon-commandments.md). The
+commandments are not a substitute for this spec; they are the standing development discipline for
+keeping new language surface explicit, validated, and tested.
 
 ## Goals
 

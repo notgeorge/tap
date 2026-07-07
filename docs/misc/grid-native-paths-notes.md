@@ -327,6 +327,14 @@ No prior art search was performed for this capture note. The later design/spec
 session should research at least:
 
 - Neo4j Cypher path values, variable-length paths, and APOC path utilities.
+  Revisit specifically: **APOC `apoc.path.expandConfig` / `subgraphNodes` / `spanningTree`
+  configuration knobs** — `relationshipFilter`, `labelFilter`, `sequence`, uniqueness modes,
+  min/max depth, and node allow/deny lists. These are the field-tested vocabulary graph users
+  hand-roll per-query to define a trajectory; they are the closest prior art for what a *named
+  path definition* will want to express declaratively (edge-type / label / depth / node
+  allow-deny scoping). Note added 2026-07-06 from the Gryphon feature-demand APOC analysis —
+  see `doc-gryphon-feature-demand.md` §7.3 (the knobs) and §5.1 (named-paths-replace-reachability
+  framing). Cross-reference when the path-definition surface is specced.
 - PostgreSQL recursive CTE path accumulation patterns.
 - Workflow engines and DAG systems for branch/cycle representation.
 - Distributed tracing span/trace path models.

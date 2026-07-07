@@ -120,7 +120,7 @@ design boundary, not unfinished work.
 | `CALL { }` subqueries | not built | No demand signal yet. |
 | `CASE` expressions, map projections | not built | No demand signal yet. |
 | The ~150-function standard library | partial | Gryphon implements operators on demand-shape (`STARTS_WITH`/`CONTAINS`/`=~`/aggregates), not a broad function library. "Gryphon over ORM" pulls functions in when a real query reaches for one. |
-| Variable-length paths in full generality | partial | Bounded repetition (`*1..3`) ships; full Cypher path-predicate generality and `shortestPath` are future work. |
+| Variable-length paths in full generality | not built (parses, rejected) | Bounded repetition (`*1..3`) **parses but the executor rejects it** — fail-closed, not shipped (`executor.py:412` / `:1652` raise `SearchExecutionError`; `model_oracle.py` marks it `OracleUnmodeled`; rejection pinned by `test_gryphon.py`). The grammar carries `hop_range` as a deliberate half-built foothold (the language anticipates the shape; the executor surfaces its absence). Full Cypher path-predicate generality and `shortestPath` are also future work. Tracked as wishlist **E1** (`wait-for-signal`). |
 | `NOT IN` as a distinct surface | expressible | Today `NOT (... IN ...)` where the executor path supports `NOT`; a dedicated surface is a Future bullet. |
 
 The subset shrinks on **demand signal**, not on Cypher-parity ambition. The governing rule

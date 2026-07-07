@@ -1,11 +1,19 @@
 # gryphon Execution Specification
 
+> **Development doctrine (standing filter).** Before any change to the Gryphon language, executor, or tests, consult [`doc-gryphon-commandments.md`](../../docs/doc-gryphon-commandments.md) — the standing thou-shalt/shalt-not doctrine for all Gryphon work (RFC-2119 commandments with Reason + Enforcement, plus a Forthcoming section). Requirements here SHOULD stay consistent with it; it cites requirements here as its Enforcement anchors.
+
 ## Philosophy
 
 gryphon text is compiled by TAP into an internal execution plan and does not execute directly as
 raw backend code. This preserves the service-layer control TAP already wants for searches and
 future AI-authored query definitions — and makes gryphon useful as a safer trust boundary than
 direct backend query execution.
+
+**Gryphon commandment guidance.** Any change to Gryphon validation, lowering, executor dispatch,
+SQL capture, result packaging, or lowering-ladder usage must read and apply
+[`doc-gryphon-commandments.md`](../../docs/doc-gryphon-commandments.md). The
+commandments are not a substitute for this spec; they are the standing development discipline for
+preserving read-only execution, bind-parameter safety, semantic conservation, and validation.
 
 ## Goals
 

@@ -204,6 +204,6 @@ class TestModuleResultNormalization:
 
 
 # Integration coverage against a real plugin-supplied runner lives with the
-# plugin that ships it — see plugins/lotr/tests/test_lotr_searches.py. This
+# plugin that ships it — see plugins/lotr/tap_plugin/lotr/tests/test_lotr_searches.py. This
 # module owns the generic mechanism (synthetic runners above); tap_grid does
 # not reach into any plugin's search runner.
