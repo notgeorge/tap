@@ -10,6 +10,8 @@ import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
 
+from tap.plugin_testing import requires_plugins
+
 PLUGINS_ROOT = Path(__file__).resolve().parent.parent.parent / "plugins"
 
 
@@ -20,16 +22,19 @@ class TestManagementCommand:
         call_command("validate_plugin", str(PLUGINS_ROOT / "administrivia"), stdout=out)
         assert "PASS" in out.getvalue()
 
+    @requires_plugins("administrivia")  # loads imports tap_plugin.administrivia inside Django
     def test_administrivia_loads_passes(self):
         out = StringIO()
         call_command("validate_plugin", str(PLUGINS_ROOT / "administrivia"), "--level", "loads", stdout=out)
         assert "PASS" in out.getvalue()
 
+    @requires_plugins("aws_core")
     def test_aws_core_runs_passes(self):
         out = StringIO()
         call_command("validate_plugin", str(PLUGINS_ROOT / "aws_core"), "--level", "runs", stdout=out)
         assert "PASS" in out.getvalue()
 
+    @requires_plugins("aws_core")
     def test_aws_core_json(self):
         out = StringIO()
         call_command("validate_plugin", str(PLUGINS_ROOT / "aws_core"), "--level", "runs", "--json", stdout=out)

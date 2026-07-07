@@ -47,6 +47,35 @@ def installed_plugin_slugs() -> list[str]:
     return sorted(discover_entry_points())
 
 
+def requires_plugins(*slugs: str):
+    """Skip a CORE-located test/module unless every named plugin is installed.
+
+    The install-aware complement to collection scoping. A plugin's *own* tests
+    ride inside its package, so an uninstalled plugin's tests are simply never
+    collected (see the module docstring). But a **core** test — one that lives in
+    ``tap_grid/tests/``, ``tap_boot/tests/``, ``tap_plugins/tests/`` … — may import
+    or assert on a specific plugin (``import tap_plugin.computing_core``; ``assert
+    "samsite" in build_report()``; ``validate_plugin(root, level="loads")`` which
+    imports the package; a boot profile that seeds a plugin). Those cannot be
+    collection-ignored (they sit among install-independent tests in the same file),
+    so a focused stack that lacks the plugin *errors* instead of skipping. Decorate
+    such a test (or set a module-level ``pytestmark``) with this so the focused
+    local gate skips it while the all-plugins CI lane — where ``test_all`` installs
+    every plugin — runs it fully. That split is the whole model: local validates
+    what is installed; CI owns all-plugins truth (req-dev-validation-all-plugins-lane).
+
+    ``grid_fixtures`` is the always-installed ``core_dev`` baseline fixture
+    vocabulary, so it never needs guarding — only non-baseline plugins do.
+    """
+    import pytest
+
+    missing = sorted(set(slugs) - set(installed_plugin_slugs()))
+    return pytest.mark.skipif(
+        bool(missing),
+        reason=f"requires plugin(s) not installed in this stack: {', '.join(missing)}",
+    )
+
+
 def plugin_package_dir(slug: str) -> Path | None:
     """Filesystem location of the installed ``tap_plugin.<slug>`` package, or None.
 

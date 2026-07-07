@@ -87,9 +87,19 @@ jobs:
 
       # The full lane INCLUDING the gryphon corpus (no --ignore) — the all-plugins
       # authority. pytest collects every installed plugin's in-package tests
-      # (tap.plugin_testing) alongside the core walk. `-n auto` matches scripts/test.
+      # (tap.plugin_testing) alongside the core walk.
+      #
+      # Worker count: NOT `-n auto`. Standard ubuntu-latest is a 2-vCPU runner, so
+      # `auto` picks 2 and the lane ran 19m19s two-at-a-time (measured, run
+      # 28883107518). The suite is Postgres-I/O-bound — workers block on DB
+      # round-trips — so oversubscribing the 2 vCPUs (`-n 4`) keeps both cores busy
+      # while others wait. `max_locks_per_transaction=512` is already in the shared
+      # compose config, so the extra concurrent test DBs won't hit the lock ceiling.
+      # Postgres shares these 2 vCPUs + 7 GB, so it becomes the bottleneck past ~4-6;
+      # bump cautiously and re-measure. The real 2-4x lever is a larger paid runner
+      # (`runs-on: ubuntu-latest-4-cores`/`-8-cores` + back to `-n auto`).
       - name: Full test lane (all plugins)
-        run: docker compose --env-file .env exec -T web sh -c 'cd /app && uv run pytest -n auto'
+        run: docker compose --env-file .env exec -T web sh -c 'cd /app && uv run pytest -n 4'
 
       - name: Dump web logs on failure
         if: failure()

@@ -19,11 +19,7 @@ _PRUNED_DIR_NAMES = {"node_modules", "build", "dist", "venv", "CVS", "_darcs", "
 
 # The ONLY deliberately-uncollected test dirs. Each MUST correspond to an `--ignore=`
 # in pyproject `addopts`. Keep tiny; adding a row is a visible decision.
-_IGNORED_DIRS = {
-    # DEPRECATED 2026-05-19, out of INSTALLED_APPS — tests fail without the app
-    # loaded; `--ignore=plugins/genericom` in addopts.
-    "plugins/genericom",
-}
+_IGNORED_DIRS: set[str] = set()
 
 # Files matching test_*.py that are NOT tests (pytest imports them, collects zero).
 _IGNORED_FILES = {

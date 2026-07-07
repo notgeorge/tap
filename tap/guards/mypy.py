@@ -80,3 +80,35 @@ class MypyRatchet(CeilingRatchet):
 
     def measure(self) -> set[str]:
         return {f"{key}:{count}" for key, count in mypy_error_counts().items()}
+
+    def check(self) -> None:
+        # Install-aware ratchet. `mypy .` + the django-stubs plugin introspect
+        # INSTALLED_APPS, so a focused stack (fewer plugins installed) resolves plugin
+        # models differently and its measured error set diverges from the frozen
+        # (full-install) baseline — a false red on entries for plugins that simply are
+        # not here. Filter BOTH the measured set and the baseline to core paths + paths
+        # of installed plugins, so the ratchet compares like-for-like over whatever this
+        # stack actually has; the all-plugins CI lane (test_all installs everything)
+        # filters nothing and enforces the full set. Mirrors tap.plugin_testing.
+        # requires_plugins + req-dev-validation-all-plugins-lane; a step toward the
+        # per-owner baselines in spec-plugin-validation-distribution.
+        from tap.guards.base import ratchet_ceiling, read_baseline_set
+        from tap.plugin_testing import installed_plugin_slugs
+
+        installed = set(installed_plugin_slugs())
+
+        def _relevant(entry: str) -> bool:
+            # entry is "path:code:count"; the path (no colon) is segment 0. Keep core
+            # paths; keep a plugins/<slug>/… path only when <slug> is installed here.
+            parts = entry.split(":", 1)[0].split("/")
+            if len(parts) >= 2 and parts[0] == "plugins":
+                return parts[1] in installed
+            return True
+
+        ratchet_ceiling(
+            current={e for e in self.measure() if _relevant(e)},
+            baseline={e for e in read_baseline_set(self.baseline_path) if _relevant(e)},
+            surface=self.map_row,
+            baseline_path=self.baseline_path,
+            new_hint=self.new_hint,
+        )
