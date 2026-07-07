@@ -215,10 +215,33 @@ else
   done
   [[ -n "$RUN_ID" && "$RUN_ID" != "null" ]] || fail "Could not locate the dispatched CI run for $TIP on $CI_REF."
   info "Watching all-plugins CI run $RUN_ID (the full lane — ~20-30 min) ..."
-  if ! gh run watch "$RUN_ID" --exit-status; then
-    fail "All-plugins CI lane RED (run $RUN_ID) — aborting promote. origin/main is NOT advanced \
+  # NB: `gh run watch --exit-status` conflates "CI failed" with "gh itself errored" — a
+  # transient API blip (e.g. HTTP 401 mid-watch over a 20-30 min run) exits non-zero and would
+  # false-abort a perfectly green run. Drive the poll ourselves and decide on the run's REAL
+  # conclusion: treat gh/API errors as transient (retry), and let only a completed non-success
+  # abort. Fail-closed is preserved — a timeout or sustained lost-contact still refuses to push.
+  CI_CONCLUSION=""
+  _ci_errs=0
+  for _ in $(seq 1 240); do          # 240 * 15s = 60 min ceiling
+    _ci_line="$(gh run view "$RUN_ID" --json status,conclusion \
+                  -q '.status + "|" + (.conclusion // "")' 2>/dev/null || true)"
+    if [[ -z "$_ci_line" ]]; then
+      _ci_errs=$((_ci_errs + 1))
+      [[ "$_ci_errs" -ge 20 ]] && fail "Lost contact with GitHub polling CI run $RUN_ID (20 consecutive errors) \
+— cannot confirm green, so refusing to push. origin/main is NOT advanced. Check gh auth; inspect: gh run view $RUN_ID"
+      sleep 15
+      continue
+    fi
+    _ci_errs=0
+    if [[ "${_ci_line%%|*}" == "completed" ]]; then
+      CI_CONCLUSION="${_ci_line##*|}"
+      break
+    fi
+    sleep 15
+  done
+  [[ "$CI_CONCLUSION" == "success" ]] || fail "All-plugins CI lane not green (run $RUN_ID, \
+conclusion='${CI_CONCLUSION:-<timeout/unknown>}') — aborting promote. origin/main is NOT advanced \
 (req-dev-multisession-ci-gate-2). Inspect: gh run view $RUN_ID --log-failed"
-  fi
   info "All-plugins CI lane GREEN (run $RUN_ID) — proceeding to push."
   _ci_cleanup
   trap - EXIT
