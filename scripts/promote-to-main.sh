@@ -162,6 +162,69 @@ classified cause — image-build/infra (a network flake, not your code) vs. impo
 fi
 
 # ---------------------------------------------------------------------------
+# Step 2.6: all-plugins CI gate (req-dev-multisession-ci-gate, option B).
+# The local Step 2.5 gate only validates the plugins installed in THIS stack.
+# Once plugins leave the monorepo, all-plugins truth is server-side
+# (req-dev-validation-all-plugins-lane); this step triggers that lane on the
+# exact merged tree and blocks the atomic push on red — the reciprocal that
+# protects main's full plugin set. Option B (trigger + poll) is used, not a
+# PR-gated merge, specifically so Step 3's atomic dual-refspec push survives.
+#
+# It runs the lane against a THROWAWAY ref (not the session branch), so neither
+# origin/main nor origin/session/<name> moves before validation — the atomic
+# push in Step 3 stays the only thing that advances them.
+#
+# Bootstrap: workflow_dispatch only works once .github/workflows/all-plugins.yml
+# is on origin/main. Until the first promote lands it there, this gate cannot
+# run and is SKIPPED — that first promote is ungated by construction. Detection
+# uses git (the file's presence on origin/main), so bootstrap needs no gh.
+#
+# Escape hatch: TAP_PROMOTE_SKIP_CI_GATE=1 skips loudly — use only when the full
+# plugin set is validated another way (e.g. a full-monorepo local lane where the
+# stack already has every plugin installed, as in the session that landed this).
+# ---------------------------------------------------------------------------
+CI_WORKFLOW="all-plugins.yml"
+if [[ "$DRY_RUN" -eq 1 ]]; then
+  info "[dry-run] would: trigger the all-plugins CI lane on the merged tree and poll to green before pushing (unless bootstrap or TAP_PROMOTE_SKIP_CI_GATE)"
+elif ! git cat-file -e "origin/main:.github/workflows/$CI_WORKFLOW" 2>/dev/null; then
+  warn "all-plugins CI workflow not yet on origin/main — bootstrap promote, all-plugins CI gate SKIPPED."
+  warn "Expected exactly once: the promote that first lands .github/workflows/$CI_WORKFLOW on main. Every promote after is gated."
+elif [[ "${TAP_PROMOTE_SKIP_CI_GATE:-0}" == "1" ]]; then
+  warn "TAP_PROMOTE_SKIP_CI_GATE=1 — SKIPPING the all-plugins CI gate (req-dev-multisession-ci-gate)."
+  warn "Only this stack's installed plugin subset is server-validated. Do this only when the full set is known green another way."
+else
+  bold "All-plugins CI gate on the merged tree (req-dev-multisession-ci-gate)"
+  command -v gh >/dev/null 2>&1 || fail "The all-plugins CI gate is live (workflow on origin/main) but 'gh' is not installed/on PATH — cannot validate the full plugin set. Install+auth gh, or set TAP_PROMOTE_SKIP_CI_GATE=1 if the full set is validated another way."
+  gh repo view --json nameWithOwner -q .nameWithOwner >/dev/null 2>&1 || fail "gh could not resolve the repo (auth?). Run 'gh auth login' (needs the 'workflow' scope)."
+  TIP="$(git rev-parse HEAD)"
+  CI_REF="_ci-gate/$SESSION"
+  info "Publishing merged tree to origin/$CI_REF (throwaway ref) for CI ..."
+  git push -f origin "HEAD:refs/heads/$CI_REF" >/dev/null 2>&1 || fail "Could not publish the CI ref origin/$CI_REF."
+  # Clean the throwaway ref up on ANY exit path from here on.
+  _ci_cleanup() { git push origin --delete "$CI_REF" >/dev/null 2>&1 || true; }
+  trap _ci_cleanup EXIT
+  info "Dispatching $CI_WORKFLOW on $CI_REF ($TIP) ..."
+  gh workflow run "$CI_WORKFLOW" --ref "$CI_REF" >/dev/null 2>&1 || fail "Failed to dispatch $CI_WORKFLOW on $CI_REF (does the token carry the 'workflow' scope?)."
+  # workflow_dispatch does not return a run id — poll for the run on our exact SHA.
+  RUN_ID=""
+  for _ in $(seq 1 40); do
+    RUN_ID="$(gh run list --workflow "$CI_WORKFLOW" --branch "$CI_REF" --json databaseId,headSha \
+                -q "[.[] | select(.headSha==\"$TIP\")][0].databaseId" 2>/dev/null || true)"
+    [[ -n "$RUN_ID" && "$RUN_ID" != "null" ]] && break
+    sleep 5
+  done
+  [[ -n "$RUN_ID" && "$RUN_ID" != "null" ]] || fail "Could not locate the dispatched CI run for $TIP on $CI_REF."
+  info "Watching all-plugins CI run $RUN_ID (the full lane — ~20-30 min) ..."
+  if ! gh run watch "$RUN_ID" --exit-status; then
+    fail "All-plugins CI lane RED (run $RUN_ID) — aborting promote. origin/main is NOT advanced \
+(req-dev-multisession-ci-gate-2). Inspect: gh run view $RUN_ID --log-failed"
+  fi
+  info "All-plugins CI lane GREEN (run $RUN_ID) — proceeding to push."
+  _ci_cleanup
+  trap - EXIT
+fi
+
+# ---------------------------------------------------------------------------
 # Step 3: atomic dual-refspec push (req-dev-multisession-push-workflow-3).
 # Without --atomic the server may apply each refspec independently — a non-FF
 # on one ref could still leave the other update applied. With --atomic, both

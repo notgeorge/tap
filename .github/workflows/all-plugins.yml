@@ -16,13 +16,18 @@
 #
 # PROVEN GREEN first run 2026-07-07 (~21 min: build → boot test_all → full lane).
 #
-# OPEN (two-mains model — spec-dev-validation-all-plugins-lane sub-reqs 3-5):
-#   - promote-to-main blocks on this run via `workflow_dispatch` + poll (option B,
-#     req-dev-multisession-ci-gate). NOTE the bootstrap: workflow_dispatch is only
-#     triggerable once this file lives on the default branch (main), so the FIRST
-#     promote (which lands the workflow on main) is itself ungated; every promote
-#     after is gated.
+# WIRED: promote-to-main.sh Step 2.6 blocks on this run via `workflow_dispatch` +
+#   poll (option B, req-dev-multisession-ci-gate). It dispatches against a throwaway
+#   `_ci-gate/<session>` ref so origin/main + origin/session don't move before green,
+#   then `gh run watch --exit-status` gates the atomic push. NOTE the bootstrap:
+#   workflow_dispatch is only triggerable once this file lives on the default branch
+#   (main), so the FIRST promote (which lands the workflow on main) is itself ungated
+#   (the gate detects the file's absence on origin/main and self-skips); every promote
+#   after is gated. First real exercise: the aws-cloud worktree's first push.
+#
+# OPEN:
 #   - cold-boot / lean-boot gates (they spawn extra stacks) folded in later.
+#   - v2 git-sourced sources once monorepo copies are deleted (see STAGING above).
 
 name: all-plugins
 

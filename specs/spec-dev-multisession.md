@@ -32,7 +32,7 @@ The Playwright MCP server is stateless per call and remains shared across sessio
 | req-dev-multisession-promote-script | [Promote-to-Main Script](#promote-to-main-script) | Implemented | Per-session wrapper around the push-workflow discipline |
 | req-dev-multisession-promote-all-script | [Promote-All-Sessions Script](#promote-all-sessions-script) | Implemented | Registry-driven orchestrator over the per-session script |
 | req-dev-multisession-promote-gate | [Promote-Path Validation Gate](#promote-path-validation-gate) | Implemented | Promote path runs the dev-validation gate (`scripts/gate`) and refuses to advance origin/main on red; reciprocal of req-dev-validation-promote-hook |
-| req-dev-multisession-ci-gate | [All-Plugins CI Gate](#all-plugins-ci-gate) | Proposed | Promote also triggers + blocks on the server-side all-plugins CI lane (option B: trigger + poll, keeps the atomic push); reciprocal of req-dev-validation-all-plugins-lane |
+| req-dev-multisession-ci-gate | [All-Plugins CI Gate](#all-plugins-ci-gate) | Implemented | Promote also triggers + blocks on the server-side all-plugins CI lane (option B: trigger + poll, keeps the atomic push); reciprocal of req-dev-validation-all-plugins-lane. Bootstrap-skips until the workflow is on main |
 | req-dev-multisession-list-script | [List Script](#list-script) | Proposed | Phase 3 |
 | req-dev-multisession-named-routing | [Name-Based Routing via Reverse Proxy](#name-based-routing-via-reverse-proxy) | Backlog | Phase 3 polish |
 
@@ -367,17 +367,24 @@ This is the reciprocal of `req-dev-validation-promote-hook` in [spec-dev-validat
 ### All-Plugins CI Gate
 ----
 RID: `req-dev-multisession-ci-gate`
-Status: `Proposed`
+Status: `Implemented`
 
 Once plugins leave the monorepo, the local [Promote-Path Validation Gate](#promote-path-validation-gate) can only validate the plugins installed in *this* stack; all-plugins truth moves server-side ([spec-dev-validation.md](spec-dev-validation.md) `req-dev-validation-all-plugins-lane`). This requirement obliges the promote path to **also** block on that lane: after the local gate is green, `promote-to-main.sh` triggers the all-plugins workflow on the merged tree, polls it to completion, and refuses the atomic dual-refspec push on red. **Option B** (trigger + poll) is chosen over a PR-gated merge specifically so the atomic dual-refspec push semantics that `req-dev-multisession-push-workflow-3` relies on are preserved — the fuller PR-gated model (option A) waits for the second-contributor trigger. Reciprocal of `req-dev-validation-all-plugins-lane-3`; neither restates the other's substance.
+
+#### Status Details
+
+Implemented as Step 2.6 of `scripts/promote-to-main.sh`: after the local gate is green it publishes the merged tree to a throwaway `_ci-gate/<session>` ref (so neither `origin/main` nor `origin/session/<name>` moves before validation), dispatches `all-plugins.yml` against that ref via `gh workflow run`, polls `gh run list` for the run on the exact merged SHA, then `gh run watch --exit-status` blocks the push on red and the throwaway ref is deleted on every exit path.
+
+**Bootstrap — unexercised until the first post-bootstrap promote.** `workflow_dispatch` only works once `all-plugins.yml` is on `origin/main`, so the gate detects the file's presence on `origin/main` (via git, no `gh` needed) and **skips itself on the bootstrap promote that first lands the workflow** — that promote is ungated by construction. The wiring is therefore landed but has not yet run against a real gated promote; the first genuine exercise is the next promote after the workflow reaches main (planned: the aws-cloud worktree's first push under this process). Escape hatch `TAP_PROMOTE_SKIP_CI_GATE=1` skips loudly for the case where the full plugin set is validated another way (e.g. a full-monorepo local stack that already has every plugin installed).
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-dev-multisession-ci-gate-1 | Trigger + poll, then push | Proposed | After the local gate passes, promote triggers the all-plugins lane on the merged tree, polls to green, and only then runs the atomic push. | Keeps the atomic dual-refspec push (option B, not PR-gated). |
-| req-dev-multisession-ci-gate-2 | Red blocks the push | Proposed | A red or timed-out lane aborts the promote; `origin/main` is not advanced and the session branch is not force-published past it. | Same fail-closed posture as the local gate. |
-| req-dev-multisession-ci-gate-3 | Reciprocal consistency | Proposed | This requirement and `req-dev-validation-all-plugins-lane` cross-reference and stay consistent; neither restates the other's substance. | Prevents cross-spec drift. |
+| req-dev-multisession-ci-gate-1 | Trigger + poll, then push | Implemented | After the local gate passes, promote triggers the all-plugins lane on the merged tree, polls to green, and only then runs the atomic push. | Keeps the atomic dual-refspec push (option B, not PR-gated). Runs against a throwaway `_ci-gate/<session>` ref. |
+| req-dev-multisession-ci-gate-2 | Red blocks the push | Implemented | A red or timed-out lane aborts the promote; `origin/main` is not advanced and the session branch is not force-published past it. | Same fail-closed posture as the local gate. The workflow's own `timeout-minutes: 40` bounds a hung lane. |
+| req-dev-multisession-ci-gate-3 | Reciprocal consistency | Implemented | This requirement and `req-dev-validation-all-plugins-lane` cross-reference and stay consistent; neither restates the other's substance. | Prevents cross-spec drift. |
+| req-dev-multisession-ci-gate-4 | Bootstrap self-skip | Implemented | The gate skips itself when `all-plugins.yml` is not yet on `origin/main` (detected via git), so the promote that first lands the workflow is ungated by construction; every promote after is gated. | Escape hatch `TAP_PROMOTE_SKIP_CI_GATE=1` for a separately-validated full set. |
 
 ### Admin User Bootstrap
 ----

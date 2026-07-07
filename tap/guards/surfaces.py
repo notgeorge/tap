@@ -78,10 +78,10 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
         surface="All-plugins CI lane",
         rid="req-dev-validation-all-plugins-lane",
         cadence="Pre-push (promote-triggered) + CI",
-        status="Gate-guarded *(target)* — Named, deferred until proven in a real Actions run",
+        status="Gate-guarded — lane PROVEN GREEN in a real Actions run; promote wiring landed but unexercised until the first post-bootstrap promote",
         enforced_by=(
             "`.github/workflows/all-plugins.yml` (boots the `test_all` union, runs the full lane); "
-            "`promote-to-main.sh` blocks on it (option B)"
+            "`promote-to-main.sh` Step 2.6 blocks on it (option B, req-dev-multisession-ci-gate)"
         ),
     ),
     DeclaredSurface(
