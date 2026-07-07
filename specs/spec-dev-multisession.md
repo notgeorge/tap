@@ -32,6 +32,7 @@ The Playwright MCP server is stateless per call and remains shared across sessio
 | req-dev-multisession-promote-script | [Promote-to-Main Script](#promote-to-main-script) | Implemented | Per-session wrapper around the push-workflow discipline |
 | req-dev-multisession-promote-all-script | [Promote-All-Sessions Script](#promote-all-sessions-script) | Implemented | Registry-driven orchestrator over the per-session script |
 | req-dev-multisession-promote-gate | [Promote-Path Validation Gate](#promote-path-validation-gate) | Implemented | Promote path runs the dev-validation gate (`scripts/gate`) and refuses to advance origin/main on red; reciprocal of req-dev-validation-promote-hook |
+| req-dev-multisession-ci-gate | [All-Plugins CI Gate](#all-plugins-ci-gate) | Proposed | Promote also triggers + blocks on the server-side all-plugins CI lane (option B: trigger + poll, keeps the atomic push); reciprocal of req-dev-validation-all-plugins-lane |
 | req-dev-multisession-list-script | [List Script](#list-script) | Proposed | Phase 3 |
 | req-dev-multisession-named-routing | [Name-Based Routing via Reverse Proxy](#name-based-routing-via-reverse-proxy) | Backlog | Phase 3 polish |
 
@@ -362,6 +363,21 @@ This is the reciprocal of `req-dev-validation-promote-hook` in [spec-dev-validat
 | req-dev-multisession-promote-gate-2 | Red blocks the push | Implemented | A failing gate aborts the promote with a non-zero exit; `origin/main` is not advanced and the session branch is not force-published past it. | `scripts/gate` non-zero → `fail` before Step 3. |
 | req-dev-multisession-promote-gate-3 | Scripts and fallback covered | Implemented | `scripts/promote-to-main.sh`, the all-sessions orchestrator, and the documented manual sequence all carry the gate obligation. | Orchestrator calls the per-session script (transitive). |
 | req-dev-multisession-promote-gate-4 | Reciprocal consistency | Implemented | This requirement and `req-dev-validation-promote-hook` cross-reference and stay consistent; neither restates the other's substance. | Prevents cross-spec drift. |
+
+### All-Plugins CI Gate
+----
+RID: `req-dev-multisession-ci-gate`
+Status: `Proposed`
+
+Once plugins leave the monorepo, the local [Promote-Path Validation Gate](#promote-path-validation-gate) can only validate the plugins installed in *this* stack; all-plugins truth moves server-side ([spec-dev-validation.md](spec-dev-validation.md) `req-dev-validation-all-plugins-lane`). This requirement obliges the promote path to **also** block on that lane: after the local gate is green, `promote-to-main.sh` triggers the all-plugins workflow on the merged tree, polls it to completion, and refuses the atomic dual-refspec push on red. **Option B** (trigger + poll) is chosen over a PR-gated merge specifically so the atomic dual-refspec push semantics that `req-dev-multisession-push-workflow-3` relies on are preserved — the fuller PR-gated model (option A) waits for the second-contributor trigger. Reciprocal of `req-dev-validation-all-plugins-lane-3`; neither restates the other's substance.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-dev-multisession-ci-gate-1 | Trigger + poll, then push | Proposed | After the local gate passes, promote triggers the all-plugins lane on the merged tree, polls to green, and only then runs the atomic push. | Keeps the atomic dual-refspec push (option B, not PR-gated). |
+| req-dev-multisession-ci-gate-2 | Red blocks the push | Proposed | A red or timed-out lane aborts the promote; `origin/main` is not advanced and the session branch is not force-published past it. | Same fail-closed posture as the local gate. |
+| req-dev-multisession-ci-gate-3 | Reciprocal consistency | Proposed | This requirement and `req-dev-validation-all-plugins-lane` cross-reference and stay consistent; neither restates the other's substance. | Prevents cross-spec drift. |
 
 ### Admin User Bootstrap
 ----

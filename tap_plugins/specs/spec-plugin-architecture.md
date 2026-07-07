@@ -38,6 +38,7 @@ Plugins may be developed as standalone git repositories and integrated into TAP 
 | req-plugin-arch-source-least-priv | [Least-Privilege Source Self-Check](#least-privilege-source-self-check) | Backlog | Warn (non-dev) if the instance can *write* its plugin source (git token has push / mounted source is `W_OK`) — an over-scoped credential/mount. A per-source health probe |
 | req-plugin-arch-install-security | [Package Security Guard Integration](#package-security-guard-integration) | Backlog | Plugin preboot installs consume the platform package-security policy (`spec-tap-package-security-v0`): full-closure known-malicious guard before `uv pip install`, wheel-only/no-build non-dev posture, package-security projection in the plugin report |
 | req-plugin-arch-versioning | [Version Naming & Integrity](#version-naming--integrity) | Implemented | VCS-derived PEP 440 via `hatch-vcs` (`source = "vcs"`, `root = "../.."` monorepo-transition override, `fallback_version`) applied to all 9 migrated plugins (-1, -2). Index byte-integrity / append-only / signing (-3/-4/-5) stay deferred (no index yet) |
+| req-plugin-arch-min-core | [Minimum Core Version](#minimum-core-version) | Proposed | Plugin declares a supported TAP-core version range; core refuses to load an out-of-range plugin at boot — the load-time compatibility floor (the cheapest cross-repo-compat edge, universal across plugin ecosystems) |
 | req-plugin-arch-dependencies | [Plugin Dependencies](#plugin-dependencies) | Partially Implemented | Tier 0 (package deps → uv/pyproject, -1) built across the set. Tier 1/2 (-2/-3/-4) built 2026-07-02: manifest `depends_on` schema (slug + min-version + optional + note), the import-graph AST scanner (`tap/plugin_deps.py`), and the pre-boot `dependency_consistency_guard` (declared ⊇ observed, order, min-version — fail closed) are live; `samsite` declares its real edges. Only the topological-sort resolver stays deferred (declare-now, resolver-later — hand-ordering fine at N=10) |
 | req-plugin-arch-skills | [Plugin Skills](#plugin-skills) | Implemented | Plugins may ship Claude Code skills for plugin-specific automation |
 | req-plugin-arch-runtime | [Runtime Boundaries](#runtime-boundaries) | Implemented | TAP-facing startup behavior flows through the plugin contract |
@@ -873,6 +874,23 @@ runtime = one version, and that is uv's job.
 | req-plugin-arch-dependencies-3 | Seed-Order Split | Implemented | Plugin-level code order rides on `depends_on`; runtime-data (collector-produced) ordering stays explicit in the profile — the import graph captures CODE deps only (honest boundary enforced: samsite's aws_core **data** dep is deliberately NOT a `depends_on`). | Tier 2 |
 | req-plugin-arch-dependencies-4 | Boot Consistency Gate | Implemented | Pre-boot `dependency_consistency_guard` fails closed on: an undeclared cross-plugin import (declared ⊇ AST-observed), a dep missing-from / ordered-after its dependent, or a violated min-version. Scanner + pure check in `tap/plugin_deps.py`, gate in `tap/preboot.py`. Resolver (topo-sort) still deferred. | |
 | req-plugin-arch-dependencies-5 | One Runtime One Version | Proposed | No second version resolver, no OSGi-style coexistence; one shared runtime resolves to one version via uv, fail-closed. | |
+
+### Minimum Core Version
+----
+RID: `req-plugin-arch-min-core`
+Status: `Proposed`
+
+Now that plugins live in their own repos and release independently ([spec-tap-boot-bootstrap.md](../../specs/spec-tap-boot-bootstrap.md)), a plugin and TAP core advance on separate mainlines and can drift out of compatibility. Every mature plugin ecosystem answers this first with the cheapest possible edge: the plugin **declares which core versions it supports**, and the host **refuses to load an out-of-range plugin** — `engines.vscode` (cannot be `*`), Ansible `requires_ansible`, `apache-airflow>=`, Grafana `grafanaDependency`, dbt `require-dbt-version`. TAP has no such floor today; a plugin built against a newer core silently ImportErrors (or worse, mis-behaves) against an older one.
+
+`req-plugin-arch-dependencies` covers plugin→plugin and plugin→PyPI deps; this is the missing **plugin→core** dimension. It is the load-time complement to the server-side [all-plugins CI lane](../../specs/spec-dev-validation.md#all-plugins-ci-lane) (`req-dev-validation-all-plugins-lane`): the lane proves a set works *together* at promote; this floor keeps a bad pairing from *loading* at boot on any instance, gated next to the existing identity/deps conformance gates.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-plugin-arch-min-core-1 | Declared floor | Proposed | The plugin manifest (`tap-plugin.toml`) carries a supported TAP-core version range (e.g. `requires_tap = ">=X,<Y"`), VCS-derived to match the core versioning scheme. | Honest-support discipline: only claim what the plugin's CI actually tests (see `req-dev-validation-all-plugins-lane-4`). |
+| req-plugin-arch-min-core-2 | Load-time gate | Proposed | Pre-boot / boot refuses to load a plugin whose declared range excludes the running core version, with an actionable message — fail-closed, beside the identity + dependency conformance gates. | Silent runtime break → loud refuse-to-load. |
+| req-plugin-arch-min-core-3 | Core version legible | Proposed | The running core exposes a comparable version the gate can check against (a `tap-core` version, VCS-derived like the plugins). | Prerequisite; also what a plugin repo's CI pins/matrixes against (`req-dev-validation-all-plugins-lane-4`). |
 
 ### Plugin Skills
 ----
