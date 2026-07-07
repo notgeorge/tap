@@ -132,7 +132,7 @@ Medium even though full `WITH` is High (§5.1 / wishlist F1 note). A blank Diffi
 (no build); `n/a` = not a build (exported by the model, withdrawn, or deliberately out of scope).
 
 | Feature | App % (n=565) | App breadth | All-13 % (n=1295) | Gryphon status | Difficulty | Impl. details |
-| --- | :--: | :--: | :--: | --- | :--: | --- |
+| --- | :--: | :--: | :--: | --- | :--- | --- |
 | `pred_comparison` (`=`,`<`,`>`,…) | 42.8 | 11/11 | 21.3 | ✅ shipped | — | — |
 | `AND` / `OR` / `NOT` | 30.4 | 11/11 | 14.2 | ✅ shipped (combinators) | — | — |
 | pattern var-binding `(a)-[e]->(b)` | 28.5 | 9/11 | 18.7 | ✅ shipped † | — | — |
@@ -144,7 +144,7 @@ Medium even though full `WITH` is High (§5.1 / wishlist F1 note). A blank Diffi
 | multiple `MATCH` | 15.8 | 9/11 | 7.5 | ✅ shipped (implicit union) | — | — |
 | `IN` list | 15.6 | 9/11 | 6.9 | ✅ shipped (B1) | — | — |
 | **`COLLECT`** | **14.9** | 10/11 | 11.0 | ❌ not in grammar (C2) | 🟡 **Medium** | `ArrayAgg` annotation + list-ordering / empty-collect corners |
-| **var-length path** `-[*n..m]-` | **14.5** | 7/11 | 7.5 | ⚠ parses, executor **rejects** (E1) | 🔴 **Very High** | recursive CTE (rung 4); or supplanted by named paths |
+| **var-length path** `-[*n..m]-` | **14.5** | 7/11 | 7.5 | ⚠ parses, executor **rejects** (E1) | 🔴 **Very&nbsp;High** | recursive CTE (rung 4); or supplanted by named paths |
 | **`DISTINCT`** | **12.2** | 7/11 | 8.1 | ❌ not in grammar (A4) | 🟢 **Low** | `.distinct()` |
 | arithmetic in expressions | 10.4 | 10/11 | 6.1 | ❌ not built | 🟡 **Medium** | `F()`-expression node in projection / WHERE |
 | `STARTS_WITH`/`ENDS_WITH`/`CONTAINS` | 10.3 | 5/11 | 4.6 | ✅ shipped (B2) | — | — |
@@ -154,7 +154,7 @@ Medium even though full `WITH` is High (§5.1 / wishlist F1 note). A blank Diffi
 | `labels()`/`type()`/`keys()` | 6.7 | 7/11 | 5.5 | ✅ exported by envelope (§3.6) — scalar fn form not built (redundant) | ⚪ n/a | exported by the typed envelope; scalar fn form redundant |
 | `OPTIONAL MATCH` | 6.5 | 6/11 | 3.1 | ✅ shipped (D1, narrow v0) | — | shipped; widening beyond COUNT-only is Medium |
 | string functions | 6.0 | 5/11 | 2.7 | ❌ not built (H2) | 🟢 **Low** | one Django `Func` per fn, on demand |
-| **`shortestPath`** | 5.8 | 5/11 | 2.5 | ❌ not in grammar (E3) | 🔴 **Very High** | cost-tracking / different execution strategy or backend |
+| **`shortestPath`** | 5.8 | 5/11 | 2.5 | ❌ not in grammar (E3) | 🔴 **Very&nbsp;High** | cost-tracking / different execution strategy or backend |
 | `IS NULL` / `IS NOT NULL` | 5.0 | 6/11 | 2.4 | ✅ shipped | — | — |
 | list ops / comprehensions | 5.0 | 9/11 | 4.7 | ❌ not built (deliberate subset) | 🟠 **High** | comprehension is a sub-expression-language (map/filter over lists) |
 | `size()` | 5.0 | 8/11 | 3.2 | ❌ not built (H2) | 🟢 **Low** | `Func` (length) |
@@ -162,7 +162,7 @@ Medium even though full `WITH` is High (§5.1 / wishlist F1 note). A blank Diffi
 | `id()` | 4.2 | 4/11 | 4.2 | ⚠ partial (`entity_id` projectable; `id()` fn not built) | 🟢 **Low** | expose `entity_id` under an alias |
 | `=~` regex | 3.7 | 6/11 | 1.6 | ✅ shipped | — | — |
 | `SKIP` / `OFFSET` | 3.4 | 2/11 | 1.5 | ❌ not in grammar (A3) | 🟢 **Low** | `qs[n:]` slice |
-| `CALL` procedure | 2.7 | 4/11 | **26.3 ∆** | 🚫 deliberate omission (→ §3, §5) | 🔴 **Very High** | out of scope → route algorithmic slice to analytics backend |
+| `CALL` procedure | 2.7 | 4/11 | **26.3 ∆** | 🚫 deliberate omission (→ §3, §5) | 🔴 **Very&nbsp;High** | out of scope → route algorithmic slice to analytics backend |
 | numeric aggregates `SUM`/`MIN`/`MAX`/`AVG` | 2.5 | 4/11 | 1.3 | ❌ not in grammar (C1) | 🟢 **Low** | parallel to `COUNT` (`Sum`/`Min`/`Max`/`Avg` annotation) |
 | label-union `(:A\|B)` | 1.9 | 4/11 | 1.1 | ❌ withdrawn (B4 superseded) | ⚪ n/a | withdrawn (bare-MATCH + `STARTS_WITH` covers it) |
 | map projection | 1.9 | 2/11 | 1.4 | ❌ not built (deliberate subset) | 🟡 **Medium** | new map-shaped output projection |
@@ -175,7 +175,7 @@ Medium even though full `WITH` is High (§5.1 / wishlist F1 note). A blank Diffi
 | inline edge props `-[{k:v}]-` | 0.5 | 2/11 | 0.8 | ✅ shipped | — | — |
 | `exists(n.prop)` | 0.5 | 2/11 | 0.5 | ✅ partial (via `IS NOT NULL`/`IS KNOWN`) | 🟢 **Low** | mostly done via `IS NOT NULL` / `IS KNOWN` |
 | positive `EXISTS { }` | 0.5 | 1/11 | 0.2 | ❌ not in grammar (D2) | 🟢 **Low** | sign-flip of the existing `~Exists()` anti-join |
-| write clauses (`CREATE`/`MERGE`/`SET`/…) | 0.4 | 1/11 | 1.2–1.7 | 🚫 rejected **by design** (read-only) | 🔴 **Very High** | out of scope — new language + trust boundary |
+| write clauses (`CREATE`/`MERGE`/`SET`/…) | 0.4 | 1/11 | 1.2–1.7 | 🚫 rejected **by design** (read-only) | 🔴 **Very&nbsp;High** | out of scope — new language + trust boundary |
 | explicit `UNION` | 0.2 | 1/11 | 0.2 | ❌ not in grammar (F2) | 🟡 **Medium** | `.union()` + dedup-vs-ALL semantics |
 
 † *Pattern var-binding* here means naming nodes/edges in the pattern (`(a)-[e]->(b)`), which ships.
