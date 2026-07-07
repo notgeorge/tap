@@ -7,7 +7,9 @@ argument-hint: <feature-name>
 
 # Build a New Gryphon Capability
 
-> **Consult the commandments first.** [`docs/doc-gryphon-commandments.md`](../../../docs/doc-gryphon-commandments.md) is the standing doctrine for Gryphon work — read the relevant MUST/SHOULD commandments (esp. §I Execution, §II Semantics, §IV Testing) before you extend the grammar/executor, and check the Forthcoming section in case your feature is a trigger that promotes a forthcoming commandment. GRY-PROC-6 ("a capability ships as one full cycle") *is* this skill.
+> **Consult the commandments first.** [`docs/doc-gryphon-commandments.md`](../../../docs/doc-gryphon-commandments.md) is the standing doctrine for Gryphon work — read the relevant MUST/SHOULD commandments (esp. §I Execution, §II Semantics, §IV Testing) before you extend the grammar/executor, and check the Forthcoming section in case your feature is a trigger that promotes a forthcoming commandment. GRY-PROC-6 ("a capability ships as one full cycle") *is* this skill. This skill cites commandment IDs at the steps they govern; it does not restate them — the commandments are the law, this is the procedure.
+>
+> **Run the Agent pre-flight checklist** (commandments § *Agent pre-flight checklist*) before scoping — the 8 questions it asks (which commandment IDs, what demand-shape, which spec owns it, what parsed facts are applied-or-rejected, which rung, what independent oracle, what prior art, which ledger moves) are the entry gate to this skill. The exit gate is the [Merge-readiness gate](#merge-readiness-gate-definition-of-done) below.
 
 You are extending Gryphon — TAP's canonical graph query language and the read path
 that all graph-shaped queries route through. A Gryphon capability touches four
@@ -42,8 +44,20 @@ If a spec contradicts the code, flag it to the user — do not silently work aro
 
 ## Step 1: Orient and Scope
 
+0. **Confirm it's a build, not a non-need (structural-credit check).** Before scoping,
+   check whether TAP's *typed data model already answers the request* — a recurring
+   pattern is that a "missing Cypher feature" is a feature Gryphon doesn't need because
+   the model answers it structurally (export → the grift envelope; schema description →
+   the entity/type endpoints; `labels()`/`type()`/`keys()` → `entity_type` + `dimensions`
+   + `edge_type` on the spine; reachability → named paths). Consult
+   [`doc-dev-gryphon-vs-cypher.md`](../../../docs/misc/doc-dev-gryphon-vs-cypher.md)
+   (Ledger A credits) and [`doc-gryphon-feature-demand.md`](../../../docs/misc/doc-gryphon-feature-demand.md)
+   (§3.6, §7). If the model already answers it, the "feature" is documentation of an
+   existing credit, not a build — stop here.
 1. Find your feature's bucket in the wishlist. Read its *What / Why / What pulls
-   it in / Status flag*.
+   it in / Status flag*. Note its **Difficulty** rating in `doc-gryphon-feature-demand.md`
+   §2 — a 🔴 Very-High feature (recursion, a new backend, an IR, writes) is not a
+   single-cycle capability and must be re-scoped or escalated, not run through this skill as-is.
 2. **Scope v0 tight.** Implement the demand-shape and nothing wider. The wishlist
    and the existing extension specs model this: ship the shape a real dashboard
    needs, reject everything else *with a clear error*, and name each rejected
@@ -227,8 +241,18 @@ exactly this case.
   and `_filter_predicate_for_bindings`, plus `_collect_params_from_predicate` in
   `ast_nodes.py`.
 - **Reject out-of-scope shapes with a clear, actionable error** that names the
-  supported form. Never silently ignore a clause.
-- **Keep the emitted SQL deterministic.** Append a unique tiebreaker
+  supported form. Never silently ignore a clause. (`GRY-ARCH-3` apply-or-reject —
+  an accepted-but-unused parsed fact is a silent-wrong-answer bug.)
+- **Read variable scope from the AST / `bindings`, never opportunistically** (`GRY-SEM-6`).
+  A predicate or projection resolves a variable through `_build_var_bindings` /
+  `_filter_predicate_for_bindings`, not by grabbing whatever binding happens to sit in
+  executor state — opportunistic name lookup is how a predicate silently binds to the
+  wrong variable (the far-node-binding class).
+- **Package results through the canonical shapes only** (`GRY-ARCH-11`). Emit the grift
+  graph envelope (`{nodes, edges}` + spine / `data` / `display` lanes) or the row-projection
+  shape — never a caller-specific result shape grown inside the executor. A consumer that
+  needs a different view builds it outside Gryphon.
+- **Keep the emitted SQL deterministic** (`GRY-ARCH-9`). Append a unique tiebreaker
   (`entity_id` / the group-by columns) to any `ORDER BY`; sort `pk__in` lists.
   Non-deterministic SQL makes the Gridkin snapshot flap.
 
@@ -353,6 +377,34 @@ sync rules in [`specs/spec-docs.md`](../../../specs/spec-docs.md) if any doc
 references the RIDs you changed (`grep -r <RID> docs/`).
 
 Commit the whole cycle as **one commit**. Keep terminal output ASCII-only.
+
+## Merge-readiness gate (definition of done)
+
+A Gryphon capability is **done** — a *validation-ready branch* — only when every row below is
+green. This is `GRY-PROC-6` ("one full cycle") expanded into a checklist; it defines *what must be
+true of the feature*, not *how the promote happens*. **The promote mechanism** (which session runs
+the full lane, what push flow advances `origin/main`) is owned by the multisession promote process
+(`spec-dev-multisession.md` + the dev-validation gate) — do **not** bake a push flow into a Gryphon
+feature. Hand off a validation-ready branch; let the promote process take it.
+
+| # | Validation layer | Pass criterion | Commandment |
+| :--: | --- | --- | --- |
+| 1 | Spec requirement + ACID table | every behavior incl. **every rejection** has an ACID; Status→`Implemented` only once the rest is green | `GRY-PROC-6` |
+| 2 | Parser tests | feature + variants parse; duplicate/malformed forms raise `GryphonParseError` | `GRY-LANG-4` |
+| 3 | Executor rejection tests | every out-of-scope shape raises `SearchExecutionError` — one per rejection ACID | `GRY-ARCH-3` |
+| 4 | Gridkin scenarios, **hand-authored** oracle | expecteds computed from the fixture by hand, verified in **assert mode before** snapshotting — never captured | `GRY-TEST-1/2/6` |
+| 5 | Model-oracle agreement | scenario passes the zero-shared-code oracle, or a **loud** `OracleUnmodeled` skip — never a silent pass | `GRY-TEST-2/4` |
+| 6 | SQL snapshot eyeballed | JOINs / predicates / GROUP BY / ORDER BY / LIMIT mean what the query means; SQL deterministic (sorted `pk__in`, tiebroken `ORDER BY`) | `GRY-TEST-1`, `GRY-ARCH-9` |
+| 7 | Path coverage, not intent | every dispatch path that reaches the feature is exercised; a scan/union gets a **no-`WHERE`/count** over-inclusion test | `GRY-TEST-3` |
+| 8 | TCK corners re-authored | corner intents mined; `inspired_by` set; **nothing copied** | `GRY-PROC-7` |
+| 9 | Semantics pinned where touched | null behavior stated + pinned; data-lane type-strictness; scope read from AST; canonical envelope only | `GRY-SEM-1/2/6`, `GRY-ARCH-11` |
+| 10 | Fuzzer / TLP extended — **conditional** | required **only if** the feature adds/changes predicate, null, or multiplicity semantics; otherwise record "N/A — no new predicate/null surface" in the spec | `GRY-TEST-8` |
+| 11 | Docs synced | capability block authored/updated; RIDs grepped in `docs/` and updated; divergence/credit ledgers updated if the feature diverges from or exceeds Cypher | `GRY-PROC-4`, `GRY-LANG-2` |
+| 12 | One commit, full cycle | spec + grammar + AST + parser + executor + scenarios + tests in a single coherent commit | `GRY-PROC-6` |
+
+Green-on-all = validation-ready. A `review-time` enforcement on a row means "no automated guard yet"
+— a **machine-enforced merge gate is a named candidate**, not built ahead of demand (name the gap;
+do not imply completeness).
 
 ## Common Mistakes (do not commit any of these)
 
