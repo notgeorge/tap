@@ -851,10 +851,16 @@ the resolver that consumes the ordering DAG is deferred until hand-ordering bite
   is the in-stack model; Debian's `Depends` (ordering-only, benign cycles
   tolerated) is the vocabulary.
 - **Tier 2 — seed order → mostly rides on the same `depends_on`.** The nuance:
-  the genuinely *runtime-data* dependency (e.g. samsite-compliance needing
-  `aws_account` nodes a *collector* produced, not another plugin's seed) stays
-  **explicit in the profile order** — Debian (Pre-Depends is rare/discouraged) and
-  the auditability argument both say do not auto-resolve runtime-data ordering.
+  the genuinely *runtime-data* dependency — needing collector-produced node
+  **instances** (e.g. samsite-compliance scoping the `aws_account` *rows* a
+  collector produced, not another plugin's seed) — stays **explicit in the profile
+  order** — Debian (Pre-Depends is rare/discouraged) and the auditability argument
+  both say do not auto-resolve runtime-data ordering. Do **not** confuse this with
+  needing another plugin's entity **types** registered (e.g. samsite's grift querying
+  `aws_core__aws_account`): that is a schema/install dependency and belongs in Tier-0
+  `pyproject.toml dependencies`, not the profile. samsite needs both — aws_core
+  *installed* (Tier 0) for the types, and aws_core's *collector fired first* (Tier 2,
+  profile) for the rows.
 
 Consumers: a cheap **boot-time gate now** (validate declared min-versions; validate
 that the hand-ordering is *consistent* with `depends_on` — fail loud if a profile
@@ -871,7 +877,7 @@ runtime = one version, and that is uv's job.
 | --- | --- | :---: | --- | --- |
 | req-plugin-arch-dependencies-1 | Package Deps Via uv | Implemented | Plugin→plugin and library deps are declared in `pyproject.toml` (version specifiers) and resolved by uv, fail-closed on diamonds. | Tier 0. Demonstrated: github_core's PyYAML resolves through its pre-boot editable install |
 | req-plugin-arch-dependencies-2 | Load-Order Declared | Implemented | Load/registration order is declared as `depends_on` slug edges in `tap-plugin.toml` (min-version + optional + intent `note` supported); parsed by `tap_plugins.manifest`. | Tier 1. `samsite` declares its real edges (sigstore_core/github_core/roscale) |
-| req-plugin-arch-dependencies-3 | Seed-Order Split | Implemented | Plugin-level code order rides on `depends_on`; runtime-data (collector-produced) ordering stays explicit in the profile — the import graph captures CODE deps only (honest boundary enforced: samsite's aws_core **data** dep is deliberately NOT a `depends_on`). | Tier 2 |
+| req-plugin-arch-dependencies-3 | Seed-Order Split | Implemented | Plugin-level code order rides on `depends_on` (code imports only); runtime-data (collector-produced node *instances*) ordering stays explicit in the profile. **Correction 2026-07-07:** the earlier claim that samsite's aws_core dep "is data, declared nowhere" conflated node *instances* (runtime data → profile) with entity *types* (schema → install). samsite's landing + compliance are built on 9 aws_core entity types (queried by string in its grift Gryphon) and it owns aws_core's collector schedule, so aws_core must be **installed** — a Tier-0 install dep, now declared in samsite's `pyproject.toml dependencies`, and correctly still NOT a `depends_on` (samsite imports no aws_core *code*). | Tier 2. See the Tier-0-vs-boot-record install-closure discussion (open) |
 | req-plugin-arch-dependencies-4 | Boot Consistency Gate | Implemented | Pre-boot `dependency_consistency_guard` fails closed on: an undeclared cross-plugin import (declared ⊇ AST-observed), a dep missing-from / ordered-after its dependent, or a violated min-version. Scanner + pure check in `tap/plugin_deps.py`, gate in `tap/preboot.py`. Resolver (topo-sort) still deferred. | |
 | req-plugin-arch-dependencies-5 | One Runtime One Version | Proposed | No second version resolver, no OSGi-style coexistence; one shared runtime resolves to one version via uv, fail-closed. | |
 
