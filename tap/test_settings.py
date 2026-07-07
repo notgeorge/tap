@@ -27,8 +27,8 @@ from tap.settings import LOGGING as _LOGGING
 # Package-mode plugins load under pytest via tap.settings itself: pytest runs Django
 # directly (never the pre-boot stage), so TAP_PLUGINS is unset and settings falls back
 # to entry-point discovery — loading exactly the package-mode plugins editable-installed
-# in the venv (fedramp_20x_ksi under the samsite profile; genericom only under its own
-# profile). No plugin-loading logic is needed here. See tap/settings.py TAP_PLUGINS_APPS.
+# in the venv (e.g. fedramp_20x_ksi under the samsite profile). No plugin-loading logic
+# is needed here. See tap/settings.py TAP_PLUGINS_APPS.
 
 # This process IS the test runner (req-tap-auth-actor-model). The only signal
 # that gates creation of test-only built-ins such as the tap_test actor.

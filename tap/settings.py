@@ -170,7 +170,7 @@ INSTALLED_APPS = [
     # grid_fixtures plugin instead. Loads via TAP_PLUGINS_APPS from a profile
     # `install` section + the test-settings entry-point discovery-fallback;
     # its Middle-earth *seed data* remains instance clutter decoupled from the
-    # app registration. See the lotr-vs-genericom note.
+    # app registration.
     # Computing Core plugin — migrated to package-mode 2026-07-01
     # (tap_plugin.computing_core); loads via TAP_PLUGINS_APPS.
     # AWS Core plugin — migrated to package-mode 2026-07-01 (tap_plugin.aws_core);
@@ -185,11 +185,6 @@ INSTALLED_APPS = [
     # Library plugin (rekor_log_entry/sigstore_ca models + verify/decompose
     # helpers) consumed by samsite's compliance_collector. Loads via
     # TAP_PLUGINS_APPS from the profile `install` section.
-    # Genericom plugin — DEPRECATED 2026-05-19: 100% hand-built mock AWS
-    # dataset (lotr-lineage scaffolding) built on aws_core. Code retained in
-    # plugins/genericom/ but NOT loaded — real-account work (samsite)
-    # supersedes it. Re-add this line to revive.
-    # "plugins.genericom.apps.GenericomConfig",
     # ROSCALE plugin — migrated to package-mode 2026-07-01 (tap_plugin.roscale).
     # Install-only (registers the roscale-oscal-workbench panel types samsite's
     # compliance pages consume); loads via TAP_PLUGINS_APPS from the profile
