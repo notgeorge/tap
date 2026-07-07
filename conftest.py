@@ -21,12 +21,50 @@ themselves (e.g. `set_caller_context(None)` or a deliberately unprivileged actor
 """
 
 import uuid
+from pathlib import Path
 
 import pytest
 
+from tap.plugin_testing import installed_plugin_slugs
 from tap_grid.caller_context import CallerContext, set_caller_context
 
 _TAP_TEST_KEY = "tap_test"
+
+_REPO_ROOT = Path(__file__).resolve().parent
+
+
+def _uninstalled_plugin_test_dirs() -> list[str]:
+    """Test dirs of plugins present on disk but NOT installed in this stack.
+
+    Plugin tests now live inside the package (``plugins/<slug>/tap_plugin/<slug>/
+    tests/``, or the legacy ``plugins/<slug>/tests/`` for pre-package plugins) and
+    import by installed identity (``tap_plugin.<slug>...``), so collecting them for a
+    plugin this stack did not install would ImportError at collection time — the
+    focused-session wound. The repo-root walk still descends into ``plugins/`` and
+    collects every *installed* plugin's tests automatically (fail-safe discovery,
+    no allow-list); this returns only the *uninstalled* ones for ``collect_ignore``,
+    so their coverage is delegated to the all-plugins CI lane rather than red'ing the
+    local run. See ``tap.plugin_testing`` and req-dev-validation-collection-complete.
+    """
+    plugins_dir = _REPO_ROOT / "plugins"
+    if not plugins_dir.is_dir():
+        return []
+    installed = set(installed_plugin_slugs())
+    ignore: list[str] = []
+    for slug_dir in sorted(plugins_dir.iterdir()):
+        if not slug_dir.is_dir() or slug_dir.name in installed:
+            continue
+        # Package-mode layout (tests inside the namespace package) + legacy layout.
+        for tests in sorted(slug_dir.glob("tap_plugin/*/tests")):
+            ignore.append(str(tests))
+        legacy = slug_dir / "tests"
+        if legacy.is_dir():
+            ignore.append(str(legacy))
+    return ignore
+
+
+# Consumed by pytest at collection time (root-conftest `collect_ignore`).
+collect_ignore = _uninstalled_plugin_test_dirs()
 
 
 @pytest.fixture(scope="session")
