@@ -44,6 +44,11 @@ jobs:
   all-plugins:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    # docker-compose.ci.yml overlays the dev compose file with the CI-only image tag
+    # (tap-web:ci) that the build step loads. COMPOSE_FILE makes every `docker compose`
+    # call below pick up both files without touching the run lines. Linux separator ':'.
+    env:
+      COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
     steps:
       - uses: actions/checkout@v5
 
@@ -56,8 +61,19 @@ jobs:
           rm -f tap_secrets
           mkdir -p tap_secrets
 
-      - name: Build web image
-        run: docker compose --env-file .env build web
+      # Build the web image with a GitHub Actions layer cache so unchanged layers
+      # (base image, uv deps, apt) don't rebuild every run. build-push-action loads
+      # the result locally as `tap-web:ci`; the ci overlay points the web service at
+      # that tag so the `up` below reuses it (no in-compose rebuild).
+      - uses: docker/setup-buildx-action@v3
+      - name: Build web image (GHA layer cache)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: tap-web:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       # Entrypoint chain: uv sync --all-packages -> pre-boot (installs the test_all
       # plugin union editable, emits TAP_PLUGINS) -> migrate -> runserver. Readiness
@@ -96,8 +112,12 @@ jobs:
       # while others wait. `max_locks_per_transaction=512` is already in the shared
       # compose config, so the extra concurrent test DBs won't hit the lock ceiling.
       # Postgres shares these 2 vCPUs + 7 GB, so it becomes the bottleneck past ~4-6;
-      # bump cautiously and re-measure. The real 2-4x lever is a larger paid runner
-      # (`runs-on: ubuntu-latest-4-cores`/`-8-cores` + back to `-n auto`).
+      # bump cautiously and re-measure. NOTE (checked 2026-07-07): GitHub's larger
+      # hosted runners (4/8-core) are an ORG-only feature (Team/Enterprise); this repo
+      # is under a personal account, so `runs-on: <larger>` is NOT available here. The
+      # real 2-4x levers are: move the repo under an Org on Team, a self-hosted runner
+      # (e.g. a local box — private repo makes that safe), or matrix-shard the suite
+      # across several standard 2-core runners (do the build cache first — see above).
       - name: Full test lane (all plugins)
         run: docker compose --env-file .env exec -T web sh -c 'cd /app && uv run pytest -n 4'
 

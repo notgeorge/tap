@@ -52,8 +52,15 @@ class ScheduleGriftTargetsGuard(Guard):
                                 )
                             )
 
-        # Fail closed on an empty sweep: a silent zero would pass while covering nothing.
-        assert edges, "expected at least one SCHEDULED_TARGET edge across shipped plugins"
+        # Install-aware: a focused stack may install no schedule-owning plugin (e.g.
+        # {aws_core, grid_fixtures} ships no SCHEDULED_TARGET edge). The invariant this
+        # guard enforces — every SHIPPED schedule edge resolves to a registered collector
+        # — is then vacuously satisfied, so pass. A hard "≥1 must exist" would bake a
+        # specific plugin's presence into a core guard (the pollution
+        # spec-plugin-validation-distribution warns against); the all-plugins CI lane,
+        # which installs the schedule owners, is where the populated check runs.
+        if not edges:
+            return
 
         dangling = [(slug, bundle, path, tid) for slug, bundle, path, tid in edges if tid not in registered]
         assert not dangling, (
