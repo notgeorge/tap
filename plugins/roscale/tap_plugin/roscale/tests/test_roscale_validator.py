@@ -17,14 +17,14 @@ def _load(name: str) -> dict:
 
 
 class TestSchemaValidation:
-    def test_samsite_ssp_schema_ok(self):
-        parsed = parse(_load("samsite_oscal_ssp.json"))
+    def test_ssp_schema_ok(self):
+        parsed = parse(_load("example_oscal_ssp.json"))
         result = validate(parsed)
         assert result.root_recognized
         assert result.schema_ok, [f"{e.path}: {e.message}" for e in result.schema_errors[:5]]
 
-    def test_samsite_poam_schema_ok(self):
-        parsed = parse(_load("samsite_oscal_poam.json"))
+    def test_poam_schema_ok(self):
+        parsed = parse(_load("example_oscal_poam.json"))
         result = validate(parsed)
         assert result.root_recognized
         assert result.schema_ok, [f"{e.path}: {e.message}" for e in result.schema_errors[:5]]
@@ -39,7 +39,7 @@ class TestSchemaValidation:
 
 class TestSemanticChecksSSP:
     def test_clean_ssp_no_warnings(self):
-        parsed = parse(_load("samsite_oscal_ssp.json"))
+        parsed = parse(_load("example_oscal_ssp.json"))
         result = validate(parsed)
         assert not result.semantic_warnings, [w.message for w in result.semantic_warnings[:5]]
 
@@ -80,7 +80,7 @@ class TestSemanticChecksSSP:
 
 class TestSemanticChecksPOAM:
     def test_clean_poam_no_warnings(self):
-        parsed = parse(_load("samsite_oscal_poam.json"))
+        parsed = parse(_load("example_oscal_poam.json"))
         result = validate(parsed)
         assert not result.semantic_warnings, [w.message for w in result.semantic_warnings[:5]]
 

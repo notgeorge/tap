@@ -1,6 +1,6 @@
 """lotr self-validates through validate_plugin — parity with every other plugin.
 
-Like github_core/aws_core/fedramp/roscale/etc., lotr ships a manifest test that
+Like every other plugin, lotr ships a manifest test that
 runs validate_plugin against its OWN directory. It is deliberately the richest
 such fixture: lotr is the only plugin that declares BOTH editors and searches,
 so it is the fixture that exercises validate's editor-classes / search-callables

@@ -35,14 +35,14 @@ class TestDetectRoot:
 
 class TestParseDict:
     def test_samsite_ssp(self):
-        result = parse(_load("samsite_oscal_ssp.json"))
+        result = parse(_load("example_oscal_ssp.json"))
         assert result.ok
         assert result.root_key == "system-security-plan"
         assert result.document_type == "ssp"
         assert result.errors == []
 
     def test_samsite_poam(self):
-        result = parse(_load("samsite_oscal_poam.json"))
+        result = parse(_load("example_oscal_poam.json"))
         assert result.ok
         assert result.root_key == "plan-of-action-and-milestones"
         assert result.document_type == "poam"
@@ -51,7 +51,7 @@ class TestParseDict:
 
 class TestParseJsonString:
     def test_ssp_string(self):
-        raw = (FIXTURES / "samsite_oscal_ssp.json").read_text()
+        raw = (FIXTURES / "example_oscal_ssp.json").read_text()
         result = parse(raw)
         assert result.ok
         assert result.root_key == "system-security-plan"
@@ -71,14 +71,14 @@ class TestParseEntityLike:
                 self.entity_type = entity_type
 
     def test_entity_with_dict_content(self):
-        node = self._FakeNode(content=_load("samsite_oscal_ssp.json"), entity_type="compliance_artifact")
+        node = self._FakeNode(content=_load("example_oscal_ssp.json"), entity_type="compliance_artifact")
         result = parse(node)
         assert result.ok
         assert result.root_key == "system-security-plan"
         assert result.warnings == []
 
     def test_unexpected_entity_type_warns_not_fails(self):
-        node = self._FakeNode(content=_load("samsite_oscal_ssp.json"), entity_type="random_node")
+        node = self._FakeNode(content=_load("example_oscal_ssp.json"), entity_type="random_node")
         result = parse(node)
         assert result.ok
         assert any("preferred is 'compliance_artifact'" in w.message for w in result.warnings)

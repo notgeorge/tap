@@ -328,7 +328,7 @@ class TestDeterministicEntityIds:
 
 class TestDimensionPropagation:
     def test_caller_dimensions_applied_to_all_pieces(self) -> None:
-        dims = {"sigstore.platform": "public-good", "samsite.scope": "compliance"}
+        dims = {"sigstore.platform": "public-good", "example.scope": "compliance"}
         fragment = bundle_to_grift_fragment(
             _good_result(),
             anchor_entity_id="anchor-1",
