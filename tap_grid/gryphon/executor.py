@@ -31,6 +31,7 @@ deduplication — advanced-path queries (NOT EXISTS, COUNT, multi-hop) require a
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
@@ -871,7 +872,7 @@ def _apply_typescan_predicate(
     )
 
 
-def _validate_data_lane_steps(model_cls: type | None, rest_steps: list[Any]) -> None:
+def _validate_data_lane_steps(model_cls: type | None, rest_steps: Sequence[Any]) -> None:
     """Allowlist the post-``data`` steps of a field path against the model's declared fields.
 
     The single positive rule of ``req-grid-traversal-lang-relation-guard.sec`` (the
@@ -1637,7 +1638,7 @@ def _orm_path_for_envelope_path(binding: dict[str, Any], steps: list[Any]) -> st
     ep = binding["entity_path"]
     label = binding.get("label")
     reverse = _node_label_to_related(label)
-    if reverse is None:
+    if reverse is None or label is None:
         raise SearchExecutionError(
             f"Cannot resolve `data.{rest[0].name}` on a variable without a "
             f"node label; add a label like `(var:entity_type)` so the "

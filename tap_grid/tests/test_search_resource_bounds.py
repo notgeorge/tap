@@ -23,7 +23,7 @@ def _show(alias: str, guc: str) -> str:
     try:
         with conn.cursor() as cursor:
             cursor.execute(f"SHOW {guc}")
-            return cursor.fetchone()[0]
+            return str(cursor.fetchone()[0])
     finally:
         conn.close()
 
