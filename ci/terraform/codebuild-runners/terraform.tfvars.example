@@ -1,0 +1,20 @@
+# Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored (may hold ARNs).
+
+aws_region   = "us-east-1"
+github_owner = "notgeorge"
+github_repo  = "tap"
+
+# First apply: leave empty, let Terraform create the connection, then AUTHORIZE it in
+# the console and re-apply (or apply once and authorize — builds just wait until then).
+# Subsequent: paste the authorized connection ARN to reuse it.
+codeconnection_arn = ""
+
+# Product lines to stand up. Start with the proof lane + samsite.
+product_lines = {
+  test_all = { profile = "test_all" }
+  samsite  = { profile = "samsite" }
+}
+
+# Capability axis:
+bedrock_enabled      = true
+sts_assume_role_arns = [] # e.g. ["arn:aws:iam::<acct>:role/tap-aws-core-test"]
