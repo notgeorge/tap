@@ -66,7 +66,7 @@ This spec revises three decisions elsewhere for deployments that adopt passwordl
 ## Relationship To Existing Specs
 
 - `tap_auth/specs/spec-tap-auth-v0.md` — the auth system this extends (actors, capabilities, providers, policy, sessions, boot).
-- `tap_auth/specs/spec-tap-auth-assurance-v0.md` — the AuthN/AuthZ assurance matrix; passkey ships per-method assurance entries (`req-tap-auth-passkey-assurance`).
+- `tap_auth/specs/spec-tap-auth-assurance-v0.md` — **retired/deprecated** (its surface-centric model was rejected; see its banner). Passkey assurance does **not** depend on it: `req-tap-auth-passkey-assurance` defines its cases directly and capability-centrically. The authoritative auth model is `spec-tap-auth-v0.md` + `docs/misc/doc-auth-per-app-standards.md`.
 - `tap_plugins/specs/spec-plugin-architecture.md` — `req-plugin-arch-slim-install` / `req-plugin-arch-python-deps`; the optional-install machinery the slim-install requirement reuses.
 - `specs/spec-dev-multisession.md` — the spawn machinery the dev bootstrap reuses (`req-dev-multisession-admin-bootstrap`).
 - `specs/spec-security-posture.md` — the cheap-edge / name-the-open-risk doctrine this spec applies.
@@ -381,11 +381,11 @@ In passwordless-primary mode there is exactly **one** break-glass floor: out-of-
 RID: `req-tap-auth-passkey-assurance`  
 Status: `Proposed`
 
-The passkey method MUST ship its own AuthN assurance entries so a change to passkey auth is reviewable the same way federated provider changes are (`spec-tap-auth-assurance-v0.md`, `authn_providers.<type>.json`).
+The passkey method MUST ship its own AuthN assurance **test cases** so a change to passkey auth is reviewable and regression-guarded. This is defined **directly and capability-centrically here** — it does **not** depend on `spec-tap-auth-assurance-v0.md` (retired) or its never-built, surface-centric `authn_providers.<type>.json` artifact. The *runtime* self-check is already the method-registry `self_test` (`req-tap-auth-passkey-methods`), mirroring federated providers' `self_test` (`req-tap-auth-providers`); this requirement adds the *build-time* complement — a described, fail-closed passkey ceremony test corpus. It is the first instance of the capability-centric assurance test-corpus backlogged in `spec-tap-auth-v0.md`.
 
 #### Implementation
 
-- A `tap_auth/authn_providers.passkey.json` (or method-registry equivalent) declares described allow/deny cases covering at minimum:
+- A described, **schema-validated passkey assurance case file** under `tap_auth/` (e.g. `tap_auth/passkey/assurance_cases.json`, validated by a loader at test-collection time) declares allow/deny cases covering at minimum:
   - enrollment **gating** — creation without a valid invitation/genesis is refused;
   - invitation **replay** and **expiry** — a consumed or expired token is refused;
   - **user-verification-required** — an assertion lacking UV is refused, **asserted against the verify call** (`require_user_verification=True`), not merely the options request (`req-tap-auth-passkey-webauthn-3`);
@@ -396,13 +396,13 @@ The passkey method MUST ship its own AuthN assurance entries so a change to pass
   - **ceremony CSRF** — a ceremony/redeem POST without a valid CSRF token is refused (`req-tap-auth-passkey-webauthn-12`);
   - **lost-device / recovery** — rebind (new passkey + old revoked), single-credential removal behavior, and that revocation **terminates the credential's live sessions** (`req-tap-auth-passkey-recovery-6`);
   - **dev-import refused outside dev/local** — `--import-dev-passkey` is permitted only under an explicitly `dev/local`-classified profile and fails closed on any missing/unknown/ambiguous classification (`req-tap-auth-passkey-dev-bootstrap-4`); a tampered/integrity-failed record is refused (`req-tap-auth-passkey-dev-bootstrap-8`).
-- These entries feed the assurance harness alongside the federated provider entries; enabling the passkey method without its assurance rows fails the relevant tests.
+- A fail-closed test loads and exercises these cases; enabling the passkey method without its assurance cases fails the relevant tests (the harness refuses to green on missing coverage). The runtime method-registry `self_test` (`req-tap-auth-passkey-methods`) is the complementary live check.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-auth-passkey-assurance-1 | Method Assurance File | Proposed | A described passkey assurance file exists and validates against the assurance schema. | |
+| req-tap-auth-passkey-assurance-1 | Method Assurance File | Proposed | A described, schema-validated passkey assurance case file exists under `tap_auth/` and is exercised by a fail-closed test (capability-centric; not dependent on the retired surface-centric assurance spec). | |
 | req-tap-auth-passkey-assurance-2 | Gating & Replay Covered | Proposed | Enrollment gating, token replay, and expiry have deny cases. | |
 | req-tap-auth-passkey-assurance-3 | Ceremony & Phishing Covered | Proposed | Verify-time UV, sign-counter regression, exact RP-ID/origin mismatch (incl. any-`localhost` wildcard), and `userHandle`↔owner-mismatch denials are asserted. | |
 | req-tap-auth-passkey-assurance-4 | Dev Bypass Fail-Closed | Proposed | The dev passkey-import path is asserted to fail closed outside an explicit `dev/local` profile (allowlist, ambiguity-refused) and to refuse a tampered/integrity-failed record. | |
