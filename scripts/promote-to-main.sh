@@ -131,7 +131,11 @@ Refusing to promote an unvalidated tree to origin/main (req-dev-validation-promo
   #      collector key red'ing a unit test — the exact class that shipped to main
   #      before this hook existed).
   #   2. Cold-boot gate — catches what the suite structurally cannot: a cold boot
-  #      from zero, per-profile resolution, the real backend, real health.
+  #      from zero, per-profile resolution, the real backend, real health. It boots
+  #      the full `test_all` union, so it is inherently a FULL-install check; on a
+  #      focused session (a plugin subset installed) it SKIPS via
+  #      --skip-if-not-installable and the all-plugins CI lane (Step 2.6) owns full
+  #      cold-boot truth (req-dev-validation-all-plugins-lane). On a full stack it runs.
   #   3. Lean-boot independence gate — catches what BOTH above structurally cannot:
   #      a core module importing a plugin-only dependency (requests/jwt class). The
   #      cold-boot gate reuses this stack's FULL venv where the leak is invisible;
@@ -145,8 +149,8 @@ Refusing to promote an unvalidated tree to origin/main (req-dev-validation-promo
     fail "Full test lane RED — aborting promote. origin/main is NOT advanced \
 (req-dev-validation-promote-hook-2). Fix the failing test(s) and re-run."
   fi
-  info "Full test lane GREEN. Cold-boot gate (scripts/gate) ..."
-  if ! scripts/gate; then
+  info "Full test lane GREEN. Cold-boot gate (scripts/gate; skips on a focused stack) ..."
+  if ! scripts/gate --skip-if-not-installable; then
     fail "Cold-boot gate RED — aborting promote. origin/main is NOT advanced \
 (req-dev-validation-promote-hook-2). Fix the failing step and re-run."
   fi

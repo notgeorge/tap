@@ -23,3 +23,4 @@ plugins/samsite/tap_plugin/samsite/collectors/compliance_collector/artifact_mani
 # `gryphon.coverage.json`), which must also update its reader
 # `scripts/gryphon-coverage-ratchet`; remove this line when they do.
 tap_grid/gryphon/coverage-baseline.json
+plugins/aws_core/tap_plugin/aws_core/collectors/boto3_collector/handoff/collector-principal-policy.json

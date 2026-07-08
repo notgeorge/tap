@@ -393,6 +393,8 @@ Status: `Implemented`
 
 The spawn script must create a Django admin superuser in each new session's database, unattended, without prompting. This is a sub-feature of [Spawn Script](#spawn-script) but specified separately because the credential resolution model has its own design surface.
 
+> **Reconciliation (2026-07-07):** `tap_auth/specs/spec-tap-auth-passkey-v0.md` (`req-tap-auth-passkey-dev-bootstrap`) revises this requirement for **passwordless-primary** deployments: the dev admin bridge changes from "resolve a password (env → Keychain → random), write `.dev-credentials`, `createsuperuser`" to "seed the admin and **replay the operator's exported public passkey record**" via `manage.py enroll-admin --import-dev-passkey`. Only public credential material moves (TAP never exports the private half — it stays under the authenticator/platform or its sync fabric); one `localhost` passkey then logs into every spawned session. This retires the dev password and makes the dev loop exercise the real passkey path. The password resolution model below remains the contract until that lands (feature Phase 2 / slim Phase A).
+
 #### Username and email — fixed
 
 - **Username:** `admin`.
@@ -462,13 +464,15 @@ The Keychain branch (#3 above) is wrapped in a Darwin check. Linux / Windows dev
 
 #### Acceptance Criteria
 
+> **Phase note (2026-07-07):** ACs -2, -3, -4, -5 describe the **password-era** bridge and are **superseded** by `req-tap-auth-passkey-dev-bootstrap` (passkey replay) once it lands — do not implement both. They remain the contract only until passkey replay ships. AC -1's "admin exists" survives; its "log in to `/admin/` (via password)" clause is replaced by passkey login (`req-tap-auth-passkey-recovery`).
+
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-dev-multisession-admin-bootstrap-1 | Admin user created unattended | Proposed | After spawn, `admin` superuser exists in the session DB and can log in to `/admin/`. | |
-| req-dev-multisession-admin-bootstrap-2 | Resolution order honored | Proposed | `--admin-password`, `TAP_DEV_ADMIN_PASSWORD`, Keychain, random — checked in that order; first hit wins. | |
-| req-dev-multisession-admin-bootstrap-3 | Credentials file written | Proposed | `<worktree>/.dev-credentials` exists with all five fields and is gitignored. | |
-| req-dev-multisession-admin-bootstrap-4 | Echoed once at spawn | Proposed | Spawn output names the username, password, email, URL, and credentials-file path. | |
-| req-dev-multisession-admin-bootstrap-5 | Keychain optional | Proposed | Spawn succeeds on a machine with no `tap-dev-default` Keychain entry by falling through to random generation. | |
+| req-dev-multisession-admin-bootstrap-1 | Admin user created unattended | Proposed | After spawn, `admin` superuser exists in the session DB and can log in to `/admin/`. | "log in via password" → passkey once `req-tap-auth-passkey-dev-bootstrap` lands. |
+| req-dev-multisession-admin-bootstrap-2 | Resolution order honored | Proposed | `--admin-password`, `TAP_DEV_ADMIN_PASSWORD`, Keychain, random — checked in that order; first hit wins. | Password-era; superseded by `req-tap-auth-passkey-dev-bootstrap`. |
+| req-dev-multisession-admin-bootstrap-3 | Credentials file written | Proposed | `<worktree>/.dev-credentials` exists with all five fields and is gitignored. | Password-era; superseded by `req-tap-auth-passkey-dev-bootstrap`. |
+| req-dev-multisession-admin-bootstrap-4 | Echoed once at spawn | Proposed | Spawn output names the username, password, email, URL, and credentials-file path. | Password-era; superseded by `req-tap-auth-passkey-dev-bootstrap`. |
+| req-dev-multisession-admin-bootstrap-5 | Keychain optional | Proposed | Spawn succeeds on a machine with no `tap-dev-default` Keychain entry by falling through to random generation. | Password-era; superseded by `req-tap-auth-passkey-dev-bootstrap`. |
 | req-dev-multisession-admin-bootstrap-6 | Despawn cleans up | Proposed | After despawn, `.dev-credentials` is gone (worktree removed). Keychain entry remains unless `--purge-keychain`. | |
 
 ### List Script

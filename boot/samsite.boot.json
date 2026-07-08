@@ -49,10 +49,10 @@
         "source": {
           "type": "git",
           "url": "https://github.com/notgeorge/tap-plugin-aws-core",
-          "rev": "v0.1.0",
+          "rev": "v0.1.1",
           "credential": "github-plugins-ro"
         },
-        "note": "EVICTED to notgeorge/tap-plugin-aws-core @ v0.1.0 (2026-07-03) \u2014 git-installed via authed source. Tier-0 boto3 dep. AWS dimension + boto3 collector; seeded + fired in population. Monorepo copy retained as offline dev/test source."
+        "note": "EVICTED to notgeorge/tap-plugin-aws-core (2026-07-03) \u2014 git-installed via authed source. Pinned @ v0.1.1 (2026-07-06: cross-account STS AssumeRole credential kind + partner handoff). Tier-0 boto3 dep. AWS dimension + boto3 collector; seeded + fired in population. Monorepo copy retained as offline dev/test source; released direct-to-repo pending a scripted plugin-release path."
       },
       {
         "slug": "sigstore_core",

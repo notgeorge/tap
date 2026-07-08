@@ -707,9 +707,21 @@ collector never reads credential files directly.
 - A missing or malformed secret fails the run visibly with a structured,
   redacted error (`req-tap-cares-secrets-redaction-3`); it never logs secret
   material and never disables the collector capability.
-- v0 is single-account static keys only. Assume-role and multi-account are
-  deferred (`req-aws-core-secret-aws-static-3`, `req-aws-collector-nongoals`);
-  the secret model already anticipates multi-account as "more secret files".
+- Two credential kinds are supported, dispatched by the resolved secret's
+  `kind`:
+  - `aws_static_access_key` — a boto3 session bound directly to the static
+    credentials (our own account).
+  - `aws_assumed_role` — **cross-account**: build a base session from
+    `data.base`, attach the audit ledger to it, call `sts:AssumeRole(RoleArn,
+    ExternalId, RoleSessionName, DurationSeconds?)`, and build the working
+    session from the returned short-lived credentials. The existing
+    `GetCallerIdentity` reachability probe doubles as the assert-on-land check
+    against `data.expected_account_id` when present. The kind shape and its
+    `aws_core`-owned schema are specified in `spec-aws-core-secrets.md`
+    (`req-aws-core-secret-aws-assumed-role`).
+- v0 collects a single account per run. The assumed-role kind lifts the
+  cross-account restriction (`req-aws-core-secret-aws-static-3` superseded);
+  multi-account fan-out remains "more secret files" (`req-aws-collector-nongoals`).
 
 #### Acceptance Criteria
 
@@ -718,7 +730,8 @@ collector never reads credential files directly.
 | req-aws-collector-credentials-1 | Secrets Subsystem Only | Approved for Development | Credentials resolve via `resolve_secret`; no direct file reads. | |
 | req-aws-collector-credentials-2 | Consumer-Side Validation | Approved for Development | The collector validates `kind` and required `data` against an `aws_core`-owned schema before use. | |
 | req-aws-collector-credentials-3 | Visible Redacted Failure | Approved for Development | Missing/malformed secret fails the run with a structured redacted error; no secret material is logged. | |
-| req-aws-collector-credentials-4 | Static Keys v0 | Approved for Development | v0 supports static access keys for one account only. | Assume-role/multi-account deferred. |
+| req-aws-collector-credentials-4 | Static Keys v0 | Approved for Development | v0 supports static access keys for the operating account. | Multi-account fan-out deferred. |
+| req-aws-collector-credentials-5 | Cross-Account Assume-Role | Proposed | The collector resolves the `aws_assumed_role` kind, assumes the target-account role via STS (with a mandatory External ID), and collects with the returned short-lived credentials; the STS probe doubles as the assert-on-land check. | Specified by `req-aws-core-secret-aws-assumed-role`. |
 
 ### Collector Runtime Integration
 ----

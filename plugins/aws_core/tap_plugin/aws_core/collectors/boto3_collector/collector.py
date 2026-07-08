@@ -50,9 +50,12 @@ from .batch import assemble_batch, node_envelope
 from .credentials import (
     AWS_SECRET_REF,
     CredentialError,
+    account_mismatch_error,
+    assume_role_session,
     build_session,
     caller_account_id,
     client_factory,
+    is_assumed_role,
     resolve_aws_secret,
     resolve_regions,
 )
@@ -81,6 +84,7 @@ _SITE_RUN_COMPLETED = "2de7"
 _SITE_ABORT_SECRET = "2d64"
 _SITE_ABORT_REGIONS = "b528"
 _SITE_ABORT_IDENTITY = "0623"
+_SITE_ABORT_ACCOUNT_MISMATCH = "005c"
 _SITE_HYDRATE_GAP = "bfd4"
 _SITE_CALL_LEDGER = "bdf3"
 _SITE_RGTA_SKIPPED = "f74e"
@@ -178,12 +182,25 @@ class Boto3Collector(CollectorBase):
             regions = resolve_regions(data)
         except CredentialError as exc:
             self._abort(_SITE_ABORT_REGIONS, "NO_REGION_SCOPE", str(exc))
-        session = build_session(data)
-        # Attach the audit ledger before any client/STS call so every AWS
-        # call this run makes is recorded (req-aws-collector-audit-ledger).
+        # Attach the audit ledger before any client/STS call so every AWS call
+        # this run makes is recorded — including a cross-account AssumeRole,
+        # which is captured on the base session
+        # (req-aws-collector-audit-ledger, req-aws-core-secret-aws-assumed-role-6).
         ledger = CallLedger()
-        ledger.attach(session)
         try:
+            if is_assumed_role(data):
+                base = build_session(data["base"])
+                ledger.attach(base)
+                session = assume_role_session(
+                    base,
+                    data,
+                    regions[0],
+                    role_session_name=f"tap-aws-core-{self.config.collection_job_entity_id}",
+                    timeout_seconds=self.SELF_TEST_LIVE_CHECK_TIMEOUT_SECONDS,
+                )
+            else:
+                session = build_session(data)
+            ledger.attach(session)
             account_id = caller_account_id(
                 session,
                 regions[0],
@@ -193,8 +210,13 @@ class Boto3Collector(CollectorBase):
             self._abort(
                 _SITE_ABORT_IDENTITY,
                 "STS_UNREACHABLE",
-                f"STS GetCallerIdentity failed: {exc}",
+                f"STS AssumeRole/GetCallerIdentity failed: {exc}",
             )
+        # Assert-on-land: a cross-account role must land in the declared account
+        # (req-aws-core-secret-aws-assumed-role-4). No-op for the static kind.
+        mismatch = account_mismatch_error(data, account_id)
+        if mismatch:
+            self._abort(_SITE_ABORT_ACCOUNT_MISMATCH, "ACCOUNT_MISMATCH", mismatch)
         self.record_info(
             _SITE_IDENTITY,
             "IDENTITY_RESOLVED",
@@ -427,10 +449,21 @@ class Boto3Collector(CollectorBase):
             )
         )
 
-        # 3. Read-only reachability: STS GetCallerIdentity within budget.
+        # 3. Read-only reachability: STS within budget. For the assumed-role
+        #    kind this also performs the AssumeRole (proving the cross-account
+        #    trust is wired) before the GetCallerIdentity probe.
         try:
+            if is_assumed_role(data):
+                session = assume_role_session(
+                    build_session(data["base"]),
+                    data,
+                    regions[0],
+                    timeout_seconds=cls.SELF_TEST_LIVE_CHECK_TIMEOUT_SECONDS,
+                )
+            else:
+                session = build_session(data)
             account_id = caller_account_id(
-                build_session(data),
+                session,
                 regions[0],
                 timeout_seconds=cls.SELF_TEST_LIVE_CHECK_TIMEOUT_SECONDS,
             )
@@ -438,20 +471,31 @@ class Boto3Collector(CollectorBase):
             checks.append(
                 check_fail(
                     "AWS_STS_REACHABLE",
-                    f"STS GetCallerIdentity failed: {exc}",
+                    f"STS AssumeRole/GetCallerIdentity failed: {exc}",
                     readiness_status=CollectorReadinessStatus.ERROR,
                     docs=_DOCS,
                 )
             )
         else:
-            checks.append(
-                check_pass(
-                    "AWS_STS_REACHABLE",
-                    f"AWS reachable; collecting account {account_id}.",
-                    context={"account_id": account_id},
-                    docs=_DOCS,
+            mismatch = account_mismatch_error(data, account_id)
+            if mismatch:
+                checks.append(
+                    check_fail(
+                        "AWS_STS_REACHABLE",
+                        mismatch,
+                        readiness_status=CollectorReadinessStatus.MISCONFIGURED,
+                        docs=_DOCS,
+                    )
                 )
-            )
+            else:
+                checks.append(
+                    check_pass(
+                        "AWS_STS_REACHABLE",
+                        f"AWS reachable; collecting account {account_id}.",
+                        context={"account_id": account_id},
+                        docs=_DOCS,
+                    )
+                )
 
         return CollectorSelfTestResult.from_checks(
             checks,

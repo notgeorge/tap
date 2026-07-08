@@ -12,6 +12,7 @@ Spec: specs/spec-tap-boot-v0.md (req-boot-profile).
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -33,6 +34,8 @@ __all__ = [
     "DEFAULT_ON_FAILURE",
     "boot_dir",
     "profile_ids",
+    "profile_install_slugs",
+    "installable_profile_ids",
     "load_profile",
 ]
 
@@ -109,6 +112,35 @@ def boot_dir() -> Path:
 
 def profile_ids() -> list[str]:
     return [instance_id(p, role="boot") for p in discover_json_files(boot_dir(), role="boot")]
+
+
+def profile_install_slugs(profile_id: str) -> frozenset[str]:
+    """The enabled ``install.plugins[].slug`` set a profile brings into the stack.
+
+    Read from the raw ``boot/<id>.boot.json`` (the parsed ``BootProfile`` models
+    *population* steps, not *install* steps). This is the atom of install-awareness:
+    a profile only resolves/boots in a stack that already has all these plugins.
+    """
+    raw = load_json_file(boot_dir() / f"{profile_id}.boot.json")
+    plugins = raw.get("install", {}).get("plugins", [])
+    return frozenset(p["slug"] for p in plugins if p.get("enabled", True))
+
+
+def installable_profile_ids(installed: Collection[str]) -> list[str]:
+    """Shipped profile ids whose install plugins are all present in ``installed``.
+
+    The single install-awareness point shared by every promote surface that resolves
+    profiles: the pytest ``ProfileResolutionGuard``, the cold-boot gate's
+    ``profiles:resolve`` step, and the promote's own "is this the full stack?" check
+    (``"test_all" in installable_profile_ids(...)``). A focused session holds a plugin
+    subset (``core_dev`` = just ``grid_fixtures``), so a profile that installs an absent
+    plugin (``samsite`` → ``administrivia``/…) is not installable here; the all-plugins
+    CI lane installs the full ``test_all`` union and owns full-set truth
+    (``req-dev-validation-all-plugins-lane``). Keeping the filter in one place stops the
+    surfaces from drifting apart.
+    """
+    have = set(installed)
+    return [pid for pid in profile_ids() if profile_install_slugs(pid) <= have]
 
 
 def load_profile(profile_id: str) -> BootProfile:
