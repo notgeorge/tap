@@ -70,6 +70,8 @@ This spec supersedes the user/auth architecture previously parked under `tap_gri
 | req-tap-auth-local | [Local Password Auth](#local-password-auth) | Implemented | Dev/default recovery path; disable (both backends) separate from user deactivation |
 | req-tap-auth-external-identity | [External Identity Linkage](#external-identity-linkage) | Implemented | Provider ID + subject; no v1 account linking; TAP social adapter enforces |
 | req-tap-auth-sessions | [Session Invalidation](#session-invalidation) | Implemented | Global/per-user/per-session; capability-gated + audited; separate from disabling login |
+| req-tap-auth-email-not-identity | [Email Is Not Identity](#email-is-not-identity) | Proposed | Express rule: email (mutable, non-unique, externally-controlled) is never a reliable key to identify/select/authorize a user; key off a stable internal id or `(provider, sub)`. Instantiates `spec-security-posture.md` `req-sec-email-not-identity` |
+| req-tap-auth-user-lookup | [User Lookup (Roster Read)](#user-lookup-roster-read) | Proposed | `manage.py list-users` surfaces the stable internal user id that id-keyed write commands consume; defines the `--user-id`-authoritative / `--email`-fails-loud selector convention; read-scoped `auth.read_users` cap; JSON output for AI operators |
 | req-tap-auth-deactivation | [User Deactivation](#user-deactivation) | Proposed | Method-agnostic disable regardless of auth method; `manage.py deactivate-user`; composes per-user session invalidation; runtime last-admin guard |
 | req-tap-auth-logging | [Actor-Aware Logging](#actor-aware-logging) | Proposed | Stdlib contextvars/filter pattern; no structlog dependency |
 | req-tap-auth-ai-placeholder | [AI And Machine Actor Placeholder](#ai-and-machine-actor-placeholder) | Proposed | AI actors are named program actors; delegation deferred |
@@ -796,7 +798,7 @@ External identity records link provider-authenticated subjects to canonical TAP 
 | --- | --- | :---: | --- | --- |
 | req-tap-auth-external-identity-1 | Provider Subject Key | Implemented | External identities are keyed by provider ID + subject. | |
 | req-tap-auth-external-identity-2 | No Raw Claims | Implemented | Raw provider claims/assertions are not stored. | |
-| req-tap-auth-external-identity-3 | Email Not Identity | Implemented | Email is not used as the durable linkage key. | |
+| req-tap-auth-external-identity-3 | Email Not Identity | Implemented | Email is not used as the durable linkage key; the express, system-wide statement of this is `req-tap-auth-email-not-identity`. | |
 | req-tap-auth-external-identity-4 | Linking Disabled | Implemented | V1 denies second-provider/same-email login rather than linking or shadowing. | |
 | req-tap-auth-external-identity-5 | Deactivation On Policy Removal | Proposed | Provider/domain removal deactivates affected external users. | |
 | req-tap-auth-external-identity-6 | Adapter Enforces No-Linking | Implemented | A TAP-owned allauth social adapter overrides the email-matching hooks (`pre_social_login`, `authenticate_by_email`/`can_authenticate_by_email`) so linking-disabled / same-email denial is enforced, not left to allauth defaults. | |
@@ -838,6 +840,58 @@ Session invalidation is a separate management operation from disabling login mec
 
 ---
 
+### Email Is Not Identity
+----
+RID: `req-tap-auth-email-not-identity`  
+Status: `Proposed`
+
+**Email is not a reliable source of user identification, and MUST NOT be used as the key to identify, select, look up, authorize, or grant to a user anywhere in the auth system.** Durable identity is a **stable internal `User` id**, or for federated identity the verified `(provider, sub)` pair (`req-tap-auth-external-identity`). This is the express, first-class statement of the principle; the more specific requirements below and around it (`req-tap-auth-user-lookup` selector convention, `req-tap-auth-external-identity`, `req-tap-auth-deactivation`, and `spec-tap-auth-passkey-v0.md` `req-tap-auth-passkey-add-device`) are its instances. It instantiates the cross-cutting security rule `spec-security-posture.md` `req-sec-email-not-identity`.
+
+Email fails as an identity key because it is **mutable** (people change addresses), **not unique** (TAP permits duplicate emails at the DB level by design — `req-tap-auth-external-identity`, so an address resolves to zero/one/many users), and for federated logins **externally controlled** by the provider (only `(provider, sub)` is durable). Worst of all the failure is **silent**: resolving an ambiguous email by first-match mis-identifies a user with no error — account takeover on a credential-mint, wrong-account denial-of-service on a deactivate/session-kill.
+
+#### Implementation
+
+- **Identify / select / target by stable internal id.** Every user-targeting operation (management command, service verb, admin action) keys off the internal `User` id — never email. A unique username (DB-unique) is an acceptable stable selector; email is not. This is the `req-tap-auth-user-lookup` selector convention.
+- **Email is at most an ambiguity-refusing convenience.** Where a human-friendly lookup genuinely helps, email MAY be offered only as a convenience that **fails loud on zero or multiple matches** — never a silent `.first()`-style pick.
+- **Filter, not key.** Matching a provider-asserted **verified** email against an allow-list (`allowed_emails`, `req-tap-auth-google-oidc`) is a legitimate authorization *gate*, enforced every login; using email to decide *which user this is* is forbidden. Keep the distinction explicit wherever email appears.
+- **Named residual — `initial_grants` keys off verified email.** The `initial_grants` map (`req-tap-auth-boot`) grants roles by the authenticated user's *verified* email. This is permitted as the federated admission unit but is safe only under **verified-email uniqueness within the admitted identity space** — sound for a single `hd`-gated Workspace provider, weaker under multi-provider / consumer-domain fallback. Named per `req-sec-honest-risk`, not silently relied upon; the IdP-claim→role mapping (Backlog) is the durable replacement.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-auth-email-not-identity-1 | Stable-Id Keying | Proposed | User identification / selection / authorization in the auth system keys off a stable internal `User` id (or federated `(provider, sub)`), never email. | |
+| req-tap-auth-email-not-identity-2 | No Silent Ambiguous Pick | Proposed | Where email is offered as a convenience lookup, it fails loud on zero or multiple matches; a silent first-match pick is a defect (see the `auth_sessions` follow-up under `req-tap-auth-user-lookup`). | |
+| req-tap-auth-email-not-identity-3 | Filter ≠ Key | Proposed | Email as a verified authorization filter (allow-list) is permitted; email as an identity key is not; the distinction is stated wherever email appears, and `initial_grants`' email keying is a named residual. | |
+
+---
+
+### User Lookup (Roster Read)
+----
+RID: `req-tap-auth-user-lookup`  
+Status: `Proposed`
+
+Operator-facing user administration keys off the **stable internal `User` id**, not email (email is mutable, non-identity, and DB-level-duplicate-permitted — `req-tap-auth-external-identity`). For that to be usable the id has to be **discoverable**, so a read-only lookup command is the necessary companion to every id-keyed *write* command (`deactivate-user` / `reactivate-user` below, and `spec-tap-auth-passkey-v0.md`'s `enroll-user --add-credential`). This is the one place the internal id is surfaced for an operator to copy into those commands.
+
+#### Implementation
+
+- **Command.** `manage.py list-users [--email <exact-or-substring>] [--role <role>] [--active | --inactive] [--format table|json]` lists users, and for each shows: the **stable internal user id** (the value the write commands consume), email(s), `is_active`, the auth-method kind(s) bound (federated / passkey / local), roles/grants, and last-login. It is strictly **read-only** — it never mutates.
+- **Shared selector convention (the id-keyed contract, defined once here).** Every user-targeting *write* command resolves its target by `--user-id` (**authoritative**) and MAY accept `--email` only as a **convenience lookup that fails loud on zero or multiple matches** — never a silent pick, because a duplicate or mistyped email on an account-impacting command (mint-a-credential, deactivate, session-invalidate) is account takeover or wrong-account denial-of-service. A unique `--username` (DB-unique in Django's user model) is an equally-stable authoritative selector where a command already spells it that way; the fail-loud rule applies specifically to the **email** path. `list-users` is precisely how an operator turns a fuzzy email into the exact id to pass. This convention is referenced by `req-tap-auth-deactivation`, `req-tap-auth-sessions`, and `spec-tap-auth-passkey-v0.md` `req-tap-auth-passkey-add-device` rather than restated there.
+- **Binds existing commands too (audit, 2026-07-08).** The already-implemented `manage.py auth_sessions` (`req-tap-auth-sessions`) resolves both `--as-user` (the acting admin) and `--user` (the target) via a username-or-email helper whose email fallback currently picks `.first()` — a **silent pick on duplicate email** that this convention forbids (mis-selecting `--as-user` runs the operation under the wrong authority; mis-selecting `--user` kills the wrong account's sessions). Its username path is safe (unique); its email fallback MUST be brought into compliance — fail loud on ≠1 match — as an implementation follow-up. A full sweep (2026-07-08) confirms the remaining email usages are correct-by-design: `allowed_emails`/`hd`/`email_verified` are authorization filters, not identity keys (`req-tap-auth-google-oidc`); the same-email no-linking check fails closed via `.exists()` (`req-tap-auth-external-identity`); and `enroll-user`/`enroll-admin` *create* legitimately take `--email` because they assert a new identity whose existing-user check already fails loud on any match. The one **named assumption**: `initial_grants` keys grants off the authenticated user's *verified* email (`req-tap-auth-boot`), which is safe only under verified-email uniqueness within the admitted identity space (holds for a single `hd`-gated provider; weakens under multi-provider / consumer-domain fallback).
+- **Read-scoped capability.** Gated on a **read** capability `auth.read_users`, deliberately distinct from the **write** `auth.manage_users` (fine-grained read-vs-write split): listing the roster discloses who exists and who is admin — real reconnaissance value — and is separable from the power to change accounts, so a support/operator role can hold lookup without mutation. Never an anonymous / `User=None` operation.
+- **AI-legible + audited.** `--format json` emits a machine-parseable roster so a Player-3 AI operator (`spec-ai-integration.md`) can consume it read-only; each invocation emits a structured access-audit line (actor / time / filter) because roster enumeration is recon-relevant.
+- **Request-agnostic service verb.** A thin wrapper over a service-layer `list_users(...)` read verb, so a future user-management UI or the grid-intent consumer drives the same gated read — additive, not a rewrite.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-auth-user-lookup-1 | Lookup Command | Proposed | `manage.py list-users` lists users with their stable internal id, email(s), active state, auth-method kind(s), roles, and last-login; supports `--email` / `--role` / `--active` / `--inactive` filters and `--format table\|json`; strictly read-only. | |
+| req-tap-auth-user-lookup-2 | Id-Keyed Selector Convention | Proposed | User-targeting write commands key off `--user-id` (authoritative); `--email` is accepted only as a convenience that fails loud on zero or multiple matches. Defined here; referenced by deactivation and passkey add-device. | |
+| req-tap-auth-user-lookup-3 | Read-Scoped & Audited | Proposed | Gated on a read capability `auth.read_users` distinct from the write `auth.manage_users`; emits a structured access-audit line; `--format json` is machine-parseable for an AI operator. | |
+
+---
+
 ### User Deactivation
 ----
 RID: `req-tap-auth-deactivation`  
@@ -847,7 +901,7 @@ Deactivation is a **method-agnostic user-lifecycle lever**: it disables a user *
 
 #### Implementation
 
-- **Operator commands.** `manage.py deactivate-user --email … [--reason …] [--invalidate-sessions]` sets the user inactive (`is_active=False`) and records the deactivation metadata (`deactivated_at` / `deactivated_reason` / `deactivated_by_actor`, `req-tap-auth-user-model`). A symmetric `manage.py reactivate-user --email …` reverses it; reactivation is **explicit**, never automatic (consistent with `req-tap-auth-external-identity`'s "reactivation is explicit"). Deactivate is **not** delete — the user row and its audit trail are preserved.
+- **Operator commands.** `manage.py deactivate-user --user-id … [--reason …] [--invalidate-sessions]` sets the user inactive (`is_active=False`) and records the deactivation metadata (`deactivated_at` / `deactivated_reason` / `deactivated_by_actor`, `req-tap-auth-user-model`). A symmetric `manage.py reactivate-user --user-id …` reverses it; reactivation is **explicit**, never automatic (consistent with `req-tap-auth-external-identity`'s "reactivation is explicit"). Deactivate is **not** delete — the user row and its audit trail are preserved. Both follow the **id-keyed selector convention** (`req-tap-auth-user-lookup`): the target is resolved by `--user-id` (authoritative), with `--email` accepted only as a convenience that fails loud on zero or multiple matches — deactivating the wrong account on a duplicate/typo'd email is a wrong-account denial-of-service, so it is never a silent pick. Use `manage.py list-users` to find the id.
 - **Method-agnostic by construction, enforced at every edge.** Deactivation lives on the `User` (the identity anchor *above* every auth method), so it applies regardless of authentication process — but that only holds if each edge honors it. **Every authentication backend MUST reject an inactive user.** Django's `ModelBackend` does this via `user_can_authenticate` (covering local + the federated/allauth path), and the **TAP passkey authentication backend MUST mirror it** — a hand-rolled backend that verifies an assertion without an `is_active` check would let a deactivated user keep logging in by passkey, silently defeating the purpose. Belt-and-suspenders: even a *stale* session of a deactivated user is denied at the service boundary (`req-tap-auth-actor-model` inactive → `inactive_actor`), so a deactivated actor can perform no TAP operation regardless of session state.
 - **Session invalidation is a composed, explicit step — and cheap.** Deactivation blocks *future* auth; it does not by itself terminate a live session (`is_active=False` does not evict an existing session). `--invalidate-sessions` composes the per-user banhammer (`req-tap-auth-sessions-3`) so the account is logged out everywhere in one command — explicit, never a silent side effect (the separate-levers doctrine). The **recommended mechanism is per-user session-auth-hash-salt rotation** — the *same* primitive `spec-tap-auth-passkey-v0.md` (`req-tap-auth-passkey-recovery`) already requires so credential revocation kills sessions: rotate a per-user salt feeding `get_session_auth_hash()` and every session dies on its next request (O(1) trigger, no scan, no index, no new dependency), exactly where a password change did the job in the password era. It is *lazy* (next-request), which suffices because the service-boundary inactive-actor denial already blocks any action in the interim; when an *instant* cookie-kill is wanted (incident response), the enumerate-and-delete banhammer (`req-tap-auth-sessions-3`) composes on top.
 - **Guardrails.**
@@ -860,7 +914,7 @@ Deactivation is a **method-agnostic user-lifecycle lever**: it disables a user *
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-auth-deactivation-1 | Deactivate Command | Proposed | `manage.py deactivate-user` sets `is_active=False` and records deactivation metadata; `reactivate-user` reverses it explicitly; neither deletes the user. | |
+| req-tap-auth-deactivation-1 | Deactivate Command | Proposed | `manage.py deactivate-user` sets `is_active=False` and records deactivation metadata; `reactivate-user` reverses it explicitly; neither deletes the user. Both key off `--user-id` per the `req-tap-auth-user-lookup` selector convention (`--email` fails loud on 0/multiple). | |
 | req-tap-auth-deactivation-2 | Method-Agnostic Enforcement | Proposed | Every auth backend (local, federated, **passkey**) rejects an inactive user, and the service boundary denies an inactive actor — a deactivated user cannot authenticate by any method or act on any live session. | |
 | req-tap-auth-deactivation-3 | Session Invalidation Composed | Proposed | `--invalidate-sessions` invalidates all of the user's current sessions via the per-user banhammer; recommended impl is per-user auth-hash-salt rotation, shared with `req-tap-auth-passkey-recovery`. | |
 | req-tap-auth-deactivation-4 | Guardrails | Proposed | Protected built-ins cannot be deactivated; the last active human `tap_admin` is protected by a runtime last-admin guard (explicit override required). | |

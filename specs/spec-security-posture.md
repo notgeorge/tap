@@ -39,6 +39,7 @@ This is the security-engineering form of well-known principles: **secure-by-defa
 | req-sec-reversibility | [Favor The Edge When Unsure](#favor-the-edge-when-unsure) | Proposed | Over-restriction relaxes cheaply; omission retrofits expensively |
 | req-sec-honest-risk | [Name Accepted Risk](#name-accepted-risk) | Proposed | Doctrine is selective; deliberately-open risks are stated, not hidden |
 | req-sec-concern-gaps | [Concern The Gaps You Can't Yet Close](#concern-the-gaps-you-cant-yet-close) | Proposed | Formalize recognized-but-unpreventable harms as runtime `CONCERN` signals — detection now, root-fix map for later |
+| req-sec-email-not-identity | [Email Is Not Identity](#email-is-not-identity) | Proposed | Email (and any mutable, non-unique attribute) is never a reliable key for identifying, selecting, or authorizing a user; key off a stable internal id |
 
 ---
 
@@ -164,9 +165,40 @@ This is the detective companion to `req-sec-cheap-edges` (the *preventive* cheap
 
 ---
 
+### Email Is Not Identity
+----
+RID: `req-sec-email-not-identity`  
+Status: `Proposed`
+
+**Email — and any mutable, non-unique, or externally-controlled attribute — is not a reliable source of user identification.** It MUST NOT be used as the key to *identify*, *select*, *look up*, *authorize*, or *grant* to a user. Identity keys off a **stable, internal, unique identifier** (the `User` id, or for federated identity the durable `(provider, sub)` pair — `spec-tap-auth-v0.md` `req-tap-auth-external-identity`). This is a concrete instance of secure-by-default (`req-sec-cheap-edges`): choosing the right key at authoring time is free; retrofitting it after a subsystem has pinned email is expensive and, once ambiguous data exists, security-relevant.
+
+#### Why email fails as an identity key
+
+- **Mutable** — a person's email changes; anything keyed to it silently follows or breaks.
+- **Not unique** — TAP permits duplicate emails at the DB level by design (`req-tap-auth-external-identity`), so an email can resolve to zero, one, or several users.
+- **Externally controlled** — for federated identity the provider owns the address; only the verified `(provider, sub)` is a durable anchor.
+- **The failure is silent** — a lookup that resolves an ambiguous email by picking the first row mis-identifies a user with no error. On an account-impacting operation that is account takeover (mint a credential for the wrong person) or wrong-account denial-of-service (deactivate / log out the wrong person).
+
+#### The rule
+
+- **Identify / select / target by stable internal id.** User-targeting operations (management commands, service verbs, admin actions) key off the internal `User` id — never email.
+- **Email is at most an ambiguity-refusing convenience.** Where a human-friendly lookup is genuinely useful, email MAY be *offered* only as a convenience that **fails loud on zero or multiple matches** — never a silent `.first()`-style pick. A unique username is an acceptable stable selector; email is not.
+- **Email as an authorization *filter* is fine; as an identity *key* is not.** Matching a provider-asserted **verified** email against an allow-list (`allowed_emails`) is a legitimate gate enforced every login; using email to *decide which user this is* is not. Keep the distinction explicit.
+- **Applies system-wide, not just to auth.** Any subsystem that names a user — plugins, AI/machine actors, audit trails, grid provenance — inherits this rule.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-sec-email-not-identity-1 | Stable-Id Keying | Proposed | User identification / selection / authorization keys off a stable internal id (or federated `(provider, sub)`), never email or another mutable/non-unique attribute. | |
+| req-sec-email-not-identity-2 | No Silent Ambiguous Pick | Proposed | Where email is offered as a convenience lookup, it fails loud on zero or multiple matches; a silent first-match pick is a defect. | |
+| req-sec-email-not-identity-3 | Filter ≠ Key | Proposed | Email used as a verified authorization filter (allow-list) is permitted; email used as an identity key is not. The distinction is stated where email appears. | |
+
+---
+
 ## Relationship To Other Specs
 
-- **`spec-tap-auth-v0.md`** — the densest application of this doctrine (named actors, on-by-default authz, least privilege, recovery floor). Many of its choices are this doctrine in action.
+- **`spec-tap-auth-v0.md`** — the densest application of this doctrine (named actors, on-by-default authz, least privilege, recovery floor). Many of its choices are this doctrine in action; in particular it instantiates `req-sec-email-not-identity` via `req-tap-auth-email-not-identity` (the express auth rule), the `req-tap-auth-user-lookup` id-keyed selector convention, and `req-tap-auth-external-identity` (durable `(provider, sub)`).
 - **`spec-plugin-type-ownership-v0.md`** — the per-plugin DB-guard foundation (`req-plugin-type-db-affordance`) is a canonical "cheap edge during work already underway."
 - **`spec-tap-boot-v0.md`** (`req-boot-trust`) — the explicit statement of where trust is *granted* by design; the honest-accepted-risk counterpart.
 - **`spec-tap-flaw-v0.md`** — the mechanism for surfacing when a structural edge is violated at runtime (e.g. `unguarded_operation`).
