@@ -1,11 +1,12 @@
 """The read-only search connection carries the resource bounds (req-grid-traversal-exec-resource-bounds.sec).
 
 A Gryphon read that is legitimate in scope but pathological in cost is an availability risk.
-v0 bounds it with native PostgreSQL caps pinned on the search connection: time
-(statement_timeout / lock_timeout), memory (work_mem), and disk (temp_file_limit — a hard cap
-that aborts a query whose spill exceeds it). These are set at connection time in
-``tap/settings.py`` (the interim, role-independent home; they move to ALTER ROLE when the
-least-privilege role lands). This test proves they are actually engaged on the connection.
+v0 bounds it with native PostgreSQL caps: time (statement_timeout / lock_timeout) and memory
+(work_mem) ride the search connection's startup options (all USERSET — settable by any role),
+while disk (temp_file_limit — a hard cap that aborts a query whose spill exceeds it) is a
+superuser-only (SUSET) parameter the least-privilege role cannot set at connect time, so it is
+pinned on the role via ``ALTER ROLE … SET`` (see test_search_role.py). This test proves the
+connection-carried bounds are engaged; the role-pinned temp_file_limit is proven there.
 """
 
 from __future__ import annotations
@@ -28,13 +29,15 @@ def _show(alias: str, guc: str) -> str:
 
 
 def test_search_connection_pins_the_resource_gucs():
-    """statement_timeout / lock_timeout / work_mem / temp_file_limit are set on search_readonly."""
+    """statement_timeout / lock_timeout / work_mem ride the search_readonly connection options.
+
+    (temp_file_limit is superuser-only and cannot ride the connection for the least-privilege
+    role; it is role-pinned via ALTER ROLE — asserted in test_search_role.py.)
+    """
     # PostgreSQL normalizes units (e.g. "30s" -> "30s", "1GB" -> "1GB"); assert non-default,
     # matching the configured values rather than hard-coding PG's canonical rendering.
     assert _show("search_readonly", "statement_timeout") not in ("0", "")
     assert _show("search_readonly", "lock_timeout") not in ("0", "")
-    # temp_file_limit default is -1 (unlimited); a real cap means it is no longer -1.
-    assert _show("search_readonly", "temp_file_limit") != "-1"
     # work_mem is configured away from the 4MB PostgreSQL default in our settings.
     assert _show("search_readonly", "work_mem") == settings.SEARCH_WORK_MEM
 

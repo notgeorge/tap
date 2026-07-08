@@ -148,6 +148,8 @@ def run_boot(profile: BootProfile | None, *, echo: Echo | None = None) -> None:
 
     _phase_auth(profile, say)
 
+    _phase_grid_infra(say)
+
     if profile is None or not profile.has_population:
         logger.info("[f89d] boot: no population steps; auth-only standup complete")
         say("No population steps — auth-only standup complete.")
@@ -212,6 +214,31 @@ def _phase_auth(profile: BootProfile | None, say: Echo) -> None:
             apply_auth_boot_section(profile.auth or {}, deploy=not settings.DEBUG, echo=say)
         except AuthBootError as exc:
             raise BootError(f"auth section: {exc}") from exc
+
+
+def _phase_grid_infra(say: Echo) -> None:
+    """grid-infrastructure phase: provision the least-privilege read-only search role.
+
+    Runs post-migrate (the entrypoint runs `migrate` before `manage.py boot`), so every
+    plugin table exists and the type registry is populated when the grant set is computed.
+    Idempotent — reconciles `tap_gryphon_ro`'s grants to the current registry set each boot
+    and pins its resource GUCs (req-boot-search-role, req-grid-search-readonly-role.sec).
+    Always runs, even for an auth-only standup, because search is a core surface.
+    """
+    from django.conf import settings
+    from django.db import connections
+
+    from tap_grid.search_role import SEARCH_ROLE_NAME, provision_search_role
+
+    conn = connections["default"]
+    tables = provision_search_role(
+        conn,
+        password=settings.SEARCH_READONLY_PASSWORD,
+        database=conn.settings_dict["NAME"],
+        gucs=settings.SEARCH_ROLE_GUCS,
+    )
+    logger.info("[0075] boot grid-infra: search role %s granted SELECT on %d tables", SEARCH_ROLE_NAME, len(tables))
+    say(f"Grid-infra phase: provisioned {SEARCH_ROLE_NAME} (SELECT on {len(tables)} tables).")
 
 
 def _phase_population(profile: BootProfile, bootloader: object, say: Echo) -> None:
