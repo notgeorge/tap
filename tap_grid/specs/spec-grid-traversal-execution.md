@@ -33,6 +33,10 @@ preserving read-only execution, bind-parameter safety, semantic conservation, an
 | req-grid-traversal-exec-lowering | [Lowering Ladder](#lowering-ladder) | Implemented | Graduated rung order for lowering a query below the ORM; rung 1 (ORM) is the live backend, rungs 2–5 the sanctioned escalation path |
 | req-grid-traversal-exec-scope.sec | [gryphon Safety Scope](#gryphon-safety-scope) | Implemented | Read-only, TAP-scoped, unsupported syntax rejected, inputs validated |
 | req-grid-traversal-exec-sql-capture | [SQL Capture Seam](#sql-capture-seam) | Implemented | `execute_wrapper`-based SQL capture for Gridkin snapshots and `gryphon explain` |
+| req-grid-traversal-exec-compiled-trace | [Compiled Trace Artifact](#compiled-trace-artifact) | Backlog | Developer/test-only structured trace of what Gryphon parsed, lowered, executed, and packaged; exposes SQL + params plus result-shape / policy / postprocess metadata for AI QC and plan review without exposing live ORM objects |
+| req-grid-traversal-exec-searchable.sec | [Opt-In Searchability Gate](#opt-in-searchability-gate) | Proposed | A `BaseModel` type is resolvable as a Gryphon query type only if it explicitly opts in (`GRYPHON_SEARCHABLE`, default-deny); non-opted types are rejected at the Validate stage. Narrows scope.sec "TAP-approved" → "TAP-approved **and searchable**"; surfaced through the existing registry-backed type-discovery surface, no new grid table |
+| req-grid-traversal-exec-table-guard.sec | [Compiled-Query Table-Scope Guard](#compiled-query-table-scope-guard) | Proposed | Before any queryset executes, the tables it references (`query.alias_map`) must be within the searchable + spine allowlist, else block + `security` Flaw. Shape-agnostic belt-and-suspenders on the emitted query — catches a scope escape no matter which dispatch shape built it; same allowlist as the searchability gate and the DB role |
+| req-grid-traversal-exec-resource-bounds.sec | [Query Resource Bounds](#query-resource-bounds) | Proposed | Hard, always-on resource caps on Gryphon reads: role-pinned `statement_timeout` / `lock_timeout` / `temp_file_limit` / `work_mem` on `tap_gryphon_ro` (time, disk, memory) plus an application default result-row cap. Bounds the *damage* of a runaway query regardless of shape. A pre-execution cost gate (`pg_plan_filter`) is the named, deferred escalation, not v0 |
 
 
 ### Execution Pipeline
@@ -339,18 +343,355 @@ gryphon execution must:
 gryphon text must not be treated as arbitrary SQL, arbitrary Python, or arbitrary
 database-native graph syntax supplied by the caller.
 
+**Read-only-alias enforcement is incomplete on the live path (finding, 2026-07-08).** The
+2026-07-08 security sweep found that the production raw endpoint (`tap_api/routers/gryphon.py`)
+calls `execute_gryphon_raw` with no `db_alias`, defaulting to the **writable `default`**
+connection rather than `search_readonly`. It is harmless *today* only because the ORM emits
+`SELECT`-only SQL — but it means the read-only backstop the security design assumes (a write
+trips SQLSTATE 25006 and a Flaw; the resource GUCs and future DB grant ride the search role)
+is **not engaged on the live raw path**. `scope.sec-5` below makes read-only-alias binding a
+requirement of *every* entrypoint, not a default a caller can silently omit. **This is
+classified as an immediate bug fix, not deferred hardening** — the one-line router change
+(bind the read-only alias) lands in the first remediation commit, ahead of the larger guard
+build, because it is the precondition that makes every other backstop actually bind on the
+live path.
+
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-traversal-exec-scope.sec-1 | Read Only | Implemented | gryphon execution does not mutate persisted TAP state. | All queries run on `search_readonly` alias |
+| req-grid-traversal-exec-scope.sec-1 | Read Only | Implemented | gryphon execution does not mutate persisted TAP state. | ORM emits SELECT-only; alias binding hardened by `scope.sec-5` |
 | req-grid-traversal-exec-scope.sec-2 | Tap Scope Only | Implemented | gryphon compilation and execution stay scoped to TAP-approved graph data. | |
 | req-grid-traversal-exec-scope.sec-3 | Unsupported Syntax Rejected At Parse | Implemented | Unknown or disallowed gryphon constructs are rejected at parse time, not runtime. | |
 | req-grid-traversal-exec-scope.sec-4 | Inputs Validated Before Execution | Implemented | Runtime inputs are validated before the backend plan runs. | |
+| req-grid-traversal-exec-scope.sec-5 | Every Entrypoint Binds The Read-Only Alias | Proposed | Every Gryphon execution entrypoint — including the raw API router — routes through the read-only search connection; the read-only alias is not an omittable caller default. Closes the writable-`default`-connection finding, so the write-block guard, resource GUCs (`req-grid-traversal-exec-resource-bounds.sec`), and DB grant (`req-grid-search-readonly-role.sec`) actually bind on the live path. | The load-bearing surprise. |
 
 #### Future
 Document backend-specific guardrails once TAP chooses its first concrete traversal compiler
 target beyond ORM.
+
+
+### Opt-In Searchability Gate
+----
+RID: `req-grid-traversal-exec-searchable.sec`
+Status: `Proposed`
+Tags: `Security`
+
+`req-grid-traversal-exec-scope.sec-2` requires Gryphon to "stay scoped to TAP-approved
+graph data." This requirement makes "approved" **explicit and default-deny**: a
+`BaseModel` type is resolvable as a Gryphon query type only if it opts in. Being a grid
+model is necessary but not sufficient to be *searchable* — internal grid tables (batch
+bookkeeping, the scheduler's own tables, any future plugin's private tables) exist on the
+spine but should not be reachable through the query surface. The gate is the single source
+of truth from which the field-path relation guard
+(`req-grid-traversal-lang-relation-guard.sec`) and the least-privilege DB role
+(`req-grid-search-readonly-role.sec` / `req-boot-search-role`) all derive their notion of
+"searchable."
+
+#### Background
+
+Today the model is opt-*out*: every registered `BaseModel` type is silently searchable,
+and a type is only kept out of Gryphon by *not existing* — there is no way to say "this
+grid table is internal." That is fail-open: forgetting to exclude a table exposes it (the
+`Batch.actor` finding behind `req-grid-traversal-lang-relation-guard.sec` is exactly this —
+`batch` is searchable only because nobody said otherwise). Inverting to opt-in makes
+forgetting *safe*: a new table is invisible to Gryphon until it deliberately asks to be
+searchable. This is the reversibility doctrine (`req-sec-reversibility`) —
+over-restriction relaxes cheaply (add the flag), omission retrofits expensively (a live
+read primitive). It also matches the graph-native precedent (Neo4j label-level
+`GRANT TRAVERSE`, default-deny) and the app-layer allowlist pattern (Hasura).
+
+#### Implementation
+
+- **Declaration (Layer 0).** A class-level `GRYPHON_SEARCHABLE: ClassVar[bool]` on
+  `BaseModel`, defaulting to `False`. A concrete subclass opts in by setting it `True`. The
+  flag is collected at `__init_subclass__` time — the same hook that already registers
+  `ENTITY_TYPE` — into a searchable-type registry, so the searchable set is a computed
+  property of the model layer, not a hand-maintained list. (v0 is a boolean; a richer
+  per-field/per-lane policy is future work below.)
+- **Enforcement (Layer 1).** The Validate stage of the pipeline
+  (`req-grid-traversal-exec-pipeline`, step 3 — "check node labels and edge types against
+  the registry") consults the searchable registry: a labelled `MATCH (n:type)` on a
+  non-searchable type is rejected exactly as an unknown type is. A labelless
+  `MATCH (n)` (`req-grid-traversal-lang-bare-match`) unions only the searchable node types.
+- **Discovery.** The searchable flag is surfaced through the **existing** registry-backed
+  type-discovery surface as one more capability bit — the surface an AI already queries to
+  learn what types and schemas exist. No new grid table is introduced; AI reads "what can I
+  search?" from the type catalog it already reads. On-grid materialization of the searchable
+  set (a subgrid table) is deliberately deferred (see Future).
+- **Default posture for existing types, recorded in a classification ledger.** Migrating to
+  this gate is a deliberate, reviewed act: each existing `BaseModel` type is explicitly
+  classified — **searchable**, **intentionally-not-searchable**, or **internal-only** — with a
+  one-line rationale, in a small committed ledger (a doc table keyed by type). The ledger is
+  what prevents a future "set `GRYPHON_SEARCHABLE = True` everywhere" sweep: a type becomes
+  searchable only by a reviewed ledger row, not by a blanket edit. Internal bookkeeping types
+  (e.g. `batch`) are classified intentionally-not-searchable, closing the finding at the type
+  level before the field level even matters. The ledger is a review aid; the `ClassVar` on the
+  model remains the machine-authoritative source (the two are reconciled by `sec-6`).
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-traversal-exec-searchable.sec-1 | Default Deny | Proposed | A `BaseModel` subclass is not Gryphon-searchable unless it sets `GRYPHON_SEARCHABLE = True`; the default is not-searchable. | Fail-closed. |
+| req-grid-traversal-exec-searchable.sec-2 | Non-Searchable Type Rejected | Proposed | A labelled `MATCH` on a registered-but-non-searchable type is rejected at the Validate stage with a clear error, exactly as an unknown type is. | |
+| req-grid-traversal-exec-searchable.sec-3 | Bare Match Unions Only Searchable Types | Proposed | Labelless `MATCH (n)` scans and unions only the searchable node types, never internal ones. | Consumes the searchable registry. |
+| req-grid-traversal-exec-searchable.sec-4 | Searchable Set Is Discoverable | Proposed | The searchable flag is exposed through the existing registry-backed type-discovery surface, so an AI/consumer can enumerate searchable types without reading code or new tables. | Player-3 legibility. |
+| req-grid-traversal-exec-searchable.sec-5 | New Types Fail Closed | Proposed | A newly added `BaseModel` type (core or plugin) is not searchable until it explicitly opts in; forgetting to classify a table leaves it invisible, not exposed. | The opt-out→opt-in inversion. |
+| req-grid-traversal-exec-searchable.sec-6 | Classification Ledger Reconciles With The Flag | Proposed | Every core graph type appears in the classification ledger (searchable / intentionally-not / internal-only) with a rationale, and a check asserts the ledger agrees with each type's `GRYPHON_SEARCHABLE` value, so neither drifts and a blanket opt-in is not possible without a reviewed ledger row. | Avoids a future "set True everywhere" sweep. |
+
+#### Future
+
+- **On-grid materialization.** Projecting the searchable registry to a subgrid grid table
+  (one read path with FLIP/history/authz) is the North-Star direction but is not worth the
+  scope/spec cost today — AI already learns searchable types from the existing type catalog.
+  Converge later, not upfront.
+- **Per-field / per-lane granularity.** A richer policy than a boolean (expose these data
+  keys, deny that column/relation declaratively — the PostGraphile/Neo4j column-level model)
+  can extend `FIELD_CRUD_SCHEMA`. v0 is boolean + the relation guard.
+- **Persisted / safelisted app-authored queries.** A separate trust surface from *type*
+  searchability: privileged, app-authored Gryphon queries (dashboard panels, plugin-shipped
+  views) registered and code-reviewed once, then invoked by ID — the "trusted documents"
+  pattern (Apollo safelisting / GraphQL persisted queries). This is the trust tier that the
+  deferred cost gate (`req-grid-traversal-exec-resource-bounds.sec`) exempts, but it is a
+  first-class capability in its own right: it lets ad-hoc user-authored queries be gated
+  harder (cost gate, tighter searchable set) while trusted app-authored views run unimpeded.
+  Deferred until there is a real population of app-authored views to register.
+
+
+### Compiled-Query Table-Scope Guard
+----
+RID: `req-grid-traversal-exec-table-guard.sec`
+Status: `Proposed`
+Tags: `Security`
+
+The searchability gate (`req-grid-traversal-exec-searchable.sec`, at Validate) and the
+field-path relation guard (`req-grid-traversal-lang-relation-guard.sec`, at Compile) both
+enforce scope on query *intent* — the type label and the field path — *before* SQL exists.
+Because they operate on intent, they are shape-specific: every MATCH shape, predicate
+walker, and future capability is a place a gap could reappear. This requirement adds a
+third, **shape-agnostic** check on the *emitted query itself*: at the Execute stage, before
+any queryset is materialized, the set of tables it will read must be within the allowlist —
+otherwise the query is blocked and a `security` Flaw is emitted. It is the belt-and-
+suspenders that catches a scope escape no matter which dispatch shape produced it.
+
+#### Background
+
+The gate checks the type; the relation guard checks the path — both on query *intent*. This
+guard inspects the **compiled query's table set** — Django's `query.alias_map`, the join
+metadata the ORM resolved from the queryset. That is much closer to ground truth than intent
+(it reflects what the compiler actually built, across every walker and dispatch shape), but
+it is still a Django-internal *pre-execution* view, **not** literally the tables PostgreSQL
+will touch: annotations, subqueries, and any lowering rung above the ORM can introduce table
+references the top-level `alias_map` does not enumerate. So the guard is a strong
+shape-agnostic compiler check, and it is *validated against the emitted SQL* (`sec-6`) so the
+two cannot silently diverge. A resolver gap (an unaudited walker, a new MATCH shape, an
+OPTIONAL MATCH edge case) that builds an out-of-scope join is caught here regardless of *how*
+the query was built. It is the same "check the answer, not the intent" discipline TAP already
+uses in the model-based reference oracle for correctness, applied to scope. The three checks
+share one allowlist but fail independently — the whole point of defense in depth.
+
+#### Implementation
+
+- At the Execute stage (`req-grid-traversal-exec-pipeline`, step 5), before a queryset is
+  evaluated, a guard enumerates its referenced tables from Django's `query.alias_map`
+  (structured join metadata, **not** the SQL string — so it is precise about the compiler's
+  join set and cannot be evaded by SQL formatting) and asserts each table is within the
+  allowlist: the tables of every `GRYPHON_SEARCHABLE` model plus the spine tables
+  (`tap_entity`, `tap_edge`, `tap_entity_type`, `tap_dimension`). This is the **same
+  registry-derived set** as `req-grid-traversal-exec-searchable.sec` and
+  `req-grid-search-readonly-role.sec` — one source of truth, three enforcement points.
+- **Because `alias_map` is a pre-execution ORM view, it is cross-checked against the emitted
+  SQL** (`sec-6`): the Gridkin SQL snapshots already capture the final SQL for every scenario,
+  so a CI check parses the table references out of the captured SQL (including those inside
+  annotations and subqueries) and asserts they are a subset of what the `alias_map` guard saw.
+  A mismatch — a table in the SQL the guard did not enumerate — is a **fail-closed** error,
+  not a warning: it means the guard has a blind spot and must be fixed before the shape ships.
+  The DB grant (`req-grid-search-readonly-role.sec`) is the layer that ultimately backstops
+  any such blind spot on the live path.
+- The row-materialization unification (`req-grid-traversal-exec-row-materialization`) already
+  funnels every row-projection queryset through one backend (`materialize_rows`), making this
+  a near-single chokepoint; the remaining graph-envelope `list(qs)` sites carry the same
+  guard call. A shared helper is invoked at each queryset-materialization point.
+- A table outside the allowlist raises `SearchExecutionError` and emits a `security` Flaw
+  (offending table, query, actor) **before** the query executes — apply-or-reject, loud
+  (`GRY-ARCH-3`), never a silent trim of the offending join.
+- The guard's decision (tables touched; within-scope true/false) is surfaced in the
+  compiled-trace artifact (`req-grid-traversal-exec-compiled-trace`, ACID `-7`) as policy
+  metadata, so the scope decision is auditable and reviewable alongside the SQL.
+
+#### Defense in depth — three layers, one allowlist
+
+1. `req-grid-traversal-lang-relation-guard.sec` — the illegal path **cannot be expressed**.
+2. **This guard** — if it is somehow expressed, the compiled query is **blocked before
+   execution**.
+3. `req-grid-search-readonly-role.sec` — if it is somehow executed, PostgreSQL **denies** it.
+
+This guard and the DB role enforce the identical allowlist by different means: this one in
+application code (a loud, attributable, in-app Flaw at the exact callsite), the DB role at
+the database (absolute, un-bypassable). Neither makes the other redundant — the app guard
+names *what* and *who* precisely; the DB grant holds even against a raw-SQL path the app
+guard cannot see.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-traversal-exec-table-guard.sec-1 | Tables Checked Before Execution | Proposed | The set of tables a queryset references is enumerated (from `query.alias_map`) and checked before the queryset is materialized. | Pre-execution, not post. |
+| req-grid-traversal-exec-table-guard.sec-2 | Out-Of-Scope Table Blocked And Flagged | Proposed | A query referencing any table outside the searchable + spine allowlist raises `SearchExecutionError` and emits a `security` Flaw before execution. | Loud, not a silent trim. |
+| req-grid-traversal-exec-table-guard.sec-3 | Shape-Agnostic Coverage | Proposed | The check runs on every row and graph-envelope dispatch path, independent of MATCH shape, so a resolver gap in any shape is still caught. | Belt-and-suspenders. |
+| req-grid-traversal-exec-table-guard.sec-4 | Same Allowlist As Gate And Grant | Proposed | The allowed table set is the searchable-registry-derived model tables plus the spine, identical to `req-grid-traversal-exec-searchable.sec` and `req-grid-search-readonly-role.sec`. | One source of truth. |
+| req-grid-traversal-exec-table-guard.sec-5 | Structured, Not String-Parsed | Proposed | The guard's table extraction reads Django's `alias_map`, not the rendered SQL text, so it is precise about the compiler's join set and not evadable by formatting. | |
+| req-grid-traversal-exec-table-guard.sec-6 | Guard Cross-Checked Against Emitted SQL | Proposed | A CI check parses table references from the captured final SQL of every Gridkin snapshot (including annotations and subqueries) and asserts they are a subset of what the `alias_map` guard enumerated; any table the guard missed is a fail-closed error, not a warning. | Closes the `alias_map`-is-pre-execution blind spot; the DB grant backstops it live. |
+
+#### Future
+
+- **Connection-layer variant.** A `search_readonly` `connection.execute_wrapper` (sibling to
+  the write-block guard) that extracts tables from raw SQL would catch lowering rungs above
+  the ORM (rung ≥ 4, raw SQL / stored functions — `req-grid-traversal-exec-lowering`) that
+  the `alias_map` check cannot see. Deferred until a rung above 1 exists.
+- **Column-level scope.** Blocking a specific column even within an allowlisted table ties to
+  the future per-field searchability policy (`req-grid-traversal-exec-searchable.sec` Future);
+  v0 is table-level.
+
+
+### Query Resource Bounds
+----
+RID: `req-grid-traversal-exec-resource-bounds.sec`
+Status: `Proposed`
+Tags: `Security`
+
+The scope guards above stop a Gryphon read from touching data it should not. This
+requirement stops a Gryphon read — legitimate in scope but pathological in cost (a
+cartesian product, an unindexed scan, an accidental full-table sort) — from **consuming
+unbounded resources**. It is a availability/DoS backstop, orthogonal to the confidentiality
+guards, and it caps the *damage* rather than predicting it: a runaway is killed at a hard
+time / disk / memory / row ceiling no matter what query shape produced it.
+
+v0 is **hard native backstops only**. A pre-execution cost gate (estimate the plan cost and
+refuse an over-budget query before it runs) is a real and well-precedented technique, but it
+is deliberately **deferred** — see [Deferred: pre-execution cost gate](#deferred-pre-execution-cost-gate).
+
+#### Background
+
+PostgreSQL has no in-core per-query resource governor (unlike Oracle's Resource Manager or
+Greenplum/Citus resource groups); the [PostgreSQL wiki](https://wiki.postgresql.org/wiki/Priorities)
+states plainly that limiting per-query resource consumption "needs to be implemented at the
+operating system level." What core *does* offer is a set of targeted caps that, pinned to
+the least-privilege search role, bound each axis of resource consumption:
+
+- **Time** — `statement_timeout` (per-statement wall-clock) and `lock_timeout` (time spent
+  blocked on a lock). These are the universal managed-Postgres baseline.
+- **Disk** — `temp_file_limit`: a hard per-session cap on temp files (sort/hash spill); a
+  query that exceeds it is **canceled**. This is the one native "you may not consume
+  unbounded resources → aborted" lever, and it catches exactly the runaway sorts / hash
+  joins / cartesian products a cost attack produces.
+- **Memory** — `work_mem` (+ `hash_mem_multiplier`): the per-operation memory ceiling before
+  spilling to disk. A throttle, not a hard cap (a plan with several sort/hash nodes can use a
+  multiple), but pinned low on the search role it bounds per-operation footprint.
+- **Rows** — an application-level default cap on result-set size (a `LIMIT` injected when the
+  query names none), so an unbounded projection cannot stream an entire table into the
+  envelope. This one lives in the executor, not the DB role.
+
+Pinning the DB-side caps on the role (`ALTER ROLE tap_gryphon_ro SET statement_timeout=… SET
+lock_timeout=… SET temp_file_limit=… SET work_mem=…`) means the bounds **ride the
+least-privilege role automatically** — every connection that authenticates as
+`tap_gryphon_ro` inherits them with no per-query code. This ties the resource posture to the
+same role that `req-grid-search-readonly-role.sec` provisions and `req-boot-search-role`
+grants, so it is one role carrying both the least-privilege *scope* and the resource
+*bounds*.
+
+#### Implementation
+
+- **Role-pinned GUCs.** The boot-time role provisioning (`req-boot-search-role`) that creates
+  `tap_gryphon_ro` also pins `statement_timeout`, `lock_timeout`, `temp_file_limit`, and a
+  conservative `work_mem` via `ALTER ROLE … SET`. Values are configuration, not hard-coded,
+  with conservative defaults; the settings are idempotent (re-running boot converges the
+  same values). The specific caps are recorded there as the role's resource contract.
+- **Application row cap.** The executor injects a default result-row limit at the Package
+  stage (`req-grid-traversal-exec-pipeline`, step 6) when the query specifies no `LIMIT` of
+  its own, through the single row-materialization backend
+  (`req-grid-traversal-exec-row-materialization`) so every shape inherits it. An explicit
+  smaller `LIMIT` is honored; an explicit larger one is clamped to the cap. The cap is
+  configuration with a conservative default.
+- **Loud, not silent.** A query killed by `statement_timeout` / `temp_file_limit` surfaces as
+  a clear `SearchExecutionError` (a resource-bound rejection), not a truncated or empty
+  result masquerading as success (`GRY-ARCH-3`). A result trimmed by the row cap is reported
+  as capped in the envelope metadata, never silently.
+- **Read-only path is a precondition.** These caps only bind reliably when Gryphon actually
+  connects as the bounded role. The writable-`default`-connection gap
+  (`req-grid-traversal-exec-scope.sec`, read-only-path ACID) MUST be closed for the
+  role-pinned GUCs to apply to the live raw endpoint; until then `statement_timeout` should
+  also be set on the `default` connection used by the raw path as an interim floor.
+
+#### Deferred: pre-execution cost gate
+
+A pre-execution cost gate refuses a query *before* it runs if its estimated cost exceeds a
+threshold — the "don't even start a crazy query" idea, distinct from the timeouts (which
+wait for wall-clock truth). It is well-precedented: SQL Server's
+[query governor cost limit](https://learn.microsoft.com/en-us/sql/database-engine/configure-windows/configure-the-query-governor-cost-limit-server-configuration-option?view=sql-server-ver17)
+(per-connection settable via `SET QUERY_GOVERNOR_COST_LIMIT`), Oracle Resource Manager's
+[`SWITCH_ESTIMATE` + `MAX_EST_EXEC_TIME`](https://docs.oracle.com/database/121/ADMIN/dbrm.htm)
+(reject-before-run by optimizer estimate, per consumer group), and BigQuery's
+[maximum bytes billed](https://docs.cloud.google.com/bigquery/docs/best-practices-costs)
+(estimate-then-fail-without-charge). It is **deferred from v0**, deliberately, and the
+deferral is loaded so the future pickup is a straight line:
+
+- **Chosen path: `pg_plan_filter`, superseding an app-side EXPLAIN gate.** The extension
+  gates on the plan cost the planner produces during normal compilation via the planner hook
+  — **no extra round-trip** — exactly as SQL Server does. An application-side `EXPLAIN`
+  pre-check needs no server extension but costs a planning round-trip on *every* gated query;
+  that per-query tax is why it is rejected in favor of `pg_plan_filter`. (Considered and
+  recorded, not chosen.)
+- **Why not now.** (1) *No calibration data* — every precedent tunes the cost threshold
+  against an observed cost distribution; TAP has none yet (the query shapes are still being
+  built), so a threshold set today is either inert or false-rejects. (2) *The native
+  backstops already cap the damage* — `statement_timeout` + `temp_file_limit` + `work_mem`
+  kill a runaway at a hard ceiling regardless of shape; the cost gate is an *optimization*
+  (fail faster/cheaper by prediction) that pays off only at query volume we do not yet have.
+  (3) *Cost* — `pg_plan_filter` is a compiled C extension requiring a custom image layer,
+  `shared_preload_libraries`, and rebuild-per-major-upgrade; installing it today buys an
+  uncalibrated guard for a standing infra tax.
+- **The trigger.** Adopt it when `pg_stat_statements` shows a cost/latency distribution worth
+  gating (or a real blow-up incident forces the issue) — which is *also* the data that sets
+  the threshold. When adopted, scope it to `tap_gryphon_ro` via a per-role GUC
+  (`plan_filter.statement_cost_limit`), and exempt pre-vetted queries via the trust-tier
+  pattern below.
+- **Trust-tier scoping (the `how`, when adopted).** Plugin-shipped and system-built Gryphon
+  queries are the "trusted documents" analog (GraphQL persisted queries / Apollo safelisting):
+  authored and code-reviewed, their search space pre-assessed, so they are **exempt** from
+  the gate. Ad-hoc runtime queries (the raw endpoint, arbitrary Cypher) are **untrusted and
+  gated by default** — fail-closed: an unmarked-origin query is treated as ad-hoc and gated,
+  consistent with the default-deny posture of the searchability gate. This mirrors Oracle's
+  per-consumer-group directives (trusted vs untrusted workloads in different groups).
+- **Honest caveat.** Every cost gate gates on an *estimate*, not actual cost (SQL Server's is
+  explicitly "optimizer estimates, not actual run times"; BigQuery over-rejects on clustered
+  tables). So a cost gate is a heuristic early-catch that must sit *in front of*, never
+  *instead of*, the hard native backstops in this requirement.
+
+#### Deferred: OS / infrastructure isolation
+
+Named for the honest-risk register, not v0:
+
+- **cgroups v2 / `pg_cgroups`** — real CPU / RAM / IO caps on the backend processes, at the OS
+  layer. Cluster/process-scoped, not cleanly per-query.
+- **Dedicated read-replica** — point `tap_gryphon_ro` at a hot-standby so a runaway read burns
+  replica resources and *structurally cannot* starve the OLTP primary. The strongest long-term
+  isolation, composes with everything above.
+- **PgBouncer per-user pool cap** — bound how many `tap_gryphon_ro` queries run concurrently,
+  limiting aggregate blast radius even when each query is individually cheap.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-traversal-exec-resource-bounds.sec-1 | Time Caps Pinned On The Role | Proposed | `statement_timeout` and `lock_timeout` are pinned on `tap_gryphon_ro` via `ALTER ROLE … SET` at boot, so every search connection inherits them without per-query code. | Time axis. |
+| req-grid-traversal-exec-resource-bounds.sec-2 | Disk Cap Pinned On The Role | Proposed | `temp_file_limit` is pinned on the role; a query whose sort/hash spill exceeds it is canceled by PostgreSQL. | Disk axis — the hard native abort. |
+| req-grid-traversal-exec-resource-bounds.sec-3 | Memory Cap Pinned On The Role | Proposed | A conservative `work_mem` is pinned on the role, bounding per-operation memory before spill. | Memory axis — a throttle, not a hard cap. |
+| req-grid-traversal-exec-resource-bounds.sec-4 | Default Result-Row Cap | Proposed | The executor injects a default row limit for a query that names no `LIMIT`, applied once in the row-materialization backend so every shape inherits it; an explicit larger `LIMIT` is clamped, a smaller one honored. | Row axis — application-level. |
+| req-grid-traversal-exec-resource-bounds.sec-5 | Resource Rejection Is Loud | Proposed | A query killed by a time/disk cap surfaces as a clear `SearchExecutionError`, and a row-capped result is marked capped in envelope metadata — never a silent empty/truncated success. | `GRY-ARCH-3`. |
+| req-grid-traversal-exec-resource-bounds.sec-6 | Caps Are Configuration | Proposed | Every cap (the four GUCs and the row limit) is configuration with a conservative default, not a hard-coded constant; boot re-application is idempotent. | Tunable per deployment. |
+| req-grid-traversal-exec-resource-bounds.sec-7 | Cost Gate And OS Isolation Are Deferred, Not Omitted | Proposed | The pre-execution cost gate (`pg_plan_filter`, chosen over an app EXPLAIN gate) and OS/infra isolation (cgroups, read-replica, PgBouncer) are recorded as named deferrals with an explicit trigger, not silently dropped. | Loaded escalation, honest-risk register. |
 
 
 ### SQL Capture Seam
@@ -409,6 +750,97 @@ This seam is the basis of the Gridkin expected-SQL snapshot (`spec-gridkin-v0.md
 Extend the seam with PostgreSQL `EXPLAIN ANALYZE` for query-plan and timing
 inspection (Gryphon wishlist P2), and surface it as a `gryphon explain` CLI /
 management command (wishlist H3). Both reuse this capture, not a parallel one.
+
+
+### Compiled Trace Artifact
+----
+RID: `req-grid-traversal-exec-compiled-trace`
+Status: `Backlog`
+
+Gryphon exposes a developer/test-only **CompiledTrace** artifact: a structured,
+schema-validated account of how a query moved through the Gryphon pipeline. It is
+not a new logical-plan IR and it does not expose live Django `QuerySet` objects.
+It is a stable diagnostic boundary for validation tools — especially Gridkin AI
+QC (`req-gridkin-ai-qc`) — that need to compare Gryphon's deterministic lowering
+against an independent compiler without treating ORM internals as an API.
+
+#### Background
+
+The existing SQL capture seam records the SQL that was executed. That is enough
+for Gridkin snapshots, but not enough for a semantic differential oracle. AI QC
+needs to know more than "this SQL ran": it needs the normalized query, accepted
+result shape, lowering rung/stage, statements and parameters, applied policy
+constraints, and postprocessing steps that turn raw database rows into TAP's
+canonical envelope or row projection. Without those fields, an independent SQL
+compiler can agree on the final rows by accident or disagree for a harmless
+shape reason that is impossible to diagnose.
+
+The trace is therefore a **reporting artifact over the current pipeline**, not a
+replacement for it. Gryphon still compiles through the existing executor (rung 1
+today), and the SQL capture still observes actual execution. For multi-stage
+queries there may be multiple statements; the trace preserves their order and
+stage labels.
+
+#### Artifact Shape
+
+The implementation MUST author and validate a JSON Schema for the artifact in the
+same change that introduces the loader/emitter. The schema is versioned. The
+artifact SHOULD include, at minimum:
+
+- `schema_version`
+- `normalized_query`
+- `inputs_summary` (names and stable type/shape metadata, not secret values when
+  a future runtime surface exists)
+- `ast_summary` (the parsed shape, clause inventory, variables, labels, edge
+  types, return shape, ordering/limit/distinct flags)
+- `result_shape` (`graph_envelope`, `rows`, or `rejection`)
+- `lowering` (per stage: stage label, lowering rung, dispatch path, binding
+  summary, and whether the stage is shape-specific or shared backend)
+- `statements[]` (ordered SQL text, bound params, db alias/dialect, stage label,
+  and any redactions such as registry enumeration sentinels)
+- `policies[]` (read-only alias, live/tombstone policy, dimension scoping, type
+  searchability once implemented, and any other named safety invariant applied)
+- `postprocess[]` (canonical envelope serialization, row materialization,
+  uuid-stringify, node/edge dedup, ordering normalization, or rejection shaping)
+- `warnings[]` / `limitations[]` for known non-conformances or diagnostic caveats
+
+The artifact MAY include additional diagnostic fields. Consumers MUST treat
+unknown fields as additive metadata and MUST key behavior on the schema version,
+not on prose.
+
+#### Scope And Security
+
+CompiledTrace v0 is a **developer/test surface only**. It is not a runtime API and
+does not grant callers a new way to inspect SQL in a live instance. SQL text,
+table names, column names, and policy metadata can reveal internal structure even
+when a query is read-only; exposing this to users requires a separate runtime API
+requirement with capability gates and disclosure analysis.
+
+The trace MUST cover all currently implemented Gryphon query shapes. Unsupported
+or rejected queries produce a rejection trace when parsing/validation reaches far
+enough to do so; parse failures that cannot produce a normal AST MAY produce a
+minimal rejection trace with parser diagnostics.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-traversal-exec-compiled-trace-1 | Structured Trace Artifact | Proposed | Gryphon can emit a versioned `CompiledTrace` JSON object for a query run, including normalized query, AST summary, result shape, lowering stages, SQL+params, policies, and postprocess metadata. | Diagnostic boundary; not a logical-plan IR |
+| req-grid-traversal-exec-compiled-trace-2 | JSON Schema Validated | Proposed | The `CompiledTrace` format ships with a JSON Schema in the same implementation change, and emitted artifacts validate against it before being consumed by Gridkin AI QC or plan-review tools. | TAP structured-data rule |
+| req-grid-traversal-exec-compiled-trace-3 | No Live ORM Objects | Proposed | The artifact contains stable serializable facts only; no `QuerySet`, model instance, connection, cursor, callable, or raw Python object escapes as the public trace contract. | SQL+params are the comparison artifact |
+| req-grid-traversal-exec-compiled-trace-4 | Covers Every Implemented Shape | Proposed | Every currently implemented Gryphon dispatch path can emit a trace, including type-scan, bare type-scan, edge-chain, multi-hop, aggregation, OPTIONAL MATCH, graph-envelope returns, row projections, and rejections that reach validation/execution. | AI QC should not start by seeing only the easy paths |
+| req-grid-traversal-exec-compiled-trace-5 | Developer/Test Only | Proposed | The trace emitter is available only to tests/developer tooling in v0; no user-facing runtime API exposes it. | Runtime API is Future |
+| req-grid-traversal-exec-compiled-trace-6 | Deterministic Enough For Diagnostics | Proposed | Stable fields are deterministic across runs against the same code/schema/fixture; volatile or environment-derived fields are either redacted, normalized, or explicitly marked diagnostic-only. | Snapshot-friendly, but not a mandatory Gridkin assertion for every scenario |
+| req-grid-traversal-exec-compiled-trace-7 | Postprocess And Policy Named | Proposed | The trace names canonical result packaging and safety policies applied after SQL execution, so SQL comparison cannot be mistaken for full Gryphon semantic equivalence. | Envelope/row materialization remains part of the contract |
+
+#### Future
+
+- Public/runtime `gryphon explain` or API access to traces, gated by capability and
+  disclosure policy.
+- SQLite trace support once the SQLite portability track becomes active; v0 names
+  the DB dialect but targets PostgreSQL.
+- PostgreSQL `EXPLAIN`/timing metadata as optional diagnostic fields, reusing the
+  SQL capture seam rather than creating a parallel capture path.
 
 
 ## Status Vocabulary

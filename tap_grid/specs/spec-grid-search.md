@@ -29,6 +29,7 @@ Searches always return a graph-shaped result envelope. Even when a consumer is p
 | req-grid-search-results | [Search Results](#search-results) | Implemented | Searches always return the canonical 4-key graph envelope (`nodes`, `edges`, `info`, `warnings`) |
 | req-grid-search-canonical-read | [Canonical Read Interface — Break-Glass Discipline](#canonical-read-interface--break-glass-discipline) | Proposed | Gryphon/Search is the canonical graph read interface; raw-ORM graph reads and bespoke-module-as-Gryphon-substitute are break-glass; the urge to use them is a demand signal to extend Gryphon |
 | req-grid-search-readonly.sec | [Search Read-Only Execution](#search-read-only-execution) | Implemented | Security requirement enforcing that searches cannot mutate TAP data |
+| req-grid-search-readonly-role.sec | [Search Read-Only Least-Privilege Role](#search-read-only-least-privilege-role) | Proposed | The read-only search connection authenticates as a dedicated DB role granted `SELECT` on only the searchable + spine tables; a defense-in-depth backstop so a resolver-guard miss fails closed at the database |
 | req-grid-search-authz.sec | [Search Authorization](#search-authorization) | Backlog | Deferred security requirement for search-specific authorization and access controls |
 
 ---
@@ -206,6 +207,67 @@ Keeping read-only enforcement as its own security requirement makes it easier to
 
 #### Future
 Define concrete enforcement mechanisms for each execution mode, especially for future SQL-backed and inline-code search execution.
+
+---
+
+### Search Read-Only Least-Privilege Role
+----
+RID: `req-grid-search-readonly-role.sec`
+Status: `Proposed`
+Tags: `Security`
+
+`req-grid-search-readonly.sec` makes the search connection read-only at the *session* level
+(`default_transaction_read_only=on`), which blocks writes but says nothing about *which
+tables* it may read — today it reuses the application's full database role, so it can
+`SELECT` any table in the database. This requirement narrows *read* scope at the database
+level: the `search_readonly` connection authenticates as a dedicated least-privilege role
+granted `SELECT` on only the Gryphon-searchable tables plus the grid spine.
+
+#### Status Details
+This is the database-level (Layer 3) member of the searchability defense-in-depth set. It
+is independent of the in-code guards (`req-grid-traversal-exec-searchable.sec`,
+`req-grid-traversal-lang-relation-guard.sec`): even if one of those has a gap, a read that
+reaches a non-searchable table is denied by PostgreSQL rather than executed. It mirrors the
+PostGraphile precedent (the database GRANTs *are* the query surface).
+
+#### Implementation
+
+- The `search_readonly` DB alias authenticates as a dedicated role (e.g. `tap_gryphon_ro`),
+  not the application's full role.
+- The role holds `SELECT` on exactly: the tables of every `GRYPHON_SEARCHABLE` model
+  (`req-grid-traversal-exec-searchable.sec`) plus the spine tables the executor always reads
+  (`tap_entity`, `tap_edge`, `tap_entity_type`, `tap_dimension`). It holds no other table
+  privileges and no write privileges.
+- The role and its grants are provisioned at boot, after migrations settle, by
+  `req-boot-search-role` — the grant set is derived from the searchable registry so it can
+  never silently drift from the code, and it fails safe (a table not yet granted is simply
+  unreadable).
+- A read that the role is not granted fails with PostgreSQL `permission denied`
+  (SQLSTATE 42501); that rejection is made loud by `req-grid-db-permission-flaw.sec` — a
+  42501 on this connection is the tripwire that an in-code guard leaked.
+- **Validation loop:** the Gridkin SQL snapshots enumerate every table Gryphon touches; a
+  guard asserts that set is a subset of the granted set, so a searchable model whose executor
+  path reaches an ungranted table is caught in CI, not in production.
+- **The role also carries the resource contract.** The same `ALTER ROLE` provisioning pins
+  the resource-bound GUCs (`statement_timeout`, `lock_timeout`, `temp_file_limit`, a
+  conservative `work_mem`) per `req-grid-traversal-exec-resource-bounds.sec`, so one role
+  carries both the least-privilege *read scope* (grants) and the resource *bounds* (GUCs),
+  inherited automatically by every connection that authenticates as it.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-search-readonly-role.sec-1 | Dedicated Role, Not App Role | Proposed | The `search_readonly` connection authenticates as a dedicated least-privilege DB role, not the application's full database role. | |
+| req-grid-search-readonly-role.sec-2 | Grants Limited To Searchable + Spine | Proposed | The role holds `SELECT` on only the `GRYPHON_SEARCHABLE` model tables plus the grid spine tables, and no other tables and no writes. | |
+| req-grid-search-readonly-role.sec-3 | Grants Derived, Not Hand-Maintained | Proposed | The grant set is computed from the searchable registry at provision time, so it cannot drift from the model layer and a new un-granted table fails safe (unreadable). | |
+| req-grid-search-readonly-role.sec-4 | Independent Of In-Code Guards | Proposed | The DB grant is a standalone layer: a read reaching a non-searchable table is denied by PostgreSQL even if the in-code searchability/relation guards missed it. | Defense in depth. |
+| req-grid-search-readonly-role.sec-5 | Touched Tables Are A Subset Of Granted | Proposed | A CI guard asserts the set of tables Gryphon's SQL touches (from Gridkin snapshots) is a subset of the granted set. | Catches under-grant before production. |
+| req-grid-search-readonly-role.sec-6 | Role Pins The Resource GUCs | Proposed | The same provisioning pins `statement_timeout`, `lock_timeout`, `temp_file_limit`, and a conservative `work_mem` on the role, so the resource bounds of `req-grid-traversal-exec-resource-bounds.sec` are inherited by every search connection without per-query code. | One role, both scope and bounds. |
+
+#### Future
+Column-level grants and/or secure views (projecting/masking specific columns of a searchable
+model) are a later refinement; v0 is table-level `SELECT`.
 
 ---
 

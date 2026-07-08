@@ -61,6 +61,7 @@ keeping new language surface explicit, validated, and tested.
 | req-grid-traversal-lang-cypher-credit | [Net-New Capabilities Are Credited](#net-new-capabilities-are-credited) | Implemented | Every capability Gryphon has that Cypher lacks is credited in the same `/docs` ledger — the running tab of where TAP goes beyond Cypher |
 | req-grid-traversal-lang-tck-mining | [TCK Mining Per Language Extension](#tck-mining-per-language-extension) | Implemented | Every Gryphon language extension runs the openCypher TCK mining pass; binds the existing `req-gridkin-tck-inspiration` to the language-extension lifecycle |
 | req-grid-traversal-lang-type-strictness | [Data-Lane Type Strictness](#data-lane-type-strictness) | Implemented | A data-lane predicate whose literal type contradicts the field's declared schema is rejected, not coerced or silently dropped; the declared schema is the type oracle |
+| req-grid-traversal-lang-relation-guard.sec | [Data-Lane Field-Path Allowlist](#data-lane-field-path-allowlist) | Proposed | Every post-`data` token MUST resolve to a concrete declared field (or a key inside a declared JSONField); anything else is rejected — a relation walk, a Django lookup/transform, an undeclared field, or a `__`/bracket-smuggled step. Enforced in `WHERE` and `RETURN` at all three resolvers. Closes `ROOT-1`: one confirmed cross-table read (`b.data.actor.password` → the user table) plus three further manifestations. The `entity`/`dimensions` spine hop is the only sanctioned cross-table join |
 
 
 ### gryphon Language Shape
@@ -1222,6 +1223,157 @@ currently declare themselves as un-schema'd blobs is recorded as a named open ed
 | req-grid-traversal-lang-type-strictness-3 | Null Is Not A Type Error | Implemented | A `null` literal operand is handled by two-valued logic (`IS KNOWN`/`IS UNKNOWN`, null short-circuit), never by the type check. | Composes with the NULL-operand guard. |
 | req-grid-traversal-lang-type-strictness-4 | Params Checked On Value | Implemented | The check runs on the resolved literal, so a `$param` of the wrong type is rejected too. | |
 | req-grid-traversal-lang-type-strictness-5 | Open Schemas Skip Strictness | Implemented | A path bottoming out in an un-typed object (open blob) is not strictness-checked; the same walk applies strictness once the schema declares the sub-key type. | Interim asymmetry recorded in `spec-security-posture.md`. |
+
+
+### Data-Lane Field-Path Allowlist
+----
+RID: `req-grid-traversal-lang-relation-guard.sec`
+Status: `Proposed`
+Tags: `Security`
+
+> The RID retains its original `-relation-guard` slug (the relation-walk was the seed
+> finding); the requirement's scope is broader — a **data-lane leaf allowlist**, of which
+> relation-crossing is one rejected case. Broadened per the 2026-07-08 security sweep, which
+> confirmed the relation-walk shares a single root cause (`ROOT-1`) with three further
+> defects.
+
+A `data`-lane field path (`n.data.<...>`) addresses the per-model BaseModel row. Each of the
+three field-path resolvers (`_typescan_orm_path`, `_orm_path_for_envelope_path` node+edge
+branches, `_bare_spine_orm_path`) strips the `data.` prefix and `__`-joins the remaining
+step tokens into a Django ORM lookup, handing the result straight to `.filter()` / `.values()`
+/ `F()` **with no validation against the model's declared fields**. Django then interprets
+whatever the tokens spell — a real relation, a registered lookup/transform, or an unknown
+field. This requirement closes that gap with a single rule: **every post-`data` token MUST
+resolve to a concrete declared field on the model (a scalar column, or a JSON key inside a
+declared JSONField); anything else is rejected** — a relation edge, a Django
+lookup/transform, or an undeclared field. It is enforced on `WHERE` and `RETURN` alike, at
+all three resolvers. The sole sanctioned cross-table joins remain the `entity` and
+`dimensions` spine hops (`req-grid-traversal-lang-envelope-paths`), TAP-managed grid tables
+by construction.
+
+#### Background And Motivation
+
+This requirement exists because the gap was found and confirmed, not hypothesized. On the
+current executor:
+
+- `Batch` is a registered Gryphon type (`ENTITY_TYPE = "batch"`) and declares
+  `actor = ForeignKey(AUTH_USER_MODEL)` — a relation from a grid model to the **user
+  table**, which is *not* grid data.
+- `MATCH (b:batch) WHERE b.data.actor.email = "x"` resolves `b.data.actor.email` →
+  `actor__email` and emits `... FROM "tap_batch" INNER JOIN "tap_user" ON
+  ("tap_batch"."actor_id" = "tap_user"."id") WHERE "tap_user"."email" = %s` — a working
+  **blind enumeration oracle** over user emails.
+- `RETURN b.data.actor.password` emits `SELECT "tap_user"."password" AS "actor__password"`
+  — **direct exfiltration** of the password hash into the result envelope;
+  `b.data.actor.is_superuser` likewise leaks the privilege flag.
+
+The reachable surface is the transitive relational closure from any Gryphon-searchable
+model. An actor holding only `grid.read` (not admin) can read user PII, password hashes,
+and privilege flags — a privilege-scope escape, since `grid.read` is meant to grant *grid*
+data. The type-label path is *not* the hole (labels resolve through the registry allowlist
+and reject `MATCH (u:user)`); the hole is the field-path resolver. `_declared_data_types`
+is a type-coercion oracle, not a relation guard — it returns permissive `None` for an
+undeclared relational field like `actor`, so nothing rejects the walk today. This is the
+read analog of the write-path edge named in `spec-security-posture.md`, and is recorded in
+the Gryphon findings ledger. It is fixed in bug-fix mode (`GRY-TEST-7` — a wrong/unsafe
+Gryphon read is never normalized).
+
+This guard is the innermost of a defense-in-depth set: it is the structural, in-code fix
+(the query cannot be *expressed*), backed by the opt-in searchability gate
+(`req-grid-traversal-exec-searchable.sec`, which can withhold `batch` from Gryphon
+entirely), the compiled-query table-scope guard
+(`req-grid-traversal-exec-table-guard.sec`, which blocks the *emitted* query before
+execution if it references an out-of-scope table — the shape-agnostic net for any gap in
+this guard), and the least-privilege database role (`req-grid-search-readonly-role.sec` +
+`req-boot-search-role`, under which the DB itself would deny the `SELECT` on `tap_user`).
+
+#### Implementation
+
+The rule is a **positive allowlist**, stated once and enforced everywhere: resolving a
+`data`-lane path, each post-`data` token is validated against the bound model's `_meta`
+and MUST resolve to **either a concrete declared field on the model, or — when the prior
+step is a declared `JSONField` — a key inside that JSON column**. A token that resolves to
+anything else is **rejected** with a clear `SearchExecutionError` naming the offending token
+and the rule (`GRY-ARCH-3`). This single check closes four manifestations of one root cause
+(`ROOT-1`, the un-allowlisted `__`-join), each of which the sweep confirmed:
+
+- **Relation crossing** — a token resolving to a relation field (`field.is_relation` —
+  FK/O2O/M2M, or a reverse accessor) is rejected, so `b.data.actor.email` /
+  `b.data.actor.password` can no longer emit a cross-table join into `tap_user`. (The seed
+  finding.)
+- **Lookup / transform injection** — a token that is a registered Django lookup or transform
+  rather than a field (`b.data.version.regex`, `.isnull`, `.year`, `.length`) is rejected. It
+  is not a declared field, so the allowlist excludes it; this also forecloses the
+  type-strictness bypass where a transform sidesteps the declared-type coercion oracle.
+- **Undeclared field** — a token naming no declared field (a typo, a probe, a field that does
+  not exist) is rejected **at the resolver as a `422` validation error**, not passed through
+  to Django where it surfaces as an uncaught `FieldError` → `500`. This removes the
+  error-shape leak (a `500`/`422` oracle distinguishes real from unreal field names, and the
+  `FieldError` message enumerates valid fields).
+- **Composite-token / bracket-key smuggling** — the `__` separator and bracket-key syntax
+  cannot be used to smuggle a multi-step walk through a single token: `b.data.actor__password`
+  (embedded `__`) and `b.data["actor__password"]` (bracket key) are **split into their
+  constituent steps and each step run through the same allowlist** (equivalently, a raw `__`
+  inside a single data-lane token is rejected at parse/resolve time), so neither form can
+  reach `.filter()` as an opaque lookup string. This is what makes the guard resolver-shape
+  agnostic rather than dot-walk-only.
+
+**JSON key access lowers through a structured primitive, never a raw `__` string.** Once a
+step is confirmed to be a key inside a declared `JSONField`, its remaining key path is
+lowered through Django's structured JSON-path transform (`KeyTransform` / the `->` operator —
+the same primitive `req-grid-traversal-exec-row-materialization-6` already uses for
+projection), **not** by concatenating the key into a `__`-joined lookup string. This is what
+makes the allowlist's JSON case unambiguous: a JSON key literally named like a Django lookup
+or transform (`year`, `isnull`, `regex`, `contains`, `range`) or one containing `__` is
+resolved as a *key*, because it is passed as structured path data to `KeyTransform`, never as
+a lookup token Django's resolver could re-interpret. Absent this rule, `n.data.blob.year`
+would be ambiguous — a JSON key `year` vs. a date transform — precisely the collision the
+allowlist exists to remove; the structured-lowering rule closes it at the mechanism level
+rather than by blocklisting names. A terminal comparison operator (`=`, `>`, `CONTAINS`) is
+applied as an explicit lookup on the resolved transform, not smuggled through the path.
+
+Enforcement points:
+
+- **All three field-path resolvers** carry the check — `_typescan_orm_path`,
+  `_orm_path_for_envelope_path` (node and edge branches), and `_bare_spine_orm_path`. The
+  seed relation-guard design covered only the first; the sweep showed the single/multi-hop
+  and edge dispatch shapes reach the other two, so the allowlist lives at the shared
+  resolution boundary they all pass through, not at one call site.
+- **`WHERE` and `RETURN` alike** — predicate resolution (`_comparison_to_q` /
+  `_predicate_to_q`) and projection resolution (the boundary already governed by
+  `req-grid-traversal-exec-row-materialization-16`) apply the identical rule. A path rejected
+  in `WHERE` is rejected in `RETURN` and vice-versa — no asymmetry an attacker can exploit.
+- The `entity.<spinefield>` and `entity.dimensions.<key>` hops remain allowed: they are the
+  named spine surface (`req-grid-traversal-lang-envelope-paths`) and join only TAP-managed
+  grid tables. This is an allowlist of exactly two relation hops, not a general permission.
+- The rejection is **apply-or-reject, never silent** (`GRY-ARCH-3`). It upholds
+  `req-grid-traversal-exec-scope.sec-2` ("Tap Scope Only"), which the finding showed was
+  aspirational rather than enforced on the field-path axis.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-traversal-lang-relation-guard.sec-1 | Data-Lane Relation Walk Rejected In WHERE | Proposed | A `WHERE` `data`-lane path whose any step resolves to a relation field (FK/O2O/M2M/reverse) raises `SearchExecutionError`; it does not compile to a cross-table join. | The `b.data.actor.email` case. |
+| req-grid-traversal-lang-relation-guard.sec-2 | Data-Lane Relation Walk Rejected In RETURN | Proposed | The same rejection applies to a `RETURN` projection path, so the relation cannot be projected into the envelope. | The `b.data.actor.password` case. |
+| req-grid-traversal-lang-relation-guard.sec-3 | Own Columns And JSON Keys Still Allowed | Proposed | The `data` lane still addresses the model's own scalar columns and keys inside its JSON-typed columns; only relation-crossing steps are rejected. | No regression to legitimate data-lane paths. |
+| req-grid-traversal-lang-relation-guard.sec-4 | Spine Hop Is The Only Sanctioned Cross-Table Join | Proposed | `entity.<spinefield>` and `entity.dimensions.<key>` remain allowed as the sole cross-table joins; every other relation traversal is rejected. | Two-hop allowlist, not a general grant. |
+| req-grid-traversal-lang-relation-guard.sec-5 | Rejection Is Loud, Not Silent | Proposed | A rejected relation walk fails with a clear error naming the step and rule (`GRY-ARCH-3`), never a silently-dropped predicate or an empty result. | |
+| req-grid-traversal-lang-relation-guard.sec-6 | Lookup / Transform Token Rejected | Proposed | A data-lane token that is a registered Django lookup or transform rather than a declared field (`n.data.version.regex`, `.isnull`, `.year`) is rejected in both `WHERE` and `RETURN`; it cannot lower to a lookup and cannot sidestep the declared-type coercion oracle. | Closes the type-strictness bypass. |
+| req-grid-traversal-lang-relation-guard.sec-7 | Undeclared Field Rejected As Validation Error, Not 500 | Proposed | A data-lane token naming no declared field is rejected at the resolver as a `422` `SearchExecutionError`, never passed to Django as an uncaught `FieldError` producing a `500` and an enumerating error message. | Closes the field-name error-shape oracle / column-list leak. |
+| req-grid-traversal-lang-relation-guard.sec-8 | Composite-Token And Bracket-Key Smuggling Rejected | Proposed | An embedded `__` (`n.data.actor__password`) or bracket key (`n.data["actor__password"]`) is decomposed and every constituent step run through the allowlist (equivalently a raw `__` inside one data-lane token is rejected); neither reaches `.filter()` as an opaque lookup string. | The resolver-shape-agnostic case. |
+| req-grid-traversal-lang-relation-guard.sec-9 | Guard Enforced At All Three Resolvers | Proposed | The allowlist is applied at `_typescan_orm_path`, `_orm_path_for_envelope_path` (node and edge), and `_bare_spine_orm_path`; a type-scan, single/multi-hop, or edge-projection query cannot reach an un-allowlisted `data`-lane token through any dispatch shape. | The seed guard covered only one resolver. |
+| req-grid-traversal-lang-relation-guard.sec-10 | JSON Keys Lower Structurally, Not As Lookups | Proposed | A key inside a declared JSONField lowers through `KeyTransform` / `->` (structured path data), never a `__`-joined lookup string; a JSON key named like a Django lookup/transform (`year`, `isnull`, `regex`) or containing `__` resolves as a key, not a lookup. A scenario pins `n.data.blob.year` (JSON key) distinct from any date transform. | Closes the name-collision at the mechanism level, not by blocklist. |
+
+#### Future
+
+- If a future capability needs a legitimate cross-type projection (e.g. surfacing a related
+  grid node's field), it arrives as an explicit, named traversal shape with its own
+  requirement — never by relaxing this guard to re-admit arbitrary relation walks.
+- Field transforms (`.year` on a date, `.length` on text) are a legitimate future query
+  capability, but they arrive as an explicit, typed operator surface with their own grammar,
+  AST node, and allowlist of sanctioned transforms per declared type — never by re-admitting
+  the raw `__`-transform injection path this guard closes (`sec-6`).
 
 
 ## Status Vocabulary
