@@ -15,6 +15,7 @@ depends_on = [
     { slug = "sigstore_core", note = "compliance_collector imports sigstore verify/decompose helpers + models at import time" },
     { slug = "github_core", note = "imports github_core models/panels for the repo + compliance surfaces at import time" },
     { slug = "roscale", note = "imports the OSCAL workbench panel types the compliance pages consume at import time" },
+    { slug = "compliance_core", note = "compliance_collector creates compliance_core__compliance_artifact nodes; needs the type registered + boot-ordered ahead" },
 ]
 
 [grift]

@@ -4,13 +4,16 @@ slug = "fedramp_20x_ksi"
 name = "FedRAMP 20x KSI"
 description = "FedRAMP 20x Key Security Indicators (KSI) framework catalog — themes and indicators."
 
+depends_on = [
+    { slug = "compliance_core", note = "compliance_view panel queries compliance_core__compliance_context; needs the type registered + boot-ordered ahead" },
+]
+
 [models]
 fedramp_20x_ksi__ksi_theme = "tap_plugin.fedramp_20x_ksi.models.ksi_theme.KsiTheme"
 fedramp_20x_ksi__ksi_indicator = "tap_plugin.fedramp_20x_ksi.models.ksi_indicator.KsiIndicator"
 fedramp_20x_ksi__finding = "tap_plugin.fedramp_20x_ksi.models.finding.Finding"
 fedramp_20x_ksi__exception = "tap_plugin.fedramp_20x_ksi.models.exception.ComplianceException"
 fedramp_20x_ksi__evidence = "tap_plugin.fedramp_20x_ksi.models.evidence.Evidence"
-fedramp_20x_ksi__compliance_context = "tap_plugin.fedramp_20x_ksi.models.compliance_context.ComplianceContext"
 fedramp_20x_ksi__boundary = "tap_plugin.fedramp_20x_ksi.models.boundary.Boundary"
 fedramp_20x_ksi__ksi_signal = "tap_plugin.fedramp_20x_ksi.models.ksi_signal.KsiSignal"
 fedramp_20x_ksi__ksi_component = "tap_plugin.fedramp_20x_ksi.models.ksi_component.KsiComponent"
@@ -18,7 +21,6 @@ fedramp_20x_ksi__ksi_validation = "tap_plugin.fedramp_20x_ksi.models.ksi_validat
 fedramp_20x_ksi__ksi_violation = "tap_plugin.fedramp_20x_ksi.models.ksi_violation.KsiViolation"
 fedramp_20x_ksi__vdr_report = "tap_plugin.fedramp_20x_ksi.models.vdr_report.VdrReport"
 fedramp_20x_ksi__vdr_finding = "tap_plugin.fedramp_20x_ksi.models.vdr_finding.VdrFinding"
-fedramp_20x_ksi__compliance_artifact = "tap_plugin.fedramp_20x_ksi.models.compliance_artifact.ComplianceArtifact"
 
 [edges]
 CONTAINS_INDICATOR__fedramp_20x_ksi = "edges/CONTAINS_INDICATOR.edge.json"

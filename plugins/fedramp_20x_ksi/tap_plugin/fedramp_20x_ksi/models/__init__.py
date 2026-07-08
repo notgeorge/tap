@@ -1,8 +1,6 @@
 """FedRAMP 20x KSI plugin models."""
 
 from .boundary import Boundary
-from .compliance_artifact import ComplianceArtifact
-from .compliance_context import ComplianceContext
 from .evidence import Evidence
 from .exception import ComplianceException
 from .finding import Finding
@@ -17,8 +15,6 @@ from .vdr_report import VdrReport
 
 __all__ = [
     "Boundary",
-    "ComplianceArtifact",
-    "ComplianceContext",
     "ComplianceException",
     "Evidence",
     "Finding",

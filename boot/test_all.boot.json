@@ -46,6 +46,12 @@
         "note": "Package-mode (tap_plugin.github_core). Tier-0 PyYAML dep (uv resolves at install). GitHub repo landing page; seeded in population."
       },
       {
+        "slug": "compliance_core",
+        "enabled": true,
+        "source": { "type": "editable", "path": "plugins/compliance_core" },
+        "note": "Package-mode (tap_plugin.compliance_core). Install-only substrate: regime-agnostic compliance vocabulary (compliance_artifact + compliance_context in Phase A). fedramp_20x_ksi + samsite depend_on it — listed before them so its types register first. No GRIFT population seed of its own."
+      },
+      {
         "slug": "fedramp_20x_ksi",
         "enabled": true,
         "source": { "type": "editable", "path": "plugins/fedramp_20x_ksi" },

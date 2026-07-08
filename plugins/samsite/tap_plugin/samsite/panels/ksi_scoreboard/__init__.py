@@ -45,14 +45,14 @@ DEFAULT_SSP_VAR = "oscal_ssp_artifact_entity_id"
 DEFAULT_POAM_VAR = "oscal_poam_artifact_entity_id"
 
 _SSP_FALLBACK_QUERY = (
-    "MATCH (a:fedramp_20x_ksi__compliance_artifact) "
+    "MATCH (a:compliance_core__compliance_artifact) "
     'WHERE a.data.kind = "oscal_ssp" AND a.data.fetched_at IS NOT NULL '
     "ORDER BY a.data.fetched_at DESC LIMIT 1"
 )
 _SSP_FALLBACK_DESCRIPTION = "Latest oscal_ssp compliance artifact by fetched_at."
 
 _POAM_FALLBACK_QUERY = (
-    "MATCH (a:fedramp_20x_ksi__compliance_artifact) "
+    "MATCH (a:compliance_core__compliance_artifact) "
     'WHERE a.data.kind = "oscal_poam" AND a.data.fetched_at IS NOT NULL '
     "ORDER BY a.data.fetched_at DESC LIMIT 1"
 )

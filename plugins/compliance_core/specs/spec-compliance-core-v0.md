@@ -1,5 +1,12 @@
 # Compliance Core Plugin Specification
 
+> **Status: Phase A implemented (2026-07-08).** `compliance_artifact` + `compliance_context`
+> now live in compliance_core — scaffold, models, migration `0001_initial`, samsite +
+> fedramp retargets, and `test_all` boot wiring, all green (57 targeted tests, mypy-clean).
+> Phase B (`compliance_evidence` / `compliance_finding` / `compliance_exception` /
+> `compliance_boundary`, the four edges, and the regime-neutral dimension fix on the moved
+> evidence/finding/exception models) remains as specified below and is not yet built.
+
 ## Plugin Identity
 
 - **Slug:** `compliance_core`

@@ -33,10 +33,11 @@ class ComplianceContext(BaseModel):
     `regime` (or by the matching `compliance` dimension) to select the
     relevant context for a given framework's panels.
 
-    Spec: plugins/fedramp_20x_ksi/specs/spec-fedramp-20x-ksi-compliance-context.md
+    Spec: plugins/compliance_core/specs/spec-compliance-core-v0.md
+    (req-compliance-core-models).
     """
 
-    ENTITY_TYPE: ClassVar[str] = "fedramp_20x_ksi__compliance_context"
+    ENTITY_TYPE: ClassVar[str] = "compliance_core__compliance_context"
     ENTITY_NAME: ClassVar[str] = "Compliance Context"
     ENTITY_DESCRIPTION: ClassVar[str] = (
         "Per-regime compliance posture metadata on a Grid. Each instance "
@@ -93,7 +94,7 @@ class ComplianceContext(BaseModel):
     )
 
     class Meta(BaseModel.Meta):
-        db_table = "fedramp_20x_ksi__compliance_context"
+        db_table = "compliance_core__compliance_context"
 
     def get_name(self) -> str:
         return self.name

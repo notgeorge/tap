@@ -428,7 +428,7 @@ def decompose_compliance_artifact(
     # per-run discriminator; the same kind re-fetched at a different time
     # produces a different node (per-emission, per the spec).
     natural_key = f"{artifact_kind}/{fetched_at}"
-    artifact_node_id = str(node_entity_id("fedramp_20x_ksi__compliance_artifact", natural_key))
+    artifact_node_id = str(node_entity_id("compliance_core__compliance_artifact", natural_key))
     out.anchor_entity_id = artifact_node_id
 
     if content_format == "json":
@@ -445,7 +445,7 @@ def decompose_compliance_artifact(
     artifact_name = f"{artifact_kind} @ {fetched_at}"
     out.nodes.append(
         _node_envelope(
-            "fedramp_20x_ksi__compliance_artifact",
+            "compliance_core__compliance_artifact",
             artifact_node_id,
             artifact_name,
             _DIM_ARTIFACT,

@@ -16,10 +16,15 @@ class ComplianceArtifact(BaseModel):
     kept whole: typed metadata + the document as a blob. One model; `kind`
     discriminates.
 
-    Spec: spec-fedramp-20x-ksi-compliance-artifacts-v0.md.
+    Regime-agnostic: any compliance regime fetches evidence documents. The
+    minting collector stamps the regime dimension per-instance; the model
+    default carries only a neutral type marker.
+
+    Spec: plugins/compliance_core/specs/spec-compliance-core-v0.md
+    (req-compliance-core-models).
     """
 
-    ENTITY_TYPE: ClassVar[str] = "fedramp_20x_ksi__compliance_artifact"
+    ENTITY_TYPE: ClassVar[str] = "compliance_core__compliance_artifact"
     ENTITY_NAME: ClassVar[str] = "Compliance Artifact"
     ENTITY_DESCRIPTION: ClassVar[str] = (
         "A fetched compliance rendering kept whole — an OSCAL SSP, OSCAL "
@@ -80,7 +85,7 @@ class ComplianceArtifact(BaseModel):
     verified_at = models.CharField(max_length=64, blank=True, default="")
 
     class Meta(BaseModel.Meta):
-        db_table = "fedramp_20x_ksi__compliance_artifact"
+        db_table = "compliance_core__compliance_artifact"
 
     def get_name(self) -> str:
         return self.name

@@ -200,7 +200,7 @@
             "root": "node",
             "definition": {
               "query": [
-                "MATCH (n:fedramp_20x_ksi__compliance_artifact)"
+                "MATCH (n:compliance_core__compliance_artifact)"
               ]
             }
           }

@@ -351,7 +351,7 @@ class SamsiteComplianceCollector(CollectorBase):
 
         for fetched_item in fetched:
             artifact = fetched_item["artifact"]
-            if artifact["handling"] != "fedramp_20x_ksi__compliance_artifact":
+            if artifact["handling"] != "compliance_core__compliance_artifact":
                 continue
             decomp = decompose_compliance_artifact(
                 body=fetched_item["body"],
