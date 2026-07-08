@@ -12,8 +12,9 @@ provides: |
   A numbers-first breakdown of which Cypher features real open-source graph
   applications actually hard-code in their queries, mined across 13 corpora
   (565 app-focused read queries; 1295 with the two library corpora included),
-  cross-referenced against what Gryphon supports today. The point is to let
-  wishlist sequencing be set by measured demand rather than by Cypher's table
+  cross-referenced against what Gryphon supports today, each rated for
+  implementation complexity (§2, Low→Very High, anchored to the lowering ladder).
+  The point is to let wishlist sequencing be set by measured demand rather than by Cypher's table
   of contents or by intuition. Includes the apoc/GDS skew caveat, the
   non-obvious findings (COLLECT ≫ numeric aggregates; UNWIND's signal has
   arrived; CALL is library-inflated), and one live doc-drift flag. §7 adds an
@@ -107,54 +108,93 @@ features, not a hole in the core.
 ## 2. The full two-view table
 
 Percentages are share-of-read-queries within each view. `∆` flags where the library corpora move a
-feature's apparent rank.
+feature's apparent rank. **Difficulty** = estimated implementation complexity *for Gryphon
+specifically* (legend below) — the "should I brace for this?" signal when a feature surfaces.
+**Impl. details** = the concrete lowering approach that drives the rating.
 
-| Feature | App % (n=565) | App breadth | All-13 % (n=1295) | Gryphon status |
-| --- | :--: | :--: | :--: | --- |
-| `pred_comparison` (`=`,`<`,`>`,…) | 42.8 | 11/11 | 21.3 | ✅ shipped |
-| `AND` / `OR` / `NOT` | 30.4 | 11/11 | 14.2 | ✅ shipped (combinators) |
-| pattern var-binding `(a)-[e]->(b)` | 28.5 | 9/11 | 18.7 | ✅ shipped † |
-| `LIMIT` | 23.2 | 7/11 | 12.1 | ✅ shipped (A2) |
-| `$params` | 20.9 | 7/11 | 16.3 | ✅ shipped |
-| inline node props `{k: v}` | 20.5 | 9/11 | 20.4 | ✅ shipped |
-| **`WITH`** | **19.5** | 10/11 | 13.7 | ❌ not in grammar (F1 ★) |
-| `ORDER BY` | 19.1 | 11/11 | 13.6 | ✅ shipped (A1) |
-| multiple `MATCH` | 15.8 | 9/11 | 7.5 | ✅ shipped (implicit union) |
-| `IN` list | 15.6 | 9/11 | 6.9 | ✅ shipped (B1) |
-| **`COLLECT`** | **14.9** | 10/11 | 11.0 | ❌ not in grammar (C2) |
-| **var-length path** `-[*n..m]-` | **14.5** | 7/11 | 7.5 | ⚠ parses, executor **rejects** (E1) |
-| **`DISTINCT`** | **12.2** | 7/11 | 8.1 | ❌ not in grammar (A4) |
-| arithmetic in expressions | 10.4 | 10/11 | 6.1 | ❌ not built |
-| `STARTS_WITH`/`ENDS_WITH`/`CONTAINS` | 10.3 | 5/11 | 4.6 | ✅ shipped (B2) |
-| undirected edge | 10.1 | 8/11 | 5.7 | ✅ shipped |
-| `COUNT` | 9.9 | 10/11 | 11.7 | ✅ shipped |
-| `coalesce()` | 8.7 | 5/11 | 3.9 | ❌ not in grammar (H1) |
-| `labels()`/`type()`/`keys()` | 6.7 | 7/11 | 5.5 | ✅ exported by envelope (§3.6) — scalar fn form not built (redundant) |
-| `OPTIONAL MATCH` | 6.5 | 6/11 | 3.1 | ✅ shipped (D1, narrow v0) |
-| string functions | 6.0 | 5/11 | 2.7 | ❌ not built (H2) |
-| **`shortestPath`** | 5.8 | 5/11 | 2.5 | ❌ not in grammar (E3) |
-| `IS NULL` / `IS NOT NULL` | 5.0 | 6/11 | 2.4 | ✅ shipped |
-| list ops / comprehensions | 5.0 | 9/11 | 4.7 | ❌ not built (deliberate subset) |
-| `size()` | 5.0 | 8/11 | 3.2 | ❌ not built (H2) |
-| **`UNWIND`** | 4.8 | 7/11 | 6.6 | ❌ not in grammar (F3) |
-| `id()` | 4.2 | 4/11 | 4.2 | ⚠ partial (`entity_id` projectable; `id()` fn not built) |
-| `=~` regex | 3.7 | 6/11 | 1.6 | ✅ shipped |
-| `SKIP` / `OFFSET` | 3.4 | 2/11 | 1.5 | ❌ not in grammar (A3) |
-| `CALL` procedure | 2.7 | 4/11 | **26.3 ∆** | 🚫 deliberate omission (→ §3, §5) |
-| numeric aggregates `SUM`/`MIN`/`MAX`/`AVG` | 2.5 | 4/11 | 1.3 | ❌ not in grammar (C1) |
-| label-union `(:A\|B)` | 1.9 | 4/11 | 1.1 | ❌ withdrawn (B4 superseded) |
-| map projection | 1.9 | 2/11 | 1.4 | ❌ not built (deliberate subset) |
-| `CASE WHEN` | 1.8 | 3/11 | 1.2 | ❌ not in grammar (H1) |
-| temporal functions | 1.6 | 3/11 | 0.7 | ❌ not built |
-| `reduce()` | 1.2 | 3/11 | 0.6 | ❌ not built |
-| `NOT EXISTS { }` | 1.2 | 2/11 | 0.5 | ✅ shipped (`~Exists()`) |
-| `CALL { }` subquery | 1.1 | 1/11 | 0.5 | ❌ not built |
-| pattern predicate in `WHERE` | 0.9 | 3/11 | 0.4 | ⚠ partial |
-| inline edge props `-[{k:v}]-` | 0.5 | 2/11 | 0.8 | ✅ shipped |
-| `exists(n.prop)` | 0.5 | 2/11 | 0.5 | ✅ partial (via `IS NOT NULL`/`IS KNOWN`) |
-| positive `EXISTS { }` | 0.5 | 1/11 | 0.2 | ❌ not in grammar (D2) |
-| write clauses (`CREATE`/`MERGE`/`SET`/…) | 0.4 | 1/11 | 1.2–1.7 | 🚫 rejected **by design** (read-only) |
-| explicit `UNION` | 0.2 | 1/11 | 0.2 | ❌ not in grammar (F2) |
+**Complexity legend — anchored to the lowering ladder** (`spec-grid-traversal-execution.md`), not vibes:
+
+- 🟢 **Low** — a direct rung-1 ORM map: one Django annotation / lookup / function / slice, no new
+  dispatch path. A day-shaped change. (e.g. `SUM`/`MIN`/`MAX`/`AVG`, `DISTINCT`, `SKIP`, `coalesce`,
+  `size`, string/temporal fns, positive `EXISTS`.)
+- 🟡 **Medium** — a new dispatch path *or* a new expression/projection class, still rung-1 single-pass
+  (no staged materialization). (e.g. `COLLECT`, `UNWIND`, expression arithmetic, `CASE`, map
+  projection, explicit `UNION`.)
+- 🟠 **High** — staged materialization, cross-stage threading, or a sub-expression-language: a new
+  execution *structure*, but still in-plan. (e.g. full `WITH` value-carry, list comprehensions,
+  `reduce`, `CALL {}` subqueries.)
+- 🔴 **Very High** — a new execution engine, recursion, a different backend, or a new trust boundary:
+  recursive CTE, cost-tracking, an IR, or writes. (e.g. variable-length paths, `shortestPath`,
+  general `CALL` procedures, write clauses.)
+
+Ratings are for the *full* Cypher feature; several **phase down** — e.g. `WITH`'s node-scoping rung is
+Medium even though full `WITH` is High (§5.1 / wishlist F1 note). A blank Difficulty (`—`) = shipped
+(no build); `n/a` = not a build (exported by the model, withdrawn, or deliberately out of scope).
+
+**JSON blob axis** — the rightmost column records whether a call reaches *into* JSON blob (`data.*`)
+columns, and to what depth. TAP's goal is to operate on JSON-stored values with the same operators
+that act on native columns, *to whatever extent is possible* — this column tracks that reach and its
+limits per call:
+
+- `scalar` — operates on JSON **scalar** sub-keys (`n.data.x.y` → a string/number/bool/null) via the
+  shared field-path resolver (`_typescan_orm_path` / `_resolve_orm_path`), treated identically to a
+  spine/column field. Does **not** handle JSON object/array *containers*.
+- `container→` — a list/map-shaped call whose JSON-**container** handling is a *named future*
+  extension (unbuilt today).
+- `—` — not a value operation (structural, clause-level, out-of-scope, or envelope-exported).
+
+No call supports JSON **container** (object/array) sub-values yet — no map/array literals exist to
+express container semantics, row values are primitives-only (`req-grid-gryphon-rows-5`), and
+jsonb-container equality is unspecified. This column is the ledger for where container support lands
+as it is built; the first named candidate is `DISTINCT`'s container case
+(`req-grid-gryphon-distinct-6`).
+
+| Feature | App % (n=565) | App breadth | All-13 % (n=1295) | Gryphon status | Difficulty | Impl. details | JSON blob |
+| --- | :--: | :--: | :--: | --- | :--- | --- | :--: |
+| `pred_comparison` (`=`,`<`,`>`,…) | 42.8 | 11/11 | 21.3 | ✅ shipped | — | — | scalar |
+| `AND` / `OR` / `NOT` | 30.4 | 11/11 | 14.2 | ✅ shipped (combinators) | — | — | — |
+| pattern var-binding `(a)-[e]->(b)` | 28.5 | 9/11 | 18.7 | ✅ shipped † | — | — | — |
+| `LIMIT` | 23.2 | 7/11 | 12.1 | ✅ shipped (A2) | — | — | — |
+| `$params` | 20.9 | 7/11 | 16.3 | ✅ shipped | — | — | — |
+| inline node props `{k: v}` | 20.5 | 9/11 | 20.4 | ✅ shipped | — | — | scalar |
+| **`WITH`** | **19.5** | 10/11 | 13.7 | ❌ not in grammar (F1 ★) | 🟠&nbsp;**High** | node-scope rung is Medium; value-carry-through is the High part | — |
+| `ORDER BY` | 19.1 | 11/11 | 13.6 | ✅ shipped (A1) | — | — | scalar |
+| multiple `MATCH` | 15.8 | 9/11 | 7.5 | ✅ shipped (implicit union) | — | — | — |
+| `IN` list | 15.6 | 9/11 | 6.9 | ✅ shipped (B1) | — | — | scalar |
+| **`COLLECT`** | **14.9** | 10/11 | 11.0 | ❌ not in grammar (C2) | 🟡&nbsp;**Medium** | `ArrayAgg` annotation + list-ordering / empty-collect corners | container→ |
+| **var-length path** `-[*n..m]-` | **14.5** | 7/11 | 7.5 | ⚠ parses, executor **rejects** (E1) | 🔴&nbsp;**Very&nbsp;High** | recursive CTE (rung 4); or supplanted by named paths | — |
+| **`DISTINCT`** | **12.2** | 7/11 | 8.1 | ❌ not in grammar (A4) | 🟢&nbsp;**Low** | `.distinct()` | scalar · container→ |
+| arithmetic in expressions | 10.4 | 10/11 | 6.1 | ❌ not built | 🟡&nbsp;**Medium** | `F()`-expression node in projection / WHERE | scalar |
+| `STARTS_WITH`/`ENDS_WITH`/`CONTAINS` | 10.3 | 5/11 | 4.6 | ✅ shipped (B2) | — | — | scalar |
+| undirected edge | 10.1 | 8/11 | 5.7 | ✅ shipped | — | — | — |
+| `COUNT` | 9.9 | 10/11 | 11.7 | ✅ shipped | — | — | — |
+| `coalesce()` | 8.7 | 5/11 | 3.9 | ❌ not in grammar (H1) | 🟢&nbsp;**Low** | `Coalesce()` function | scalar |
+| `labels()`/`type()`/`keys()` | 6.7 | 7/11 | 5.5 | ✅ exported by envelope (§3.6) — scalar fn form not built (redundant) | ⚪&nbsp;n/a | exported by the typed envelope; scalar fn form redundant | — |
+| `OPTIONAL MATCH` | 6.5 | 6/11 | 3.1 | ✅ shipped (D1, narrow v0) | — | shipped; widening beyond COUNT-only is Medium | — |
+| string functions | 6.0 | 5/11 | 2.7 | ❌ not built (H2) | 🟢&nbsp;**Low** | one Django `Func` per fn, on demand | scalar |
+| **`shortestPath`** | 5.8 | 5/11 | 2.5 | ❌ not in grammar (E3) | 🔴&nbsp;**Very&nbsp;High** | cost-tracking / different execution strategy or backend | — |
+| `IS NULL` / `IS NOT NULL` | 5.0 | 6/11 | 2.4 | ✅ shipped | — | — | scalar |
+| list ops / comprehensions | 5.0 | 9/11 | 4.7 | ❌ not built (deliberate subset) | 🟠&nbsp;**High** | comprehension is a sub-expression-language (map/filter over lists) | container→ |
+| `size()` | 5.0 | 8/11 | 3.2 | ❌ not built (H2) | 🟢&nbsp;**Low** | `Func` (length) | container→ |
+| **`UNWIND`** | 4.8 | 7/11 | 6.6 | ❌ not in grammar (F3) | 🟡&nbsp;**Medium** | unroll a list → UNION / `VALUES` join | container→ |
+| `id()` | 4.2 | 4/11 | 4.2 | ⚠ partial (`entity_id` projectable; `id()` fn not built) | 🟢&nbsp;**Low** | expose `entity_id` under an alias | — |
+| `=~` regex | 3.7 | 6/11 | 1.6 | ✅ shipped | — | — | scalar |
+| `SKIP` / `OFFSET` | 3.4 | 2/11 | 1.5 | ❌ not in grammar (A3) | 🟢&nbsp;**Low** | `qs[n:]` slice | — |
+| `CALL` procedure | 2.7 | 4/11 | **26.3 ∆** | 🚫 deliberate omission (→ §3, §5) | 🔴&nbsp;**Very&nbsp;High** | out of scope → route algorithmic slice to analytics backend | — |
+| numeric aggregates `SUM`/`MIN`/`MAX`/`AVG` | 2.5 | 4/11 | 1.3 | ❌ not in grammar (C1) | 🟢&nbsp;**Low** | parallel to `COUNT` (`Sum`/`Min`/`Max`/`Avg` annotation) | scalar |
+| label-union `(:A\|B)` | 1.9 | 4/11 | 1.1 | ❌ withdrawn (B4 superseded) | ⚪&nbsp;n/a | withdrawn (bare-MATCH + `STARTS_WITH` covers it) | — |
+| map projection | 1.9 | 2/11 | 1.4 | ❌ not built (deliberate subset) | 🟡&nbsp;**Medium** | new map-shaped output projection | container→ |
+| `CASE WHEN` | 1.8 | 3/11 | 1.2 | ❌ not in grammar (H1) | 🟡&nbsp;**Medium** | `Case(When…)` + grammar for the expression tree | scalar |
+| temporal functions | 1.6 | 3/11 | 0.7 | ❌ not built | 🟢&nbsp;**Low** | one Django temporal `Func` per fn, on demand | scalar |
+| `reduce()` | 1.2 | 3/11 | 0.6 | ❌ not built | 🟠&nbsp;**High** | list-iteration / fold — a sub-expression-language | container→ |
+| `NOT EXISTS { }` | 1.2 | 2/11 | 0.5 | ✅ shipped (`~Exists()`) | — | — | — |
+| `CALL { }` subquery | 1.1 | 1/11 | 0.5 | ❌ not built | 🟠&nbsp;**High** | correlated-subquery machinery | — |
+| pattern predicate in `WHERE` | 0.9 | 3/11 | 0.4 | ⚠ partial | 🟡&nbsp;**Medium** | `Exists()`-shaped pattern in WHERE | — |
+| inline edge props `-[{k:v}]-` | 0.5 | 2/11 | 0.8 | ✅ shipped | — | — | scalar |
+| `exists(n.prop)` | 0.5 | 2/11 | 0.5 | ✅ partial (via `IS NOT NULL`/`IS KNOWN`) | 🟢&nbsp;**Low** | mostly done via `IS NOT NULL` / `IS KNOWN` | scalar |
+| positive `EXISTS { }` | 0.5 | 1/11 | 0.2 | ❌ not in grammar (D2) | 🟢&nbsp;**Low** | sign-flip of the existing `~Exists()` anti-join | — |
+| write clauses (`CREATE`/`MERGE`/`SET`/…) | 0.4 | 1/11 | 1.2–1.7 | 🚫 rejected **by design** (read-only) | 🔴&nbsp;**Very&nbsp;High** | out of scope — new language + trust boundary | — |
+| explicit `UNION` | 0.2 | 1/11 | 0.2 | ❌ not in grammar (F2) | 🟡&nbsp;**Medium** | `.union()` + dedup-vs-ALL semantics | — |
 
 † *Pattern var-binding* here means naming nodes/edges in the pattern (`(a)-[e]->(b)`), which ships.
 The classifier folds in full **path-variable binding** `p = (a)-[*]->(b)` — that shape *parses* (grammar

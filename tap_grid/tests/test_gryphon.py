@@ -522,6 +522,42 @@ class TestGryphonEnvelopePaths:
         with pytest.raises(SearchExecutionError, match=r"data"):
             execute_search(search, inputs={})
 
+    def test_return_walking_into_dimensions_spine_field_rejected(self):
+        """RETURN projection is deliberately stricter than WHERE (v1 boundary).
+
+        A multi-step walk into the JSON-typed `dimensions` spine field is a valid
+        WHERE predicate (`WHERE c.dimensions.region = ...`), but is NOT a v1 RETURN
+        projection. The row-materialization unification routes RETURN through the
+        shared, more-permissive resolver; this pins that it must not silently widen
+        RETURN to accept it (`req-grid-traversal-lang-envelope-paths`).
+        """
+        self._make_characters()
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="t",
+            definition={"query": "MATCH (c:grid_fixtures__constrained_source) RETURN c.dimensions.region"},
+        )
+        with pytest.raises(SearchExecutionError, match=r"walked into"):
+            execute_search(search, inputs={})
+
+    def test_return_data_lane_bracket_key_rejected(self):
+        """RETURN projection admits dot-steps only in the `data` lane (v1 boundary).
+
+        A bracket-key step (`c.data.tags["team"]`) is accepted by the shared WHERE
+        resolver but must be rejected in a v1 RETURN projection — the unification
+        must not silently widen it (`req-grid-traversal-lang-envelope-paths`).
+        """
+        self._make_characters()
+        search = Search(
+            search_type="gryphon",
+            root="node",
+            name="t",
+            definition={"query": 'MATCH (c:grid_fixtures__constrained_source) RETURN c.data.tags["team"]'},
+        )
+        with pytest.raises(SearchExecutionError, match=r"dot-steps"):
+            execute_search(search, inputs={})
+
     def test_return_dotted_path_default_alias_is_last_step(self):
         """When no AS alias is given, the default column name is the last dot-step."""
         self._make_characters()
@@ -3077,3 +3113,40 @@ class TestGryphonRegexExecutor:
             inputs={},
         )["rows"]
         assert [r["name"] for r in rows] == ["with-content"]
+
+
+class TestMaterializeRowsDistinctFailClosed:
+    """The shared row backend fails closed on the dormant DISTINCT flag.
+
+    `plan.distinct` is unreachable via a query today (`ReturnClause` has no
+    `distinct` field), so these pin the backend contract directly, below the
+    service layer: a set flag must *reject*, never silently no-op (`GRY-ARCH-3`)
+    — both over an aggregate plan (`req-grid-traversal-exec-row-materialization-14`)
+    and over a non-aggregate plan (the not-yet-wired `.values().distinct()`). The
+    reject fires before the queryset is touched, so no database is needed.
+    """
+
+    def _plan(self, *, distinct: bool, aggregate: bool):
+        from tap_grid.gryphon.executor import MaterializationPlan
+
+        return MaterializationPlan(
+            queryset=None,
+            pre_annotations={},
+            group_pairs=(("_c0", "a"),),
+            aggregate_annotations={"_agg": object()} if aggregate else {},
+            aggregate_pairs=(),
+            order_cols=(),
+            distinct=distinct,
+        )
+
+    def test_distinct_over_aggregate_rejects(self):
+        from tap_grid.gryphon.executor import materialize_rows
+
+        with pytest.raises(SearchExecutionError, match=r"aggregate"):
+            materialize_rows(self._plan(distinct=True, aggregate=True))
+
+    def test_non_aggregate_distinct_fails_closed(self):
+        from tap_grid.gryphon.executor import materialize_rows
+
+        with pytest.raises(SearchExecutionError, match=r"not implemented yet"):
+            materialize_rows(self._plan(distinct=True, aggregate=False))

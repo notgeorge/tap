@@ -109,6 +109,39 @@
       ]
     },
     {
+      "folder": "clauses/return",
+      "gaps": [
+        {
+          "intent": "projecting a whole JSON container sub-value should reject (only scalar leaves are RETURN-projectable)",
+          "note": "probed 2026-07-07 while unifying row materialization: RETURN of a container-valued JSON sub-key (n.data.tags.meta) currently projects the nested object rather than rejecting it — the preserved rows-5 non-conformance pinned by json_return__container. The rejection is deferred to the DISTINCT / rows-5-reconcile track, so it is a feature gap, not an authorable pass today.",
+          "kind": "feature"
+        },
+        {
+          "intent": "duplicate output alias vs. duplicate source in one RETURN (`... AS a, ... AS a` and the same source under two distinct aliases `x AS a, x AS b`)",
+          "note": "the row-materialization backend gives each RETURN item its own internal alias (_ts_col_N), so a repeated SOURCE under two aliases yields two distinct columns; a duplicate user ALIAS collapses last-write-wins in _rows_from_values. Both are current-but-unverified — no scenario pins either and no rejection is enforced.",
+          "kind": "unknown"
+        }
+      ],
+      "excluded": [
+        {
+          "intent": "RETURN DISTINCT over projected columns",
+          "reason": "DISTINCT is a separate, deferred coverage axis (req-grid-gryphon-distinct), not RETURN-projection"
+        },
+        {
+          "intent": "aggregating expressions in RETURN (count/collect/sum in the projection list)",
+          "reason": "aggregation is its own folder (expressions/aggregation); Gryphon's only aggregate is COUNT and is covered there"
+        },
+        {
+          "intent": "projecting literals, arithmetic, or scalar-function expressions (RETURN 1 + n.x, toLower(n.name))",
+          "reason": "Gryphon RETURN projects matched field paths only — no literal, arithmetic, or scalar-function expressions"
+        },
+        {
+          "intent": "RETURN * projecting every bound variable",
+          "reason": "Gryphon returns an explicit projection list or the graph envelope, not a Cypher-style RETURN * of all in-scope variables"
+        }
+      ]
+    },
+    {
       "folder": "clauses/return-orderby",
       "gaps": [
         {
