@@ -1,4 +1,4 @@
-# All-plugins validation lane (v1).
+# All-plugins validation lane (v1, sharded).
 #
 # The blocking authority for the FULL plugin set that a focused local stack can no
 # longer run once plugins leave the monorepo. Reciprocal of the local promote gate:
@@ -14,16 +14,37 @@
 #     test-carrying wheels (github-plugins-ro) so the lane still covers plugins that
 #     have left the monorepo — the git-sourced test_all record.
 #
-# PROVEN GREEN first run 2026-07-07 (~21 min: build → boot test_all → full lane).
+# SHARDING (req-dev-validation-all-plugins-lane-7).
+#   A measured green run spent ~95% of wall-clock in the pytest lane (1292s of ~21.5
+#   min; build+boot is a ~100s fixed tax). So the lane is near-perfectly shardable and
+#   is Postgres-I/O-bound. We run it as a MATRIX of N shards on free 2-core runners:
+#   each shard boots its OWN test_all stack (its own Postgres — N independent Postgres
+#   instances relieve the I/O bottleneck better than N cores sharing one) and runs a
+#   disjoint, duration-balanced slice via pytest-split (`--splits N --group G`, reading
+#   the committed `.test_durations`). The union of shards === the single-lane test set.
+#   Balance by DURATION, not by logical boundary: the dominant-cost gryphon corpus
+#   (plugins/gryphon_playground) is SUBDIVIDED across shards, never pinned to its own —
+#   a dedicated shard would become the ~14-min long pole and gut the win. It subdivides
+#   cleanly because it is hundreds of small parametrized nodes with no monolithic long
+#   pole (the campaign/soak is skipif-gated off in the lane).
+#
+#   `.test_durations` refresh: pytest-split gracefully EVEN-SPLITS when the file is
+#   absent/stale (no error), so the lane is always valid — durations only sharpen the
+#   balance. Regenerate CI-accurate durations by dispatching this workflow with the
+#   `store_durations` input set (runs the full lane UNSHARDED, uploads `.test_durations`
+#   as an artifact to download + commit). Refresh after rolling the gryphon fuzz seed or
+#   bumping GRYPHON_FUZZ_GRAPHS/QUERIES (node-ids change → those durations go unknown).
 #
 # WIRED: promote-to-main.sh Step 2.6 blocks on this run via `workflow_dispatch` +
 #   poll (option B, req-dev-multisession-ci-gate). It dispatches against a throwaway
-#   `_ci-gate/<session>` ref so origin/main + origin/session don't move before green,
-#   then `gh run watch --exit-status` gates the atomic push. NOTE the bootstrap:
-#   workflow_dispatch is only triggerable once this file lives on the default branch
-#   (main), so the FIRST promote (which lands the workflow on main) is itself ungated
-#   (the gate detects the file's absence on origin/main and self-skips); every promote
-#   after is gated. First real exercise: the aws-cloud worktree's first push.
+#   `_ci-gate/<session>` ref and `gh run watch`es the RUN — whose conclusion already
+#   rolls up every matrix shard + the aggregate gate — so no promote-script change was
+#   needed for sharding. The `all-plugins-gate` job is the single stable status name
+#   (for a future branch-protection required-check + a clean poll target).
+#
+# PROVEN GREEN (unsharded v1) first run 2026-07-07 (~21 min: build → boot test_all →
+#   full lane). Image build is GHA-layer-cached (landed f051ba9e); each shard's
+#   `cache-from: type=gha` hits the same warm cache (~24s vs minutes cold).
 #
 # OPEN:
 #   - cold-boot / lean-boot gates (they spawn extra stacks) folded in later.
@@ -32,7 +53,12 @@
 name: all-plugins
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      store_durations:
+        description: "Refresh the balance file: run the full lane UNSHARDED with --store-durations and upload .test_durations (download + commit it)."
+        type: boolean
+        default: false
   pull_request:
     branches: [main]
 
@@ -41,9 +67,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # Sharded test lane — the normal path. Skipped on a store_durations dispatch.
+  # ---------------------------------------------------------------------------
   all-plugins:
+    if: ${{ !inputs.store_durations }}
+    strategy:
+      # Every shard runs to completion even if a sibling reds — we want the full
+      # failure picture across the suite, not a fail-fast on the first shard.
+      fail-fast: false
+      matrix:
+        # Start N=3: the test lane is ~95% of wall-clock, so 3 shards ≈ ~8-9 min;
+        # returns flatten past ~4 as the ~100s per-shard build+boot tax dominates.
+        # Bump the list AND `--splits` below together.
+        group: [1, 2, 3]
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 25
     # docker-compose.ci.yml overlays the dev compose file with the CI-only image tag
     # (tap-web:ci) that the build step loads. COMPOSE_FILE makes every `docker compose`
     # call below pick up both files without touching the run lines. Linux separator ':'.
@@ -62,9 +101,9 @@ jobs:
           mkdir -p tap_secrets
 
       # Build the web image with a GitHub Actions layer cache so unchanged layers
-      # (base image, uv deps, apt) don't rebuild every run. build-push-action loads
-      # the result locally as `tap-web:ci`; the ci overlay points the web service at
-      # that tag so the `up` below reuses it (no in-compose rebuild).
+      # (base image, uv deps, apt) don't rebuild every run. Each shard runs on its own
+      # runner and rebuilds from the shared warm cache (~24s); concurrent cache writes
+      # to identical layer keys are idempotent, so per-shard build needs no registry.
       - uses: docker/setup-buildx-action@v3
       - name: Build web image (GHA layer cache)
         uses: docker/build-push-action@v6
@@ -101,26 +140,101 @@ jobs:
             docker compose --env-file .env logs web | tail -150; exit 1
           fi
 
-      # The full lane INCLUDING the gryphon corpus (no --ignore) — the all-plugins
-      # authority. pytest collects every installed plugin's in-package tests
-      # (tap.plugin_testing) alongside the core walk.
+      # This shard's disjoint slice of the full lane INCLUDING the gryphon corpus (no
+      # --ignore) — the all-plugins authority. pytest collects every installed plugin's
+      # in-package tests (tap.plugin_testing) alongside the core walk; pytest-split then
+      # selects group G of `--splits 3` from that collection, balanced by .test_durations
+      # (even-split when the file is absent). `--splits` MUST match the matrix length.
       #
-      # Worker count: NOT `-n auto`. Standard ubuntu-latest is a 2-vCPU runner, so
-      # `auto` picks 2 and the lane ran 19m19s two-at-a-time (measured, run
-      # 28883107518). The suite is Postgres-I/O-bound — workers block on DB
-      # round-trips — so oversubscribing the 2 vCPUs (`-n 4`) keeps both cores busy
-      # while others wait. `max_locks_per_transaction=512` is already in the shared
-      # compose config, so the extra concurrent test DBs won't hit the lock ceiling.
-      # Postgres shares these 2 vCPUs + 7 GB, so it becomes the bottleneck past ~4-6;
-      # bump cautiously and re-measure. NOTE (checked 2026-07-07): GitHub's larger
-      # hosted runners (4/8-core) are an ORG-only feature (Team/Enterprise); this repo
-      # is under a personal account, so `runs-on: <larger>` is NOT available here. The
-      # real 2-4x levers are: move the repo under an Org on Team, a self-hosted runner
-      # (e.g. a local box — private repo makes that safe), or matrix-shard the suite
-      # across several standard 2-core runners (do the build cache first — see above).
-      - name: Full test lane (all plugins)
-        run: docker compose --env-file .env exec -T web sh -c 'cd /app && uv run pytest -n 4'
+      # Worker count within the shard: NOT `-n auto`. ubuntu-latest is 2-vCPU, and the
+      # suite is Postgres-I/O-bound (workers block on DB round-trips), so oversubscribing
+      # the 2 vCPUs (`-n 4`) keeps both cores busy. `max_locks_per_transaction=512` is in
+      # the shared compose config, so the concurrent test DBs won't hit the lock ceiling.
+      # Effective parallelism across the lane is now 3 shards x 4 workers = 12-way, over
+      # THREE independent Postgres instances (the real edge over one 8-core box + 1 PG).
+      - name: Test shard ${{ matrix.group }}/3 (all plugins)
+        run: docker compose --env-file .env exec -T web sh -c 'cd /app && uv run pytest -n 4 --splits 3 --group ${{ matrix.group }}'
 
+      - name: Dump web logs on failure
+        if: failure()
+        run: docker compose --env-file .env logs web | tail -200
+
+  # ---------------------------------------------------------------------------
+  # Aggregate gate — the single stable status the promote poll / a future
+  # branch-protection required-check targets. Fails closed if ANY shard did not
+  # succeed (skipped/cancelled/failed all count as not-green).
+  # ---------------------------------------------------------------------------
+  all-plugins-gate:
+    if: ${{ always() && !inputs.store_durations }}
+    needs: [all-plugins]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Assert every shard is green
+        run: |
+          result='${{ needs.all-plugins.result }}'
+          echo "all-plugins matrix result: $result"
+          if [ "$result" != "success" ]; then
+            echo "::error::all-plugins lane not green (matrix result: $result) — one or more shards failed/cancelled/skipped"
+            exit 1
+          fi
+          echo "all shards green"
+
+  # ---------------------------------------------------------------------------
+  # Durations bootstrap — opt-in (dispatch with store_durations=true). Runs the
+  # full lane UNSHARDED with --store-durations and uploads .test_durations for
+  # download + commit. NOT part of the normal path; does not gate promote.
+  # ---------------------------------------------------------------------------
+  store-durations:
+    if: ${{ inputs.store_durations }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
+    steps:
+      - uses: actions/checkout@v5
+      - name: Provide empty secrets root
+        run: |
+          rm -f tap_secrets
+          mkdir -p tap_secrets
+      - uses: docker/setup-buildx-action@v3
+      - name: Build web image (GHA layer cache)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: tap-web:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Boot the test_all union
+        env:
+          TAP_BOOT_PROFILE: test_all
+          TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE: "false"
+        run: |
+          docker compose --env-file .env up -d
+          ok=0
+          for i in $(seq 1 90); do
+            if docker compose --env-file .env logs web 2>/dev/null | grep -q 'TAP-ABORT:'; then
+              echo "::error::boot aborted (TAP-ABORT sentinel in web log)"
+              docker compose --env-file .env logs web; exit 1
+            fi
+            if docker compose --env-file .env exec -T web sh -c 'cd /app && uv run python manage.py health' >/dev/null 2>&1; then
+              echo "web healthy after ~$((i * 10))s"; ok=1; break
+            fi
+            sleep 10
+          done
+          if [ "$ok" != 1 ]; then
+            echo "::error::web did not become healthy within the timeout"
+            docker compose --env-file .env logs web | tail -150; exit 1
+          fi
+      # `.:/app` is bind-mounted, so writing /app/.test_durations lands the file in the
+      # runner workspace directly — upload-artifact picks it up with no docker cp.
+      - name: Full lane + store durations (unsharded)
+        run: docker compose --env-file .env exec -T web sh -c 'cd /app && uv run pytest -n 4 --store-durations --durations-path /app/.test_durations'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: test-durations
+          path: .test_durations
+          if-no-files-found: error
       - name: Dump web logs on failure
         if: failure()
         run: docker compose --env-file .env logs web | tail -200
