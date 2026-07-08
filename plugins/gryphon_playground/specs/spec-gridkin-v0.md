@@ -55,6 +55,8 @@ alongside the wishlist.
 | req-gridkin-stage-coverage | [Executor-Stage Coverage Gate](#executor-stage-coverage-gate) | Implemented | Every executor dispatch stage is exercised by a WHERE-carrying scenario; the path set is derived from the source, not a hand-kept list |
 | req-gridkin-executor-branch-coverage | [Executor Branch-Coverage Ratchet](#executor-branch-coverage-ratchet) | Implemented | `coverage.py` branch coverage of `executor.py`, ratcheted against a committed floor — the branch-level complement to the stage gate |
 | req-gridkin-metamorphic-tlp | [Metamorphic TLP Corpus Assertion](#metamorphic-tlp-corpus-assertion) | Implemented | Ternary-logic partitioning derived from corpus scenarios probes the executor's 2VL/3VL null boundary for self-consistency |
+| req-gridkin-ai-qc | [AI Query Compiler Differential QC](#ai-query-compiler-differential-qc) | Backlog | Experimental dev/test differential oracle: an independent AI compiler emits a structured SQL artifact, Gridkin executes it in an isolated read-only fixture DB, canonicalizes the result, and compares it to Gryphon's authoritative result |
+| req-gridkin-ai-qc-investigation | [AI Query-Compiler Disagreement Investigation Skill](#ai-query-compiler-disagreement-investigation-skill) | Backlog | A small process/skill consumes an AI Query-Compiler QC disagreement packet and drives reproduce/classify/root-cause disposition without treating either engine as automatically right |
 | req-gridkin-json-schema | [JSON Schema for Scenario Files](#json-schema-for-scenario-files) | Implemented | Author and validate-at-load a JSON Schema for the scenario format |
 | req-gridkin-multi-fixture-load | [Multi-Fixture Background Loads](#multi-fixture-background-loads) | Approved for Development | `background.grift_fixture` accepts a list of fixture paths; the runner imports each in order |
 | req-gridkin-nongoals | [v0 Non-Goals](#v0-non-goals) | Implemented | Explicitly deferred concerns |
@@ -867,6 +869,225 @@ The fuzz-campaign ledger tracks bug **frequency over time** (trending down as th
 | req-gridkin-findings-ledger-3 | Honest Denominator (Coverage-Paired) | Implemented | The report pairs each subsystem's finding count with its executor line coverage so a zero-findings subsystem is read as blind-spot-or-clean, not assumed clean. | Coverage from the branch-coverage ratchet JSON; column omitted with a caveat when absent. |
 | req-gridkin-findings-ledger-4 | Fix-Time Discipline | Implemented | Every executor/oracle bug fix appends a findings row in the same commit as its regression scenario; findings are historical facts, so a row's named function is never asserted to still exist (it may be deleted by the very refactor the map motivated). | Rides the existing "every bug earns a regression scenario" rule. |
 
+### AI Query Compiler Differential QC
+----
+RID: `req-gridkin-ai-qc`
+Status: `Backlog`
+
+Gridkin gains an experimental **AI Query Compiler QC** harness. For a tagged
+subset of scenarios, the harness asks an independent compiler (initially an
+external AI/agent artifact, not a built-in provider integration) to produce SQL
+that answers the same Gryphon query. Gridkin executes Gryphon normally, executes
+the AI artifact in the same disposable read-only fixture database, canonicalizes
+both outputs to the scenario's expected result shape, and records whether the
+results agree.
+
+The goal is **differential validation**, not replacement. Gryphon remains the
+canonical read path. A disagreement triggers investigation; it never causes AI SQL
+to be returned to a user, promoted as the correct answer, regenerated into an
+expected envelope, or silently cached as a production plan.
+
+#### Modes
+
+Two modes are defined:
+
+- `independent_compile` — the AI compiler sees the query, scenario metadata,
+  schema/context bundle, allowed tables, and may use read-only access to the
+  disposable Gridkin database. It does **not** see Gryphon's compiled SQL,
+  Gryphon's result, or the expected envelope before producing its artifact. This
+  is the v0 implementation target.
+- `plan_review` — the AI sees Gryphon's `CompiledTrace`
+  (`req-grid-traversal-exec-compiled-trace`) and critiques it. This mode is
+  useful for human plan review, but it is not the independent oracle and is
+  deferred until `independent_compile` has proven useful.
+
+#### AI Compiler Artifact
+
+The AI compiler output is a structured **AICompilerArtifact** JSON document,
+validated against a JSON Schema authored in the same change that introduces the
+harness. The artifact includes at minimum:
+
+- `schema_version`
+- `mode`
+- `query`
+- `sql`
+- `params`
+- `result_shape`
+- `column_mapping` (AI output columns to Gryphon row keys or graph-envelope
+  member IDs)
+- `postprocess_description` (declarative description only; no generated Python)
+- `tables_used`
+- `assumptions`
+- `confidence`
+- `safety_attestation` (`read_only`, `single_statement`, `tables_used`,
+  `no_unapproved_functions`, and any other validator-facing claims)
+- `repair_attempts` metadata, if the one permitted repair turn was used
+
+The harness independently validates safety; `safety_attestation` is audit
+metadata, not trust.
+
+#### Execution And Canonical Comparison
+
+The AI SQL may be totally different from Gryphon's SQL. Agreement is semantic:
+after canonicalization, both executions must return the same result. The harness:
+
+1. Seeds the scenario's disposable Gridkin database exactly as the normal runner
+   does.
+2. Executes Gryphon and captures its canonical result plus `CompiledTrace`.
+3. Validates the AICompilerArtifact against its JSON Schema.
+4. Validates the SQL as a single read-only statement over whitelisted schema
+   objects: no DDL/DML, no multi-statement batches, no unapproved functions, and
+   hard timeout/row limits. v0 targets PostgreSQL and records the dialect.
+5. Executes the AI SQL on the read-only user inside the same disposable Gridkin
+   database. The AI compiler may run free read-only exploratory `SELECT`s in that
+   database before final artifact generation; every exploratory query is logged
+   in the run artifact.
+6. Canonicalizes the AI result:
+   - row projections use `column_mapping` and compare canonicalized rows as a
+     multiset unless the Gryphon query has an order-sensitive clause (`ORDER BY`,
+     `LIMIT`, or a future equivalent), in which case order is part of the
+     comparison;
+   - graph-envelope returns require the AI artifact to return canonical entity /
+     edge IDs sufficient for TAP to rehydrate through the existing serializers;
+     the AI never emits a full JSON envelope as the oracle.
+7. Records agreement or a disagreement finding. Gryphon remains authoritative for
+   the actual scenario assertion.
+
+If the AI SQL fails to execute, v0 MAY allow exactly one repair turn that includes
+the database error and allowed context, but not Gryphon SQL, Gryphon result, or
+the expected envelope.
+
+#### Context Boundary
+
+`independent_compile` receives as much relevant context as can be safely packaged:
+the Gryphon query, params, scenario metadata, fixture descriptions, the searchable
+type/schema catalog, model/table/field metadata, allowed table list, result-shape
+contract, Gryphon language excerpts, and read-only access to the disposable
+Gridkin DB. It does not receive the expected envelope or Gryphon's trace before
+generation. This keeps the oracle independent rather than an explanation of the
+executor under test.
+
+Provider integration is not required in v0. The first implementation may be
+"bring your own artifact": a human or outside agent writes an AICompilerArtifact
+file that the harness validates and executes. A later provider adapter can fill
+the same schema automatically.
+
+#### Caching
+
+AI compiler artifacts are cacheable only under a key that includes every input
+that can change the answer:
+
+- scenario id and fixture ids
+- normalized Gryphon query hash
+- TAP revision or Gryphon compiler version
+- Django migration graph hash plus relevant model/field/schema hash
+- fixture/data seed hash
+- AICompilerArtifact schema version
+- prompt/context bundle hash
+- model id/version, when a provider adapter exists
+- harness/tool version
+- DB dialect/version
+- allowed table/context hash
+- capability/policy version once permissions enter the surface
+
+If any dimension cannot be computed honestly, that dimension is marked
+uncacheable and the artifact is regenerated or re-supplied.
+
+#### Findings
+
+Disagreements are non-blocking in v0. The run writes a machine-readable finding
+artifact and a human-readable report, classifying the likely fault as one of:
+`gryphon_suspect`, `ai_sql_suspect`, `both_possible`,
+`invalid_ai_artifact`, or `execution_error`. The default is `both_possible`
+unless validator evidence proves the AI artifact invalid. Once signal quality is
+high enough, the harness may graduate selected tags from non-blocking report to
+CI failure.
+
+Artifacts live under `plugins/gryphon_playground/ai_qc/` (schemas, prompt/context
+bundles, cached AI artifacts, run outputs, and finding ledgers). Gryphon core owns
+only the `CompiledTrace` schema/API; Gridkin owns AI QC.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-gridkin-ai-qc-1 | Tagged Experimental Subset | Proposed | AI QC runs only for scenarios explicitly tagged/categorized for the experiment, not the whole Gridkin corpus by default. | Kick the tires before gating |
+| req-gridkin-ai-qc-2 | Independent Compile Mode | Proposed | In `independent_compile`, the AI compiler does not see Gryphon SQL, Gryphon result, or expected envelope before producing its artifact. | The independence property |
+| req-gridkin-ai-qc-3 | AI Artifact Schema | Proposed | AICompilerArtifact ships with a JSON Schema and every supplied/generated artifact validates before execution. | Includes `sql`, `params`, `column_mapping`, assumptions, confidence, and safety attestation |
+| req-gridkin-ai-qc-4 | SQL Validator | Proposed | The harness rejects AI SQL that is not a single read-only SELECT/CTE over whitelisted schema objects or that uses disallowed functions, multi-statements, DDL/DML, or exceeds timeout/row limits. | PostgreSQL v0; SQLite later |
+| req-gridkin-ai-qc-5 | Executes In Isolated Read-Only Fixture DB | Proposed | AI SQL and AI exploratory queries run only in the disposable Gridkin database under a read-only user; no shared secrets, production data, git remote credentials, or unrestricted network are exposed. | Mirrors independent code-review sandbox posture |
+| req-gridkin-ai-qc-6 | Result Comparison Is Authoritative | Proposed | The canonical comparison is execution-result equality after TAP canonicalization, not SQL similarity. Different SQL is allowed. | Semantic differential oracle |
+| req-gridkin-ai-qc-7 | Row And Envelope Canonicalization | Proposed | Row outputs compare through `column_mapping`; graph-envelope outputs require returned entity/edge IDs and TAP-side serializer rehydration. | AI does not author full TAP envelopes |
+| req-gridkin-ai-qc-8 | Gryphon Remains Authoritative | Proposed | A disagreement records a finding and never replaces Gryphon's result, regenerates expected envelopes, or serves AI SQL to users. | v0 is validation only |
+| req-gridkin-ai-qc-9 | One Repair Turn Max | Proposed | If AI SQL fails to execute, the harness may allow one repair turn with the DB error and context, but still withholds Gryphon SQL/result and expected envelope. | Keeps practical agent behavior bounded |
+| req-gridkin-ai-qc-10 | Honest Cache Key | Proposed | Cached AI artifacts are reused only when every key dimension is unchanged; unknown/uncomputed dimensions force a miss or mark the artifact uncacheable. | Avoid fuzzy stale plans |
+| req-gridkin-ai-qc-11 | Non-Blocking Findings First | Proposed | v0 writes finding artifacts and reports disagreements without failing CI; promotion to a gate requires a later signal-quality decision. | Avoid noisy oracle blocking |
+| req-gridkin-ai-qc-12 | No Provider Required In v0 | Proposed | The harness can validate and execute bring-your-own AICompilerArtifact files before any real LLM provider integration exists. | Boundary first |
+| req-gridkin-ai-qc-13 | Plan Review Is Separate | Proposed | `plan_review` may let AI inspect Gryphon `CompiledTrace`, but it is clearly distinct from `independent_compile` and is not the v0 oracle mode. | Useful later, not independent |
+
+#### Future
+
+- Built-in provider adapters that generate AICompilerArtifact files from prompt
+  bundles.
+- Runtime API / user-facing AI query compilation, after capability gates,
+  disclosure analysis, and production-safety rules exist.
+- SQLite support when the SQLite portability track becomes active.
+- CI gating for high-signal AI QC tags.
+- Caching of ahead-of-time compiled plugin queries as a separate runtime feature;
+  AI QC may inform it but does not implement it.
+
+### AI Query-Compiler Disagreement Investigation Skill
+----
+RID: `req-gridkin-ai-qc-investigation`
+Status: `Backlog`
+
+AI QC disagreements need a repeatable triage process so the finding turns into a
+root-caused Gryphon/oracle/AI-artifact issue instead of an ambiguous red mark.
+Define a small Codex skill or equivalent documented workflow that accepts an AI
+QC disagreement packet and produces a disposition.
+
+#### Input Packet
+
+The packet contains:
+
+- scenario id, fixture ids, and query
+- Gryphon canonical result
+- Gryphon `CompiledTrace`
+- AICompilerArtifact
+- AI execution output or error
+- canonical comparison diff
+- validator findings and sandbox metadata
+- cache key/materialized context hashes
+
+#### Required Process
+
+The investigation workflow:
+
+1. Reproduces the disagreement in the same disposable fixture context.
+2. Confirms the AI artifact validated and the sandbox preconditions held.
+3. Classifies likely fault direction (`gryphon_suspect`, `ai_sql_suspect`,
+   `both_possible`, `invalid_ai_artifact`, `execution_error`), updating the
+   finding if the initial classification was wrong.
+4. Reduces the query/fixture when useful.
+5. Checks the relevant Gryphon specs and Gridkin oracle expectations.
+6. Produces one disposition: Gryphon bug, AI compiler/artifact bug, expected
+   oracle bug, unsupported/invalid AI QC case, or inconclusive with named next
+   step.
+7. If Gryphon is implicated, routes through the normal Gryphon bug-fix
+   discipline: notify the user, add/update the wishlist Known Issues entry as
+   required, and lock the fix with Gridkin / `test_gryphon` coverage rather than
+   working around the query.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-gridkin-ai-qc-investigation-1 | Skill Or Workflow Exists | Proposed | A small skill/process artifact documents how to investigate an AI QC disagreement from packet to disposition. | Start simple |
+| req-gridkin-ai-qc-investigation-2 | Packet Shape Declared | Proposed | The required input packet fields are declared so findings are self-contained and replayable. | |
+| req-gridkin-ai-qc-investigation-3 | No Automatic Blame | Proposed | The workflow starts from `both_possible` unless validator evidence proves otherwise; Gryphon and AI SQL are both examined. | Prevents oracle theater |
+| req-gridkin-ai-qc-investigation-4 | Disposition Required | Proposed | Every investigated disagreement ends in a named disposition and next action, not "looked weird." | |
+| req-gridkin-ai-qc-investigation-5 | Gryphon Bugs Re-enter Normal Discipline | Proposed | A suspected Gryphon defect follows the existing Gryphon wrong-answer process and earns a regression scenario before closure. | Honors AGENTS/Gryphon rules |
+
 ### JSON Schema for Scenario Files
 ----
 RID: `req-gridkin-json-schema`
@@ -961,6 +1182,9 @@ Concerns explicitly excluded from Gridkin v0:
   suite is not retroactively migrated.
 - **CI integration.** Wiring Gridkin into the multi-session promote-gate happens
   after the runner exists and the CI surface is built — not part of v0.
+- **AI-generated production answers.** AI QC may discover defects and may inform
+  future compiler research; in v0 it never serves user results, replaces Gryphon
+  execution, or promotes an AI SQL artifact into a production cached plan.
 
 #### Acceptance Criteria
 

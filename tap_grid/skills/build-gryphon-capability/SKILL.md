@@ -656,6 +656,14 @@ Green-on-all = validation-ready. A `review-time` enforcement on a row means "no 
 — a **machine-enforced merge gate is a named candidate**, not built ahead of demand (name the gap;
 do not imply completeness).
 
+**Experimental validation lane (not a gate until promoted).** Once
+`req-gridkin-ai-qc` is implemented, a Gryphon feature MAY opt selected Gridkin scenarios into AI
+Query Compiler QC: an independent AICompilerArtifact is executed in a disposable read-only fixture DB
+and compared by canonical result, not SQL shape. Treat AI QC disagreement as a diagnostic finding that
+enters the `req-gridkin-ai-qc-investigation` workflow; it never replaces Gryphon's answer or regenerates
+expected envelopes. Until the AI QC signal is explicitly promoted, this lane is optional/experimental
+and does not add a merge-readiness row.
+
 ## Post-Ship Retrospective — the self-improvement step
 
 **The closing bookend of the cycle: once the feature has shipped, the *process* learns from it.** After
