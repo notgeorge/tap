@@ -314,15 +314,39 @@ DATABASES = {
     ),
 }
 
-# search_readonly: same DB, PostgreSQL read-only session parameter set at connection
-# time. Prevents writes at the database level for all search execution (req-grid-search-readonly.sec).
+# Resource bounds for the read-only search connection (req-grid-traversal-exec-resource-bounds.sec).
+# Conservative defaults, overridable per deployment. They bound a runaway Gryphon read on three
+# axes the read path is exposed to: time (statement_timeout / lock_timeout), memory (work_mem — a
+# per-operation throttle before spill), and disk (temp_file_limit — a hard per-session cap; a query
+# whose sort/hash spill exceeds it is aborted by PostgreSQL). Set at connection time on the search
+# connection; the raw Gryphon path defaults here too (req-grid-traversal-exec-scope.sec-5), so these
+# ride every search read. When the least-privilege role lands, they move to ALTER ROLE … SET
+# (req-grid-search-readonly-role.sec-6) — connection OPTIONS is the interim, role-independent home.
+SEARCH_STATEMENT_TIMEOUT = os.environ.get("TAP_SEARCH_STATEMENT_TIMEOUT", "30s")
+SEARCH_LOCK_TIMEOUT = os.environ.get("TAP_SEARCH_LOCK_TIMEOUT", "5s")
+SEARCH_WORK_MEM = os.environ.get("TAP_SEARCH_WORK_MEM", "64MB")
+SEARCH_TEMP_FILE_LIMIT = os.environ.get("TAP_SEARCH_TEMP_FILE_LIMIT", "1GB")
+
+_SEARCH_READONLY_OPTIONS = " ".join(
+    [
+        "-c default_transaction_read_only=on",
+        f"-c statement_timeout={SEARCH_STATEMENT_TIMEOUT}",
+        f"-c lock_timeout={SEARCH_LOCK_TIMEOUT}",
+        f"-c work_mem={SEARCH_WORK_MEM}",
+        f"-c temp_file_limit={SEARCH_TEMP_FILE_LIMIT}",
+    ]
+)
+
+# search_readonly: same DB, PostgreSQL read-only session parameter + resource bounds set at
+# connection time. Prevents writes at the database level for all search execution
+# (req-grid-search-readonly.sec) and caps resource consumption (req-grid-traversal-exec-resource-bounds.sec).
 # TEST.MIRROR tells Django's test runner this alias shares the same physical DB as
 # "default" so it skips creating/flushing a separate test database for it.
 DATABASES["search_readonly"] = {
     **DATABASES["default"],
     "OPTIONS": {
         **DATABASES["default"].get("OPTIONS", {}),
-        "options": "-c default_transaction_read_only=on",
+        "options": _SEARCH_READONLY_OPTIONS,
     },
     "TEST": {"MIRROR": "default"},
 }
