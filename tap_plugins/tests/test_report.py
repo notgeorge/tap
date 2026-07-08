@@ -41,13 +41,13 @@ def test_report_includes_migrated_gryphon_playground() -> None:
     assert "samsite" in slugs
 
 
-@requires_plugins("samsite", "github_core", "roscale", "sigstore_core")
+@requires_plugins("samsite", "compliance_core", "github_core", "roscale", "sigstore_core")
 def test_report_dependency_edges_are_bidirectional() -> None:
     by_slug = {p["slug"]: p for p in build_report()["plugins"]}
     samsite = by_slug["samsite"]
-    assert samsite["dependencies"]["depends_on"] == ["github_core", "roscale", "sigstore_core"]
+    assert samsite["dependencies"]["depends_on"] == ["compliance_core", "github_core", "roscale", "sigstore_core"]
     # Every declared out-edge appears as a required_by in-edge on the target row.
-    for dep in ("github_core", "roscale", "sigstore_core"):
+    for dep in ("compliance_core", "github_core", "roscale", "sigstore_core"):
         assert "samsite" in by_slug[dep]["dependencies"]["required_by"]
 
 
