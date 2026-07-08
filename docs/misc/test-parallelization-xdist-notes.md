@@ -58,19 +58,32 @@ per-worker DB-build tax that penalizes small runs — a single test file measure
 serial (best for single-test debugging), and the parallel lanes are explicit in
 `scripts/test`:
 
-- **`scripts/test`** — FULL lane: every test incl. the gryphon corpus, `-n auto`.
-  The authoritative lane the promote gate uses (~9 min). The gryphon executor
-  stage/branch-coverage guards ride this lane.
+- **`scripts/test`** — DEFAULT lane, `-n auto`, **relevance-gated on the gryphon
+  corpus** (`req-dev-validation-suite-tiers-5`): it runs the corpus only when the
+  diff since `origin/main` (merge-base → working tree, incl. untracked) touches the
+  executor footprint — `tap_grid/`, `plugins/gryphon_playground/`,
+  `plugins/grid_fixtures/`, `tap_api/routers/gryphon.py` — otherwise it skips the
+  corpus with a loud logged notice. Non-interactively (piped/CI/promote) or when the
+  merge-base can't be resolved it **runs** the corpus (fail toward correctness), so
+  the gate never inherits a skip. The gryphon stage/branch-coverage guards ride the
+  corpus, so they run exactly when it does.
+- **`scripts/test --gryphon`** — FULL lane, force-run: the corpus unconditionally.
+  What the promote gate invokes (`scripts/promote-to-main.sh` Step 2.5) so the gate
+  is always the full ~9 min authoritative run regardless of the diff.
 - **`scripts/test --fast`** — INNER-LOOP lane: `-n auto` minus
-  `plugins/gryphon_playground`. A local accelerator, explicitly **not** a gate
-  (`req-dev-validation-suite-tiers-4`), so it skips the gryphon guards — which the
-  full lane still runs. **No Map-row cadence change needed**: the guards remain
-  per-commit in the authoritative full lane; only this opt-in fast lane skips them.
+  `plugins/gryphon_playground`, unconditionally. A local accelerator, explicitly
+  **not** a gate (`req-dev-validation-suite-tiers-4`), so it skips the gryphon guards
+  — which the full lane still runs. **No Map-row cadence change needed**: the guards
+  remain per-commit in the authoritative full lane (and the all-plugins CI lane,
+  which runs `pytest -n 4` directly, never via `scripts/test`); only the opt-in fast
+  lane and an irrelevant-diff default run skip them locally.
 - Single-test debugging: bare `scripts/dc exec web uv run pytest <path::test>` —
   serial, no worker/DB startup tax.
 
 `scripts/test` allocates a TTY interactively and falls back to `-T` when piped/under
-automation, so the same script serves both the human inner loop and the future gate.
+automation; the same non-interactive signal also forces the corpus on, so the one
+script serves the human inner loop and the automated gate without a relevance-skip
+leaking into the latter.
 
 ## Remaining
 
