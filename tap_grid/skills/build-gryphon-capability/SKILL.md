@@ -417,7 +417,7 @@ The **oracle discipline** is the point of Gridkin — do it exactly:
    oracle, not a capture.
 2. Run the runner in **assert mode** and read *every* failure:
    ```bash
-   scripts/dc exec web uv run pytest plugins/gryphon_playground/tests/test_gridkin.py -k <feature>
+   scripts/dc exec web uv run pytest plugins/gryphon_playground/tap_plugin/gryphon_playground/tests/test_gridkin.py -k <feature>
    ```
    A scenario whose only failure is `SQL: expected file missing` has a
    **content-correct** envelope. A scenario reporting `ENVELOPE MISMATCH` does not
@@ -426,7 +426,7 @@ The **oracle discipline** is the point of Gridkin — do it exactly:
 3. Only then regenerate the SQL snapshots:
    ```bash
    scripts/dc exec -e GRIDKIN_UPDATE_SNAPSHOTS=1 web uv run pytest \
-     plugins/gryphon_playground/tests/test_gridkin.py -k <feature>
+     plugins/gryphon_playground/tap_plugin/gryphon_playground/tests/test_gridkin.py -k <feature>
    ```
    Update mode rewrites the envelope files into canonical (indent-2) form and
    generates the `.sql.txt` snapshots.
@@ -499,7 +499,7 @@ test-isolation quirk (transaction-mode DB reuse) that errors out unrelated tests
 
 ```bash
 scripts/dc exec web uv run pytest tap_grid/tests/test_gryphon.py -q
-scripts/dc exec web uv run pytest plugins/gryphon_playground/tests/ -q
+scripts/dc exec web uv run pytest plugins/gryphon_playground/tap_plugin/gryphon_playground/tests/ -q
 ```
 
 **Hardening tools — run when the feature warrants (merge-gate rows 7 & 10):**

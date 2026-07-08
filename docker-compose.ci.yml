@@ -1,0 +1,16 @@
+# CI-only compose overlay — used exclusively by .github/workflows/all-plugins.yml
+# (activated via COMPOSE_FILE=docker-compose.yml:docker-compose.ci.yml in the job env).
+#
+# The workflow builds the web image with docker/build-push-action + a GitHub Actions
+# layer cache (cache-from/to type=gha) and loads it locally as `tap-web:ci`. This
+# overlay points the web service at that pre-built tag so `docker compose up` reuses
+# it instead of rebuilding the whole image from scratch on every run.
+#
+# The dev docker-compose.yml is deliberately left untouched: `type=gha` only resolves
+# inside the Actions runner, so it must never leak into the local dev stack. Keeping
+# the cache wiring in this overlay (and in the workflow) isolates it to CI.
+services:
+  web:
+    image: tap-web:ci
+    # The image is always pre-loaded by the build step; never reach out to a registry.
+    pull_policy: never

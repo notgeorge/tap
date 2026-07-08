@@ -60,21 +60,21 @@ def test_bool_coercion(monkeypatch: pytest.MonkeyPatch, raw: str, expected: bool
 
 
 def test_dist_name_for_slug() -> None:
-    assert preboot.dist_name_for_slug("genericom") == "tap-plugin-genericom"
+    assert preboot.dist_name_for_slug("widget") == "tap-plugin-widget"
     assert preboot.dist_name_for_slug("aws_core") == "tap-plugin-aws-core"
 
 
 def test_uv_install_args_git() -> None:
-    entry = {"slug": "genericom", "source": {"type": "git", "url": "https://x/y.git", "rev": "abc123"}}
+    entry = {"slug": "widget", "source": {"type": "git", "url": "https://x/y.git", "rev": "abc123"}}
     args = preboot._uv_install_args(entry)
-    assert args == ["uv", "pip", "install", "tap-plugin-genericom @ git+https://x/y.git@abc123"]
+    assert args == ["uv", "pip", "install", "tap-plugin-widget @ git+https://x/y.git@abc123"]
 
 
 def test_uv_install_args_editable() -> None:
-    entry = {"slug": "genericom", "source": {"type": "editable", "path": "plugins/genericom"}}
+    entry = {"slug": "widget", "source": {"type": "editable", "path": "plugins/widget"}}
     args = preboot._uv_install_args(entry)
     assert args[:4] == ["uv", "pip", "install", "--editable"]
-    assert args[4].endswith("plugins/genericom")
+    assert args[4].endswith("plugins/widget")
 
 
 def test_uv_install_args_wheelhouse_relative_dir() -> None:
@@ -119,17 +119,26 @@ def test_read_profile_missing_raises() -> None:
         preboot._read_profile("does-not-exist-profile")
 
 
-def test_read_genericom_install_profile() -> None:
-    # genericom's profile is a plugin-owned standalone profile (req-plugin-arch-layout-6):
-    # it lives at plugins/genericom/genericom.boot.json, NOT in boot/, so _read_profile
-    # (which resolves boot/ by id) does not find it — read the plugin-owned path directly.
+def test_read_plugin_owned_install_profile(tmp_path) -> None:
+    # req-plugin-arch-layout-6: a plugin may ship its own standalone boot profile that
+    # is read as a plain file, NOT resolved through boot/ by id. Synthetic here so the
+    # test stays decoupled from any specific plugin's records (the former genericom
+    # example was deleted with that plugin).
     import json
 
-    path = preboot.REPO_ROOT / "plugins" / "genericom" / "genericom.boot.json"
-    with open(path, "rb") as fh:
-        profile = json.load(fh)
-    entries = preboot._install_plugin_specs(profile)
-    assert [e["slug"] for e in entries] == ["genericom"]
+    profile = {
+        "version": 1,
+        "description": "synthetic plugin-owned standalone profile",
+        "install": {
+            "plugins": [{"slug": "widget", "enabled": True, "source": {"type": "editable", "path": "plugins/widget"}}]
+        },
+    }
+    path = tmp_path / "widget.boot.json"
+    path.write_text(json.dumps(profile), encoding="utf-8")
+
+    loaded = json.loads(path.read_text(encoding="utf-8"))
+    entries = preboot._install_plugin_specs(loaded)
+    assert [e["slug"] for e in entries] == ["widget"]
     assert entries[0]["source"]["type"] == "editable"
 
 

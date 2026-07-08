@@ -11,20 +11,22 @@ import logging
 import pytest
 from django.core.management.base import BaseCommand
 
+from tap.plugin_testing import requires_plugins
 from tap_auth.actors import BOOTLOADER
 from tap_auth.models import Capability
 from tap_boot.orchestrator import BootError, run_boot
 from tap_boot.profile import BootProfile, FireCollectorStep, SeedPluginStep
 
-# A real registered collector key, fired with no credentials in these tests by
-# mocking the fire op — pre-resolution still resolves it against the grid node
-# that the population phase reconciles.
-# Registered as scope:key = plugin-slug:key (register_collector scope is the plugin
-# slug since the 2026-07-02 collector-identity refactor). The old module-path scope
-# (tap_plugin.fedramp_20x_ksi.collectors.ksi_catalog:ksi-catalog) no longer resolves —
-# using it here silently red these tests once the refactor landed (the same rot
-# tap_boot/tests/test_shipped_profiles_resolve.py now guards against for shipped profiles).
-_KSI_COLLECTOR = "fedramp_20x_ksi:ksi-catalog"
+# A real registered collector key, fired with no credentials in these tests by mocking
+# the fire op. These are boot-ORCHESTRATOR tests (FireCollectorStep mechanics), not
+# domain tests, so the key points at the NEUTRAL grid_fixtures canary collector — the
+# test-fixtures plugin present in every profile that runs the core suite (core_dev /
+# test_all) — NOT a third-party domain plugin. Pre-resolution only checks the in-memory
+# collector registry (get_collector; see orchestrator._resolve_steps — ZERO grid
+# mutation), so a registered key is all that's needed; no grid node, no fedramp install.
+# Registered as scope:key = plugin-slug:key (register_collector scope is the plugin slug
+# since the 2026-07-02 collector-identity refactor).
+_TEST_COLLECTOR = "grid_fixtures:canary"
 
 
 def _profile(*steps, on_failure="abort") -> BootProfile:
@@ -52,6 +54,7 @@ def test_auth_only_standup_syncs_auth():
     assert get_user_model().objects.filter(tap_builtin_key=BOOTLOADER).exists()
 
 
+@requires_plugins("computing_core")  # seeds computing_core's GRIFT — needs it installed
 @pytest.mark.django_db
 def test_seed_population_runs_and_is_idempotent():
     from tap_grid.models import Entity
@@ -65,6 +68,7 @@ def test_seed_population_runs_and_is_idempotent():
     assert Entity.objects.count() == after_first
 
 
+@requires_plugins("computing_core")  # uses computing_core as the valid seed alongside the unknown one
 @pytest.mark.django_db
 def test_unknown_plugin_aborts_before_any_seed():
     from tap_grid.models import Entity
@@ -97,6 +101,7 @@ def test_unknown_collector_key_aborts_before_reconcile():
     assert Collector.objects.count() == before
 
 
+@requires_plugins("computing_core")  # needs computing_core installed to reach the bundle check
 @pytest.mark.django_db
 def test_unknown_bundle_name_aborts():
     # A typo'd bundle must fail loud, not become a green boot with missing data.
@@ -121,7 +126,7 @@ def test_fire_collector_step_success(monkeypatch):
         return True, _FakeJob()
 
     monkeypatch.setattr("tap_cares.services.fire_collector_and_await", fake_fire)
-    run_boot(_profile(FireCollectorStep(key=_KSI_COLLECTOR, enabled=True, run_mode="full")))
+    run_boot(_profile(FireCollectorStep(key=_TEST_COLLECTOR, enabled=True, run_mode="full")))
     assert len(calls) == 1
     assert calls[0]["run_mode"] == "full"
     # No per-step timeout declared -> bootloader default (90s).
@@ -137,7 +142,7 @@ def test_fire_collector_step_uses_declared_timeout(monkeypatch):
         return True, _FakeJob()
 
     monkeypatch.setattr("tap_cares.services.fire_collector_and_await", fake_fire)
-    run_boot(_profile(FireCollectorStep(key=_KSI_COLLECTOR, enabled=True, timeout_seconds=222)))
+    run_boot(_profile(FireCollectorStep(key=_TEST_COLLECTOR, enabled=True, timeout_seconds=222)))
     assert calls[0]["timeout_seconds"] == 222
 
 
@@ -151,8 +156,8 @@ def test_fire_collector_abort_on_first_failure(monkeypatch):
 
     monkeypatch.setattr("tap_cares.services.fire_collector_and_await", fake_fire)
     profile = _profile(
-        FireCollectorStep(key=_KSI_COLLECTOR, enabled=True),
-        FireCollectorStep(key=_KSI_COLLECTOR, enabled=True),
+        FireCollectorStep(key=_TEST_COLLECTOR, enabled=True),
+        FireCollectorStep(key=_TEST_COLLECTOR, enabled=True),
         on_failure="abort",
     )
     with pytest.raises(BootError, match="on_failure=abort"):
@@ -170,8 +175,8 @@ def test_fire_collector_continue_collects_all_failures(monkeypatch):
 
     monkeypatch.setattr("tap_cares.services.fire_collector_and_await", fake_fire)
     profile = _profile(
-        FireCollectorStep(key=_KSI_COLLECTOR, enabled=True),
-        FireCollectorStep(key=_KSI_COLLECTOR, enabled=True),
+        FireCollectorStep(key=_TEST_COLLECTOR, enabled=True),
+        FireCollectorStep(key=_TEST_COLLECTOR, enabled=True),
         on_failure="continue",
     )
     with pytest.raises(BootError, match="2 failed step"):

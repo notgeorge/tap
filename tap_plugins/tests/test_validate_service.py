@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+from tap.plugin_testing import requires_plugins
 from tap_plugins.validate.service import (
     validate_plugin,
 )
@@ -103,12 +104,14 @@ class TestLevels:
         with pytest.raises(ValueError, match="Unknown validation level"):
             validate_plugin(plugin_dir, level="bogus")
 
+    @requires_plugins("administrivia")  # loads level imports tap_plugin.administrivia
     def test_loads_level_accepted(self):
         result = validate_plugin(PLUGINS_ROOT / "administrivia", level="loads")
         assert result.ok, result.to_human()
         assert result.level == "loads"
 
     @pytest.mark.django_db
+    @requires_plugins("administrivia")  # runs level imports tap_plugin.administrivia
     def test_runs_level_accepted(self):
         result = validate_plugin(PLUGINS_ROOT / "administrivia", level="runs")
         assert result.ok, result.to_human()
@@ -309,9 +312,10 @@ class TestLoadsLevel:
     # The editor-classes / search-callables loads checks only fire for a plugin
     # that DECLARES editors + searches — lotr is the only such plugin, so that
     # path is covered by lotr's own manifest self-test
-    # (plugins/lotr/tests/test_lotr_manifest.py). Here we cover the model path
+    # (plugins/lotr/tap_plugin/lotr/tests/test_lotr_manifest.py). Here we cover the model path
     # with aws_core + administrivia.
 
+    @requires_plugins("aws_core")
     def test_aws_core_loads_passes(self):
         result = validate_plugin(PLUGINS_ROOT / "aws_core", level="loads")
         assert result.ok, result.to_human()
@@ -325,10 +329,12 @@ class TestLoadsLevel:
         assert info_msgs
         assert all(m.text.startswith("Model ") for m in info_msgs)
 
+    @requires_plugins("administrivia")
     def test_administrivia_loads_passes(self):
         result = validate_plugin(PLUGINS_ROOT / "administrivia", level="loads")
         assert result.ok, result.to_human()
 
+    @requires_plugins("aws_core")
     def test_loads_includes_structure_checks(self):
         result = validate_plugin(PLUGINS_ROOT / "aws_core", level="loads")
         check_ids = {c.id for c in result.checks}
@@ -344,9 +350,10 @@ class TestLoadsLevel:
 
 
 @pytest.mark.django_db
+@requires_plugins("aws_core")  # every test here runs level="runs" on aws_core (imports the package)
 class TestRunsLevel:
     # grift-import runs coverage against a real grift lives in lotr's manifest
-    # self-test (plugins/lotr/tests/test_lotr_manifest.py); aws_core covers the
+    # self-test (plugins/lotr/tap_plugin/lotr/tests/test_lotr_manifest.py); aws_core covers the
     # create-nodes / create-edges runs path here.
 
     def test_aws_core_runs_passes(self):

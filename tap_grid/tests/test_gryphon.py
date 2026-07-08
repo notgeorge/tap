@@ -2834,52 +2834,69 @@ class TestGryphonObservationParser:
 
 @pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
 class TestGryphonObservationExecutor:
-    """Executor coverage for IS KNOWN / IS UNKNOWN on a real nullable column."""
+    """Executor coverage for IS KNOWN / IS UNKNOWN on a real nullable column.
 
-    def _setup_interfaces(self):
-        """Three interfaces with an observed MAC, two with NULL (unobserved) — on the
-        nullable `mac_address` column, exercising the genuine null axis."""
+    Uses the neutral grid_fixtures PgNode (``grid_fixtures__node``) — whose
+    ``observed_at`` is a nullable field — so this core suite exercises the genuine
+    null axis without depending on any domain plugin. grid_fixtures is present in
+    every profile that runs the core suite (core_dev / test_all); the rest of this
+    file already targets grid_fixtures__* types the same way. Writes go through the
+    service layer (create_node), the canonical path for TAP-managed nodes."""
+
+    _TYPE = "grid_fixtures__node"
+
+    def _setup_nodes(self):
+        """Three nodes with an observed timestamp, two with NULL (unobserved) — on the
+        nullable ``observed_at`` column, exercising the genuine null axis. observed_at
+        is simply omitted for the unobserved rows, so the column is NULL."""
         import uuid
 
-        from tap_plugin.computing_core.models.network_interface import NetworkInterface
+        from tap_grid.caller_context import CallerContext
+        from tap_grid.services import create_node
 
-        from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
-
-        set_caller_context(CallerContext(user=get_caller_context().user, batch_id=str(uuid.uuid4())))
+        observed = "2026-01-01T00:00:00Z"
         for i in range(3):
-            NetworkInterface.objects.create(interface_name=f"eth{i}", mac_address=f"00:11:22:33:44:0{i}")
-        for i in range(2):
-            NetworkInterface.objects.create(interface_name=f"lo{i}", mac_address=None)
+            create_node(
+                self._TYPE,
+                {"name": f"eth{i}", "kind": "nic", "observed_at": observed},
+                caller_context=CallerContext(batch_id=str(uuid.uuid7())),
+            )
+        for name, kind in (("lo0", "loopback"), ("lo1", "tunnel")):
+            create_node(
+                self._TYPE,
+                {"name": name, "kind": kind},
+                caller_context=CallerContext(batch_id=str(uuid.uuid7())),
+            )
 
     def _run(self, query: str) -> list:
         search = Search(search_type="gryphon", root="node", name="obs", definition={"query": query})
         return execute_search(search, inputs={})["nodes"]
 
     def test_is_unknown_selects_unobserved(self):
-        """req-grid-traversal-lang-observation-1: IS UNKNOWN returns only the NULL-mac rows."""
-        self._setup_interfaces()
-        nodes = self._run("MATCH (n:computing_core__network_interface) WHERE n.data.mac_address IS UNKNOWN")
+        """req-grid-traversal-lang-observation-1: IS UNKNOWN returns only the NULL rows."""
+        self._setup_nodes()
+        nodes = self._run("MATCH (n:grid_fixtures__node) WHERE n.data.observed_at IS UNKNOWN")
         assert len(nodes) == 2
 
     def test_is_known_selects_observed(self):
-        """req-grid-traversal-lang-observation-2: IS KNOWN returns only the non-NULL-mac rows."""
-        self._setup_interfaces()
-        nodes = self._run("MATCH (n:computing_core__network_interface) WHERE n.data.mac_address IS KNOWN")
+        """req-grid-traversal-lang-observation-2: IS KNOWN returns only the non-NULL rows."""
+        self._setup_nodes()
+        nodes = self._run("MATCH (n:grid_fixtures__node) WHERE n.data.observed_at IS KNOWN")
         assert len(nodes) == 3
 
     def test_known_and_unknown_partition_the_set(self):
         """The two predicates partition the null axis: |KNOWN| + |UNKNOWN| == total."""
-        self._setup_interfaces()
-        known = self._run("MATCH (n:computing_core__network_interface) WHERE n.data.mac_address IS KNOWN")
-        unknown = self._run("MATCH (n:computing_core__network_interface) WHERE n.data.mac_address IS UNKNOWN")
-        all_nodes = self._run("MATCH (n:computing_core__network_interface)")
+        self._setup_nodes()
+        known = self._run("MATCH (n:grid_fixtures__node) WHERE n.data.observed_at IS KNOWN")
+        unknown = self._run("MATCH (n:grid_fixtures__node) WHERE n.data.observed_at IS UNKNOWN")
+        all_nodes = self._run("MATCH (n:grid_fixtures__node)")
         assert len(known) + len(unknown) == len(all_nodes) == 5
 
     def test_is_unknown_composes_with_and(self):
         """req-grid-traversal-lang-observation-3: AND with IS UNKNOWN narrows the set."""
-        self._setup_interfaces()
+        self._setup_nodes()
         nodes = self._run(
-            'MATCH (n:computing_core__network_interface) WHERE n.data.mac_address IS UNKNOWN AND n.data.interface_name = "lo0"'
+            'MATCH (n:grid_fixtures__node) WHERE n.data.observed_at IS UNKNOWN AND n.data.kind = "loopback"'
         )
         assert len(nodes) == 1
         assert nodes[0]["name"] == "lo0"

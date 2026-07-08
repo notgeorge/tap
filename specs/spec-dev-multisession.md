@@ -32,6 +32,7 @@ The Playwright MCP server is stateless per call and remains shared across sessio
 | req-dev-multisession-promote-script | [Promote-to-Main Script](#promote-to-main-script) | Implemented | Per-session wrapper around the push-workflow discipline |
 | req-dev-multisession-promote-all-script | [Promote-All-Sessions Script](#promote-all-sessions-script) | Implemented | Registry-driven orchestrator over the per-session script |
 | req-dev-multisession-promote-gate | [Promote-Path Validation Gate](#promote-path-validation-gate) | Implemented | Promote path runs the dev-validation gate (`scripts/gate`) and refuses to advance origin/main on red; reciprocal of req-dev-validation-promote-hook |
+| req-dev-multisession-ci-gate | [All-Plugins CI Gate](#all-plugins-ci-gate) | Implemented | Promote also triggers + blocks on the server-side all-plugins CI lane (option B: trigger + poll, keeps the atomic push); reciprocal of req-dev-validation-all-plugins-lane. Bootstrap-skips until the workflow is on main |
 | req-dev-multisession-list-script | [List Script](#list-script) | Proposed | Phase 3 |
 | req-dev-multisession-named-routing | [Name-Based Routing via Reverse Proxy](#name-based-routing-via-reverse-proxy) | Backlog | Phase 3 polish |
 
@@ -363,12 +364,36 @@ This is the reciprocal of `req-dev-validation-promote-hook` in [spec-dev-validat
 | req-dev-multisession-promote-gate-3 | Scripts and fallback covered | Implemented | `scripts/promote-to-main.sh`, the all-sessions orchestrator, and the documented manual sequence all carry the gate obligation. | Orchestrator calls the per-session script (transitive). |
 | req-dev-multisession-promote-gate-4 | Reciprocal consistency | Implemented | This requirement and `req-dev-validation-promote-hook` cross-reference and stay consistent; neither restates the other's substance. | Prevents cross-spec drift. |
 
+### All-Plugins CI Gate
+----
+RID: `req-dev-multisession-ci-gate`
+Status: `Implemented`
+
+Once plugins leave the monorepo, the local [Promote-Path Validation Gate](#promote-path-validation-gate) can only validate the plugins installed in *this* stack; all-plugins truth moves server-side ([spec-dev-validation.md](spec-dev-validation.md) `req-dev-validation-all-plugins-lane`). This requirement obliges the promote path to **also** block on that lane: after the local gate is green, `promote-to-main.sh` triggers the all-plugins workflow on the merged tree, polls it to completion, and refuses the atomic dual-refspec push on red. **Option B** (trigger + poll) is chosen over a PR-gated merge specifically so the atomic dual-refspec push semantics that `req-dev-multisession-push-workflow-3` relies on are preserved — the fuller PR-gated model (option A) waits for the second-contributor trigger. Reciprocal of `req-dev-validation-all-plugins-lane-3`; neither restates the other's substance.
+
+#### Status Details
+
+Implemented as Step 2.6 of `scripts/promote-to-main.sh`: after the local gate is green it publishes the merged tree to a throwaway `_ci-gate/<session>` ref (so neither `origin/main` nor `origin/session/<name>` moves before validation), dispatches `all-plugins.yml` against that ref via `gh workflow run`, polls `gh run list` for the run on the exact merged SHA, then `gh run watch --exit-status` blocks the push on red and the throwaway ref is deleted on every exit path.
+
+**Bootstrap — unexercised until the first post-bootstrap promote.** `workflow_dispatch` only works once `all-plugins.yml` is on `origin/main`, so the gate detects the file's presence on `origin/main` (via git, no `gh` needed) and **skips itself on the bootstrap promote that first lands the workflow** — that promote is ungated by construction. The wiring is therefore landed but has not yet run against a real gated promote; the first genuine exercise is the next promote after the workflow reaches main (planned: the aws-cloud worktree's first push under this process). Escape hatch `TAP_PROMOTE_SKIP_CI_GATE=1` skips loudly for the case where the full plugin set is validated another way (e.g. a full-monorepo local stack that already has every plugin installed).
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-dev-multisession-ci-gate-1 | Trigger + poll, then push | Implemented | After the local gate passes, promote triggers the all-plugins lane on the merged tree, polls to green, and only then runs the atomic push. | Keeps the atomic dual-refspec push (option B, not PR-gated). Runs against a throwaway `_ci-gate/<session>` ref. |
+| req-dev-multisession-ci-gate-2 | Red blocks the push | Implemented | A red or timed-out lane aborts the promote; `origin/main` is not advanced and the session branch is not force-published past it. | Same fail-closed posture as the local gate. The workflow's own `timeout-minutes: 40` bounds a hung lane. |
+| req-dev-multisession-ci-gate-3 | Reciprocal consistency | Implemented | This requirement and `req-dev-validation-all-plugins-lane` cross-reference and stay consistent; neither restates the other's substance. | Prevents cross-spec drift. |
+| req-dev-multisession-ci-gate-4 | Bootstrap self-skip | Implemented | The gate skips itself when `all-plugins.yml` is not yet on `origin/main` (detected via git), so the promote that first lands the workflow is ungated by construction; every promote after is gated. | Escape hatch `TAP_PROMOTE_SKIP_CI_GATE=1` for a separately-validated full set. |
+
 ### Admin User Bootstrap
 ----
 RID: `req-dev-multisession-admin-bootstrap`
 Status: `Implemented`
 
 The spawn script must create a Django admin superuser in each new session's database, unattended, without prompting. This is a sub-feature of [Spawn Script](#spawn-script) but specified separately because the credential resolution model has its own design surface.
+
+> **Reconciliation (2026-07-07):** `tap_auth/specs/spec-tap-auth-passkey-v0.md` (`req-tap-auth-passkey-dev-bootstrap`) revises this requirement for **passwordless-primary** deployments: the dev admin bridge changes from "resolve a password (env → Keychain → random), write `.dev-credentials`, `createsuperuser`" to "seed the admin and **replay the operator's exported public passkey record**" via `manage.py enroll-admin --import-dev-passkey`. Only public credential material moves (TAP never exports the private half — it stays under the authenticator/platform or its sync fabric); one `localhost` passkey then logs into every spawned session. This retires the dev password and makes the dev loop exercise the real passkey path. The password resolution model below remains the contract until that lands (feature Phase 2 / slim Phase A).
 
 #### Username and email — fixed
 
@@ -439,13 +464,15 @@ The Keychain branch (#3 above) is wrapped in a Darwin check. Linux / Windows dev
 
 #### Acceptance Criteria
 
+> **Phase note (2026-07-07):** ACs -2, -3, -4, -5 describe the **password-era** bridge and are **superseded** by `req-tap-auth-passkey-dev-bootstrap` (passkey replay) once it lands — do not implement both. They remain the contract only until passkey replay ships. AC -1's "admin exists" survives; its "log in to `/admin/` (via password)" clause is replaced by passkey login (`req-tap-auth-passkey-recovery`).
+
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-dev-multisession-admin-bootstrap-1 | Admin user created unattended | Proposed | After spawn, `admin` superuser exists in the session DB and can log in to `/admin/`. | |
-| req-dev-multisession-admin-bootstrap-2 | Resolution order honored | Proposed | `--admin-password`, `TAP_DEV_ADMIN_PASSWORD`, Keychain, random — checked in that order; first hit wins. | |
-| req-dev-multisession-admin-bootstrap-3 | Credentials file written | Proposed | `<worktree>/.dev-credentials` exists with all five fields and is gitignored. | |
-| req-dev-multisession-admin-bootstrap-4 | Echoed once at spawn | Proposed | Spawn output names the username, password, email, URL, and credentials-file path. | |
-| req-dev-multisession-admin-bootstrap-5 | Keychain optional | Proposed | Spawn succeeds on a machine with no `tap-dev-default` Keychain entry by falling through to random generation. | |
+| req-dev-multisession-admin-bootstrap-1 | Admin user created unattended | Proposed | After spawn, `admin` superuser exists in the session DB and can log in to `/admin/`. | "log in via password" → passkey once `req-tap-auth-passkey-dev-bootstrap` lands. |
+| req-dev-multisession-admin-bootstrap-2 | Resolution order honored | Proposed | `--admin-password`, `TAP_DEV_ADMIN_PASSWORD`, Keychain, random — checked in that order; first hit wins. | Password-era; superseded by `req-tap-auth-passkey-dev-bootstrap`. |
+| req-dev-multisession-admin-bootstrap-3 | Credentials file written | Proposed | `<worktree>/.dev-credentials` exists with all five fields and is gitignored. | Password-era; superseded by `req-tap-auth-passkey-dev-bootstrap`. |
+| req-dev-multisession-admin-bootstrap-4 | Echoed once at spawn | Proposed | Spawn output names the username, password, email, URL, and credentials-file path. | Password-era; superseded by `req-tap-auth-passkey-dev-bootstrap`. |
+| req-dev-multisession-admin-bootstrap-5 | Keychain optional | Proposed | Spawn succeeds on a machine with no `tap-dev-default` Keychain entry by falling through to random generation. | Password-era; superseded by `req-tap-auth-passkey-dev-bootstrap`. |
 | req-dev-multisession-admin-bootstrap-6 | Despawn cleans up | Proposed | After despawn, `.dev-credentials` is gone (worktree removed). Keychain entry remains unless `--purge-keychain`. | |
 
 ### List Script

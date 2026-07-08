@@ -111,8 +111,29 @@ class Command(BaseCommand):
             default=str(KNOWN_BROKEN_PATH),
             help="Path to the known-broken manifest (in-repo, ratchets to zero; empty == strict).",
         )
+        parser.add_argument(
+            "--skip-if-not-installable",
+            action="store_true",
+            help="Skip the gate (exit 0, loud) when this stack cannot install the `test_all` union — "
+            "i.e. a focused session. The full cold boot is inherently a full-install check; the "
+            "all-plugins CI lane owns it (req-dev-validation-all-plugins-lane). The promote passes this.",
+        )
 
     def handle(self, *args: Any, **options: Any) -> None:
+        # Focused-stack early-out FIRST — before any precondition (real backend, DB):
+        # a stack that cannot install `test_all` cannot run this full-install gate at
+        # all, so it skips and the all-plugins CI lane owns the truth. No backend needed
+        # to say "not my job."
+        if options["skip_if_not_installable"] and not self._test_all_installable():
+            self.stdout.write(
+                self.style.WARNING(
+                    "cold_boot_gate SKIPPED — focused stack: the `test_all` union is not installable "
+                    "here, so the full cold boot cannot run locally. The all-plugins CI lane boots "
+                    "`test_all` on a full-install runner and owns full cold-boot truth "
+                    "(req-dev-validation-all-plugins-lane, req-dev-multisession-ci-gate)."
+                )
+            )
+            return
         self._guard_real_backend()
         self._collector_key = options["collector"]
         self._collector_timeout = options["collector_timeout"]
@@ -245,13 +266,33 @@ class Command(BaseCommand):
             ) from exc
         return "no missing migrations"
 
-    def _step_profiles_resolve(self, _cmd: Command) -> str:
-        from tap_boot.orchestrator import BootError, check_profile
-        from tap_boot.profile import load_profile, profile_ids
+    @staticmethod
+    def _test_all_installable() -> bool:
+        """True when this stack can install the ``test_all`` union — i.e. a full stack.
 
-        ids = sorted(profile_ids())
-        if not ids:
+        The single full-stack predicate, via the shared install-awareness filter:
+        ``test_all``'s install set IS the full plugin union, so the stack is "full"
+        exactly when ``test_all`` is installable here.
+        """
+        from tap.plugin_testing import installed_plugin_slugs
+        from tap_boot.profile import installable_profile_ids
+
+        return "test_all" in installable_profile_ids(installed_plugin_slugs())
+
+    def _step_profiles_resolve(self, _cmd: Command) -> str:
+        from tap.plugin_testing import installed_plugin_slugs
+        from tap_boot.orchestrator import BootError, check_profile
+        from tap_boot.profile import installable_profile_ids, load_profile, profile_ids
+
+        if not profile_ids():
             raise GateStepFailed("no shipped boot profiles discovered")
+        # Install-aware via the shared filter (tap_boot.profile.installable_profile_ids):
+        # resolve only profiles whose plugins are installed in this stack. On a full
+        # stack (the only place this gate runs to completion — a focused promote skips
+        # it, see handle()) that is every profile; the filter keeps the surfaces from
+        # drifting and makes a manual focused run resolve its subset rather than red on
+        # an absent-plugin profile.
+        ids = installable_profile_ids(installed_plugin_slugs())
         for profile_id in ids:
             try:
                 check_profile(load_profile(profile_id))

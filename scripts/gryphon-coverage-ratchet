@@ -35,7 +35,7 @@ COV_JSON="/tmp/gryphon-coverage.json"
 SUITES=(
   tap_grid/tests/test_gryphon.py
   tap_grid/tests/test_gryphon_sql_capture.py
-  plugins/gryphon_playground/tests/test_gridkin.py
+  plugins/gryphon_playground/tap_plugin/gryphon_playground/tests/test_gridkin.py
   tap_api/tests/test_gryphon.py
 )
 

@@ -11,7 +11,7 @@ This spec covers the plugin validation harness provided by `tap_plugins` and the
 |    |              |                                                                 |
 | :---: | ---       | ---                                                             |
 | 1. | Free Validation | A plugin gets structural validation tests automatically by following conventions |
-| 2. | Clear Boundary | Plugin system tests (in `tap_plugins`) are distinct from individual plugin tests (in `plugins/<name>`) |
+| 2. | Clear Boundary | Plugin system tests (in `tap_plugins`) are distinct from individual plugin tests (which ride inside each plugin package at `plugins/<slug>/tap_plugin/<slug>/tests/`) |
 | 3. | Actionable Failures | Validation failures tell the plugin author exactly what is wrong and where |
 | 4. | Composable | Plugin authors can mix standardized validation with their own custom tests |
 
@@ -20,6 +20,7 @@ This spec covers the plugin validation harness provided by `tap_plugins` and the
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
 | req-plugin-test-system | [Plugin System Tests](#plugin-system-tests) | In Development | Tests for the plugin machinery itself |
+| req-plugin-test-in-package | [In-Package Tests + Install-Aware Collection](#in-package-tests--install-aware-collection) | Implemented | Plugin tests live inside the package (`tap_plugin/<slug>/tests/`) so the wheel carries them; collection is install-aware (uninstalled plugins skipped, not hard-errored) |
 | req-plugin-test-harness | [Plugin Validation Harness](#plugin-validation-harness) | Backlog | Standardized validation that any plugin can run |
 | req-plugin-test-sandbox | [Sandbox-Aware Test Exclusion](#sandbox-aware-test-exclusion) | Backlog | A standardized convention for gracefully excluding plugin tests that need live external resources when running in sandboxed / offline / cloud-build environments |
 | req-plugin-test-custom | [Plugin-Specific Tests](#plugin-specific-tests) | In Development | Conventions for hand-written plugin tests |
@@ -61,6 +62,70 @@ These tests use real plugins (e.g. LOTR, administrivia) as test fixtures, but th
 
 #### Future
 A minimal test-only fixture plugin (not LOTR) may be introduced to decouple system tests from the example plugins.
+
+### In-Package Tests + Install-Aware Collection
+----
+RID: `req-plugin-test-in-package`
+Status: `Implemented`
+
+Once plugins are extracted from the monorepo into their own git repos and shipped as
+wheels (`tap-plugin-<slug>`, `uv pip install git+…`), a plugin's tests must travel
+**with the package**, not sit in a monorepo-only sibling directory. So plugin tests
+live **inside the installable package** at `plugins/<slug>/tap_plugin/<slug>/tests/`
+(a `tests` subpackage under the `tap_plugin.<slug>` namespace), and the build config
+(`only-include = ["tap_plugin/<slug>"]`) carries them into the wheel. The tests are
+therefore present in every environment the package is installed into — dev, CI, and a
+customer/production checkout — not just a monorepo clone.
+
+This is deliberate and always-on (no separate dev-wheel variant — that was considered
+and rejected as YAGNI). Two payoffs beyond "CI can run them":
+
+- **All-plugins CI coverage.** The server-side all-plugins lane
+  ([spec-dev-validation.md](../../specs/spec-dev-validation.md)
+  `req-dev-validation-all-plugins-lane`) installs the plugin set and collects each
+  plugin's in-package tests alongside the core walk — the authoritative full-set
+  coverage a focused local stack can no longer run.
+- **AI-legible corpus (Player 3).** The shipped test corpus is food-for-thought for
+  the onboard/integrated AI assistants that observe, maintain, and reason about a
+  plugin ([spec-ai-integration.md](../../specs/spec-ai-integration.md)) — a maintaining
+  agent that has the package has its behavioral contract, not just its code.
+
+**Install-aware collection.** Because not every plugin is installed in every stack (a
+focused session provisions only its subset), collection is **fail-safe, not
+fail-closed**: an *uninstalled* plugin's on-disk tests are **skipped/ignored, not
+hard-errored** at collection (`req-dev-validation-collection-complete-4`). Two seams
+implement this, both keyed off the installed set (`tap.plugin_testing.installed_plugin_slugs()`,
+which honors `TAP_PLUGINS` else entry-point discovery):
+
+- Root `conftest.py` computes `collect_ignore` for the test dirs of plugins present on
+  disk but not installed, so a focused session does not ImportError at collection.
+- A plugin test file that must resolve its own source root skips module-level when it
+  is not running off a checkout (`tap.plugin_testing.find_plugin_source_root(__file__)`
+  returns `None` → `pytest.mark.skipif`).
+
+The consequence: absence of a plugin **degrades coverage** (fewer tests run) rather
+than **breaking the run** (collection error). The all-plugins lane is what restores
+full coverage; the local lane owns whatever is installed.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-plugin-test-in-package-1 | Tests Inside the Package | Implemented | Plugin tests live at `plugins/<slug>/tap_plugin/<slug>/tests/` and are carried into the wheel by `only-include = ["tap_plugin/<slug>"]`. | Present in dev, CI, and installed/production checkouts. |
+| req-plugin-test-in-package-2 | Uninstalled ⇒ Skipped, Not Errored | Implemented | Collection ignores/skips the tests of plugins present on disk but not installed; a focused stack collects cleanly. | Root `conftest.py` `collect_ignore` + `find_plugin_source_root` module-skip. |
+| req-plugin-test-in-package-3 | Keyed Off Installed Set | Implemented | The installed set is `tap.plugin_testing.installed_plugin_slugs()` (honors `TAP_PLUGINS`, else entry-point discovery); both collection seams use it. | Single source of "what is installed". |
+| req-plugin-test-in-package-4 | All-Plugins Lane Restores Coverage | Implemented | Full-set coverage is owned by the server-side all-plugins lane, which installs the set and collects every plugin's in-package tests. | Cross-ref `req-dev-validation-all-plugins-lane`. |
+
+#### Future
+
+A plugin may ship its own **minimum test/CI boot profile** (a `boot/*.boot.json` record
+inside the package, reusing the shippable-boot-record machinery) that declares the
+cross-plugin test dependencies it needs booted alongside it (e.g. samsite needs
+roscale/sigstore_core/github_core/aws_core). A plugin-repo CI job pulls and boots that
+profile, exercising the declared deps rather than merely declaring them — the concrete
+home for `req-plugin-arch-dependencies` "declare-now" deps. See
+[spec-dev-validation.md](../../specs/spec-dev-validation.md)
+`req-dev-validation-all-plugins-lane` sub-req 5.
 
 ### Plugin Validation Harness
 ----
@@ -118,7 +183,7 @@ The validation harness is a pytest base class (or set of fixtures) that lives in
 A plugin author adds a single test file to get all structural validation:
 
 ```python
-# plugins/my_plugin/tests/test_plugin_validation.py
+# plugins/my_plugin/tap_plugin/my_plugin/tests/test_plugin_validation.py
 
 from tap_plugins.testing import PluginValidationTestCase
 
@@ -237,11 +302,11 @@ Status: `In Development`
 Plugins may include hand-written tests for behavior unique to that plugin.
 
 #### Status Details
-In Development. LOTR currently has custom tests in `plugins/lotr/tests/`.
+In Development. LOTR's custom tests live in-package at `plugins/lotr/tap_plugin/lotr/tests/` (relocated from the retired monorepo-only `plugins/lotr/tests/` layout; see [req-plugin-test-in-package](#in-package-tests--install-aware-collection)).
 
 #### Implementation
 
-Plugin-specific tests live in `plugins/<name>/tests/` and validate net-new functionality that the standardized harness cannot cover:
+Plugin-specific tests live **inside the package** at `plugins/<slug>/tap_plugin/<slug>/tests/` (so the wheel carries them — see [req-plugin-test-in-package](#in-package-tests--install-aware-collection)) and validate net-new functionality that the standardized harness cannot cover:
 
 - **Custom editor logic:** Form validation rules, field transformations, save behavior
 - **Custom search runners:** Runner callable returns expected results for known data
@@ -251,7 +316,8 @@ Plugin-specific tests live in `plugins/<name>/tests/` and validate net-new funct
 **Conventions:**
 - Test files follow the standard `test_*.py` naming pattern
 - Tests have access to root conftest fixtures (e.g. `default_caller_context`)
-- Tests may use `conftest.py` in the plugin's `tests/` directory for plugin-specific fixtures
+- Tests may use `conftest.py` in the plugin's in-package `tests/` directory for plugin-specific fixtures
+- A test that must resolve its own source root (e.g. to read fixture files off the checkout) guards with `tap.plugin_testing.find_plugin_source_root(__file__)` and skips module-level when it returns `None` — so the file is inert when its plugin is installed-but-not-from-a-checkout
 - Tests should use the service layer for entity/edge setup, not direct ORM writes
 - Test file names should be prefixed with the plugin slug for clarity when viewing full-suite output (e.g. `test_lotr_constraints.py` not `test_constraints.py`)
 
@@ -264,7 +330,7 @@ Plugin-specific tests live in `plugins/<name>/tests/` and validate net-new funct
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-plugin-test-custom-1 | Tests In Plugin Directory | In Development | Plugin-specific tests live in `plugins/<name>/tests/`. | |
+| req-plugin-test-custom-1 | Tests In Plugin Package | In Development | Plugin-specific tests live in-package at `plugins/<slug>/tap_plugin/<slug>/tests/`. | See `req-plugin-test-in-package`. |
 | req-plugin-test-custom-2 | Slug-Prefixed File Names | In Development | Test file names are prefixed with the plugin slug. | |
 | req-plugin-test-custom-3 | Service Layer Setup | In Development | Plugin tests use the service layer for TAP-managed data setup. | |
 | req-plugin-test-custom-4 | No Framework Testing | In Development | Plugin tests do not duplicate framework or core grid test coverage. | |

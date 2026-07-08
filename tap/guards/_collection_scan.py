@@ -13,16 +13,13 @@ import sys
 from pathlib import Path
 
 from tap.guards.base import REPO_ROOT
+from tap.plugin_testing import installed_plugin_slugs
 
 _PRUNED_DIR_NAMES = {"node_modules", "build", "dist", "venv", "CVS", "_darcs", "{arch}"}
 
 # The ONLY deliberately-uncollected test dirs. Each MUST correspond to an `--ignore=`
 # in pyproject `addopts`. Keep tiny; adding a row is a visible decision.
-_IGNORED_DIRS = {
-    # DEPRECATED 2026-05-19, out of INSTALLED_APPS — tests fail without the app
-    # loaded; `--ignore=plugins/genericom` in addopts.
-    "plugins/genericom",
-}
+_IGNORED_DIRS: set[str] = set()
 
 # Files matching test_*.py that are NOT tests (pytest imports them, collects zero).
 _IGNORED_FILES = {
@@ -42,12 +39,35 @@ def _in_ignored_dir(rel: Path) -> bool:
     return any(rel_str == ig or rel_str.startswith(f"{ig}/") for ig in _IGNORED_DIRS)
 
 
+def _uninstalled_plugin_test(rel: Path, installed: set[str]) -> bool:
+    """Is ``rel`` a test file of a plugin NOT installed in this stack?
+
+    Plugin tests now live inside the package (``plugins/<slug>/...``) and import by
+    installed identity, so an uninstalled plugin's tests are legitimately uncollected
+    here (the root-conftest ``collect_ignore`` drops them; the all-plugins CI lane
+    owns their coverage). Subtracting them keeps the completeness guard honest per
+    stack: fully strict in the all-plugins lane (nothing uninstalled → nothing
+    subtracted), appropriately relaxed in a focused session. Mirrors the
+    ``collect_ignore`` logic in the root conftest.
+    """
+    parts = rel.parts
+    if len(parts) < 2 or parts[0] != "plugins":
+        return False
+    return parts[1] not in installed
+
+
 def filesystem_test_files() -> set[str]:
+    installed = set(installed_plugin_slugs())
     found: set[str] = set()
     for pattern in ("test_*.py", "*_test.py"):
         for path in REPO_ROOT.rglob(pattern):
             rel = path.relative_to(REPO_ROOT)
-            if _is_pruned(rel) or _in_ignored_dir(rel) or rel.as_posix() in _IGNORED_FILES:
+            if (
+                _is_pruned(rel)
+                or _in_ignored_dir(rel)
+                or rel.as_posix() in _IGNORED_FILES
+                or _uninstalled_plugin_test(rel, installed)
+            ):
                 continue
             found.add(rel.as_posix())
     return found

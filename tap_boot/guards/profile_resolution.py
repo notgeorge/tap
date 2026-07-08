@@ -31,14 +31,20 @@ class ProfileResolutionGuard(Guard):
     )
 
     def check(self) -> None:
+        from tap.plugin_testing import installed_plugin_slugs
         from tap_boot.orchestrator import BootError, check_profile
-        from tap_boot.profile import load_profile, profile_ids
+        from tap_boot.profile import installable_profile_ids, load_profile, profile_ids
 
-        ids = profile_ids()
-        assert ids, "no shipped boot profiles discovered — the guard would cover nothing"
+        assert profile_ids(), "no shipped boot profiles discovered — the guard would cover nothing"
 
+        # Install-aware via the shared filter: a focused session holds a plugin subset
+        # (core_dev = just grid_fixtures), so a profile referencing an absent plugin
+        # (samsite → administrivia/…) is SKIPPED here, not failed — the all-plugins CI
+        # lane resolves the full set and owns full-set truth. The `needs <= installed`
+        # logic lives once in tap_boot.profile.installable_profile_ids so this guard, the
+        # cold-boot gate, and the promote's full-stack check cannot drift apart.
         failures: list[str] = []
-        for profile_id in ids:
+        for profile_id in installable_profile_ids(installed_plugin_slugs()):
             try:
                 check_profile(load_profile(profile_id))
             except BootError as exc:

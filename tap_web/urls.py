@@ -24,13 +24,6 @@ urlpatterns = [
     path("object/<str:entity_type>/<str:object_url_id>/", views.object_view, name="object-view"),
     path("__nav-index.json", views.nav_index_view, name="nav-index"),
     path("", views.landing_view, name="landing"),
-    # Parameterized pages — path segments become search inputs.
-    path(
-        "genericom/instance/<uuid:entity_id>",
-        views.parameterized_page_view,
-        {"page_slug": "genericom/instance"},
-        name="genericom-instance",
-    ),
     # samsite per-type viewer pages — entity_type is pinned per route so the
     # shared viewer_panel resolves the right model from <uuid:entity_id>.
     path(
