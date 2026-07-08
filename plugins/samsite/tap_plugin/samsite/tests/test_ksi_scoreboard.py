@@ -28,11 +28,11 @@ FIXTURES = _roscale / "tests" / "fixtures"
 
 
 def _ssp() -> dict:
-    return json.loads((FIXTURES / "samsite_oscal_ssp.json").read_text())
+    return json.loads((FIXTURES / "example_oscal_ssp.json").read_text())
 
 
 def _poam() -> dict:
-    return json.loads((FIXTURES / "samsite_oscal_poam.json").read_text())
+    return json.loads((FIXTURES / "example_oscal_poam.json").read_text())
 
 
 class TestSystemClassDetection:
