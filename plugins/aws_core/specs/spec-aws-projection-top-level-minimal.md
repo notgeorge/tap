@@ -96,17 +96,17 @@ The input graph slice includes exactly these entity types:
 - `aws_rds_instance`
 
 > **Edge-set pruned (pre-eviction, 2026-07-08).** This Proposed projection assumed a
-> structural edge slice of `BELONGS_TO_ACCOUNT` + `COMPRISES_AZ` + `RESIDES_IN`. The
+> structural edge slice of `BELONGS_TO_ACCOUNT` + `DIVIDED_INTO_AZ` + `RESIDES_IN`. The
 > pre-eviction edge prune found all three were defined-but-never-emitted except the
-> region→AZ containment, which became the specific `COMPRISES_AZ`; `RESIDES_IN` and
+> region→AZ containment, which became the specific `DIVIDED_INTO_AZ`; `RESIDES_IN` and
 > `BELONGS_TO_ACCOUNT` were deleted (no collector emits them). When this projection is
 > actually built it must re-scope its edge slice to edges that exist / are emitted —
-> today that is only `COMPRISES_AZ`. Account-ownership and resource-location containment
+> today that is only `DIVIDED_INTO_AZ`. Account-ownership and resource-location containment
 > return when a collector emits them (correctly named per the add-edge skill).
 
 The input graph slice includes exactly these edge types:
 
-- `COMPRISES_AZ` (region → az; formerly the region→AZ portion of the generic `CONTAINS`)
+- `DIVIDED_INTO_AZ` (region → az; formerly the region→AZ portion of the generic `CONTAINS`)
 - ~~`BELONGS_TO_ACCOUNT`~~, ~~`RESIDES_IN`~~ — deleted in the prune; re-add when emitted
 
 Other entity types and edge types are out of scope for this minimal projection even if they exist in the graph.
@@ -120,7 +120,7 @@ This explicit slice boundary is important because it separates “what the graph
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-aws-projection-top-level-minimal-input-slice-1 | Fixed Entity Slice | Proposed | The minimal projection gathers only the five named AWS entity types. | |
-| req-aws-projection-top-level-minimal-input-slice-2 | Fixed Edge Slice | Proposed | The minimal projection gathers only `BELONGS_TO_ACCOUNT`, `COMPRISES_AZ`, and `RESIDES_IN` edges. | |
+| req-aws-projection-top-level-minimal-input-slice-2 | Fixed Edge Slice | Proposed | The minimal projection gathers only `BELONGS_TO_ACCOUNT`, `DIVIDED_INTO_AZ`, and `RESIDES_IN` edges. | |
 | req-aws-projection-top-level-minimal-input-slice-3 | No Implicit Expansion | Proposed | The presence of additional AWS or computing data does not enlarge the minimal input slice automatically. | |
 
 #### Future
@@ -146,7 +146,7 @@ The minimal visible scene includes:
 - its VPC containers
 - all subnets inside those VPCs
 - EC2 and RDS nodes placed inside one chosen subnet each
-- visible `BELONGS_TO_ACCOUNT`, `COMPRISES_AZ`, and `RESIDES_IN` edges
+- visible `BELONGS_TO_ACCOUNT`, `DIVIDED_INTO_AZ`, and `RESIDES_IN` edges
 
 All subnets render, including empty subnets.
 
@@ -167,7 +167,7 @@ Rendering all subnets, even when empty, preserves important structural context a
 | --- | --- | :---: | --- | --- |
 | req-aws-projection-top-level-minimal-scene-1 | Containment Visible | Proposed | Account, VPC, subnet, and in-scope resources are all visible in the initial scene. | |
 | req-aws-projection-top-level-minimal-scene-2 | Empty Subnets Render | Proposed | A subnet with no visible EC2 or RDS nodes still appears in the scene. | |
-| req-aws-projection-top-level-minimal-scene-3 | Structural Edges Only | Proposed | The minimal scene shows only `BELONGS_TO_ACCOUNT`, `COMPRISES_AZ`, and `RESIDES_IN` edges. | |
+| req-aws-projection-top-level-minimal-scene-3 | Structural Edges Only | Proposed | The minimal scene shows only `BELONGS_TO_ACCOUNT`, `DIVIDED_INTO_AZ`, and `RESIDES_IN` edges. | |
 
 #### Future
 
@@ -256,7 +256,7 @@ For the Genericom minimal scene, the visible nodes are:
 For the Genericom minimal scene, the visible edge families are:
 
 - `BELONGS_TO_ACCOUNT`
-- `COMPRISES_AZ`
+- `DIVIDED_INTO_AZ`
 - `RESIDES_IN`
 
 For the Genericom minimal scene, the initial primary placement choices are:

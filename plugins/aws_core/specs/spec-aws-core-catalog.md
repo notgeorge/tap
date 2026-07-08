@@ -45,7 +45,7 @@ The catalog refresh currently covers AWS regions, availability zones, and entity
 
 - AWS commercial regions (code, display name, geographic area)
 - Availability zones per region (zone name, zone ID, parent region)
-- COMPRISES_AZ edges from region to AZ
+- DIVIDED_INTO_AZ edges from region to AZ
 - SVG icon assets for all declared entity types
 
 **Excluded:**

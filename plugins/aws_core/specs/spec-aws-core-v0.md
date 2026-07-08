@@ -182,13 +182,13 @@ rather than frozen into the release tag as speculative surface (an AI-legibility
 the schema implied aws_core modeled containment/attachment/protection when it modeled
 none). Specific edges will be re-introduced — correctly named per the add-edge skill —
 when a collector rule actually emits them. The generic `CONTAINS` edge (region→AZ seed)
-was replaced by the specific `COMPRISES_AZ` (region → az, parent→child).
+was replaced by the specific `DIVIDED_INTO_AZ` (region → az, parent→child).
 
 The categories (representative; the manifest is the canonical, enforced list):
 
 | Category | Edge Types | Description |
 | --- | --- | --- |
-| Structural | COMPRISES_AZ | Region → availability zone reference topology (parent→child) |
+| Structural | DIVIDED_INTO_AZ | Region → availability zone reference topology (parent→child) |
 | Operational | INVOKES, ROUTES_TRAFFIC, WRITES_LOGS, RETRIEVES_CONTENT_FROM, RETRIEVES_CERT_FROM | Runtime actions, traffic, and data retrieval (`_FROM` = data-backwards) |
 | Access/Security | ASSUMES_ROLE, FEDERATES_INTO | IAM role assumption and federated identity |
 
@@ -226,7 +226,7 @@ CloudWatch logging (`WRITES_LOGS`) and the CloudFront retrieval edges landed wit
 RID: `req-aws-core-reference`
 Status: `Implemented`
 
-Regions and availability zones are seeded as GRIFT data with `COMPRISES_AZ` edges
+Regions and availability zones are seeded as GRIFT data with `DIVIDED_INTO_AZ` edges
 (region → az, parent→child; formerly the generic `CONTAINS`, replaced in the
 pre-eviction edge prune).
 
@@ -236,7 +236,7 @@ The `grift/regions.grift.json` file contains:
 
 - 34 commercial AWS regions with region code, display name, and geographic area
 - 108 availability zones with zone name and zone ID
-- 108 COMPRISES_AZ edges linking each region to its AZs
+- 108 DIVIDED_INTO_AZ edges linking each region to its AZs
 
 Entity IDs use deterministic UUID ranges so that repeated GRIFT imports (upsert mode) update existing entities rather than creating duplicates:
 
@@ -252,7 +252,7 @@ Data source: AWS official documentation at `docs.aws.amazon.com/global-infrastru
 | --- | --- | :---: | --- | --- |
 | req-aws-core-reference-1 | Commercial Regions Complete | Implemented | All standard commercial AWS regions are represented. | |
 | req-aws-core-reference-2 | AZs Per Region | Implemented | All availability zones per region are represented with zone IDs. | |
-| req-aws-core-reference-3 | COMPRISES_AZ Edges | Implemented | Every AZ has a COMPRISES_AZ edge from its parent region (region → az). | |
+| req-aws-core-reference-3 | DIVIDED_INTO_AZ Edges | Implemented | Every AZ has a DIVIDED_INTO_AZ edge from its parent region (region → az). | |
 | req-aws-core-reference-4 | Deterministic IDs | Implemented | Entity IDs are deterministic for GRIFT upsert compatibility. | |
 | req-aws-core-reference-5 | Schema Validated | Implemented | GRIFT file validates against `tap_grid/schemas/grift-document.schema.json`. | |
 

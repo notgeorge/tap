@@ -48,7 +48,7 @@ aws_core__aws_cloudwatch_log_group = "tap_plugin.aws_core.models.cloudwatch_log_
 aws_core__aws_eventbridge_rule = "tap_plugin.aws_core.models.eventbridge_rule.EventbridgeRule"
 
 [edges]
-COMPRISES_AZ__aws_core = "edges/COMPRISES_AZ.edge.json"
+DIVIDED_INTO_AZ__aws_core = "edges/DIVIDED_INTO_AZ.edge.json"
 INVOKES__aws_core = "edges/INVOKES.edge.json"
 ROUTES_TRAFFIC__aws_core = "edges/ROUTES_TRAFFIC.edge.json"
 ASSUMES_ROLE__aws_core = "edges/ASSUMES_ROLE.edge.json"
