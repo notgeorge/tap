@@ -70,6 +70,7 @@ This spec supersedes the user/auth architecture previously parked under `tap_gri
 | req-tap-auth-local | [Local Password Auth](#local-password-auth) | Implemented | Dev/default recovery path; disable (both backends) separate from user deactivation |
 | req-tap-auth-external-identity | [External Identity Linkage](#external-identity-linkage) | Implemented | Provider ID + subject; no v1 account linking; TAP social adapter enforces |
 | req-tap-auth-sessions | [Session Invalidation](#session-invalidation) | Implemented | Global/per-user/per-session; capability-gated + audited; separate from disabling login |
+| req-tap-auth-user-lookup | [User Lookup (Roster Read)](#user-lookup-roster-read) | Proposed | `manage.py list-users` surfaces the stable internal user id that id-keyed write commands consume; defines the `--user-id`-authoritative / `--email`-fails-loud selector convention; read-scoped `auth.read_users` cap; JSON output for AI operators |
 | req-tap-auth-deactivation | [User Deactivation](#user-deactivation) | Proposed | Method-agnostic disable regardless of auth method; `manage.py deactivate-user`; composes per-user session invalidation; runtime last-admin guard |
 | req-tap-auth-logging | [Actor-Aware Logging](#actor-aware-logging) | Proposed | Stdlib contextvars/filter pattern; no structlog dependency |
 | req-tap-auth-ai-placeholder | [AI And Machine Actor Placeholder](#ai-and-machine-actor-placeholder) | Proposed | AI actors are named program actors; delegation deferred |
@@ -838,6 +839,31 @@ Session invalidation is a separate management operation from disabling login mec
 
 ---
 
+### User Lookup (Roster Read)
+----
+RID: `req-tap-auth-user-lookup`  
+Status: `Proposed`
+
+Operator-facing user administration keys off the **stable internal `User` id**, not email (email is mutable, non-identity, and DB-level-duplicate-permitted — `req-tap-auth-external-identity`). For that to be usable the id has to be **discoverable**, so a read-only lookup command is the necessary companion to every id-keyed *write* command (`deactivate-user` / `reactivate-user` below, and `spec-tap-auth-passkey-v0.md`'s `enroll-user --add-credential`). This is the one place the internal id is surfaced for an operator to copy into those commands.
+
+#### Implementation
+
+- **Command.** `manage.py list-users [--email <exact-or-substring>] [--role <role>] [--active | --inactive] [--format table|json]` lists users, and for each shows: the **stable internal user id** (the value the write commands consume), email(s), `is_active`, the auth-method kind(s) bound (federated / passkey / local), roles/grants, and last-login. It is strictly **read-only** — it never mutates.
+- **Shared selector convention (the id-keyed contract, defined once here).** Every user-targeting *write* command resolves its target by `--user-id` (**authoritative**) and MAY accept `--email` only as a **convenience lookup that fails loud on zero or multiple matches** — never a silent pick, because a duplicate or mistyped email on an account-impacting command (mint-a-credential, deactivate) is account takeover or wrong-account denial-of-service. `list-users` is precisely how an operator turns a fuzzy email into the exact id to pass. This convention is referenced by `req-tap-auth-deactivation` and `spec-tap-auth-passkey-v0.md` `req-tap-auth-passkey-add-device` rather than restated there.
+- **Read-scoped capability.** Gated on a **read** capability `auth.read_users`, deliberately distinct from the **write** `auth.manage_users` (fine-grained read-vs-write split): listing the roster discloses who exists and who is admin — real reconnaissance value — and is separable from the power to change accounts, so a support/operator role can hold lookup without mutation. Never an anonymous / `User=None` operation.
+- **AI-legible + audited.** `--format json` emits a machine-parseable roster so a Player-3 AI operator (`spec-ai-integration.md`) can consume it read-only; each invocation emits a structured access-audit line (actor / time / filter) because roster enumeration is recon-relevant.
+- **Request-agnostic service verb.** A thin wrapper over a service-layer `list_users(...)` read verb, so a future user-management UI or the grid-intent consumer drives the same gated read — additive, not a rewrite.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-auth-user-lookup-1 | Lookup Command | Proposed | `manage.py list-users` lists users with their stable internal id, email(s), active state, auth-method kind(s), roles, and last-login; supports `--email` / `--role` / `--active` / `--inactive` filters and `--format table\|json`; strictly read-only. | |
+| req-tap-auth-user-lookup-2 | Id-Keyed Selector Convention | Proposed | User-targeting write commands key off `--user-id` (authoritative); `--email` is accepted only as a convenience that fails loud on zero or multiple matches. Defined here; referenced by deactivation and passkey add-device. | |
+| req-tap-auth-user-lookup-3 | Read-Scoped & Audited | Proposed | Gated on a read capability `auth.read_users` distinct from the write `auth.manage_users`; emits a structured access-audit line; `--format json` is machine-parseable for an AI operator. | |
+
+---
+
 ### User Deactivation
 ----
 RID: `req-tap-auth-deactivation`  
@@ -847,7 +873,7 @@ Deactivation is a **method-agnostic user-lifecycle lever**: it disables a user *
 
 #### Implementation
 
-- **Operator commands.** `manage.py deactivate-user --email … [--reason …] [--invalidate-sessions]` sets the user inactive (`is_active=False`) and records the deactivation metadata (`deactivated_at` / `deactivated_reason` / `deactivated_by_actor`, `req-tap-auth-user-model`). A symmetric `manage.py reactivate-user --email …` reverses it; reactivation is **explicit**, never automatic (consistent with `req-tap-auth-external-identity`'s "reactivation is explicit"). Deactivate is **not** delete — the user row and its audit trail are preserved.
+- **Operator commands.** `manage.py deactivate-user --user-id … [--reason …] [--invalidate-sessions]` sets the user inactive (`is_active=False`) and records the deactivation metadata (`deactivated_at` / `deactivated_reason` / `deactivated_by_actor`, `req-tap-auth-user-model`). A symmetric `manage.py reactivate-user --user-id …` reverses it; reactivation is **explicit**, never automatic (consistent with `req-tap-auth-external-identity`'s "reactivation is explicit"). Deactivate is **not** delete — the user row and its audit trail are preserved. Both follow the **id-keyed selector convention** (`req-tap-auth-user-lookup`): the target is resolved by `--user-id` (authoritative), with `--email` accepted only as a convenience that fails loud on zero or multiple matches — deactivating the wrong account on a duplicate/typo'd email is a wrong-account denial-of-service, so it is never a silent pick. Use `manage.py list-users` to find the id.
 - **Method-agnostic by construction, enforced at every edge.** Deactivation lives on the `User` (the identity anchor *above* every auth method), so it applies regardless of authentication process — but that only holds if each edge honors it. **Every authentication backend MUST reject an inactive user.** Django's `ModelBackend` does this via `user_can_authenticate` (covering local + the federated/allauth path), and the **TAP passkey authentication backend MUST mirror it** — a hand-rolled backend that verifies an assertion without an `is_active` check would let a deactivated user keep logging in by passkey, silently defeating the purpose. Belt-and-suspenders: even a *stale* session of a deactivated user is denied at the service boundary (`req-tap-auth-actor-model` inactive → `inactive_actor`), so a deactivated actor can perform no TAP operation regardless of session state.
 - **Session invalidation is a composed, explicit step — and cheap.** Deactivation blocks *future* auth; it does not by itself terminate a live session (`is_active=False` does not evict an existing session). `--invalidate-sessions` composes the per-user banhammer (`req-tap-auth-sessions-3`) so the account is logged out everywhere in one command — explicit, never a silent side effect (the separate-levers doctrine). The **recommended mechanism is per-user session-auth-hash-salt rotation** — the *same* primitive `spec-tap-auth-passkey-v0.md` (`req-tap-auth-passkey-recovery`) already requires so credential revocation kills sessions: rotate a per-user salt feeding `get_session_auth_hash()` and every session dies on its next request (O(1) trigger, no scan, no index, no new dependency), exactly where a password change did the job in the password era. It is *lazy* (next-request), which suffices because the service-boundary inactive-actor denial already blocks any action in the interim; when an *instant* cookie-kill is wanted (incident response), the enumerate-and-delete banhammer (`req-tap-auth-sessions-3`) composes on top.
 - **Guardrails.**
@@ -860,7 +886,7 @@ Deactivation is a **method-agnostic user-lifecycle lever**: it disables a user *
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-auth-deactivation-1 | Deactivate Command | Proposed | `manage.py deactivate-user` sets `is_active=False` and records deactivation metadata; `reactivate-user` reverses it explicitly; neither deletes the user. | |
+| req-tap-auth-deactivation-1 | Deactivate Command | Proposed | `manage.py deactivate-user` sets `is_active=False` and records deactivation metadata; `reactivate-user` reverses it explicitly; neither deletes the user. Both key off `--user-id` per the `req-tap-auth-user-lookup` selector convention (`--email` fails loud on 0/multiple). | |
 | req-tap-auth-deactivation-2 | Method-Agnostic Enforcement | Proposed | Every auth backend (local, federated, **passkey**) rejects an inactive user, and the service boundary denies an inactive actor — a deactivated user cannot authenticate by any method or act on any live session. | |
 | req-tap-auth-deactivation-3 | Session Invalidation Composed | Proposed | `--invalidate-sessions` invalidates all of the user's current sessions via the per-user banhammer; recommended impl is per-user auth-hash-salt rotation, shared with `req-tap-auth-passkey-recovery`. | |
 | req-tap-auth-deactivation-4 | Guardrails | Proposed | Protected built-ins cannot be deactivated; the last active human `tap_admin` is protected by a runtime last-admin guard (explicit override required). | |
