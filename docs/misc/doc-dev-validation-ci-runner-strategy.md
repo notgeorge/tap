@@ -87,6 +87,35 @@ textbook premature scaling (the standing strategic-discipline filter). The
 self-hosted only when minutes-cost or environment-fidelity actually demands it. Do not
 provision a runner fleet before the demand."
 
+## Execution lanes — it is not just raw EC2 (cost/ops correction)
+
+The "AWS self-hosted" tier above was scoped to the *most* ops-heavy vehicle — a raw
+EC2 fleet built with `terraform-aws-github-runner` (AMI, VPC, NAT, autoscaler, standing
+maintenance). That is a strawman for "run a Docker CI workload without buying EC2 time";
+several lower-ops, cheaper lanes exist, and they cleanly split the two goals (speed vs
+AWS-native capability):
+
+| Lane | In our AWS acct? | Docker/compose works? | $/min Linux | Ops to stand up |
+| --- | --- | --- | --- | --- |
+| **Managed runner SaaS** (WarpBuild / Blacksmith / Namespace / Tenki) | no | yes (real Docker VM) | ~$0.003–0.005 (~50% under GitHub) | ~zero — one line `runs-on:` |
+| **AWS CodeBuild GHA runners** | **yes** | **yes** (EC2 compute; Lambda compute can't DinD) | ~$0.005 small → ~$0.01 4-vCPU → ~$0.02 8-vCPU | low — one CloudFormation + webhook |
+| AWS Fargate / ECS | yes | **no** — no privileged / docker-in-docker | cheap | medium (but blocks our compose lane) |
+| raw EC2 + Terraform fleet | yes | yes | ~$0.003 spot | **high** — the original tier |
+
+- **For pure speed:** a managed SaaS runner is the cheapest, lowest-ops option — flip
+  `runs-on:` to a 4–8-vCPU WarpBuild/Blacksmith runner (~2× faster silicon), ~$6/mo,
+  ~3–4 min sharded, zero infra. *Caveat for a security-focused shop: private code runs
+  on a third party's infra.* No AWS-native identity, so it is a speed tool only.
+- **For speed + AWS-native capability:** **AWS CodeBuild as a GitHub Actions runner** is
+  the right vehicle — a *managed AWS service* (no AMI/NAT/autoscaler), EC2-mode compute
+  supports docker-in-docker, and because it runs *in our account* it carries an IAM role
+  (native Bedrock / `aws_core` STS testing, no long-lived creds). ~$18/mo sharded and an
+  **afternoon** of setup, not the multi-day fleet. This — not the Terraform EC2 fleet —
+  is the concrete form the deferred AWS-native runner should take.
+- **The ~1.5–2 min floor is vendor-independent:** no provider pre-warms *our* boot
+  (migrate + plugin install), so sub-2-min still needs the AMI/template-DB floor work
+  regardless of who runs the container.
+
 ## Recommendation
 
 1. **Now (speed): shard the all-plugins test lane across 3 free 2-core runners.**
@@ -95,10 +124,11 @@ provision a runner fleet before the demand."
 2. **Defer the AWS-native runner to a capability trigger, not a speed trigger** — the
    first test that genuinely must execute inside AWS (a real Bedrock or live-`aws_core`
    integration test). Specced as an Out-Of-Scope entry with that trigger; do not
-   provision before it fires. When it fires: `github-aws-runners/terraform-aws-github-runner`
-   (maintained successor to `philips-labs/…`), **ephemeral spot** runners, pre-baked
-   AMI (Docker + Postgres warm to erase the build/boot tax), least-privilege IAM role
-   reusing the External-ID discipline from [[aws-cross-account-assume-role]].
+   provision before it fires. When it fires, prefer **AWS CodeBuild GHA runners** (managed,
+   in-account IAM, DinD, ~an afternoon) over a hand-built EC2 fleet — see the lanes table
+   above; reuse the External-ID discipline from [[aws-cross-account-assume-role]]. If pure
+   *speed* is ever wanted before then, a managed SaaS runner (`runs-on:` swap) is the
+   cheapest lever and needs no AWS at all.
 3. **Org migration is a separate decision** — pursue it for branch-protection +
    required checks (the trust-boundary inflection in the sibling note), not for 8-core
    speed; it forces the promote→PR-gate redesign, so treat it as its own project.
