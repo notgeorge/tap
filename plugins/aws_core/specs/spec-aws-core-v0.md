@@ -170,24 +170,31 @@ Edge slugs follow the consolidated naming convention canonical in
 `<ACTION>_<OBJECT>`; the edge points in the direction of action initiation;
 `_TO` is never used (forward is unmarked); `_FROM` is reserved for a
 data-backwards edge (data flows opposite the action/edge direction); and
-locative/relational prepositions (`BELONGS_TO_ACCOUNT`, `RESIDES_IN`,
-`HAS_POLICY_ACCESS_TO`, `BOUND_TO_AZ`) keep their inherent preposition. Lineage:
-`e5229d4` renamed terse predicates to explicit `<ACTION>_<OBJECT>` forms; the
-subsequent refinement dropped redundant `_TO` and reserved `_FROM` for
-data-reversal.
+locative/relational prepositions (e.g. `FEDERATES_INTO`) keep their inherent
+preposition. Lineage: `e5229d4` renamed terse predicates to explicit
+`<ACTION>_<OBJECT>` forms; the subsequent refinement dropped redundant `_TO` and
+reserved `_FROM` for data-reversal.
+
+**Dead-edge prune (pre-eviction, 2026-07-08).** The vocabulary previously declared
+~23 edge types, but only the ones the collector actually emits (or the region seed
+creates) carried any data. 15 defined-but-never-emitted edge types were deleted
+rather than frozen into the release tag as speculative surface (an AI-legibility trap:
+the schema implied aws_core modeled containment/attachment/protection when it modeled
+none). Specific edges will be re-introduced — correctly named per the add-edge skill —
+when a collector rule actually emits them. The generic `CONTAINS` edge (region→AZ seed)
+was replaced by the specific `COMPRISES_AZ` (region → az, parent→child).
 
 The categories (representative; the manifest is the canonical, enforced list):
 
 | Category | Edge Types | Description |
 | --- | --- | --- |
-| Structural | RESIDES_IN, BELONGS_TO_ACCOUNT, CONTAINS, ATTACHED_TO, HOSTS_VPC, PARTITIONED_INTO_SUBNET, BELONGS_TO_VPC, BOUND_TO_AZ | Physical and organizational containment / locative |
-| Operational | LAUNCHED, INVOKES, ROUTES_TRAFFIC, EXPOSES_NETWORK_ACCESS, WRITES_LOGS, RETRIEVES_CONTENT_FROM, RETRIEVES_CERT_FROM | Runtime actions, traffic, and data retrieval (`_FROM` = data-backwards) |
-| Access/Security | HAS_POLICY_ACCESS_TO, ASSUMES_ROLE, FEDERATES_INTO, PROTECTS, STORES_DATA_IN | IAM permissions, federated identity, security boundaries, data storage |
-| Dependency | DEPENDS_ON, PULLS_IMAGE_FROM, BACKED_BY | Runtime and infrastructure dependencies |
+| Structural | COMPRISES_AZ | Region → availability zone reference topology (parent→child) |
+| Operational | INVOKES, ROUTES_TRAFFIC, WRITES_LOGS, RETRIEVES_CONTENT_FROM, RETRIEVES_CERT_FROM | Runtime actions, traffic, and data retrieval (`_FROM` = data-backwards) |
+| Access/Security | ASSUMES_ROLE, FEDERATES_INTO | IAM role assumption and federated identity |
 
-Edge types use explicit `sources` and `targets` constraints where the relationship is well-defined (e.g. `ASSUMES_ROLE` from IAM users/roles, Lambda functions, and EventBridge rules to IAM roles; `RETRIEVES_CONTENT_FROM` from CloudFront distributions to S3 buckets). Broadly applicable edges (e.g. `DEPENDS_ON`, `ATTACHED_TO`) use wildcard sources/targets.
+Edge types use explicit `sources` and `targets` constraints where the relationship is well-defined (e.g. `ASSUMES_ROLE` from IAM users/roles, Lambda functions, and EventBridge rules to IAM roles; `RETRIEVES_CONTENT_FROM` from CloudFront distributions to S3 buckets). Where one end is genuinely open, only the other is constrained (e.g. `INVOKES` fixes its target to `aws_lambda` and leaves the source open).
 
-Several edge types declare `property_schema` for structured edge metadata (e.g. `LAUNCHED` has `launched_at`, `HAS_POLICY_ACCESS_TO` has `actions` and `effect`, `ROUTES_TRAFFIC` has optional `destination_cidr` and `port`).
+Several edge types declare `property_schema` for structured edge metadata (e.g. `ROUTES_TRAFFIC` has optional `destination_cidr` and `port`; `INVOKES` has an optional `method`).
 
 #### Acceptance Criteria
 
@@ -200,7 +207,15 @@ Several edge types declare `property_schema` for structured edge metadata (e.g. 
 
 #### Open Questions
 
-**Generic vs. specific edge types.** Several edge types (notably `ATTACHED_TO`) are broadly reusable across resource types — an EBS volume attaches to an EC2 instance, a policy attaches to a role, an EIP attaches to an instance. The alternative is domain-specific edges like `ATTACHED_TO_VOLUME` that are more precise but proliferate quickly. The trade-off is queryability and semantic clarity (specific) vs. simplicity and reuse (generic). This needs to be evaluated as more plugins and real-world query patterns emerge.
+**Generic vs. specific edge types (resolved toward specific).** The vocabulary
+formerly carried broad generic edges (`ATTACHED_TO`, `DEPENDS_ON`, `CONTAINS`,
+`RESIDES_IN`, `PROTECTS`) meant to be reusable across resource types. In practice none
+of them were ever emitted, and a generic edge conflates unrelated relationships (one
+`ATTACHED_TO` bundled EBS↔EC2, policy↔role, EIP↔instance). The pre-eviction prune
+resolved the trade-off toward **specific**: delete the unused generics, and add a
+precise `<ACTION>_<OBJECT>` edge (per the add-edge skill) when a collector actually
+emits that relationship. Generalized "what is inside what" is deferred to reified paths
+over specific edges (`docs/misc/grid-native-paths-notes.md`), not a generic containment edge.
 
 #### Future
 
@@ -211,7 +226,9 @@ CloudWatch logging (`WRITES_LOGS`) and the CloudFront retrieval edges landed wit
 RID: `req-aws-core-reference`
 Status: `Implemented`
 
-Regions and availability zones are seeded as GRIFT data with CONTAINS edges.
+Regions and availability zones are seeded as GRIFT data with `COMPRISES_AZ` edges
+(region → az, parent→child; formerly the generic `CONTAINS`, replaced in the
+pre-eviction edge prune).
 
 #### Implementation
 
@@ -219,7 +236,7 @@ The `grift/regions.grift.json` file contains:
 
 - 34 commercial AWS regions with region code, display name, and geographic area
 - 108 availability zones with zone name and zone ID
-- 108 CONTAINS edges linking each region to its AZs
+- 108 COMPRISES_AZ edges linking each region to its AZs
 
 Entity IDs use deterministic UUID ranges so that repeated GRIFT imports (upsert mode) update existing entities rather than creating duplicates:
 
@@ -235,7 +252,7 @@ Data source: AWS official documentation at `docs.aws.amazon.com/global-infrastru
 | --- | --- | :---: | --- | --- |
 | req-aws-core-reference-1 | Commercial Regions Complete | Implemented | All standard commercial AWS regions are represented. | |
 | req-aws-core-reference-2 | AZs Per Region | Implemented | All availability zones per region are represented with zone IDs. | |
-| req-aws-core-reference-3 | CONTAINS Edges | Implemented | Every AZ has a CONTAINS edge from its parent region. | |
+| req-aws-core-reference-3 | COMPRISES_AZ Edges | Implemented | Every AZ has a COMPRISES_AZ edge from its parent region (region → az). | |
 | req-aws-core-reference-4 | Deterministic IDs | Implemented | Entity IDs are deterministic for GRIFT upsert compatibility. | |
 | req-aws-core-reference-5 | Schema Validated | Implemented | GRIFT file validates against `tap_grid/schemas/grift-document.schema.json`. | |
 

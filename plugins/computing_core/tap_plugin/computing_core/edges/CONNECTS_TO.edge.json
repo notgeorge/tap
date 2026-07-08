@@ -1,8 +1,0 @@
-{
-  "slug": "CONNECTS_TO__computing_core",
-  "name": "Connects To",
-  "description": "Directional TCP session edge: client port connects to TCP connection node, and TCP connection node connects to server port.",
-  "default_dimensions": {
-    "tap.computing": "network"
-  }
-}
