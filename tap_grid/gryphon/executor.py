@@ -684,7 +684,7 @@ def _execute_type_scan(
         # spine walks), so reject those here rather than silently widen.
         _reject_non_projectable_return_path(item.path)
         internal = f"_ts_col_{idx}"
-        annotations[internal] = F(_typescan_orm_path(item.path))
+        annotations[internal] = F(_typescan_orm_path(item.path, qs.model))
         group_pairs.append((internal, _return_item_key(item)))
 
     plan = MaterializationPlan(
@@ -693,7 +693,7 @@ def _execute_type_scan(
         group_pairs=tuple(group_pairs),
         aggregate_annotations={},
         aggregate_pairs=(),
-        order_cols=_typescan_order_cols(order_by, limit, items, var),
+        order_cols=_typescan_order_cols(order_by, limit, items, var, qs.model),
         limit=limit,
     )
     return {"nodes": [], "edges": [], "rows": materialize_rows(plan)}
@@ -719,6 +719,7 @@ def _typescan_order_cols(
     limit: Any,
     items: tuple,
     var: str,
+    model_cls: type | None,
 ) -> tuple[str, ...]:
     """Resolve the type-scan projection ORDER BY convention into `.order_by()` columns.
 
@@ -741,7 +742,7 @@ def _typescan_order_cols(
         for item in items:
             if not isinstance(item, ReturnItem) or item.path.variable != var:
                 continue
-            key_to_path[_return_item_key(item)] = _typescan_orm_path(item.path)
+            key_to_path[_return_item_key(item)] = _typescan_orm_path(item.path, model_cls)
         cols: list[str] = []
         for ob in order_by.items:
             if ob.path.steps:
@@ -820,7 +821,7 @@ def _apply_order_limit_typescan_envelope(
                     f"not bound by this MATCH pattern (the bound variable is "
                     f"'{var}')."
                 )
-            col = _typescan_orm_path(ob.path)
+            col = _typescan_orm_path(ob.path, qs.model)
             order_cols.append(f"-{col}" if ob.descending else col)
         order_cols.append("entity_id")
         qs = qs.order_by(*order_cols)
@@ -861,11 +862,85 @@ def _apply_typescan_predicate(
         return qs
     model_cls = qs.model
     return qs.filter(
-        _predicate_to_q(predicate, inputs, _typescan_orm_path, lambda fp: _declared_data_types(model_cls, fp))
+        _predicate_to_q(
+            predicate,
+            inputs,
+            lambda fp: _typescan_orm_path(fp, model_cls),
+            lambda fp: _declared_data_types(model_cls, fp),
+        )
     )
 
 
-def _typescan_orm_path(field_path: FieldPath) -> str:
+def _validate_data_lane_steps(model_cls: type | None, rest_steps: list[Any]) -> None:
+    """Allowlist the post-``data`` steps of a field path against the model's declared fields.
+
+    The single positive rule of ``req-grid-traversal-lang-relation-guard.sec`` (the
+    "Data-Lane Field-Path Allowlist"): every ``data``-lane token MUST resolve to a
+    concrete declared field on the model — a scalar column, or a JSON key inside a
+    declared ``JSONField``. Anything else is rejected. This one check closes the four
+    confirmed manifestations of ``ROOT-1`` (the un-allowlisted ``__``-join):
+
+    - **Relation crossing** — the first step resolving to a relation field
+      (``field.is_relation``) is rejected, so ``b.data.actor.email`` /
+      ``b.data.actor.password`` can no longer emit a cross-table join into ``tap_user``.
+    - **Lookup / transform injection** — a Django lookup/transform token that is not a
+      declared field is rejected: as a first step it is an undeclared field; after a
+      scalar field it is a walk-into-scalar (``b.data.version.regex``).
+    - **Undeclared field** — a token naming no declared field raises a clear
+      ``SearchExecutionError`` (a 422), not an uncaught Django ``FieldError`` (a 500).
+    - **Composite-token / bracket-key smuggling** — a token containing ``__``
+      (``b.data.actor__password``, ``b.data["actor__password"]``) is rejected, so a
+      multi-step walk cannot be smuggled through a single opaque token.
+
+    ``rest_steps`` are the steps *after* the ``data`` prefix (dot or bracket-key), and
+    the caller guarantees the list is non-empty. Called by every data-lane resolver so
+    the allowlist is enforced at the shared resolution boundary, in WHERE and RETURN
+    alike, before any ``__``-join reaches ``.filter()`` / ``F()``.
+    """
+    from django.core.exceptions import FieldDoesNotExist
+    from django.db.models import JSONField
+
+    names = [s.name if isinstance(s, DotStep) else s.key for s in rest_steps]
+    for nm in names:
+        if "__" in nm:
+            raise SearchExecutionError(
+                f"Data-lane token {nm!r} may not contain '__'. A relation/lookup separator "
+                f"cannot be smuggled through a single token; address one declared field per "
+                f"step (req-grid-traversal-lang-relation-guard.sec)."
+            )
+    first = names[0]
+    if model_cls is None:
+        raise SearchExecutionError(
+            f"Cannot resolve data-lane path `.data.{'.'.join(names)}` without a bound model "
+            f"type; add a node label so the field can be validated against the model "
+            f"(req-grid-traversal-lang-relation-guard.sec)."
+        )
+    try:
+        field = model_cls._meta.get_field(first)
+    except FieldDoesNotExist:
+        # `from None` deliberately suppresses the Django FieldDoesNotExist chain: converting it
+        # to a clean 422 (rather than letting a FieldError surface) is manifestation 3 of the
+        # fix — no error-shape/valid-field-name leak (req-grid-traversal-lang-relation-guard.sec).
+        raise SearchExecutionError(
+            f"{first!r} is not a declared field on {model_cls.__name__}. The data lane may only "
+            f"address the model's own declared fields (req-grid-traversal-lang-relation-guard.sec)."
+        ) from None
+    if field.is_relation:
+        raise SearchExecutionError(
+            f"Data-lane path may not cross the relation {first!r} on {model_cls.__name__} into "
+            f"another table. Only the entity/dimensions spine hop may cross tables "
+            f"(req-grid-traversal-lang-relation-guard.sec)."
+        )
+    if len(names) > 1 and not isinstance(field, JSONField):
+        raise SearchExecutionError(
+            f"Cannot walk into the scalar field {first!r} on {model_cls.__name__}. Further steps "
+            f"are valid only inside a JSON-typed field; a trailing token on a scalar is a Django "
+            f"lookup/transform, which the data lane does not admit "
+            f"(req-grid-traversal-lang-relation-guard.sec)."
+        )
+
+
+def _typescan_orm_path(field_path: FieldPath, model_cls: type | None) -> str:
     """Translate a Gryphon FieldPath to a Django ORM lookup for a type-scan queryset.
 
     The queryset is on the per-model class (e.g. LambdaFunction), so:
@@ -877,6 +952,10 @@ def _typescan_orm_path(field_path: FieldPath) -> str:
     - ``n.data.<x>...`` → ``<x>...`` (direct attribute on the per-model row;
       multi-step `__`-joined for JSONField nested keys)
     - ``n.display.<...>`` → rejected; computed-not-stored.
+
+    ``model_cls`` is the bound per-model class; the ``data`` lane is validated against
+    its declared fields (``_validate_data_lane_steps``, the ROOT-1 allowlist). It is
+    required — a caller that cannot supply the model cannot resolve a data-lane path.
     """
     steps = field_path.steps
     if not steps or not isinstance(steps[0], DotStep):
@@ -918,6 +997,7 @@ def _typescan_orm_path(field_path: FieldPath) -> str:
     rest = "__".join(_name(s) for s in rest_steps)
 
     if first == _DATA_LANE_PREFIX:
+        _validate_data_lane_steps(model_cls, rest_steps)
         return rest
 
     # Multi-step into a JSON-typed spine field (today: `dimensions`).
@@ -1154,7 +1234,10 @@ def _execute_bare_type_scan(
                 continue  # this type lacks a referenced data field — matches nothing
             model_qs = model_cls.objects.using(db_alias).filter(
                 _predicate_to_q(
-                    scoped_pred, inputs, _typescan_orm_path, lambda fp, m=model_cls: _declared_data_types(m, fp)
+                    scoped_pred,
+                    inputs,
+                    lambda fp, m=model_cls: _typescan_orm_path(fp, m),
+                    lambda fp, m=model_cls: _declared_data_types(m, fp),
                 )
             )
             matched_ids.update(model_qs.values_list("entity_id", flat=True))
@@ -1538,6 +1621,9 @@ def _orm_path_for_envelope_path(binding: dict[str, Any], steps: list[Any]) -> st
     if role == "edge":
         # Edges' "data" lane is the Edge model row itself — fields are
         # already on the chained Edge queryset.
+        from tap_grid.models import Edge
+
+        _validate_data_lane_steps(Edge, rest)
         ep = binding["edge_path"]
         prefix = f"{ep}__" if ep else ""
         return f"{prefix}{inner_path}"
@@ -1557,6 +1643,9 @@ def _orm_path_for_envelope_path(binding: dict[str, Any], steps: list[Any]) -> st
             f"node label; add a label like `(var:entity_type)` so the "
             f"executor knows which model to traverse."
         )
+    from tap_grid.registry import get_model_class
+
+    _validate_data_lane_steps(get_model_class(label), rest)
     return f"{ep}__{reverse}__{inner_path}"
 
 
@@ -3089,7 +3178,7 @@ def _execute_optional_match(
                     "optional variable can only be COUNTed."
                 )
             internal = f"_om_col_{idx}"
-            group_annotations[internal] = F(_typescan_orm_path(fp))
+            group_annotations[internal] = F(_typescan_orm_path(fp, model_cls))
             group_pairs.append((internal, _return_item_key(item)))
         elif isinstance(item, AggregateReturnItem):
             agg = item.aggregate
