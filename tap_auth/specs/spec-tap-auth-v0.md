@@ -70,6 +70,7 @@ This spec supersedes the user/auth architecture previously parked under `tap_gri
 | req-tap-auth-local | [Local Password Auth](#local-password-auth) | Implemented | Dev/default recovery path; disable (both backends) separate from user deactivation |
 | req-tap-auth-external-identity | [External Identity Linkage](#external-identity-linkage) | Implemented | Provider ID + subject; no v1 account linking; TAP social adapter enforces |
 | req-tap-auth-sessions | [Session Invalidation](#session-invalidation) | Implemented | Global/per-user/per-session; capability-gated + audited; separate from disabling login |
+| req-tap-auth-deactivation | [User Deactivation](#user-deactivation) | Proposed | Method-agnostic disable regardless of auth method; `manage.py deactivate-user`; composes per-user session invalidation; runtime last-admin guard |
 | req-tap-auth-logging | [Actor-Aware Logging](#actor-aware-logging) | Proposed | Stdlib contextvars/filter pattern; no structlog dependency |
 | req-tap-auth-ai-placeholder | [AI And Machine Actor Placeholder](#ai-and-machine-actor-placeholder) | Proposed | AI actors are named program actors; delegation deferred |
 
@@ -834,6 +835,36 @@ Session invalidation is a separate management operation from disabling login mec
 | req-tap-auth-sessions-3 | Per-User Banhammer | Implemented | An operation invalidates all sessions for a specific user. | |
 | req-tap-auth-sessions-4 | Per-Session Invalidation | Implemented | An operation invalidates one specific session by key/handle. | |
 | req-tap-auth-sessions-5 | Audited And Attributable | Implemented | Every invalidation is capability-gated and logged with actor, scope, target, reason, and count. | |
+
+---
+
+### User Deactivation
+----
+RID: `req-tap-auth-deactivation`  
+Status: `Proposed`
+
+Deactivation is a **method-agnostic user-lifecycle lever**: it disables a user *regardless of how they authenticate*, and is the operator's explicit "turn this account off" primitive — distinct from disabling an auth method (`req-tap-auth-local`) and from session invalidation (`req-tap-auth-sessions`). This requirement gives the previously-scattered deactivation primitives — metadata (`req-tap-auth-user-model`), inactive-actor enforcement (`req-tap-auth-actor-model`), and the compose-with-sessions doctrine (`req-tap-auth-sessions`) — one operator-facing home; it cites them rather than restating them.
+
+#### Implementation
+
+- **Operator commands.** `manage.py deactivate-user --email … [--reason …] [--invalidate-sessions]` sets the user inactive (`is_active=False`) and records the deactivation metadata (`deactivated_at` / `deactivated_reason` / `deactivated_by_actor`, `req-tap-auth-user-model`). A symmetric `manage.py reactivate-user --email …` reverses it; reactivation is **explicit**, never automatic (consistent with `req-tap-auth-external-identity`'s "reactivation is explicit"). Deactivate is **not** delete — the user row and its audit trail are preserved.
+- **Method-agnostic by construction, enforced at every edge.** Deactivation lives on the `User` (the identity anchor *above* every auth method), so it applies regardless of authentication process — but that only holds if each edge honors it. **Every authentication backend MUST reject an inactive user.** Django's `ModelBackend` does this via `user_can_authenticate` (covering local + the federated/allauth path), and the **TAP passkey authentication backend MUST mirror it** — a hand-rolled backend that verifies an assertion without an `is_active` check would let a deactivated user keep logging in by passkey, silently defeating the purpose. Belt-and-suspenders: even a *stale* session of a deactivated user is denied at the service boundary (`req-tap-auth-actor-model` inactive → `inactive_actor`), so a deactivated actor can perform no TAP operation regardless of session state.
+- **Session invalidation is a composed, explicit step — and cheap.** Deactivation blocks *future* auth; it does not by itself terminate a live session (`is_active=False` does not evict an existing session). `--invalidate-sessions` composes the per-user banhammer (`req-tap-auth-sessions-3`) so the account is logged out everywhere in one command — explicit, never a silent side effect (the separate-levers doctrine). The **recommended mechanism is per-user session-auth-hash-salt rotation** — the *same* primitive `spec-tap-auth-passkey-v0.md` (`req-tap-auth-passkey-recovery`) already requires so credential revocation kills sessions: rotate a per-user salt feeding `get_session_auth_hash()` and every session dies on its next request (O(1) trigger, no scan, no index, no new dependency), exactly where a password change did the job in the password era. It is *lazy* (next-request), which suffices because the service-boundary inactive-actor denial already blocks any action in the interim; when an *instant* cookie-kill is wanted (incident response), the enumerate-and-delete banhammer (`req-tap-auth-sessions-3`) composes on top.
+- **Guardrails.**
+  - **Protected built-ins refused** — the command cannot deactivate a protected built-in program actor (`tap_bootloader`, `tap_test`, `tap_cares.*`), consistent with `req-tap-auth-builtins` ("protected users cannot be deactivated by ordinary user-management paths").
+  - **Runtime last-admin guard** — the command refuses to deactivate the last active human `tap_admin`, mirroring the boot-time last-admin invariant (`req-tap-auth-boot`) at runtime so an operator cannot accidentally lock the instance out; an explicit break-glass override is required to proceed (out-of-band shell genesis remains the floor regardless).
+- **Capability-gated + audited** — `auth.manage_users`; the deactivation metadata is the durable audit record (actor / reason / time), plus a structured security log. Never an anonymous / `User=None` operation.
+- **Request-agnostic service verb.** The command is a thin wrapper over a service-layer `deactivate_user(...)` / `reactivate_user(...)` verb, so a future user-management UI or the grid-intent consumer (Backlog) drives the same gated primitive — keeping the door additive, not a rewrite.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-auth-deactivation-1 | Deactivate Command | Proposed | `manage.py deactivate-user` sets `is_active=False` and records deactivation metadata; `reactivate-user` reverses it explicitly; neither deletes the user. | |
+| req-tap-auth-deactivation-2 | Method-Agnostic Enforcement | Proposed | Every auth backend (local, federated, **passkey**) rejects an inactive user, and the service boundary denies an inactive actor — a deactivated user cannot authenticate by any method or act on any live session. | |
+| req-tap-auth-deactivation-3 | Session Invalidation Composed | Proposed | `--invalidate-sessions` invalidates all of the user's current sessions via the per-user banhammer; recommended impl is per-user auth-hash-salt rotation, shared with `req-tap-auth-passkey-recovery`. | |
+| req-tap-auth-deactivation-4 | Guardrails | Proposed | Protected built-ins cannot be deactivated; the last active human `tap_admin` is protected by a runtime last-admin guard (explicit override required). | |
+| req-tap-auth-deactivation-5 | Gated & Audited | Proposed | Deactivate/reactivate are `auth.manage_users`-gated and produce structured audit records (actor / reason / time). | |
 
 ---
 
