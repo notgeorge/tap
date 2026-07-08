@@ -4,6 +4,10 @@ slug = "sigstore_core"
 name = "TAP Sigstore Core"
 description = "Sigstore-ecosystem models and the canonical TAP-side helpers for verifying Sigstore signature bundles and decomposing them into graph data."
 
+depends_on = [
+    { slug = "identity_core", note = "IDENTITY_VOUCHED_BY targets the identity_core__oidc_issuer type (edge/vocabulary dependency — no code import); needs the type registered." },
+]
+
 [models]
 sigstore_core__rekor_log_entry = "tap_plugin.sigstore_core.models.rekor_log_entry.RekorLogEntry"
 sigstore_core__sigstore_ca = "tap_plugin.sigstore_core.models.sigstore_ca.SigstoreCa"

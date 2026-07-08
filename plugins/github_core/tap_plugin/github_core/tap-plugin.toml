@@ -4,9 +4,12 @@ slug = "github_core"
 name = "TAP GitHub Core"
 description = "GitHub Actions deployment plumbing models for samsite — workflows, runs, jobs, runners."
 
+depends_on = [
+    { slug = "identity_core", note = "ENABLED_ON sources the identity_core__oidc_issuer type; the collector mints the issuer node via identity_core.issuer (the OIDC vocabulary lives there, not here)." },
+]
+
 [models]
 github_core__github_platform = "tap_plugin.github_core.models.github_platform.GithubPlatform"
-github_core__oidc_issuer = "tap_plugin.github_core.models.oidc_issuer.OidcIssuer"
 github_core__github_account = "tap_plugin.github_core.models.github_account.GithubAccount"
 github_core__github_repository = "tap_plugin.github_core.models.github_repository.GithubRepository"
 github_core__github_workflow = "tap_plugin.github_core.models.github_workflow.GithubWorkflow"
@@ -25,7 +28,6 @@ HAS_ACTIONS_JOB__github_core = "edges/HAS_ACTIONS_JOB.edge.json"
 EXECUTED_ON__github_core = "edges/EXECUTED_ON.edge.json"
 REFERENCES_RESOURCE__github_core = "edges/REFERENCES_RESOURCE.edge.json"
 FEDERATES_VIA__github_core = "edges/FEDERATES_VIA.edge.json"
-TRUSTS_ISSUER__github_core = "edges/TRUSTS_ISSUER.edge.json"
 
 [grift]
 repo-landing-page = "grift/repo-landing-page.grift.json"

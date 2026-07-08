@@ -21,6 +21,9 @@ dynamic = ["version"]
 # It rides with the plugin — uv resolves it when the pre-boot stage installs github_core.
 dependencies = [
     "PyYAML>=6.0.2",
+    # The collector imports identity_core.issuer to mint the OIDC issuer node and
+    # ENABLED_ON targets its type — a code + vocabulary dependency (downward-only).
+    "tap-plugin-identity-core",
 ]
 
 [project.entry-points."tap.plugins"]

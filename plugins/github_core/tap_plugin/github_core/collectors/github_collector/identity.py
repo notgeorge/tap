@@ -24,12 +24,6 @@ def platform_id(host: str) -> UUID:
     return _id("github_core__github_platform", host)
 
 
-def oidc_issuer_id(issuer_url: str) -> UUID:
-    # Natural key is the canonical OIDC issuer URL (with scheme), e.g.
-    # "https://token.actions.githubusercontent.com".
-    return _id("github_core__oidc_issuer", issuer_url)
-
-
 def account_id(login: str) -> UUID:
     return _id("github_core__github_account", login)
 
