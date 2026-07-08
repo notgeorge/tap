@@ -20,9 +20,24 @@ production has configured as `propagate=False`.
 from __future__ import annotations
 
 import copy
+import os
 
 from tap.settings import *  # noqa: F401, F403
+from tap.settings import DATABASES as _DATABASES
 from tap.settings import LOGGING as _LOGGING
+
+# Optional pre-migrated template DB (req: eliminate the per-worker xdist test-DB
+# creation race + speed up setup). When TAP_TEST_DB_TEMPLATE names a fully-migrated
+# template database, Django's PostgreSQL backend creates each worker's test DB with
+# `CREATE DATABASE ... WITH TEMPLATE <template>` — an atomic clone of the complete
+# schema — instead of migrating from zero per worker. This removes the class of
+# flake where a freshly-created worker DB was missing a late-migration table (e.g.
+# tap_capability) under concurrent creation, and makes setup a fast clone. The
+# search_readonly alias is a TEST.MIRROR of default, so it inherits the cloned DB;
+# only default needs the TEMPLATE. Opt-in: unset → unchanged migrate-from-zero.
+_test_db_template = os.environ.get("TAP_TEST_DB_TEMPLATE")
+if _test_db_template:
+    _DATABASES["default"].setdefault("TEST", {})["TEMPLATE"] = _test_db_template
 
 # Package-mode plugins load under pytest via tap.settings itself: pytest runs Django
 # directly (never the pre-boot stage), so TAP_PLUGINS is unset and settings falls back

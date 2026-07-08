@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# Build a fully-migrated PostgreSQL TEMPLATE database that per-worker pytest test
+# DBs clone from (Django TEST.TEMPLATE -> `CREATE DATABASE ... WITH TEMPLATE`).
+#
+# Why: pytest-django + xdist creates one test DB per worker, each migrated from
+# zero. That is slow (full migrate x N workers) and carries a rare concurrent-
+# creation race where a worker DB comes up missing a late-migration table (observed:
+# tap_capability). Cloning an already-migrated template is an atomic copy: fast and
+# race-free. See tap/test_settings.py (TAP_TEST_DB_TEMPLATE) + spec-dev-validation.md.
+#
+# Runs INSIDE the web container (needs the venv + DATABASE_URL). The template's app
+# set = whatever tap.test_settings resolves — i.e. TAP_PLUGINS if set (a product-line
+# profile), else entry-point discovery. Build it with the SAME TAP_PLUGINS the test
+# run will use so the cloned schema matches.
+#
+# Usage (in-container):
+#   TAP_TEST_DB_TEMPLATE=tap_test_template scripts/build-test-template
+#   # then run: TAP_TEST_DB_TEMPLATE=tap_test_template uv run pytest ...
+#
+# Idempotent: drops + recreates the template each call (schema follows current code).
+set -euo pipefail
+
+TEMPLATE="${TAP_TEST_DB_TEMPLATE:-tap_test_template}"
+
+# Drop (terminating any stragglers) + recreate the template DB via the admin conn.
+uv run python - "$TEMPLATE" <<'PY'
+import os, sys
+import psycopg
+from urllib.parse import urlparse
+
+template = sys.argv[1]
+u = urlparse(os.environ["DATABASE_URL"])
+admin = psycopg.connect(
+    host=u.hostname, port=u.port, user=u.username, password=u.password,
+    dbname="postgres", autocommit=True,
+)
+with admin.cursor() as c:
+    c.execute(
+        "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+        "WHERE datname = %s AND pid <> pg_backend_pid()",
+        (template,),
+    )
+    c.execute(f'DROP DATABASE IF EXISTS "{template}"')
+    c.execute(f'CREATE DATABASE "{template}"')
+print(f"created template database: {template}")
+PY
+
+# Migrate the template with test settings (same app set the test run will use).
+TEMPLATE_URL="$(uv run python - "$TEMPLATE" <<'PY'
+import os, sys
+from urllib.parse import urlparse, urlunparse
+u = urlparse(os.environ["DATABASE_URL"])
+print(urlunparse(u._replace(path="/" + sys.argv[1])))
+PY
+)"
+
+echo "migrating template ${TEMPLATE} ..."
+DATABASE_URL="$TEMPLATE_URL" DJANGO_SETTINGS_MODULE=tap.test_settings \
+    uv run python manage.py migrate --noinput
+
+echo "template ${TEMPLATE} ready — set TAP_TEST_DB_TEMPLATE=${TEMPLATE} for the pytest run."
