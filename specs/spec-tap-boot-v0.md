@@ -486,8 +486,22 @@ registry (`req-grid-traversal-exec-searchable.sec`) rather than a hand-maintaine
 | req-boot-search-role-7 | Connection Privileges Set Explicitly | Proposed | The step grants `CONNECT` on the database and `USAGE` on the searchable/spine schema(s), and revokes `TEMP`/`TEMPORARY` on the database, so temp-table creation is denied at the privilege layer (closing the read-only-transaction temp residue) rather than defaulted. | Least-privilege connection posture. |
 
 #### Future
-When the fuller phase order lands (`req-boot-phases`), this step is a natural member of a
-grid/infrastructure phase; in v0 it attaches as a post-migrate provisioning step.
+- When the fuller phase order lands (`req-boot-phases`), this step is a natural member of a
+  grid/infrastructure phase; in v0 it attaches as a post-migrate provisioning step.
+- **Least-privilege DB-role decomposition (backlog).** Today a single "god" DB role owns the
+  tables and is used for boot, migrations, grants, *and* runtime app queries — an
+  owner-by-convenience, not by design. `sec-5` above (`Issued By Owner Role`) leans on that
+  owner. The backlog item is to split it into three scoped roles: (1) a **bootstrap /
+  migration role** holding only the DDL + `GRANT` authority that plugin install and `migrate`
+  need, used exclusively by `manage.py boot` / `migrate` and never at runtime; (2) a
+  **runtime application role** holding DML only (no DDL, no ownership) for the web app's
+  writable `default` connection; (3) the read-only search role (`tap_gryphon_ro`,
+  `req-grid-search-readonly-role.sec`) already planned. Payoff beyond least privilege: if the
+  *runtime* role is not the table owner, PostgreSQL Row-Level Security policies apply to it
+  **without** needing `FORCE ROW LEVEL SECURITY`, directly de-risking the RLS owner-bypass
+  edge named for the future dimension-scoping work (`spec-security-posture.md`). Deferred, not
+  built; the bootstrap role still needs DDL (migrations create/alter tables), so it is
+  privileged but boot-scoped and distinct from the runtime identity.
 
 ---
 

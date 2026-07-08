@@ -266,8 +266,17 @@ PostGraphile precedent (the database GRANTs *are* the query surface).
 | req-grid-search-readonly-role.sec-6 | Role Pins The Resource GUCs | Proposed | The same provisioning pins `statement_timeout`, `lock_timeout`, `temp_file_limit`, and a conservative `work_mem` on the role, so the resource bounds of `req-grid-traversal-exec-resource-bounds.sec` are inherited by every search connection without per-query code. | One role, both scope and bounds. |
 
 #### Future
-Column-level grants and/or secure views (projecting/masking specific columns of a searchable
-model) are a later refinement; v0 is table-level `SELECT`.
+- Column-level grants and/or secure views (projecting/masking specific columns of a searchable
+  model) are a later refinement; v0 is table-level `SELECT`.
+- **Row-Level Security for dimension / entity scoping.** The row-level analog of this
+  requirement's table-level grant. When per-dimension/per-entity read (and write) down-scoping
+  is built — today an accepted-deferred edge in `spec-security-posture.md`, where `grid.read`
+  is grid-wide — PostgreSQL RLS policies on `tap_entity` / `tap_edge`, keyed on a
+  per-transaction session GUC set from `CallerContext`, are the DB-layer backstop beneath the
+  app-layer filter (`USING` for read visibility, `WITH CHECK` for writes; one mechanism for
+  both). Build-time edges: `FORCE ROW LEVEL SECURITY` (owner bypass), per-transaction GUC
+  set/reset (connection-pooler scope leak), `LEAKPROOF`/leaky-operator side-channels. Deferred
+  *with* the dimension-scoping work, not before it.
 
 ---
 
