@@ -30,7 +30,7 @@ Before writing code, gather:
 4. **Dimensions** — what `DEFAULT_DIMENSIONS` should new instances carry? Dimension-less BaseModels are a design red flag; require justification before allowing one.
 5. **Fields** — name, type, defaults, required-on-create. For each non-trivial field, confirm whether it appears in `FIELD_CRUD_SCHEMA`, `FIELD_VALIDATION_SCHEMA`, or both, and what JSON Schema it validates against.
 6. **`get_name()` strategy** — what's the canonical display name expression? (Entity.name is auto-synced from this; see `req-grid-node-display`.)
-7. **Hotlink-bearing JSON fields** — does any field hold IDs that should map to graph edges? If yes, plan the `HOTLINKS` declaration alongside the field.
+7. **Hotlink-bearing JSON fields** — does any field hold IDs that should map to graph edges? If yes, plan the `HOTLINKS` declaration alongside the field. Any edge you introduce here MUST follow the edge-naming discipline in the [`add-edge`](../add-edge/SKILL.md) skill: name the specific mechanical relationship, never a bare/philosophical verb (`PROTECTS`, `DEPENDS_ON`) and never a generic containment/`CONTAINS` edge that conflates several relationships — one edge, one relationship.
 
 Write down the agreed shape before generating code; it becomes the spec section in Step 6.
 
