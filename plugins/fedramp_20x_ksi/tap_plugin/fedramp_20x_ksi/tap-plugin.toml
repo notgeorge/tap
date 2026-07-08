@@ -5,7 +5,7 @@ name = "FedRAMP 20x KSI"
 description = "FedRAMP 20x Key Security Indicators (KSI) framework catalog — themes and indicators."
 
 depends_on = [
-    { slug = "compliance_core", note = "consumes the regime-agnostic compliance substrate — compliance_context (posture) plus compliance_finding/evidence/exception/boundary node types and their edges (HAS_COMPLIANCE_EVIDENCE, COVERS_COMPLIANCE_FINDING, HAS_COMPLIANCE_FINDING, SCOPED_TO_COMPLIANCE_BOUNDARY); RELATED_INDICATOR sources from compliance_core__compliance_finding. Needs the types registered + boot-ordered ahead" },
+    { slug = "compliance_core", note = "consumes the regime-agnostic compliance substrate — compliance_context (posture) plus compliance_finding/evidence/exception/boundary node types and their edges (HAS_COMPLIANCE_EVIDENCE, COVERS_COMPLIANCE_FINDING, HAS_COMPLIANCE_FINDING, SCOPED_TO_COMPLIANCE_BOUNDARY, CONCERNS_COMPLIANCE_CONTROL — the last is a wildcard-target edge whose ksi_indicator targets our panels supply). Needs the types registered + boot-ordered ahead" },
 ]
 
 [models]
@@ -20,7 +20,6 @@ fedramp_20x_ksi__vdr_finding = "tap_plugin.fedramp_20x_ksi.models.vdr_finding.Vd
 
 [edges]
 CONTAINS_INDICATOR__fedramp_20x_ksi = "edges/CONTAINS_INDICATOR.edge.json"
-RELATED_INDICATOR__fedramp_20x_ksi = "edges/RELATED_INDICATOR.edge.json"
 DECLARES_COMPONENT__fedramp_20x_ksi = "edges/DECLARES_COMPONENT.edge.json"
 DECLARES_VALIDATION__fedramp_20x_ksi = "edges/DECLARES_VALIDATION.edge.json"
 EVALUATES_COMPONENT__fedramp_20x_ksi = "edges/EVALUATES_COMPONENT.edge.json"

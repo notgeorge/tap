@@ -2,12 +2,14 @@
 
 > **Status: Phase A + B implemented (2026-07-08).** All six models
 > (`compliance_artifact`, `compliance_context`, `compliance_evidence`,
-> `compliance_finding`, `compliance_exception`, `compliance_boundary`) and all four edges
+> `compliance_finding`, `compliance_exception`, `compliance_boundary`) and all five edges
 > (`HAS_COMPLIANCE_EVIDENCE`, `COVERS_COMPLIANCE_FINDING`, `HAS_COMPLIANCE_FINDING`,
-> `SCOPED_TO_COMPLIANCE_BOUNDARY`) now live in compliance_core, with the regime-neutral
-> type-marker dimension fix on the moved evidence/finding/exception nodes. fedramp/samsite
-> retarget onto them; the bridge edge `RELATED_INDICATOR` stays in fedramp with its source
-> retargeted to `compliance_core__compliance_finding`. Migrations `0001`/`0002`
+> `SCOPED_TO_COMPLIANCE_BOUNDARY`, `CONCERNS_COMPLIANCE_CONTROL`) now live in compliance_core,
+> with the regime-neutral type-marker dimension fix on the moved evidence/finding/exception
+> nodes. fedramp/samsite retarget onto them. The former fedramp bridge edge
+> `RELATED_INDICATOR` (finding → ksi_indicator) was **generalized** into
+> `CONCERNS_COMPLIANCE_CONTROL` (finding → wildcard control target) so a finding can concern
+> controls across regimes; fedramp's panels supply the `ksi_indicator` target. Migrations `0001`/`0002`
 > (compliance_core) + `0004`/`0005` (fedramp deletes) apply clean; all targeted suites +
 > mypy ratchet green.
 
@@ -22,7 +24,7 @@
     `compliance_exception`, `compliance_boundary`.
   - **Edge types** (see `req-compliance-core-edges`): `HAS_COMPLIANCE_EVIDENCE`,
     `COVERS_COMPLIANCE_FINDING`, `HAS_COMPLIANCE_FINDING`,
-    `SCOPED_TO_COMPLIANCE_BOUNDARY`.
+    `SCOPED_TO_COMPLIANCE_BOUNDARY`, `CONCERNS_COMPLIANCE_CONTROL`.
   - **Default dimensions** (see `req-compliance-core-regime-neutral`): a neutral
     per-type marker under the `compliance` key (e.g. `compliance: finding`); the
     **regime** dimension (`fedramp-20x`, `soc2`, …) is layered per-instance by the
@@ -107,13 +109,13 @@ layer.
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-compliance-core-scope | [Plugin Scope](#plugin-scope) | Implemented | Substrate library; six models + four edges; no collector. |
+| req-compliance-core-scope | [Plugin Scope](#plugin-scope) | Implemented | Substrate library; six models + five edges; no collector. |
 | req-compliance-core-models | [Model Set](#model-set) | Implemented | `compliance_artifact`, `compliance_context`, `compliance_evidence`, `compliance_finding`, `compliance_exception`, `compliance_boundary`. |
-| req-compliance-core-edges | [Edge Vocabulary](#edge-vocabulary) | Implemented | `HAS_COMPLIANCE_EVIDENCE`, `COVERS_COMPLIANCE_FINDING`, `HAS_COMPLIANCE_FINDING`, `SCOPED_TO_COMPLIANCE_BOUNDARY`. |
+| req-compliance-core-edges | [Edge Vocabulary](#edge-vocabulary) | Implemented | `HAS_COMPLIANCE_EVIDENCE`, `COVERS_COMPLIANCE_FINDING`, `HAS_COMPLIANCE_FINDING`, `SCOPED_TO_COMPLIANCE_BOUNDARY`, `CONCERNS_COMPLIANCE_CONTROL` (wildcard target). |
 | req-compliance-core-regime-neutral | [Regime On The Instance](#regime-on-the-instance) | Implemented | Model default is a neutral type marker; regime layered per-instance. Fixes the hardcoded `fedramp-20x` default. |
 | req-compliance-core-naming | [Naming Discipline](#naming-discipline) | Implemented | `compliance_` node-name prefix; edge object noun tracks the node type. |
 | req-compliance-core-deps | [Dependency Direction](#dependency-direction) | Implemented | Downward-only; declared in consumers' `pyproject.toml` + `depends_on`. |
-| req-compliance-core-consumer-retargets | [Consumer Retargets](#consumer-retargets) | Implemented | fedramp/samsite retarget type strings + edges; bridge edge `RELATED_INDICATOR` stays fedramp, retargets its source. |
+| req-compliance-core-consumer-retargets | [Consumer Retargets](#consumer-retargets) | Implemented | fedramp/samsite retarget type strings + edges; the fedramp bridge edge `RELATED_INDICATOR` was generalized into `CONCERNS_COMPLIANCE_CONTROL` (compliance_core, wildcard target). |
 | req-compliance-core-migration | [Extraction & Migration](#extraction--migration) | Implemented | Rename `fedramp_20x_ksi__*` → `compliance_core__compliance_*`; ids regenerate (collected, not seeded); phased first slice; pre-eviction. |
 | req-compliance-core-nongoals | [v0 Non-Goals](#v0-non-goals) | Implemented | `ksi_*` and `vdr_*` stay in fedramp; no collector; no regime logic; generic `component` deferred. |
 
@@ -158,8 +160,9 @@ unchanged except the `entity_type`/`db_table` rename and the dimension fix
 RID: `req-compliance-core-edges`
 Status: `Implemented`
 
-Four edges move with their generic endpoints, renamed so the object noun tracks the
-(now `compliance_`-prefixed) node type:
+Five edges, renamed so the object noun tracks the (now `compliance_`-prefixed) node
+type. Four move directly with their generic endpoints; the fifth
+(`CONCERNS_COMPLIANCE_CONTROL`) is the generalized bridge (see Consumer Retargets):
 
 | edge (compliance_core) | from | endpoints |
 | --- | --- | --- |
@@ -167,10 +170,17 @@ Four edges move with their generic endpoints, renamed so the object noun tracks 
 | `COVERS_COMPLIANCE_FINDING` | `COVERS_FINDING` | `compliance_exception` → `compliance_finding` |
 | `HAS_COMPLIANCE_FINDING` | `HAS_FINDING` | any asset (wildcard source) → `compliance_finding` |
 | `SCOPED_TO_COMPLIANCE_BOUNDARY` | `SCOPED_TO_BOUNDARY` | any component (wildcard source) → `compliance_boundary` |
+| `CONCERNS_COMPLIANCE_CONTROL` | `RELATED_INDICATOR` | `compliance_finding` → any control (wildcard target) |
 
-Wildcard sources on `HAS_COMPLIANCE_FINDING` and `SCOPED_TO_COMPLIANCE_BOUNDARY` are
-deliberate: any asset can carry a finding, any component can be in scope for a
-boundary, across regimes.
+Wildcard **sources** on `HAS_COMPLIANCE_FINDING` and `SCOPED_TO_COMPLIANCE_BOUNDARY` are
+deliberate: any asset can carry a finding, any component can be in scope for a boundary,
+across regimes. The wildcard **target** on `CONCERNS_COMPLIANCE_CONTROL` is the mirror
+image: a finding can concern a control in any regime's catalog — a FedRAMP `ksi_indicator`
+today, a SOC2 criterion tomorrow, or several at once. Keeping the target open lets the
+edge live in compliance_core (it names no regime type, so no upward dependency) without a
+generic `compliance_control` supertype, which is deferred until a second regime justifies
+designing it (`req-compliance-core-nongoals`). Until then the source is the only typed end;
+consumers constrain the target in their own queries.
 
 ### Regime On The Instance
 ----
@@ -231,15 +241,21 @@ Status: `Implemented`
 - **samsite** — the compliance collector, `decompose.py`, the `ksi_scoreboard` panel,
   landing/compliance/iiw grift, and `artifact_manifest` retarget
   `fedramp_20x_ksi__compliance_artifact` → `compliance_core__compliance_artifact` (~15
-  string sites), and evidence/finding/exception/boundary type strings + the four edge
-  slugs to their compliance_core forms. samsite stamps the `fedramp-20x` regime
-  dimension per-instance (`req-compliance-core-regime-neutral`).
+  string sites), and evidence/finding/exception/boundary type strings + the moved edge
+  slugs to their compliance_core forms. (No regime dimension is stamped in v0 — see the
+  honest note in `req-compliance-core-regime-neutral`.)
 - **fedramp_20x_ksi** — drops the six moved models + their migrations; keeps `ksi_*`
   and `vdr_*`. Any fedramp query/edge referencing the moved types retargets.
-- **Bridge edge** — `RELATED_INDICATOR` (`finding → ksi_indicator`) stays in
-  fedramp_20x_ksi (it is about the KSI indicator) but retargets its **source** to
-  `compliance_core__compliance_finding`. `ksi_validation`/`ksi_signal` edges that
-  reference a generic finding/evidence retarget the generic endpoint likewise.
+- **Bridge edge (generalized)** — the former `RELATED_INDICATOR` (`finding →
+  ksi_indicator`) was **not** kept as a fedramp-specific edge: "a finding concerns a
+  compliance control" is a cross-regime relationship, so it became
+  `CONCERNS_COMPLIANCE_CONTROL` in **compliance_core** with a typed source
+  (`compliance_finding`) and a **wildcard target**. A finding can now concern controls in
+  any regime's catalog — a FedRAMP `ksi_indicator`, a SOC2 criterion, several at once.
+  fedramp's panels/grift still constrain the target to `ksi_indicator` in their queries.
+  This also removes a Phase-B awkwardness (fedramp owning an edge sourced from a
+  compliance_core node). The generic `compliance_control` supertype that would let the
+  target be *constrained* rather than wildcard is deferred to the second regime.
 - **roscale** — no change (references the generic concepts by string zero times today).
 
 ### Extraction & Migration
@@ -260,8 +276,9 @@ Phased first slice (bounds blast radius):
    `compliance_context` (artifact is the ~15 samsite swaps; context is already
    regime-generic and moves free). Models + one migration + pyproject + `apps.py=pass`.
 2. **Phase B:** add `compliance_evidence` + `compliance_finding` + `compliance_exception`
-   + `compliance_boundary` and the four edges; apply the regime-dimension fix; retarget
-   the bridge edges.
+   + `compliance_boundary` and their four edges; apply the regime-dimension fix. Then
+   generalize the fedramp bridge edge `RELATED_INDICATOR` into the fifth compliance_core
+   edge `CONCERNS_COMPLIANCE_CONTROL` (wildcard target); retarget consumers.
 
 Ordering: this is namespace churn (new `entity_type`s, new edge owners), so it MUST
 land **before eviction** freezes plugins at released tags; otherwise the rename becomes

@@ -211,7 +211,7 @@ def _load_findings_rows(indicator_entity_id: str) -> list[dict[str, Any]]:
             name="ksi-indicator-findings",
             definition={
                 "query": [
-                    "MATCH (i)<-[r1:RELATED_INDICATOR__fedramp_20x_ksi]-(f:compliance_core__compliance_finding)",
+                    "MATCH (i)<-[r1:CONCERNS_COMPLIANCE_CONTROL__compliance_core]-(f:compliance_core__compliance_finding)",
                     "MATCH (s)-[r2:HAS_COMPLIANCE_FINDING__compliance_core]->(f)",
                     "WHERE i.entity_id = $entity_id",
                     "RETURN f, r1, r2, s",
@@ -247,7 +247,7 @@ def _load_findings_rows(indicator_entity_id: str) -> list[dict[str, Any]]:
         if fid and sid:
             parents_by_finding.setdefault(fid, []).append(sid)
 
-    # Walk RELATED_INDICATOR edges that target this indicator. Each edge carries
+    # Walk CONCERNS_COMPLIANCE_CONTROL edges that target this indicator. Each edge carries
     # the per-link verdict in `relationship_type` (violation / passing /
     # informational). We render this as the row's status pill instead of the
     # finding's lifecycle status — the user-facing question on this page is
@@ -259,7 +259,7 @@ def _load_findings_rows(indicator_entity_id: str) -> list[dict[str, Any]]:
     seen_findings: set[str] = set()
     for edge in edges:
         ebody = edge.get("edge") or {}
-        if ebody.get("edge_type") != "RELATED_INDICATOR__fedramp_20x_ksi":
+        if ebody.get("edge_type") != "CONCERNS_COMPLIANCE_CONTROL__compliance_core":
             continue
         if ebody.get("to_entity_id") != indicator_entity_id:
             continue

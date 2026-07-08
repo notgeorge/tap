@@ -72,7 +72,7 @@ Status: `In Development`
   ```
   MATCH (asset)-[hf:HAS_COMPLIANCE_FINDING]->(f:finding) WHERE asset.entity_id = $entity_id
   OPTIONAL MATCH (f)-[he:HAS_COMPLIANCE_EVIDENCE]->(ev:evidence)
-  OPTIONAL MATCH (f)-[ri:RELATED_INDICATOR]->(ksi:ksi_indicator)
+  OPTIONAL MATCH (f)-[ri:CONCERNS_COMPLIANCE_CONTROL]->(ksi:ksi_indicator)
   RETURN asset, hf, f, he, ev, ri, ksi
   ```
 - The panel walks the returned envelope, pivots edges by finding entity_id, builds a per-finding payload (`{name, summary, description, status, verdict, ksis, evidence, age_days}`), and emits a flat list as JSON consumed by Tabulator.
