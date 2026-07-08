@@ -91,13 +91,45 @@ def invalidate_session(actor: object, session_key: str) -> int:
     return deleted
 
 
+class AmbiguousUserSelector(Exception):
+    """An email selector matched more than one user.
+
+    Email is not a unique identity key (``req-tap-auth-email-not-identity`` /
+    ``req-sec-email-not-identity``): duplicate emails are permitted at the DB
+    level, so we refuse to silently pick one for a user-targeting operation.
+    Resolve by the unique username instead.
+    """
+
+    def __init__(self, selector: str, count: int) -> None:
+        self.selector = selector
+        self.count = count
+        super().__init__(
+            f"'{selector}' matches {count} users by email; email is not a unique "
+            "identifier — resolve by username instead."
+        )
+
+
 def resolve_user(username_or_email: str) -> object | None:
-    """Resolve a target user by username or email for the management command."""
+    """Resolve a target user by unique username, else by email.
+
+    The username (``AbstractUser``, ``unique=True``) is an authoritative
+    selector. Email is NOT (``req-tap-auth-email-not-identity``): the email
+    fallback **fails loud on multiple matches** rather than silently picking the
+    first — a mis-resolved ``--as-user`` would run under the wrong authority and a
+    mis-resolved ``--user`` would ban the wrong account.
+
+    Raises:
+        AmbiguousUserSelector: the email fallback matched more than one user.
+    """
     user_model = get_user_model()
     user = user_model.objects.filter(username=username_or_email).first()
     if user is not None:
         return user
-    return user_model.objects.filter(email__iexact=username_or_email).first()
+    by_email = user_model.objects.filter(email__iexact=username_or_email)
+    matches = list(by_email[:2])  # fetch at most 2: enough to detect ambiguity
+    if len(matches) > 1:
+        raise AmbiguousUserSelector(username_or_email, by_email.count())
+    return matches[0] if matches else None
 
 
 def _actor_label(actor: object) -> str:
