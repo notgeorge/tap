@@ -29,7 +29,7 @@ Searches always return a graph-shaped result envelope. Even when a consumer is p
 | req-grid-search-results | [Search Results](#search-results) | Implemented | Searches always return the canonical 4-key graph envelope (`nodes`, `edges`, `info`, `warnings`) |
 | req-grid-search-canonical-read | [Canonical Read Interface — Break-Glass Discipline](#canonical-read-interface--break-glass-discipline) | Proposed | Gryphon/Search is the canonical graph read interface; raw-ORM graph reads and bespoke-module-as-Gryphon-substitute are break-glass; the urge to use them is a demand signal to extend Gryphon |
 | req-grid-search-readonly.sec | [Search Read-Only Execution](#search-read-only-execution) | Implemented | Security requirement enforcing that searches cannot mutate TAP data |
-| req-grid-search-readonly-role.sec | [Search Read-Only Least-Privilege Role](#search-read-only-least-privilege-role) | Proposed | The read-only search connection authenticates as a dedicated DB role granted `SELECT` on only the searchable + spine tables; a defense-in-depth backstop so a resolver-guard miss fails closed at the database |
+| req-grid-search-readonly-role.sec | [Search Read-Only Least-Privilege Role](#search-read-only-least-privilege-role) | Implemented | The read-only search connection authenticates as a dedicated DB role granted `SELECT` on only the searchable + spine tables; a defense-in-depth backstop so a resolver-guard miss fails closed at the database |
 | req-grid-search-authz.sec | [Search Authorization](#search-authorization) | Backlog | Deferred security requirement for search-specific authorization and access controls |
 
 ---
@@ -213,7 +213,7 @@ Define concrete enforcement mechanisms for each execution mode, especially for f
 ### Search Read-Only Least-Privilege Role
 ----
 RID: `req-grid-search-readonly-role.sec`
-Status: `Proposed`
+Status: `Implemented`
 Tags: `Security`
 
 `req-grid-search-readonly.sec` makes the search connection read-only at the *session* level
@@ -254,16 +254,27 @@ PostGraphile precedent (the database GRANTs *are* the query surface).
   carries both the least-privilege *read scope* (grants) and the resource *bounds* (GUCs),
   inherited automatically by every connection that authenticates as it.
 
+**Landed vs. deferred in v0 (honest scope).** The role, its registry-derived `SELECT` grants,
+the resource-GUC pinning, and the 42501 detection tie-in are **built** (`tap_grid/search_role.py`,
+provisioned at boot; sec-1/2/3/4/6 `Implemented`). Two design points are not yet realized:
+(a) the grant set is derived from the **full type registry** (`list_entity_types()`) plus the
+spine, not a narrower `GRYPHON_SEARCHABLE` subset, because the opt-in searchability gate
+(`req-grid-traversal-exec-searchable.sec`) is `Proposed` — "searchable" ≡ "every registered
+grid type" until it lands (broader than the target, still strictly grid-only); (b) the
+**Validation loop** above — the CI guard asserting Gridkin's touched-table set is a subset of
+the grant (sec-5) — is `Proposed`, not built. The authentic SET-ROLE test proves the grants
+directly meanwhile.
+
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-search-readonly-role.sec-1 | Dedicated Role, Not App Role | Proposed | The `search_readonly` connection authenticates as a dedicated least-privilege DB role, not the application's full database role. | |
-| req-grid-search-readonly-role.sec-2 | Grants Limited To Searchable + Spine | Proposed | The role holds `SELECT` on only the `GRYPHON_SEARCHABLE` model tables plus the grid spine tables, and no other tables and no writes. | |
-| req-grid-search-readonly-role.sec-3 | Grants Derived, Not Hand-Maintained | Proposed | The grant set is computed from the searchable registry at provision time, so it cannot drift from the model layer and a new un-granted table fails safe (unreadable). | |
-| req-grid-search-readonly-role.sec-4 | Independent Of In-Code Guards | Proposed | The DB grant is a standalone layer: a read reaching a non-searchable table is denied by PostgreSQL even if the in-code searchability/relation guards missed it. | Defense in depth. |
+| req-grid-search-readonly-role.sec-1 | Dedicated Role, Not App Role | Implemented | The `search_readonly` connection authenticates as a dedicated least-privilege DB role, not the application's full database role. | |
+| req-grid-search-readonly-role.sec-2 | Grants Limited To Searchable + Spine | Implemented | The role holds `SELECT` on only the `GRYPHON_SEARCHABLE` model tables plus the grid spine tables, and no other tables and no writes. | |
+| req-grid-search-readonly-role.sec-3 | Grants Derived, Not Hand-Maintained | Implemented | The grant set is computed from the searchable registry at provision time, so it cannot drift from the model layer and a new un-granted table fails safe (unreadable). | |
+| req-grid-search-readonly-role.sec-4 | Independent Of In-Code Guards | Implemented | The DB grant is a standalone layer: a read reaching a non-searchable table is denied by PostgreSQL even if the in-code searchability/relation guards missed it. | Defense in depth. |
 | req-grid-search-readonly-role.sec-5 | Touched Tables Are A Subset Of Granted | Proposed | A CI guard asserts the set of tables Gryphon's SQL touches (from Gridkin snapshots) is a subset of the granted set. | Catches under-grant before production. |
-| req-grid-search-readonly-role.sec-6 | Role Pins The Resource GUCs | Proposed | The same provisioning pins `statement_timeout`, `lock_timeout`, `temp_file_limit`, and a conservative `work_mem` on the role, so the resource bounds of `req-grid-traversal-exec-resource-bounds.sec` are inherited by every search connection without per-query code. | One role, both scope and bounds. |
+| req-grid-search-readonly-role.sec-6 | Role Pins The Resource GUCs | Implemented | The same provisioning pins `statement_timeout`, `lock_timeout`, `temp_file_limit`, and a conservative `work_mem` on the role, so the resource bounds of `req-grid-traversal-exec-resource-bounds.sec` are inherited by every search connection without per-query code. | One role, both scope and bounds. |
 
 #### Future
 - Column-level grants and/or secure views (projecting/masking specific columns of a searchable

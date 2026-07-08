@@ -364,7 +364,7 @@ live path.
 | req-grid-traversal-exec-scope.sec-2 | Tap Scope Only | Implemented | gryphon compilation and execution stay scoped to TAP-approved graph data. | |
 | req-grid-traversal-exec-scope.sec-3 | Unsupported Syntax Rejected At Parse | Implemented | Unknown or disallowed gryphon constructs are rejected at parse time, not runtime. | |
 | req-grid-traversal-exec-scope.sec-4 | Inputs Validated Before Execution | Implemented | Runtime inputs are validated before the backend plan runs. | |
-| req-grid-traversal-exec-scope.sec-5 | Every Entrypoint Binds The Read-Only Alias | Proposed | Every Gryphon execution entrypoint — including the raw API router — routes through the read-only search connection; the read-only alias is not an omittable caller default. Closes the writable-`default`-connection finding, so the write-block guard, resource GUCs (`req-grid-traversal-exec-resource-bounds.sec`), and DB grant (`req-grid-search-readonly-role.sec`) actually bind on the live path. | The load-bearing surprise. |
+| req-grid-traversal-exec-scope.sec-5 | Every Entrypoint Binds The Read-Only Alias | Implemented | Every Gryphon execution entrypoint — including the raw API router — routes through the read-only search connection; the read-only alias is not an omittable caller default. Closes the writable-`default`-connection finding, so the write-block guard, resource GUCs (`req-grid-traversal-exec-resource-bounds.sec`), and DB grant (`req-grid-search-readonly-role.sec`) actually bind on the live path. | The load-bearing surprise. |
 
 #### Future
 Document backend-specific guardrails once TAP chooses its first concrete traversal compiler
@@ -685,13 +685,13 @@ Named for the honest-risk register, not v0:
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-traversal-exec-resource-bounds.sec-1 | Time Caps Pinned On The Role | Proposed | `statement_timeout` and `lock_timeout` are pinned on `tap_gryphon_ro` via `ALTER ROLE … SET` at boot, so every search connection inherits them without per-query code. | Time axis. |
-| req-grid-traversal-exec-resource-bounds.sec-2 | Disk Cap Pinned On The Role | Proposed | `temp_file_limit` is pinned on the role; a query whose sort/hash spill exceeds it is canceled by PostgreSQL. | Disk axis — the hard native abort. |
-| req-grid-traversal-exec-resource-bounds.sec-3 | Memory Cap Pinned On The Role | Proposed | A conservative `work_mem` is pinned on the role, bounding per-operation memory before spill. | Memory axis — a throttle, not a hard cap. |
+| req-grid-traversal-exec-resource-bounds.sec-1 | Time Caps Pinned On The Role | Implemented | `statement_timeout` and `lock_timeout` are pinned on `tap_gryphon_ro` via `ALTER ROLE … SET` at boot, so every search connection inherits them without per-query code. | Time axis. |
+| req-grid-traversal-exec-resource-bounds.sec-2 | Disk Cap Pinned On The Role | Implemented | `temp_file_limit` is pinned on the role; a query whose sort/hash spill exceeds it is canceled by PostgreSQL. | Disk axis — the hard native abort. |
+| req-grid-traversal-exec-resource-bounds.sec-3 | Memory Cap Pinned On The Role | Implemented | A conservative `work_mem` is pinned on the role, bounding per-operation memory before spill. | Memory axis — a throttle, not a hard cap. |
 | req-grid-traversal-exec-resource-bounds.sec-4 | Default Result-Row Cap | Proposed | The executor injects a default row limit for a query that names no `LIMIT`, applied once in the row-materialization backend so every shape inherits it; an explicit larger `LIMIT` is clamped, a smaller one honored. | Row axis — application-level. |
 | req-grid-traversal-exec-resource-bounds.sec-5 | Resource Rejection Is Loud | Proposed | A query killed by a time/disk cap surfaces as a clear `SearchExecutionError`, and a row-capped result is marked capped in envelope metadata — never a silent empty/truncated success. | `GRY-ARCH-3`. |
 | req-grid-traversal-exec-resource-bounds.sec-6 | Caps Are Configuration | Proposed | Every cap (the four GUCs and the row limit) is configuration with a conservative default, not a hard-coded constant; boot re-application is idempotent. | Tunable per deployment. |
-| req-grid-traversal-exec-resource-bounds.sec-7 | Cost Gate And OS Isolation Are Deferred, Not Omitted | Proposed | The pre-execution cost gate (`pg_plan_filter`, chosen over an app EXPLAIN gate) and OS/infra isolation (cgroups, read-replica, PgBouncer) are recorded as named deferrals with an explicit trigger, not silently dropped. | Loaded escalation, honest-risk register. |
+| req-grid-traversal-exec-resource-bounds.sec-7 | Cost Gate And OS Isolation Are Deferred, Not Omitted | Implemented | The pre-execution cost gate (`pg_plan_filter`, chosen over an app EXPLAIN gate) and OS/infra isolation (cgroups, read-replica, PgBouncer) are recorded as named deferrals with an explicit trigger, not silently dropped. | Loaded escalation, honest-risk register. |
 
 
 ### SQL Capture Seam

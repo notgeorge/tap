@@ -24,7 +24,7 @@ The first requirement in this specification addresses third-party vendored compo
 | req-grid-icon-static-svg.sec | [Static Svg Icon Security](#static-svg-icon-security) | Proposed | Security contract for shipped app/plugin SVG icons |
 | req-grid-icon-upload-svg.sec | [Uploaded Svg Icon Security](#uploaded-svg-icon-security) | Backlog | Future security contract for user-uploaded SVG icons |
 | req-grid-flip-write-batch.sec | [Domain Writes Must Use Batch Context](#domain-writes-must-use-batch-context) | Backlog | All domain object mutations must occur within an active batch context for auditability |
-| req-grid-db-permission-flaw.sec | [Database Permission Errors Emit A Flaw](#database-permission-errors-emit-a-flaw) | Proposed | Any PostgreSQL permission-denied (SQLSTATE 42501) on any Django connection emits a `security` Flaw at a single connection-layer chokepoint; generalizes the read-only write-block guard and forward-proofs least-privilege DB roles |
+| req-grid-db-permission-flaw.sec | [Database Permission Errors Emit A Flaw](#database-permission-errors-emit-a-flaw) | Implemented | Any PostgreSQL permission-denied (SQLSTATE 42501) on any Django connection emits a `security` Flaw at a single connection-layer chokepoint; generalizes the read-only write-block guard and forward-proofs least-privilege DB roles |
 
 ---
 
@@ -259,7 +259,7 @@ Once the batch gate is in place, TAP may add monitoring or alerting for writes t
 ### Database Permission Errors Emit A Flaw
 ----
 RID: `req-grid-db-permission-flaw.sec`
-Status: `Proposed`
+Status: `Implemented`
 Tags: `Security`
 
 A PostgreSQL "permission denied" (SQLSTATE `42501`, `insufficient_privilege`) reaching the
@@ -306,11 +306,11 @@ TAP places one broad guard now.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-grid-db-permission-flaw.sec-1 | 42501 Emits A Security Flaw | Proposed | A statement failing with SQLSTATE `42501` on any Django connection emits a `security` Flaw before the error propagates. | |
-| req-grid-db-permission-flaw.sec-2 | Every Connection Covered | Proposed | The guard is installed on every alias via `connection_created`, not scoped to one connection — so a new least-privilege role is covered without new wiring. | Single chokepoint. |
-| req-grid-db-permission-flaw.sec-3 | Original Error Preserved | Proposed | The guard re-raises the original database error unchanged; it only adds detection, it does not alter control flow or the DB's denial. | |
-| req-grid-db-permission-flaw.sec-4 | Distinct From Write-Block Guard | Proposed | The `42501` guard is separate from and broader than the `search_readonly` `25006` write-block guard (`req-grid-search-readonly.sec-6`); the two cover different SQLSTATEs and scopes. | |
-| req-grid-db-permission-flaw.sec-5 | New Roles Route Through The Guard | Proposed | Any new DB role/alias routes through this guard, or names the exception per `req-sec-honest-risk`; no privileged side-channel dodges detection. | Single-chokepoint invariant. |
+| req-grid-db-permission-flaw.sec-1 | 42501 Emits A Security Flaw | Implemented | A statement failing with SQLSTATE `42501` on any Django connection emits a `security` Flaw before the error propagates. | |
+| req-grid-db-permission-flaw.sec-2 | Every Connection Covered | Implemented | The guard is installed on every alias via `connection_created`, not scoped to one connection — so a new least-privilege role is covered without new wiring. | Single chokepoint. |
+| req-grid-db-permission-flaw.sec-3 | Original Error Preserved | Implemented | The guard re-raises the original database error unchanged; it only adds detection, it does not alter control flow or the DB's denial. | |
+| req-grid-db-permission-flaw.sec-4 | Distinct From Write-Block Guard | Implemented | The `42501` guard is separate from and broader than the `search_readonly` `25006` write-block guard (`req-grid-search-readonly.sec-6`); the two cover different SQLSTATEs and scopes. | |
+| req-grid-db-permission-flaw.sec-5 | New Roles Route Through The Guard | Implemented | Any new DB role/alias routes through this guard, or names the exception per `req-sec-honest-risk`; no privileged side-channel dodges detection. | Single-chokepoint invariant. |
 
 #### Future
 Database-side audit (`pgaudit` / PG logging) to cover access that bypasses the Django
