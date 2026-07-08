@@ -9,7 +9,7 @@ argument-hint: <feature-name>
 
 > **Consult the commandments first.** [`docs/doc-gryphon-commandments.md`](../../../docs/doc-gryphon-commandments.md) is the standing doctrine for Gryphon work — read the relevant MUST/SHOULD commandments (esp. §I Execution, §II Semantics, §IV Testing) before you extend the grammar/executor, and check the Forthcoming section in case your feature is a trigger that promotes a forthcoming commandment. GRY-PROC-6 ("a capability ships as one full cycle") *is* this skill. This skill cites commandment IDs at the steps they govern; it does not restate them — the commandments are the law, this is the procedure.
 >
-> **Three gates bracket the work.** (1) The **entry gate** — the Agent pre-flight checklist (commandments § *Agent pre-flight checklist*): the 8 questions it asks (which commandment IDs, what demand-shape, which spec owns it, what parsed facts are applied-or-rejected, which rung, what independent oracle, what prior art, which ledger moves) — run it before scoping. (2) The **[Plan Review & Approval Gate](#plan-review--approval-gate)** — after the spec (Step 2), present the plan and get the user's explicit sign-off *before any code*. (3) The **exit gate** — the [Merge-readiness gate](#merge-readiness-gate-definition-of-done) before commit. Steps are numbered sequence; gates are hard stops.
+> **Five gates bracket the work.** (1) The **entry gate** — the Agent pre-flight checklist (commandments § *Agent pre-flight checklist*): the 8 questions it asks (which commandment IDs, what demand-shape, which spec owns it, what parsed facts are applied-or-rejected, which rung, what independent oracle, what prior art, which ledger moves) — run it before scoping. (2) The **[Independent LLM Review Gate](#independent-llm-review-gate)** — after the spec (Step 2), a *different* LLM sanity-checks the spec + plan before the human sees them and before any code. (3) The **[Plan Review & Approval Gate](#plan-review--approval-gate)** — present the plan (and the independent review's findings) and get the user's explicit sign-off *before any code*. (4) The **[Independent LLM Code Review Gate](#independent-llm-code-review-gate)** — after the code is written and the suites are green (Step 10), a *different* LLM stress-tests the *implementation* (it may execute code in a verified-isolated sandbox) before the branch is handed off. (5) The **exit gate** — the [Merge-readiness gate](#merge-readiness-gate-definition-of-done) before the branch is validation-ready. Steps are numbered sequence; gates are hard stops. **The two LLM-review gates are the same principle at two checkpoints** — an objective third-party model reviews the *design* (gate 2) and then the *implementation* (gate 4). And after the feature ships, a closing **[Post-Ship Retrospective](#post-ship-retrospective--the-self-improvement-step)** step turns the cycle's lessons into durable updates (a third *exit-interview* checkpoint for the same independent model) — the loop by which this skill improves itself.
 
 You are extending Gryphon — TAP's canonical graph query language and the read path
 that all graph-shaped queries route through. A Gryphon capability touches four
@@ -217,13 +217,61 @@ The capability-docs gap report (`spec-sphinx-capability-docs.md`,
 `:status:` / `:limitations:` disagree with its `:implements:` requirement is
 exactly this case.
 
+## Independent LLM Review Gate
+
+**STOP — a mandatory second opinion, before the human sign-off and before any code.** After the spec
+requirement is written (Step 2) and the implementation plan is drafted, but **before** the [Plan
+Review & Approval Gate](#plan-review--approval-gate) and **before any grammar / AST / parser /
+executor code**, the spec + plan **MUST** be sanity-checked by an **objective third-party LLM — a
+*different* model than the one doing the work.** Gryphon is the load-bearing read path; an important
+feature landing wrong is expensive, and an author cannot see their own framing blind spots. This gate
+is the human-process analog of the zero-shared-code model oracle (`GRY-TEST-2`) and the
+authoring-independent-check discipline (`GRY-TEST-9`): a second independent reasoner catches the class
+of error a self-review structurally cannot, and cross-checking a convention against an outside view is
+the same instinct as `GRY-PROC-1` (prior art before invention).
+
+**Why it is its own gate, not part of the human review.** The human approves; the independent LLM
+*stress-tests*. They catch different things — the human owns product intent and scope authority; the
+independent model owns "is this design actually sound, complete, and internally consistent." Running
+the model review *first* means the human signs off already holding the second opinion, not instead of
+it.
+
+**How to run it:**
+
+1. **Pick an independent reviewer.** **Codex is the current standard** third-party reviewer; the
+   binding principle is *independence*, not a specific tool — any capable objective LLM that is **not**
+   the model authoring the feature qualifies. (If the human is already running one on the side, use
+   that response.)
+2. **Hand it the two artifacts** exactly as the Plan Review Gate presents them: the **spec
+   requirement** (RID + owning spec + the full Acceptance-Criteria table, including every rejection
+   ACID) and the **implementation plan in your own words** (what-it-is / what-it-is-not with every
+   rejected shape named; how-built with the grammar rule, AST node(s), executor dispatch path and
+   **lowering rung**; how-tested mapped to the merge gate).
+3. **Ask it to challenge, not rubber-stamp.** Direct it at the load-bearing choices: is the v0 scope
+   boundary right; is the lowering rung the lowest that expresses the query; is the rejection set
+   complete (every out-of-scope shape has an error, none silently dropped); are the null / determinism
+   / JSON / envelope semantics sound; does anything in the plan contradict the commandments. A review
+   that only says "looks good" has not been pointed hard enough — re-prompt it at the risky seams.
+4. **Reconcile every material finding.** Surface the reviewer's response to the user (summarized or
+   verbatim). For each material concern, either **fix it** (revise the spec / plan and, if the spec
+   text changed, re-run this gate on the delta) or **record why it was declined** with a reason. A
+   disagreement between the two models is a signal to slow down, not to average.
+
+**Clearing the gate.** It clears only when (a) an independent-LLM review has actually been **run and
+recorded**, and (b) its material findings are each **addressed or explicitly dispositioned**. A clean
+review still must be run and its outcome noted — **skipping it is not permitted for a capability
+build** (Steps 1–10), nor for a [bug-fix](#bug-fix-mode--a-gryphon-wrong-answer-was-found) that
+changes semantics. Like the human gate, a rushed "skip the second opinion" does not clear it; hold the
+line even if asked to hurry — the friction is the feature.
+
 ## Plan Review & Approval Gate
 
-**STOP — a hard control, not a courtesy.** After the spec requirement is written (Step 2) and
-**before any grammar / AST / parser / executor code** (Step 3+), present *both* the **spec** and an
-**implementation plan** to the user and obtain **explicit, deliberate approval of each**. Gryphon is
-the load-bearing read path; a feature landing wrong is expensive, so this review is required and
-un-waivable-by-default.
+**STOP — a hard control, not a courtesy.** After the spec requirement is written (Step 2), the plan is
+drafted, and the [Independent LLM Review Gate](#independent-llm-review-gate) has been run and its
+findings reconciled, and **before any grammar / AST / parser / executor code** (Step 3+), present
+*both* the **spec** and an **implementation plan** to the user and obtain **explicit, deliberate
+approval of each**. Gryphon is the load-bearing read path; a feature landing wrong is expensive, so
+this review is required and un-waivable-by-default.
 
 **What "approval" means here — and what it does not.** Approval is a specific, affirmative sign-off on
 the spec *and* the plan ("the spec looks right and the plan is approved — proceed"). It is **not**:
@@ -238,8 +286,9 @@ review and give an explicit sign-off on both. Hold this line even if asked to hu
 the feature. (The user retains final authority: an *explicit, informed* "I've read the spec and plan,
 approved" clears the gate. An assumed or hand-waved one does not.)
 
-**Present these two artifacts:**
+**Present these three artifacts:**
 
+0. **The independent LLM review's findings** (from the [Independent LLM Review Gate](#independent-llm-review-gate)) — summarized or verbatim, with each material concern's disposition (fixed → what changed, or declined → why). The user signs off holding the second opinion, not instead of it.
 1. **The spec requirement** (the Step 2 output) — the RID, its owning spec, and the Acceptance-Criteria
    (ACID) table, including every rejection ACID. Link it so the user can read it in place.
 2. **The implementation plan, in your own words** (not a paste of the spec) — three parts:
@@ -470,6 +519,113 @@ references the RIDs you changed (`grep -r <RID> docs/`).
 
 Commit the whole cycle as **one commit**. Keep terminal output ASCII-only.
 
+## Independent LLM Code Review Gate
+
+**STOP — the second mandatory second opinion: on the *code*, after it is written and green, before the
+branch is handed off.** The [Independent LLM Review Gate](#independent-llm-review-gate) stress-tests the
+*spec + plan*; this gate stress-tests the *implementation*. They are the same principle — an objective
+third-party model, a *different* one than wrote the code — at two checkpoints, and they catch different
+failure classes: the spec review cannot see an over-deletion, a lost error message, or a silently-dropped
+branch, because none of those exist yet when it runs. The code is where the implementation defects live,
+so the code gets its own independent reviewer (`GRY-TEST-2`, `GRY-TEST-9`).
+
+**When it runs.** After Step 10 (lint clean, both suites green) and **before the branch is
+validation-ready** (before the Merge-readiness gate). The reviewer inspects a *complete, green* change —
+not a work-in-progress — so its findings are about real defects, not unfinished edges. Material findings
+are folded back into the **same** commit (amend, not a follow-up), preserving `GRY-PROC-6`.
+
+**The review packet — hand the reviewer everything it needs to inspect, without making it hunt.**
+1. The **full diff** of the cycle, with **deletions called out explicitly** — a list of every function /
+   class / block *removed*, so the reviewer scrutinizes removals as hard as additions (this is where the
+   expensive bugs hide).
+2. The **owning spec requirement** (RID + ACID table) and the relevant **commandments**, so the reviewer
+   checks code against contract, not vibes.
+3. The **local validation results** — which suites ran, pass/fail counts, and the byte-identical /
+   snapshot-churn evidence if the change claims parity.
+4. The **before/after set of defined symbols** in each touched module, so a removed-but-still-referenced
+   symbol is trivially spotted.
+
+**The standard review rubric — what the reviewer checks (a living checklist; every new lesson appends a
+row).** Stated as failure modes we have actually hit, phrased so the reviewer *hunts* for each:
+- **Over-deletion / collateral damage.** For every removed symbol: is it truly dead, or does a live
+  caller remain? Was the deletion by-name, or did a line-range / block edit sweep up an interleaved
+  helper it shouldn't have? *(Scar: a `sed` line-range delete removed three still-live bare-scan helpers;
+  the module still parsed — a `NameError` is runtime-only — and only one suite exercised the path.)*
+- **Silent-drop / apply-or-reject** (`GRY-ARCH-3`). Does every parsed construct still get applied or
+  explicitly rejected? Did the change introduce a path that parses a clause then ignores it?
+- **Circular parity evidence.** If the change claims "byte-identical" / "pure refactor," is the proof
+  non-circular? Regenerated snapshots that overwrite expected results can *mask* a behavior change — the
+  real proof is zero result-envelope diffs under the *old* expecteds, not green after a regen.
+- **Preserved error-message / rejection contracts.** Did a refactor that re-routes a path drop or alter a
+  rejection message a test or a user workaround depends on? *(Scar: routing RETURN projection through the
+  WHERE path lost the display-lane "use the `extended` return layer" hint.)*
+- **Single-suite coverage gaps.** Is any changed dispatch path covered by only *one* suite (e.g. Gridkin
+  but not `test_gryphon`, or vice-versa)? Name it — a path with one net under it is one refactor away from
+  a silent regression.
+- **Rung discipline** (`GRY-ARCH-2/6`). Did the change stay at the claimed lowering rung? No smuggled
+  `RawSQL` / hand-rolled IR where ORM composition suffices.
+- **Null & determinism semantics** (`GRY-SEM-2`, `GRY-ARCH-9`). Null 2VL/3VL boundary preserved where
+  touched; emitted SQL still deterministic (sorted `pk__in`, tiebroken `ORDER BY`).
+- **Spec ↔ code alignment.** Does the code enforce every ACID, including the rejection ACIDs? Does any
+  ACID claim a behavior the code doesn't deliver (overclaim)?
+- Findings come back **categorized** — blocker / should-fix / nit — and **adversarial** (the reviewer is
+  told to *find what's wrong*, defaulting to skeptical; a review that only says "looks good" was not
+  pointed hard enough).
+
+**Execution posture — arbitrary code, in a verified-isolated, disposable sandbox only.** Unlike the
+spec-review gate (pure reasoning), this reviewer **MAY execute code** — run the suites, probe Gryphon
+queries, write throwaway scratch scripts — because *observing* actual behavior catches wrong-answers that
+reading cannot, and Gryphon's whole contract is "does it return the right rows." This is an independent
+third oracle in the review loop (`GRY-TEST-1`, "check the answer not the artifact"). Execution is
+permitted **only inside a sandbox verified to satisfy every precondition below** — an unverified
+"playground" that quietly shares the real DB or secrets defeats the entire control, so verify *before*
+granting execution, and **fall back to static-inspection-only if any precondition cannot be met**:
+
+- **Disposable scratch DB**, seeded only with playground / Gridkin fixtures — **no production data, no
+  real customer or plugin data.**
+- **No secrets mounted.** In particular the shared `~/tap-secrets` mount MUST NOT be exposed — it is
+  shared host state wired into every session; a reviewer with it holds every session's credentials.
+- **No write access to any git remote** — no push credentials in the sandbox.
+- **Restricted network egress** — no path to exfiltrate, and no reaching external services with ambient
+  credentials.
+- **Isolated, ephemeral stack** — own `COMPOSE_PROJECT_NAME` / ports / DB volume (the multisession
+  worktree pattern), torn down after the review.
+
+**Tree integrity — the reviewer inspects and executes in the sandbox; it does not edit the authoritative
+source.** All execution happens in the disposable sandbox above, never as edits to the working tree under
+review. The reviewer **MUST report whether it modified any file in the working tree** — the expected,
+correct answer is *none*. If it did modify code (it should not have), it **documents exactly what and
+why**, and those edits are treated as findings to be reviewed and either adopted deliberately or reverted
+— never silently inherited. Before dispatching to the reviewer, record the cycle's commit SHA so drift is
+detectable.
+
+**Re-entry verification — confirm a clean, unchanged tree before hand-off.** When the authoring agent
+returns to the same environment after the review, it **verifies the working tree is clean and matches what
+it authored-and-reconciled**: `git status` is clean (no stray edits a reviewer or a sandbox process left
+behind), and the cycle diff is byte-identical to the recorded pre-review SHA (`git diff <sha>` empty
+outside the deliberately-folded-in fixes). Only a tree that matches is handed to the Merge-readiness gate.
+**Any unexplained drift is a hard stop** — investigate its origin before proceeding; an unexpectedly
+mutated tree is exactly the tamper / collateral-edit class this discipline exists to catch (the
+tree-integrity sibling of the over-deletion scar above).
+
+**Residual risks, named (not implied away).** Arbitrary-code-by-an-external-LLM is a real surface; sandbox
+isolation *bounds* the blast radius, it does not eliminate the risk — if isolation is imperfect (an
+accidentally-mounted secret, a shared host path, a reachable network service) the blast radius grows to
+whatever leaks, which is why the preconditions are verified first, not assumed. Sending the diff to an
+external LLM also *publishes* it (the code leaves the machine); acceptable here because the code is
+repo-bound anyway, but it is a disclosure, not a private operation. These are the edges deliberately left
+open in exchange for the independent-oracle value; a machine-enforced sandbox harness (and an automated
+clean-tree check) are named future candidates, not built guarantees.
+
+**Reconcile + clear.** Surface the reviewer's findings to the user (summarized or verbatim). For each
+material finding: **fix it** (fold into the same commit; re-run the suites; if the fix changes semantics,
+the spec-stage review may need a re-touch) or **record why it was declined**. The gate clears only when an
+independent code review has actually been **run and recorded**, its material findings are each **addressed
+or dispositioned**, the reviewer's tree-modification report is **recorded (expected: none)**, and re-entry
+verification shows a **clean, unchanged tree**. Skipping it is not permitted for a capability build or for
+a bug-fix that changes code — a rushed "skip the code review" does not clear it; hold the line even if
+asked to hurry.
+
 ## Merge-readiness gate (definition of done)
 
 A Gryphon capability is **done** — a *validation-ready branch* — only when every row below is
@@ -493,10 +649,61 @@ feature. Hand off a validation-ready branch; let the promote process take it.
 | 10 | Fuzzer / TLP extended — **conditional** | required **only if** the feature adds/changes predicate, null, or multiplicity semantics (`scripts/gryphon-fuzz-campaign` / `/gryphon-fuzz-soak`); otherwise record "N/A — no new predicate/null surface" in the spec | `GRY-TEST-8` |
 | 11 | Docs synced | capability block authored/updated; RIDs grepped in `docs/` and updated; divergence/credit ledgers updated if the feature diverges from or exceeds Cypher | `GRY-PROC-4`, `GRY-LANG-2` |
 | 12 | One commit, full cycle | spec + grammar + AST + parser + executor + scenarios + tests in a single coherent commit | `GRY-PROC-6` |
+| 13 | Independent **spec** review recorded | the plan-stage [Independent LLM Review Gate](#independent-llm-review-gate) was run and its material findings addressed-or-dispositioned | `GRY-TEST-9` |
+| 14 | Independent **code** review recorded + clean tree | the post-code [Independent LLM Code Review Gate](#independent-llm-code-review-gate) was run against the rubric, its material findings addressed-or-dispositioned, the reviewer's tree-modification report recorded (expected: none), and re-entry verification shows a clean, unchanged tree | `GRY-TEST-9` |
 
 Green-on-all = validation-ready. A `review-time` enforcement on a row means "no automated guard yet"
 — a **machine-enforced merge gate is a named candidate**, not built ahead of demand (name the gap;
 do not imply completeness).
+
+## Post-Ship Retrospective — the self-improvement step
+
+**The closing bookend of the cycle: once the feature has shipped, the *process* learns from it.** After
+the branch cleared the [Merge-readiness gate](#merge-readiness-gate-definition-of-done) and the promote
+process carried it (or it is validation-ready and handed off), run a deliberate retrospective on the path
+just taken. This is not optional polish — it is the mechanism by which this skill improves itself. Every
+scar in this skill (the over-deletion rubric row, the circular-parity check, the lost-error-message
+lesson) exists because a prior cycle hit it and *carried it forward*. Without this step the lesson
+evaporates and the next feature re-learns it the expensive way.
+
+**Reflect on the path — name what actually happened, don't sand it smooth.** Walk the cycle end to end:
+- **What surprised us / what went wrong.** Every wrong-answer, over-deletion, lost contract, circular
+  proof, coverage gap, spec overclaim, doc that misled, or process friction hit this cycle — stated
+  plainly. A retrospective that finds nothing to improve was not pointed hard enough (the same instinct
+  as an adversarial review).
+- **What went *right* that should be reinforced.** A discipline that caught a bug (which suite, which
+  gate) is a signal worth strengthening, not just a pass.
+
+**Map each lesson to the durable artifact that must carry it — and say where it lands.** A lesson not
+written into a durable artifact has not been carried forward; it is a TODO that will be re-learned. The
+usual landing spots:
+- **This skill** — a new rubric row, a new Common-Mistake, a step clarification (the most common home).
+- **The commandments** (`docs/doc-gryphon-commandments.md`) — if the lesson is doctrine-level, a new or
+  promoted `GRY-*` rule.
+- **A spec / requirement** — a missing ACID, an overclaim to correct, a `Future` bullet to add.
+- **Plugin docs** — a how-to that misled, a wishlist / feature-demand row, a doc-spec `update-trigger`.
+- **The validation system** — a new Gridkin scenario class, a coverage-gate row, a fuzzer axis, a
+  findings-ledger row.
+- **Memory** — a durable cross-session lesson.
+- **Associated processes** — the promote / merge flow, the multisession discipline, this skill's own gates.
+
+**The third-party exit interview.** Apply the independence principle one last time — now to the *process*.
+An objective third-party LLM (Codex is the standard; the principle is *independence*) is walked through
+the path taken and asked: *"what in the plugin documentation, specifications, requirements, or process
+would you change to prevent the problems we hit and carry the lessons forward?"* The same outside view
+that catches spec blind spots (gate 2) and implementation blind spots (gate 4) catches *process* blind
+spots the author cannot see. Its suggestions feed the change-list below alongside the author's own.
+
+**Write it up, then apply it.** Produce a short retrospective note (the repo already uses `docs/aar/` for
+sprint closeouts) capturing three things: the **path**, the **lessons** (author's + exit-interview's), and
+a concrete **change-list** — each lesson mapped to the artifact it updates and its state (applied /
+queued-with-tracking-location / deferred-with-reason). Then **fold the updates in**: the rubric rows, the
+commandment, the spec, the doc, the memory. Docs/spec/skill/process updates are eligible for the
+docs-only promote path; anything touching code re-enters the full cycle.
+
+**Done.** The cycle is truly closed when the retrospective is written and every change-list item is
+applied or explicitly queued. Ship → reflect → update the process → the next feature starts from a better
+baseline. That loop is the point.
 
 ## Bug-fix mode — a Gryphon wrong-answer was found
 
@@ -519,7 +726,16 @@ never worked around in callers, never filed as an accepted "known limitation"):
 
 A bug-fix still ships as **one coherent commit** and still faces the
 [Merge-readiness gate](#merge-readiness-gate-definition-of-done) — rows 4–7 especially (the failing-
-then-passing scenario, oracle agreement, eyeballed SQL, coverage).
+then-passing scenario, oracle agreement, eyeballed SQL, coverage). A fix that **changes semantics**
+(not a narrow, obviously-correct patch) also runs the
+[Independent LLM Review Gate](#independent-llm-review-gate) on the fix approach before it lands — the
+same authoring-independent second opinion an important capability gets. And any fix that **changes
+code** faces the [Independent LLM Code Review Gate](#independent-llm-code-review-gate) once green — the
+over-deletion / lost-rejection-message / silent-drop rubric applies to a fix diff exactly as it does to
+a capability diff, and re-entry still verifies a clean, unchanged tree. And once the fix ships, it earns
+a [Post-Ship Retrospective](#post-ship-retrospective--the-self-improvement-step) like any cycle — a bug is
+the richest lesson source, so ask what durable artifact (rubric, commandment, spec, doc, scenario class)
+should carry it forward.
 
 ## Common Mistakes (do not commit any of these)
 
