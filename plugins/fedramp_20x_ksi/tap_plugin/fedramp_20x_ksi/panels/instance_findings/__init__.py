@@ -20,7 +20,7 @@ from tap_plugin.fedramp_20x_ksi.panels.finding_profile import (
 )
 from tap_web.utils import safe_json
 
-# Aggregated-verdict precedence for HAS_EVIDENCE.support_kind values: any
+# Aggregated-verdict precedence for HAS_COMPLIANCE_EVIDENCE.support_kind values: any
 # violation wins; otherwise any passing wins; otherwise informational.
 # (Mirrors the precedence used elsewhere in the plugin; defined locally because
 # the helper is not exported from finding_profile.)
@@ -113,7 +113,7 @@ def _build_rows(envelope: dict[str, Any], asset_id: str) -> list[dict[str, Any]]
     findings_by_id: dict[str, dict[str, Any]] = {}
     for n in envelope.get("nodes", []):
         ent = n.get("entity") or {}
-        if ent.get("entity_type") != "fedramp_20x_ksi__finding":
+        if ent.get("entity_type") != "compliance_core__compliance_finding":
             continue
         fid = ent.get("entity_id")
         if not fid:
@@ -137,7 +137,7 @@ def _build_rows(envelope: dict[str, Any], asset_id: str) -> list[dict[str, Any]]
         to_id = ebody.get("to_entity_id")
         props = ebody.get("properties") or {}
 
-        if et == "HAS_FINDING__fedramp_20x_ksi" and from_id == asset_id and to_id in findings_by_id:
+        if et == "HAS_COMPLIANCE_FINDING__compliance_core" and from_id == asset_id and to_id in findings_by_id:
             asset_findings.add(to_id)
         elif et == "RELATED_INDICATOR__fedramp_20x_ksi" and from_id in findings_by_id:
             ksi_node = nodes_by_id.get(to_id or "")
@@ -154,7 +154,7 @@ def _build_rows(envelope: dict[str, Any], asset_id: str) -> list[dict[str, Any]]
                     "relationship_type": props.get("relationship_type", ""),
                 }
             )
-        elif et == "HAS_EVIDENCE__fedramp_20x_ksi" and from_id in findings_by_id:
+        elif et == "HAS_COMPLIANCE_EVIDENCE__compliance_core" and from_id in findings_by_id:
             ev_node = nodes_by_id.get(to_id or "")
             if ev_node is None:
                 continue

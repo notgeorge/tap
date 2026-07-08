@@ -228,7 +228,7 @@ Status: `Proposed`
 > It is correct *only* for the single-account, everything-is-in-scope demo and
 > must be replaced before any multi-account or partial-scope deployment.
 
-After decomposition, the collector synthesizes one `SCOPED_TO_BOUNDARY` edge
+After decomposition, the collector synthesizes one `SCOPED_TO_COMPLIANCE_BOUNDARY` edge
 (`aws_account` → boundary) for **every** `aws_account` node currently on the
 grid, scoping them all into the samsite FedRAMP authorization boundary (the
 boundary instance seeded by `plugins/samsite/grift/landing.grift.json`, owned by
@@ -267,8 +267,8 @@ moment there is more than one account or any out-of-scope resource. Code:
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-samsite-collector-boundary-membership-1 | One Edge Per Account | Proposed | After decomposition the collector emits exactly one `SCOPED_TO_BOUNDARY` edge from each `aws_account` on the grid to the samsite boundary. | |
-| req-samsite-collector-boundary-membership-2 | Idempotent | Proposed | Edge ids are deterministic (`uuid5` over `SCOPED_TO_BOUNDARY:<account>-><boundary>`); re-runs upsert rather than duplicate. | |
+| req-samsite-collector-boundary-membership-1 | One Edge Per Account | Proposed | After decomposition the collector emits exactly one `SCOPED_TO_COMPLIANCE_BOUNDARY` edge from each `aws_account` on the grid to the samsite boundary. | |
+| req-samsite-collector-boundary-membership-2 | Idempotent | Proposed | Edge ids are deterministic (`uuid5` over `SCOPED_TO_COMPLIANCE_BOUNDARY:<account>-><boundary>`); re-runs upsert rather than duplicate. | |
 | req-samsite-collector-boundary-membership-3 | Graceful When Empty | Proposed | With no `aws_account` on the grid (fresh boot before the boto3 collector) the collector synthesizes zero edges and does not error. | |
 | req-samsite-collector-boundary-membership-4 | Machine-Readable Kludge Marker | Proposed | Each synthesized edge carries `properties.kludge = "all-aws-accounts-auto-in-boundary-v0"`. | |
 

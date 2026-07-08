@@ -1,9 +1,0 @@
-{
-  "slug": "SCOPED_TO_BOUNDARY__fedramp_20x_ksi",
-  "name": "Scoped To Boundary",
-  "description": "A system component is in scope for a FedRAMP authorization boundary. The component is the source; the boundary is the target. 'Everything inside boundary X' is a fan-in query over edges whose target is X.",
-  "targets": ["fedramp_20x_ksi__boundary"],
-  "default_dimensions": {
-    "compliance": "boundary"
-  }
-}

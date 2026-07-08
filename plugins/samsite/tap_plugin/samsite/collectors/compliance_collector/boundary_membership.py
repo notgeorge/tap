@@ -1,14 +1,14 @@
 """MAJOR KLUDGE (v0 demo) — blanket authorization-boundary membership.
 
 Every ``aws_account`` node on the grid is auto-scoped into the samsite FedRAMP
-authorization boundary via a ``SCOPED_TO_BOUNDARY`` edge (account → boundary),
+authorization boundary via a ``SCOPED_TO_COMPLIANCE_BOUNDARY`` edge (account → boundary),
 synthesized by the samsite compliance collector *after* the boto3 collector has
 populated the account(s).
 
 Why this exists
 ---------------
-The boundary's real contract (``fedramp_20x_ksi`` ``Boundary`` model) is that
-*curated* components link to it via ``SCOPED_TO_BOUNDARY`` and "what's in the
+The boundary's real contract (``compliance_core`` ``ComplianceBoundary`` model) is that
+*curated* components link to it via ``SCOPED_TO_COMPLIANCE_BOUNDARY`` and "what's in the
 boundary" is a fan-in query over those edges. A correct boundary is a **subset**
 — not every account in an org, and within an account not every resource is in
 scope. This module deliberately ignores all of that and scopes in *every*
@@ -20,11 +20,11 @@ Why here and not elsewhere
 - NOT in the GRIFT seed: the account is collector-owned and does not exist at
   seed time, so a hardcoded edge to it dangles on a clean boot (the bug this
   replaces).
-- NOT in ``fedramp_20x_ksi``: making the generic FedRAMP boundary auto-include
-  ``aws_account`` would bake an aws_core-specific assumption into a plugin that
-  must not know AWS exists (hermetic-plugins rule).
+- NOT in ``compliance_core``: making the regime-agnostic boundary auto-include
+  ``aws_account`` would bake an aws_core-specific assumption into a substrate
+  plugin that must not know AWS exists (hermetic-plugins rule).
 - HERE, in samsite: samsite is the integration plugin that legitimately depends
-  on both aws_core (the account type) and fedramp_20x_ksi (the boundary type +
+  on both aws_core (the account type) and compliance_core (the boundary type +
   edge), and already owns the boundary *instance*. The edges are minted after
   the accounts exist, so nothing dangles.
 
@@ -53,7 +53,7 @@ SAMSITE_BOUNDARY_ENTITY_ID = "019e4afc-3e9f-76c9-8771-73ea77b8ff13"
 # same edge id rather than accumulating duplicates.
 _NAMESPACE_SAMSITE = uuid.uuid5(uuid.NAMESPACE_DNS, "tap.samsite.compliance_collector")
 
-_SCOPED_TO_BOUNDARY = "SCOPED_TO_BOUNDARY__fedramp_20x_ksi"
+_SCOPED_TO_COMPLIANCE_BOUNDARY = "SCOPED_TO_COMPLIANCE_BOUNDARY__compliance_core"
 
 # Machine-readable marker stamped on every kludge edge (see FUTURE SEAM above).
 KLUDGE_MARKER = "all-aws-accounts-auto-in-boundary-v0"
@@ -64,7 +64,7 @@ def _boundary_edge_id(account_entity_id: str) -> str:
     return str(
         uuid.uuid5(
             _NAMESPACE_SAMSITE,
-            f"{_SCOPED_TO_BOUNDARY}:{account_entity_id}->{SAMSITE_BOUNDARY_ENTITY_ID}",
+            f"{_SCOPED_TO_COMPLIANCE_BOUNDARY}:{account_entity_id}->{SAMSITE_BOUNDARY_ENTITY_ID}",
         )
     )
 
@@ -92,7 +92,7 @@ def fetch_aws_account_entity_ids() -> list[str]:
 
 
 def synthesize_boundary_membership_edges(account_entity_ids: list[str]) -> list[dict[str, Any]]:
-    """Build one ``SCOPED_TO_BOUNDARY`` edge envelope per account → the boundary."""
+    """Build one ``SCOPED_TO_COMPLIANCE_BOUNDARY`` edge envelope per account → the boundary."""
     edges: list[dict[str, Any]] = []
     for account_entity_id in account_entity_ids:
         edges.append(
@@ -100,13 +100,13 @@ def synthesize_boundary_membership_edges(account_entity_ids: list[str]) -> list[
                 "entity": {
                     "entity_id": _boundary_edge_id(account_entity_id),
                     "entity_type": "edge",
-                    "name": "aws_account SCOPED_TO_BOUNDARY Samsite Authorization Boundary (KLUDGE: all-accounts)",
+                    "name": "aws_account SCOPED_TO_COMPLIANCE_BOUNDARY Samsite Authorization Boundary (KLUDGE: all-accounts)",
                     "dimensions": {"compliance": "boundary"},
                 },
                 "edge": {
                     "from_entity_id": account_entity_id,
                     "to_entity_id": SAMSITE_BOUNDARY_ENTITY_ID,
-                    "edge_type": _SCOPED_TO_BOUNDARY,
+                    "edge_type": _SCOPED_TO_COMPLIANCE_BOUNDARY,
                     "properties": {"kludge": KLUDGE_MARKER},
                 },
             }

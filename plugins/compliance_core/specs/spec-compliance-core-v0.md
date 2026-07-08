@@ -1,11 +1,15 @@
 # Compliance Core Plugin Specification
 
-> **Status: Phase A implemented (2026-07-08).** `compliance_artifact` + `compliance_context`
-> now live in compliance_core — scaffold, models, migration `0001_initial`, samsite +
-> fedramp retargets, and `test_all` boot wiring, all green (57 targeted tests, mypy-clean).
-> Phase B (`compliance_evidence` / `compliance_finding` / `compliance_exception` /
-> `compliance_boundary`, the four edges, and the regime-neutral dimension fix on the moved
-> evidence/finding/exception models) remains as specified below and is not yet built.
+> **Status: Phase A + B implemented (2026-07-08).** All six models
+> (`compliance_artifact`, `compliance_context`, `compliance_evidence`,
+> `compliance_finding`, `compliance_exception`, `compliance_boundary`) and all four edges
+> (`HAS_COMPLIANCE_EVIDENCE`, `COVERS_COMPLIANCE_FINDING`, `HAS_COMPLIANCE_FINDING`,
+> `SCOPED_TO_COMPLIANCE_BOUNDARY`) now live in compliance_core, with the regime-neutral
+> type-marker dimension fix on the moved evidence/finding/exception nodes. fedramp/samsite
+> retarget onto them; the bridge edge `RELATED_INDICATOR` stays in fedramp with its source
+> retargeted to `compliance_core__compliance_finding`. Migrations `0001`/`0002`
+> (compliance_core) + `0004`/`0005` (fedramp deletes) apply clean; all targeted suites +
+> mypy ratchet green.
 
 ## Plugin Identity
 
@@ -42,10 +46,12 @@ Three principles shape the design:
 regime. Today `evidence`/`finding`/`exception` default to `{"compliance":
 "fedramp-20x"}` — a regime baked into a model that is supposed to be regime-agnostic.
 In compliance_core the model default is a neutral **type marker** (`compliance:
-evidence`); the regime dimension is applied per-instance by the collector that mints
-it (samsite stamps `fedramp-20x`; a future SOC2 collector stamps `soc2`). The
-`compliance_context` node is where a Grid's regime posture is recorded, and it is
-already regime-generic (its `regime` field discriminates FedRAMP/SOC2/CMMC/ISO).
+evidence`); a regime dimension, when needed, is applied per-instance by the collector
+that mints the node (a future FedRAMP collector would stamp `fedramp-20x`; a SOC2 one
+`soc2`). v0 ships no such collector, so today only the neutral marker is set — see
+`req-compliance-core-regime-neutral`. The `compliance_context` node is where a Grid's
+regime posture is recorded, and it is already regime-generic (its `regime` field
+discriminates FedRAMP/SOC2/CMMC/ISO).
 
 **The `compliance_` name prefix disambiguates domain.** Node names carry a
 `compliance_` qualifier (`compliance_evidence`, not bare `evidence`) so the vocabulary
@@ -101,20 +107,20 @@ layer.
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-compliance-core-scope | [Plugin Scope](#plugin-scope) | Proposed | Substrate library; six models + four edges; no collector. |
-| req-compliance-core-models | [Model Set](#model-set) | Proposed | `compliance_artifact`, `compliance_context`, `compliance_evidence`, `compliance_finding`, `compliance_exception`, `compliance_boundary`. |
-| req-compliance-core-edges | [Edge Vocabulary](#edge-vocabulary) | Proposed | `HAS_COMPLIANCE_EVIDENCE`, `COVERS_COMPLIANCE_FINDING`, `HAS_COMPLIANCE_FINDING`, `SCOPED_TO_COMPLIANCE_BOUNDARY`. |
-| req-compliance-core-regime-neutral | [Regime On The Instance](#regime-on-the-instance) | Proposed | Model default is a neutral type marker; regime layered per-instance. Fixes the hardcoded `fedramp-20x` default. |
-| req-compliance-core-naming | [Naming Discipline](#naming-discipline) | Proposed | `compliance_` node-name prefix; edge object noun tracks the node type. |
-| req-compliance-core-deps | [Dependency Direction](#dependency-direction) | Proposed | Downward-only; declared in consumers' `pyproject.toml` + `depends_on`. |
-| req-compliance-core-consumer-retargets | [Consumer Retargets](#consumer-retargets) | Proposed | fedramp/samsite retarget type strings + edges; bridge edge `RELATED_INDICATOR` stays fedramp, retargets its source. |
-| req-compliance-core-migration | [Extraction & Migration](#extraction--migration) | Proposed | Rename `fedramp_20x_ksi__*` → `compliance_core__compliance_*`; ids regenerate (collected, not seeded); phased first slice; pre-eviction. |
-| req-compliance-core-nongoals | [v0 Non-Goals](#v0-non-goals) | Proposed | `ksi_*` and `vdr_*` stay in fedramp; no collector; no regime logic; generic `component` deferred. |
+| req-compliance-core-scope | [Plugin Scope](#plugin-scope) | Implemented | Substrate library; six models + four edges; no collector. |
+| req-compliance-core-models | [Model Set](#model-set) | Implemented | `compliance_artifact`, `compliance_context`, `compliance_evidence`, `compliance_finding`, `compliance_exception`, `compliance_boundary`. |
+| req-compliance-core-edges | [Edge Vocabulary](#edge-vocabulary) | Implemented | `HAS_COMPLIANCE_EVIDENCE`, `COVERS_COMPLIANCE_FINDING`, `HAS_COMPLIANCE_FINDING`, `SCOPED_TO_COMPLIANCE_BOUNDARY`. |
+| req-compliance-core-regime-neutral | [Regime On The Instance](#regime-on-the-instance) | Implemented | Model default is a neutral type marker; regime layered per-instance. Fixes the hardcoded `fedramp-20x` default. |
+| req-compliance-core-naming | [Naming Discipline](#naming-discipline) | Implemented | `compliance_` node-name prefix; edge object noun tracks the node type. |
+| req-compliance-core-deps | [Dependency Direction](#dependency-direction) | Implemented | Downward-only; declared in consumers' `pyproject.toml` + `depends_on`. |
+| req-compliance-core-consumer-retargets | [Consumer Retargets](#consumer-retargets) | Implemented | fedramp/samsite retarget type strings + edges; bridge edge `RELATED_INDICATOR` stays fedramp, retargets its source. |
+| req-compliance-core-migration | [Extraction & Migration](#extraction--migration) | Implemented | Rename `fedramp_20x_ksi__*` → `compliance_core__compliance_*`; ids regenerate (collected, not seeded); phased first slice; pre-eviction. |
+| req-compliance-core-nongoals | [v0 Non-Goals](#v0-non-goals) | Implemented | `ksi_*` and `vdr_*` stay in fedramp; no collector; no regime logic; generic `component` deferred. |
 
 ### Plugin Scope
 ----
 RID: `req-compliance-core-scope`
-Status: `Proposed`
+Status: `Implemented`
 
 `compliance_core` is a **library / substrate** plugin. Its v0 surface is six models and
 four edge types plus their dimension defaults. It registers node/edge types and
@@ -126,7 +132,7 @@ compliance regime plugin.
 ### Model Set
 ----
 RID: `req-compliance-core-models`
-Status: `Proposed`
+Status: `Implemented`
 
 Six node types, `entity_type = compliance_core__<name>`, fields carried forward
 faithfully from the `fedramp_20x_ksi` originals:
@@ -150,7 +156,7 @@ unchanged except the `entity_type`/`db_table` rename and the dimension fix
 ### Edge Vocabulary
 ----
 RID: `req-compliance-core-edges`
-Status: `Proposed`
+Status: `Implemented`
 
 Four edges move with their generic endpoints, renamed so the object noun tracks the
 (now `compliance_`-prefixed) node type:
@@ -169,27 +175,33 @@ boundary, across regimes.
 ### Regime On The Instance
 ----
 RID: `req-compliance-core-regime-neutral`
-Status: `Proposed`
+Status: `Implemented`
 
 Generic models MUST NOT bake a regime into their default dimensions. The model default
 is a neutral per-type marker under the `compliance` key: `compliance: artifact`,
 `compliance: context`, `compliance: evidence`, `compliance: finding`, `compliance:
 exception`, `compliance: boundary`. The **regime** (`fedramp-20x`, `soc2`, …) is a
-distinct dimension applied **per-instance** by the collector that mints the node
-(samsite stamps `fedramp-20x` on the instances it produces). This fixes the current
-`evidence`/`finding`/`exception` models defaulting to `{"compliance": "fedramp-20x"}`
-— a regime hardcoded into a regime-agnostic model.
+distinct dimension applied **per-instance** by whatever collector mints the node (a
+future compliance collector would stamp `fedramp-20x` / `soc2` on the instances it
+produces). This fixes the current `evidence`/`finding`/`exception` models defaulting to
+`{"compliance": "fedramp-20x"}` — a regime hardcoded into a regime-agnostic model.
+
+**v0 reality (honest note):** no collector mints `compliance_finding` / `compliance_evidence`
+today (`req-compliance-core-nongoals` — no collector in v0), so no regime dimension is
+stamped yet and nothing reads one. The guarantee delivered now is the *negative* one —
+the model no longer bakes a regime; the neutral type marker is the only default. Positive
+per-instance regime stamping lands with the first minting collector.
 
 | ACID | Title | Status | Description |
 | --- | --- | :---: | --- |
-| req-compliance-core-regime-neutral-1 | Neutral model default | Proposed | Each model defaults to a type marker, not a regime slug. |
-| req-compliance-core-regime-neutral-2 | Regime per-instance | Proposed | The regime dimension is set by the minting collector, not the model. |
-| req-compliance-core-regime-neutral-3 | No fedramp default remains | Proposed | No compliance_core model carries `fedramp-20x` (or any regime) as its default. |
+| req-compliance-core-regime-neutral-1 | Neutral model default | Implemented | Each model defaults to a type marker, not a regime slug. |
+| req-compliance-core-regime-neutral-2 | Regime per-instance | Deferred | Regime is an instance-level dimension, not a model default; the mechanism (per-node dimensions) is in place. No v0 collector mints these nodes, so no regime is stamped yet — lands with the first minting collector. |
+| req-compliance-core-regime-neutral-3 | No fedramp default remains | Implemented | No compliance_core model carries `fedramp-20x` (or any regime) as its default. |
 
 ### Naming Discipline
 ----
 RID: `req-compliance-core-naming`
-Status: `Proposed`
+Status: `Implemented`
 
 Node names carry the `compliance_` domain qualifier for system-wide disambiguation
 (`compliance_evidence` vs a future `crime_scene_evidence`). Edge slugs name their
@@ -203,7 +215,7 @@ semantic domain.
 ### Dependency Direction
 ----
 RID: `req-compliance-core-deps`
-Status: `Proposed`
+Status: `Implemented`
 
 compliance_core depends on nothing above core (`tap_grid`/`tap`). Consumers depend
 **downward**: `fedramp_20x_ksi`, `roscale`, and `samsite` declare
@@ -214,7 +226,7 @@ compliance_core depends on nothing above core (`tap_grid`/`tap`). Consumers depe
 ### Consumer Retargets
 ----
 RID: `req-compliance-core-consumer-retargets`
-Status: `Proposed`
+Status: `Implemented`
 
 - **samsite** — the compliance collector, `decompose.py`, the `ksi_scoreboard` panel,
   landing/compliance/iiw grift, and `artifact_manifest` retarget
@@ -233,7 +245,7 @@ Status: `Proposed`
 ### Extraction & Migration
 ----
 RID: `req-compliance-core-migration`
-Status: `Proposed`
+Status: `Implemented`
 
 Renames `fedramp_20x_ksi__{compliance_artifact, compliance_context, evidence, finding,
 exception, boundary}` → `compliance_core__compliance_*`. The `entity_type` change
@@ -258,7 +270,7 @@ a coordinated multi-repo re-tag across compliance_core + fedramp + samsite.
 ### v0 Non-Goals
 ----
 RID: `req-compliance-core-nongoals`
-Status: `Proposed`
+Status: `Implemented`
 
 - **`ksi_*` vocabulary** (signal/theme/indicator/component/validation/violation) stays
   in fedramp_20x_ksi — strictly KSI-framework, KSI-signal-native. `ksi_component` in

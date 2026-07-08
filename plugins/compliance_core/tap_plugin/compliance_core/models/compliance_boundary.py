@@ -1,4 +1,4 @@
-"""Boundary — a FedRAMP authorization (ATO) boundary."""
+"""Compliance boundary — an authorization boundary (regime-agnostic)."""
 
 from typing import Any, ClassVar
 
@@ -7,29 +7,31 @@ from django.db import models
 from tap_grid.models import BaseModel
 
 
-class Boundary(BaseModel):
-    """A FedRAMP authorization boundary — the perimeter of an ATO.
+class ComplianceBoundary(BaseModel):
+    """An authorization boundary — the perimeter of a single authorization.
 
-    A Boundary names an authorization boundary: the set of system
-    components in scope for a single FedRAMP authorization. Components
-    are linked to their Boundary by the ``SCOPED_TO_BOUNDARY`` edge
-    (component → boundary). "Identify everything inside the boundary"
-    is then a fan-in query over that edge.
+    A boundary names the set of system components in scope for a single
+    compliance authorization (a FedRAMP ATO, a SOC2 audit scope, an ISO
+    certification scope, …). Components are linked to their boundary by the
+    ``SCOPED_TO_COMPLIANCE_BOUNDARY`` edge (component → boundary). "Identify
+    everything inside the boundary" is then a fan-in query over that edge.
 
-    The initial pass carries only name and description; structured
-    FedRAMP metadata (impact level, ATO dates, authorizing official)
-    becomes typed fields when a consumer needs them rather than a
-    speculative JSON blob now.
+    Regime-agnostic substrate: the scoping concept is shared across regimes;
+    the regime is layered per-instance, not baked into the model.
 
-    Spec: plugins/fedramp_20x_ksi/specs/spec-fedramp-20x-ksi-boundary.md
+    The initial pass carries only name and description; structured metadata
+    (impact level, authorization dates, authorizing official) becomes typed
+    fields when a consumer needs them rather than a speculative JSON blob now.
+
+    Spec: plugins/compliance_core/specs/spec-compliance-core-v0.md
     """
 
-    ENTITY_TYPE: ClassVar[str] = "fedramp_20x_ksi__boundary"
+    ENTITY_TYPE: ClassVar[str] = "compliance_core__compliance_boundary"
     ENTITY_NAME: ClassVar[str] = "Authorization Boundary"
     ENTITY_DESCRIPTION: ClassVar[str] = (
-        "A FedRAMP authorization boundary — the perimeter of system "
-        "components in scope for a single ATO. Components link to it "
-        "via the SCOPED_TO_BOUNDARY edge."
+        "An authorization boundary — the perimeter of system components in "
+        "scope for a single compliance authorization. Components link to it "
+        "via the SCOPED_TO_COMPLIANCE_BOUNDARY edge."
     )
     # No type icon: the red box from DEFAULT_DISPLAY is sufficient to read the
     # boundary on the graph, and the icon badge added visual noise.
@@ -58,7 +60,7 @@ class Boundary(BaseModel):
     description = models.TextField(blank=True, default="")
 
     class Meta(BaseModel.Meta):
-        db_table = "fedramp_20x_ksi__boundary"
+        db_table = "compliance_core__compliance_boundary"
 
     def get_name(self) -> str:
         return self.name
