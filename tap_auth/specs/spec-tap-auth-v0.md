@@ -70,6 +70,7 @@ This spec supersedes the user/auth architecture previously parked under `tap_gri
 | req-tap-auth-local | [Local Password Auth](#local-password-auth) | Implemented | Dev/default recovery path; disable (both backends) separate from user deactivation |
 | req-tap-auth-external-identity | [External Identity Linkage](#external-identity-linkage) | Implemented | Provider ID + subject; no v1 account linking; TAP social adapter enforces |
 | req-tap-auth-sessions | [Session Invalidation](#session-invalidation) | Implemented | Global/per-user/per-session; capability-gated + audited; separate from disabling login |
+| req-tap-auth-email-not-identity | [Email Is Not Identity](#email-is-not-identity) | Proposed | Express rule: email (mutable, non-unique, externally-controlled) is never a reliable key to identify/select/authorize a user; key off a stable internal id or `(provider, sub)`. Instantiates `spec-security-posture.md` `req-sec-email-not-identity` |
 | req-tap-auth-user-lookup | [User Lookup (Roster Read)](#user-lookup-roster-read) | Proposed | `manage.py list-users` surfaces the stable internal user id that id-keyed write commands consume; defines the `--user-id`-authoritative / `--email`-fails-loud selector convention; read-scoped `auth.read_users` cap; JSON output for AI operators |
 | req-tap-auth-deactivation | [User Deactivation](#user-deactivation) | Proposed | Method-agnostic disable regardless of auth method; `manage.py deactivate-user`; composes per-user session invalidation; runtime last-admin guard |
 | req-tap-auth-logging | [Actor-Aware Logging](#actor-aware-logging) | Proposed | Stdlib contextvars/filter pattern; no structlog dependency |
@@ -797,7 +798,7 @@ External identity records link provider-authenticated subjects to canonical TAP 
 | --- | --- | :---: | --- | --- |
 | req-tap-auth-external-identity-1 | Provider Subject Key | Implemented | External identities are keyed by provider ID + subject. | |
 | req-tap-auth-external-identity-2 | No Raw Claims | Implemented | Raw provider claims/assertions are not stored. | |
-| req-tap-auth-external-identity-3 | Email Not Identity | Implemented | Email is not used as the durable linkage key. | |
+| req-tap-auth-external-identity-3 | Email Not Identity | Implemented | Email is not used as the durable linkage key; the express, system-wide statement of this is `req-tap-auth-email-not-identity`. | |
 | req-tap-auth-external-identity-4 | Linking Disabled | Implemented | V1 denies second-provider/same-email login rather than linking or shadowing. | |
 | req-tap-auth-external-identity-5 | Deactivation On Policy Removal | Proposed | Provider/domain removal deactivates affected external users. | |
 | req-tap-auth-external-identity-6 | Adapter Enforces No-Linking | Implemented | A TAP-owned allauth social adapter overrides the email-matching hooks (`pre_social_login`, `authenticate_by_email`/`can_authenticate_by_email`) so linking-disabled / same-email denial is enforced, not left to allauth defaults. | |
@@ -836,6 +837,32 @@ Session invalidation is a separate management operation from disabling login mec
 | req-tap-auth-sessions-3 | Per-User Banhammer | Implemented | An operation invalidates all sessions for a specific user. | |
 | req-tap-auth-sessions-4 | Per-Session Invalidation | Implemented | An operation invalidates one specific session by key/handle. | |
 | req-tap-auth-sessions-5 | Audited And Attributable | Implemented | Every invalidation is capability-gated and logged with actor, scope, target, reason, and count. | |
+
+---
+
+### Email Is Not Identity
+----
+RID: `req-tap-auth-email-not-identity`  
+Status: `Proposed`
+
+**Email is not a reliable source of user identification, and MUST NOT be used as the key to identify, select, look up, authorize, or grant to a user anywhere in the auth system.** Durable identity is a **stable internal `User` id**, or for federated identity the verified `(provider, sub)` pair (`req-tap-auth-external-identity`). This is the express, first-class statement of the principle; the more specific requirements below and around it (`req-tap-auth-user-lookup` selector convention, `req-tap-auth-external-identity`, `req-tap-auth-deactivation`, and `spec-tap-auth-passkey-v0.md` `req-tap-auth-passkey-add-device`) are its instances. It instantiates the cross-cutting security rule `spec-security-posture.md` `req-sec-email-not-identity`.
+
+Email fails as an identity key because it is **mutable** (people change addresses), **not unique** (TAP permits duplicate emails at the DB level by design — `req-tap-auth-external-identity`, so an address resolves to zero/one/many users), and for federated logins **externally controlled** by the provider (only `(provider, sub)` is durable). Worst of all the failure is **silent**: resolving an ambiguous email by first-match mis-identifies a user with no error — account takeover on a credential-mint, wrong-account denial-of-service on a deactivate/session-kill.
+
+#### Implementation
+
+- **Identify / select / target by stable internal id.** Every user-targeting operation (management command, service verb, admin action) keys off the internal `User` id — never email. A unique username (DB-unique) is an acceptable stable selector; email is not. This is the `req-tap-auth-user-lookup` selector convention.
+- **Email is at most an ambiguity-refusing convenience.** Where a human-friendly lookup genuinely helps, email MAY be offered only as a convenience that **fails loud on zero or multiple matches** — never a silent `.first()`-style pick.
+- **Filter, not key.** Matching a provider-asserted **verified** email against an allow-list (`allowed_emails`, `req-tap-auth-google-oidc`) is a legitimate authorization *gate*, enforced every login; using email to decide *which user this is* is forbidden. Keep the distinction explicit wherever email appears.
+- **Named residual — `initial_grants` keys off verified email.** The `initial_grants` map (`req-tap-auth-boot`) grants roles by the authenticated user's *verified* email. This is permitted as the federated admission unit but is safe only under **verified-email uniqueness within the admitted identity space** — sound for a single `hd`-gated Workspace provider, weaker under multi-provider / consumer-domain fallback. Named per `req-sec-honest-risk`, not silently relied upon; the IdP-claim→role mapping (Backlog) is the durable replacement.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-auth-email-not-identity-1 | Stable-Id Keying | Proposed | User identification / selection / authorization in the auth system keys off a stable internal `User` id (or federated `(provider, sub)`), never email. | |
+| req-tap-auth-email-not-identity-2 | No Silent Ambiguous Pick | Proposed | Where email is offered as a convenience lookup, it fails loud on zero or multiple matches; a silent first-match pick is a defect (see the `auth_sessions` follow-up under `req-tap-auth-user-lookup`). | |
+| req-tap-auth-email-not-identity-3 | Filter ≠ Key | Proposed | Email as a verified authorization filter (allow-list) is permitted; email as an identity key is not; the distinction is stated wherever email appears, and `initial_grants`' email keying is a named residual. | |
 
 ---
 
