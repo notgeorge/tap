@@ -79,11 +79,18 @@ if TYPE_CHECKING:
     from tap_grid.models import Search
 
 
+# The read-only, least-privilege search connection. Every raw Gryphon entrypoint
+# defaults to it so a caller that omits `db_alias` cannot silently run on the
+# writable `default` connection (req-grid-traversal-exec-scope.sec-5). The stored-
+# Search path uses the same alias via `tap_grid.search._SEARCH_DB_ALIAS`.
+READONLY_DB_ALIAS = "search_readonly"
+
+
 def execute_gryphon(
     search: Search,
     inputs: dict[str, Any],
     *,
-    db_alias: str = "default",
+    db_alias: str = READONLY_DB_ALIAS,
     layer: SubgraphLayer = "full",
 ) -> dict[str, Any]:
     """Execute a gryphon-type Search and return the canonical graph envelope.
@@ -91,7 +98,8 @@ def execute_gryphon(
     Args:
         search: A Search instance with search_type="gryphon" and definition["query"].
         inputs: Runtime $var values; must supply all required params from the query.
-        db_alias: Database alias for all queries (should be the read-only alias in production).
+        db_alias: Database alias for all queries. Defaults to the read-only search alias
+            (`READONLY_DB_ALIAS`); pass a writable alias only for a deliberate, reviewed reason.
         layer: GRIFT subgraph return layer (lite, full, extended).
 
     Returns:
@@ -112,7 +120,7 @@ def execute_gryphon_raw(
     query: str,
     inputs: dict[str, Any],
     *,
-    db_alias: str = "default",
+    db_alias: str = READONLY_DB_ALIAS,
     layer: SubgraphLayer = "full",
 ) -> dict[str, Any]:
     """Execute a raw gryphon query string and return the canonical graph envelope.
@@ -135,7 +143,8 @@ def execute_gryphon_raw(
     Args:
         query: A gryphon query string.
         inputs: Runtime $var values; must supply all required params from the query.
-        db_alias: Database alias for all queries (should be the read-only alias in production).
+        db_alias: Database alias for all queries. Defaults to the read-only search alias
+            (`READONLY_DB_ALIAS`); pass a writable alias only for a deliberate, reviewed reason.
         layer: GRIFT subgraph return layer (lite, full, extended).
 
     Returns:
@@ -151,7 +160,7 @@ def _execute_gryphon_raw_impl(
     query: str,
     inputs: dict[str, Any],
     *,
-    db_alias: str = "default",
+    db_alias: str = READONLY_DB_ALIAS,
     layer: SubgraphLayer = "full",
 ) -> dict[str, Any]:
     """Raw-query execution body, without the read gate.
@@ -212,7 +221,7 @@ def explain_gryphon_raw(
     query: str,
     inputs: dict[str, Any],
     *,
-    db_alias: str = "default",
+    db_alias: str = READONLY_DB_ALIAS,
     layer: SubgraphLayer = "full",
 ) -> dict[str, Any]:
     """Execute a raw gryphon query and return both the envelope and the SQL it ran.
