@@ -31,7 +31,7 @@ deduplication — advanced-path queries (NOT EXISTS, COUNT, multi-hop) require a
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
 from tap_auth.enforcement import requires_capability
@@ -642,9 +642,52 @@ def _execute_type_scan(
     # dedup on any projection without a bare `entity_id` key.
     items = return_clause.items
     assert items is not None  # _is_graph_envelope_return is True when items is None
-    qs = _apply_order_limit_typescan(qs, order_by, limit, items, var)
-    rows: list[dict[str, Any]] = [_project_node(domain_obj, items, var) for domain_obj in qs]
-    return {"nodes": [], "edges": [], "rows": rows}
+    from django.db.models import F
+
+    # Build the row-materialization plan. Each projected field resolves to its ORM
+    # lookup via the same `_typescan_orm_path` the WHERE clause already uses, so a
+    # nested JSON scalar sub-key is projected in PostgreSQL (`data -> 'k'`) rather
+    # than walked in Python — retiring the former `_project_node` tail
+    # (req-grid-traversal-exec-row-materialization-4/6). Bare-variable items (no
+    # dot-steps) and items bound to another variable are skipped, matching the
+    # former projection.
+    group_pairs: list[tuple[str, str]] = []
+    annotations: dict[str, Any] = {}
+    for idx, item in enumerate(items):
+        if not isinstance(item, ReturnItem) or item.path.variable != var:
+            continue
+        if not item.path.steps or not isinstance(item.path.steps[0], DotStep):
+            continue
+        if item.path.steps[0].name == _DISPLAY_LANE_PREFIX:
+            # RETURN-projection context: the workaround is the extended layer,
+            # which computes display values. `_typescan_orm_path` also rejects
+            # display, but with the WHERE-context message (no extended hint,
+            # since filtering on computed values has no workaround), so the
+            # projection path names its own workaround here
+            # (req-grid-traversal-lang-envelope-paths-3).
+            raise SearchExecutionError(
+                "Cannot use the `display` lane in RETURN paths today — display "
+                "values are computed for rendering, not stored. For display data "
+                "use the `extended` return layer."
+            )
+        # Keep RETURN projection at its v1 boundary — the shared resolver is more
+        # permissive than a v1 projection should be (bracket keys, multi-step
+        # spine walks), so reject those here rather than silently widen.
+        _reject_non_projectable_return_path(item.path)
+        internal = f"_ts_col_{idx}"
+        annotations[internal] = F(_typescan_orm_path(item.path))
+        group_pairs.append((internal, _return_item_key(item)))
+
+    plan = MaterializationPlan(
+        queryset=qs,
+        pre_annotations=annotations,
+        group_pairs=tuple(group_pairs),
+        aggregate_annotations={},
+        aggregate_pairs=(),
+        order_cols=_typescan_order_cols(order_by, limit, items, var),
+        limit=limit,
+    )
+    return {"nodes": [], "edges": [], "rows": materialize_rows(plan)}
 
 
 def _return_item_key(item: Any) -> str:
@@ -652,7 +695,7 @@ def _return_item_key(item: Any) -> str:
 
     For an aggregate item the alias is mandatory. For a field projection the
     key is the explicit `AS` alias if present, else the last dot-step name
-    (matching ``_compute_rows`` and ``_resolve_envelope_path``).
+    (matching the group-pair keys `materialize_rows` projects).
     """
     if isinstance(item, AggregateReturnItem):
         return item.alias
@@ -662,25 +705,27 @@ def _return_item_key(item: Any) -> str:
     return last.name if isinstance(last, DotStep) else item.path.variable
 
 
-def _apply_order_limit_typescan(
-    qs,
+def _typescan_order_cols(
     order_by: Any,
     limit: Any,
     items: tuple,
     var: str,
-):
-    """Apply ORDER BY / LIMIT to a type-scan projection queryset.
+) -> tuple[str, ...]:
+    """Resolve the type-scan projection ORDER BY convention into `.order_by()` columns.
 
-    ORDER BY terms name RETURN outputs by key; each is translated to the ORM
-    lookup path of the projecting RETURN item. `entity_id` (the per-model PK
-    column) is appended as a unique tiebreaker so the surviving rows under a
-    LIMIT — and the captured SQL — are deterministic across runs.
+    ORDER BY terms name RETURN outputs by key; each maps to the ORM lookup path of
+    the projecting RETURN item, with `entity_id` (the per-model PK column) appended
+    as a unique tiebreaker so the surviving rows under a LIMIT — and the captured
+    SQL — stay deterministic across runs. A `LIMIT` with no `ORDER BY` keeps the
+    default name order with the same tiebreaker. An empty result means "do not
+    reorder": the type-scan queryset already carries `.order_by("entity__name")`.
 
-    In projection mode, ORDER BY terms must be bare names (FieldPath with no
-    steps) that match a RETURN alias. A multi-step field-path term is the
-    envelope-mode surface (per req-grid-gryphon-order-by-envelope) and is
-    rejected here with a pointer to envelope mode rather than silently
-    coerced — projection-mode field-path ORDER BY is future work.
+    In projection mode, ORDER BY terms must be bare names (FieldPath with no steps)
+    that match a RETURN alias; a multi-step field-path term is the envelope-mode
+    surface (per req-grid-gryphon-order-by-envelope) and is rejected here.
+
+    The resolved columns are carried on the `MaterializationPlan` and applied by
+    the shared backend (`req-grid-traversal-exec-row-materialization`).
     """
     if order_by is not None:
         key_to_path: dict[str, str] = {}
@@ -688,7 +733,7 @@ def _apply_order_limit_typescan(
             if not isinstance(item, ReturnItem) or item.path.variable != var:
                 continue
             key_to_path[_return_item_key(item)] = _typescan_orm_path(item.path)
-        order_cols: list[str] = []
+        cols: list[str] = []
         for ob in order_by.items:
             if ob.path.steps:
                 raise SearchExecutionError(
@@ -702,17 +747,14 @@ def _apply_order_limit_typescan(
                     f"ORDER BY references '{ob.key}', which is not a RETURN output of this query."
                 )
             col = key_to_path[ob.key]
-            order_cols.append(f"-{col}" if ob.descending else col)
-        order_cols.append("entity_id")
-        qs = qs.order_by(*order_cols)
-    elif limit is not None:
+            cols.append(f"-{col}" if ob.descending else col)
+        cols.append("entity_id")
+        return tuple(cols)
+    if limit is not None:
         # LIMIT with no ORDER BY: keep the default name order, with a unique
         # tiebreaker so which rows survive the cap stays deterministic.
-        qs = qs.order_by("entity__name", "entity_id")
-
-    if limit is not None:
-        qs = qs[: limit.count]
-    return qs
+        return ("entity__name", "entity_id")
+    return ()
 
 
 def _apply_order_limit_typescan_envelope(
@@ -887,98 +929,50 @@ def _typescan_orm_path(field_path: FieldPath) -> str:
     )
 
 
-# Spine fields that are JSON-typed and therefore support multi-step walking
-# into nested keys. Today only `dimensions`; future JSON-typed spine fields
-# slot in here.
-_JSON_TYPED_SPINE_FIELDS: frozenset[str] = frozenset({"dimensions"})
+def _reject_non_projectable_return_path(field_path: FieldPath) -> None:
+    """Enforce the v1 RETURN-projection boundary — deliberately stricter than WHERE.
 
-
-def _project_node(domain_obj: Any, items: tuple, var: str) -> dict[str, Any]:
-    """Build a projected dict for a domain model instance using RETURN items.
-
-    Per spec-grid-traversal-language § Envelope-Aware Field Paths
-    (req-grid-traversal-lang-envelope-paths):
-
-    - ``var.<spinefield>`` resolves against the Entity row.
-    - ``var.data.<...>`` resolves against the per-model row, walking
-      remaining dot-steps as attribute access (single step) or nested
-      dict keys (multi-step inside JSON-typed fields like ``tags``).
-    - ``var.display.<...>`` is rejected for now — display values are
-      computed for rendering and not available in the projection
-      pipeline. Use the ``extended`` return layer for display data.
-
-    Items whose field_path.variable doesn't match ``var`` are silently
-    skipped (they apply to a different variable's projection).
-    """
-    result: dict[str, Any] = {}
-    for item in items:
-        fp = item.path
-        if fp.variable != var:
-            continue
-        if not fp.steps or not isinstance(fp.steps[0], DotStep):
-            continue
-        key, value = _resolve_envelope_path(domain_obj, fp, item.alias)
-        result[key] = value
-    return result
-
-
-def _resolve_envelope_path(domain_obj: Any, field_path: FieldPath, explicit_alias: str | None) -> tuple[str, Any]:
-    """Resolve a single envelope-aware path against a domain model instance.
-
-    Returns ``(user_alias, value)``. The user alias is the explicit AS
-    alias if supplied, otherwise the last dot-step in the path.
+    RETURN projection and WHERE now share `_typescan_orm_path`, which is
+    intentionally permissive: it accepts bracket-key steps and multi-step walks
+    into JSON-typed spine fields (e.g. `dimensions`), both valid in a WHERE
+    predicate. RETURN projection is narrower in v1
+    (`req-grid-traversal-lang-envelope-paths`): the `data` lane admits dot-steps
+    only, and a spine field cannot be walked into. This guard reproduces the
+    pre-unification `_resolve_envelope_path` acceptance set so collapsing the row
+    tails onto the shared resolver does not *silently widen* what RETURN accepts.
+    Widening RETURN to match WHERE is a deliberate future feature, not a side
+    effect of the unification. Call it before resolving a projection item through
+    `_typescan_orm_path`. (The `display` lane is rejected earlier in the
+    projection loop, with the extended-layer hint.)
     """
     steps = field_path.steps
+    if not steps or not isinstance(steps[0], DotStep):
+        return  # the caller (projection loop) already ensures a leading dot-step
     first = steps[0].name
-    spine_fields = _spine_field_names()
-
-    if first == _DISPLAY_LANE_PREFIX:
-        raise SearchExecutionError(
-            "Cannot use the `display` lane in RETURN paths today — display "
-            "values are computed for rendering, not stored. For display data "
-            "use the `extended` return layer."
-        )
-
     if first == _DATA_LANE_PREFIX:
         rest = steps[1:]
         if not rest:
             raise SearchExecutionError(
-                "Path `<var>.data` requires at least one further step " "(e.g. `<var>.data.<field>`)."
+                "Path `<var>.data` requires at least one further step (e.g. `<var>.data.<field>`)."
             )
         for step in rest:
             if not isinstance(step, DotStep):
                 raise SearchExecutionError("Inside the `data` lane only dot-steps are supported in v1.")
-        value: Any = domain_obj
-        for step in rest:
-            if value is None:
-                break
-            value = value.get(step.name) if isinstance(value, dict) else getattr(value, step.name, None)
-        last = rest[-1].name
-        user_alias = explicit_alias if explicit_alias is not None else last
-        return user_alias, value
-
-    # Single-step spine field.
+        return
+    if first == _DISPLAY_LANE_PREFIX:
+        return
+    # Spine field (or `entity_id`): single-step only in a RETURN projection.
     if len(steps) > 1:
         raise SearchExecutionError(
             f"Spine field {first!r} cannot be walked into. For nested access "
             f"use `<var>.data.<field>...` per spec-grift-envelope."
         )
-    if first == "entity_id":
-        value = str(domain_obj.entity_id)
-    elif first in spine_fields:
-        value = getattr(domain_obj.entity, first)
-    else:
-        raise SearchExecutionError(
-            f"Field {first!r} is not a spine field. If it lives on the per-model "
-            f"row, address it as `<var>.data.{first}` per spec-grift-envelope."
-        )
-    user_alias = explicit_alias if explicit_alias is not None else first
-    return user_alias, value
 
 
-# ---------------------------------------------------------------------------
-# Bare type scan — labelless MATCH (n) across every registered node type
-# ---------------------------------------------------------------------------
+# Spine fields that are JSON-typed and therefore support multi-step walking
+# into nested keys. Today only `dimensions`; future JSON-typed spine fields
+# slot in here.
+_JSON_TYPED_SPINE_FIELDS: frozenset[str] = frozenset({"dimensions"})
 
 
 def _predicate_field_paths(predicate: Any) -> list[FieldPath]:
@@ -2391,6 +2385,113 @@ def _resolve_order_cols(
     return cols
 
 
+@dataclass(frozen=True)
+class MaterializationPlan:
+    """A resolved plan handed by a Layer-A shape builder to the shared row backend.
+
+    Every field is already resolved to concrete ORM expressions / columns by the
+    shape-specific builder (type-scan, edge-chain, OPTIONAL MATCH), so
+    :func:`materialize_rows` never inspects pattern shape, resolves a field path,
+    or reads a variable binding. This is the contract that lets one backend serve
+    every shape (`req-grid-traversal-exec-row-materialization`); a looser
+    ``(queryset, bindings)`` pair is insufficient because OPTIONAL MATCH's
+    zero-preserving ``Count(edge_path, filter=opt_q)`` and each shape's path
+    prefix are local state that only the builder can resolve.
+    """
+
+    queryset: Any
+    # internal_alias -> ORM expression, annotated *before* `.values()` (group-by
+    # F-aliases plus any aggregate source aliases).
+    pre_annotations: dict[str, Any]
+    # (internal_alias, user_alias) in RETURN order — the projected / group-by columns.
+    group_pairs: tuple[tuple[str, str], ...]
+    # agg_internal_alias -> aggregate expression (e.g. ``Count(...)``), annotated
+    # *after* `.values()` so it aggregates over the group.
+    aggregate_annotations: dict[str, Any]
+    # (agg_internal_alias, user_alias) in RETURN order.
+    aggregate_pairs: tuple[tuple[str, str], ...]
+    # Fully-resolved `.order_by()` column args (incl. shape-specific tiebreakers).
+    # Empty => do not reorder (keep the queryset's inherited ordering).
+    order_cols: tuple[str, ...]
+    # LIMIT AST node (carries `.count`) or None.
+    limit: Any = None
+    # DISTINCT flag. Always False until `req-grid-gryphon-distinct` lands; the
+    # backend is the single structural home for the DISTINCT rules. Until the
+    # `.values().distinct()` application is wired, `materialize_rows` fails closed
+    # on a set flag (reject, never silently no-op) rather than accepting it.
+    distinct: bool = False
+
+
+def _rows_from_values(
+    raw_rows: Any,
+    group_pairs: tuple[tuple[str, str], ...],
+    aggregate_pairs: tuple[tuple[str, str], ...],
+) -> list[dict[str, Any]]:
+    """Build row dicts from `.values()` output — the one uuid-stringify site.
+
+    Projected (group) column values are stringified when they are UUIDs
+    (``hasattr(val, "hex")``); aggregate values pass through unchanged. Row-dict
+    key order follows the RETURN projection order and duplicate user aliases
+    collapse last-write-wins, preserved byte-identically
+    (`req-grid-traversal-exec-row-materialization-15`).
+    """
+    rows: list[dict[str, Any]] = []
+    for raw in raw_rows:
+        row: dict[str, Any] = {}
+        for internal, user in group_pairs:
+            val = raw.get(internal)
+            row[user] = str(val) if hasattr(val, "hex") else val
+        for internal, user in aggregate_pairs:
+            row[user] = raw.get(internal)
+        rows.append(row)
+    return rows
+
+
+def materialize_rows(plan: MaterializationPlan) -> list[dict[str, Any]]:
+    """The shared Layer-B row backend: a resolved plan -> the ``rows`` list.
+
+    Shape-agnostic. It applies the plan's pre-resolved annotations, projects
+    through ``.values()``, applies aggregates, ordering, and LIMIT, and builds the
+    row dicts — reached identically by the type-scan, edge-chain, and OPTIONAL
+    MATCH shapes. Collapsing the four former per-shape row tails here makes the
+    "a path silently drops a row-flag" and "a per-tail ordering divergence" bug
+    classes inexpressible (`req-grid-traversal-exec-row-materialization`,
+    `GRY-ARCH-4`).
+    """
+    # req-grid-traversal-exec-row-materialization-14: DISTINCT over aggregate
+    # returns is rejected here — the single structural home across every shape
+    # (incl. OPTIONAL MATCH, whose plan always carries a Count).
+    if plan.distinct and plan.aggregate_annotations:
+        raise SearchExecutionError(
+            "DISTINCT is not supported over aggregate returns; remove DISTINCT or the aggregate."
+        )
+    # Fail closed on the dormant flag. `plan.distinct` is always False today — no
+    # Layer-A builder sets it and `ReturnClause` has no `distinct` field — but the
+    # `.values().distinct()` application (and its ordering-clear) is not wired yet.
+    # So a non-aggregate `plan.distinct=True` MUST reject rather than silently
+    # return non-deduplicated rows: a silent no-op is the exact class this backend
+    # exists to make impossible (`GRY-ARCH-3`). `req-grid-gryphon-distinct` replaces
+    # this branch with the real `.values().distinct()`. Laying the edge now
+    # (`GRY-SEC-4`) means a premature flag can never no-op.
+    if plan.distinct:
+        raise SearchExecutionError("DISTINCT is not implemented yet (req-grid-gryphon-distinct).")
+
+    qs = plan.queryset
+    if plan.pre_annotations:
+        qs = qs.annotate(**plan.pre_annotations)
+
+    group_internals = [internal for internal, _ in plan.group_pairs]
+    qs = qs.values(*group_internals)
+    if plan.aggregate_annotations:
+        qs = qs.annotate(**plan.aggregate_annotations)
+    if plan.order_cols:
+        qs = qs.order_by(*plan.order_cols)
+    if plan.limit is not None:
+        qs = qs[: plan.limit.count]
+
+    return _rows_from_values(list(qs), plan.group_pairs, plan.aggregate_pairs)
+
+
 def _compute_rows(
     qs,
     return_clause: ReturnClause,
@@ -2483,9 +2584,6 @@ def _compute_rows(
         aggregate_annotations[agg_alias] = Count(src_alias)
         aggregate_pairs.append((agg_alias, ai.alias))
 
-    if annotations:
-        qs = qs.annotate(**annotations)
-
     group_by_internals = [i for i, _ in group_by_pairs]
 
     # Map each RETURN output key to its internal annotation alias so ORDER BY
@@ -2496,38 +2594,25 @@ def _compute_rows(
     for internal, user in aggregate_pairs:
         key_to_internal[user] = internal
 
-    if aggregate_annotations:
-        order_cols = _resolve_order_cols(order_by, key_to_internal, group_by_internals)
-        qs = qs.values(*group_by_internals).annotate(**aggregate_annotations).order_by(*order_cols)
-        if limit is not None:
-            qs = qs[: limit.count]
-        raw_rows = list(qs)
-        rows: list[dict[str, Any]] = []
-        for raw in raw_rows:
-            row: dict[str, Any] = {}
-            for internal, user in group_by_pairs:
-                val = raw.get(internal)
-                row[user] = str(val) if hasattr(val, "hex") else val
-            for internal, user in aggregate_pairs:
-                row[user] = raw.get(internal)
-            rows.append(row)
-        return rows
+    # Resolve the edge-chain ORDER BY convention into concrete columns: aggregate
+    # queries always order (group-by internals as the deterministic default /
+    # tiebreak); a plain projection reorders only when ORDER BY or LIMIT is present,
+    # otherwise it keeps the chain queryset's inherited order.
+    if aggregate_annotations or order_by is not None or limit is not None:
+        order_cols = tuple(_resolve_order_cols(order_by, key_to_internal, group_by_internals))
+    else:
+        order_cols = ()
 
-    # No aggregation — project group-by aliases as rows.
-    qs = qs.values(*group_by_internals)
-    if order_by is not None or limit is not None:
-        qs = qs.order_by(*_resolve_order_cols(order_by, key_to_internal, group_by_internals))
-    if limit is not None:
-        qs = qs[: limit.count]
-    raw_rows = list(qs)
-    rows = []
-    for raw in raw_rows:
-        row = {}
-        for internal, user in group_by_pairs:
-            val = raw.get(internal)
-            row[user] = str(val) if hasattr(val, "hex") else val
-        rows.append(row)
-    return rows
+    plan = MaterializationPlan(
+        queryset=qs,
+        pre_annotations=annotations,
+        group_pairs=tuple(group_by_pairs),
+        aggregate_annotations=aggregate_annotations,
+        aggregate_pairs=tuple(aggregate_pairs),
+        order_cols=order_cols,
+        limit=limit,
+    )
+    return materialize_rows(plan)
 
 
 def _serialize_edge_list(
@@ -3021,21 +3106,21 @@ def _execute_optional_match(
         )
 
     group_internals = [i for i, _ in group_pairs]
-    qs = qs.annotate(**group_annotations).values(*group_internals).annotate(**agg_annotations)
-
     key_to_internal: dict[str, str] = {user: internal for internal, user in group_pairs}
     key_to_internal.update({user: internal for internal, user in agg_pairs})
-    qs = qs.order_by(*_resolve_order_cols(ast.order_by, key_to_internal, group_internals))
-    if ast.limit is not None:
-        qs = qs[: ast.limit.count]
 
-    rows: list[dict[str, Any]] = []
-    for raw in qs:
-        row: dict[str, Any] = {}
-        for internal, user in group_pairs:
-            val = raw.get(internal)
-            row[user] = str(val) if hasattr(val, "hex") else val
-        for internal, user in agg_pairs:
-            row[user] = raw.get(internal)
-        rows.append(row)
-    return {"nodes": [], "edges": [], "rows": rows}
+    # OPTIONAL MATCH always carries a Count, so it is an aggregate plan and always
+    # orders (group-by internals as the deterministic default / tiebreak). The
+    # zero-preserving Count(edge_path, filter=opt_q) built above is a fully-resolved
+    # aggregate descriptor — the shape-local state the shared backend cannot derive
+    # from bindings alone (req-grid-traversal-exec-row-materialization-3).
+    plan = MaterializationPlan(
+        queryset=qs,
+        pre_annotations=group_annotations,
+        group_pairs=tuple(group_pairs),
+        aggregate_annotations=agg_annotations,
+        aggregate_pairs=tuple(agg_pairs),
+        order_cols=tuple(_resolve_order_cols(ast.order_by, key_to_internal, group_internals)),
+        limit=ast.limit,
+    )
+    return {"nodes": [], "edges": [], "rows": materialize_rows(plan)}

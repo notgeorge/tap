@@ -1,5 +1,5 @@
 -- statement 1 · stage: type-scan
-SELECT "grid_fixtures__node"."id", "grid_fixtures__node"."entity_id", "grid_fixtures__node"."batch_id", "grid_fixtures__node"."flip_map", "grid_fixtures__node"."name", "grid_fixtures__node"."description", "grid_fixtures__node"."kind", "grid_fixtures__node"."severity_score", "grid_fixtures__node"."is_open", "grid_fixtures__node"."observed_at", "grid_fixtures__node"."tags", "tap_entity"."id", "tap_entity"."entity_type", "tap_entity"."name", "tap_entity"."dimensions", "tap_entity"."originating_grid_id", "tap_entity"."version", "tap_entity"."deleted_at", "tap_entity"."created_at", "tap_entity"."updated_at"
+SELECT "grid_fixtures__node"."entity_id" AS "_ts_col_0"
 FROM "grid_fixtures__node"
 INNER JOIN "tap_entity" ON ("grid_fixtures__node"."entity_id" = "tap_entity"."id")
 WHERE ("tap_entity"."deleted_at" IS NULL AND ("grid_fixtures__node"."severity_score" < %s OR "grid_fixtures__node"."severity_score" > %s))
