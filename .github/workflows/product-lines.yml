@@ -1,0 +1,129 @@
+# Per-product-line CI lanes (spec-dev-validation.md req-dev-validation-product-line-lanes).
+#
+# Each product line is a boot profile validated on its OWN AWS CodeBuild GitHub Actions
+# runner (provisioned by ci/terraform/codebuild-runners/). The lane boots that line's
+# profile, clones a per-profile pre-migrated template DB (fast + race-free setup, see
+# TAP_TEST_DB_TEMPLATE / scripts/build-test-template), and runs that line's tests. Lines
+# run in parallel; parallelism is along the meaningful product axis, not arbitrary shards.
+#
+# Runner label: `codebuild-<project>-<run_id>-<run_attempt>` where <project> is
+# `tap-ci-<line>` (Terraform `runner_labels` output). Adding a line = add a matrix entry
+# here AND a `product_lines` entry in the Terraform.
+#
+# NOT wired into the promote gate yet — this runs once CodeBuild is stood up and the
+# CodeConnections GitHub app is authorized. Until then the known-green all-plugins.yml
+# lane remains the authority.
+
+name: product-lines
+
+on:
+  workflow_dispatch:
+    inputs:
+      line:
+        description: "Lane to run on dispatch. 'all' runs every lane; a single lane runs just that one. PR events always run all lanes."
+        type: choice
+        options: [test_all, samsite, all]
+        default: test_all
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: product-lines-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Pick the lane set. On dispatch, run only the selected lane (default test_all); a
+  # 'line=all' dispatch and every PR run all lanes. The matrix context is not available
+  # in a job-level if, so we compute the matrix here and feed it in via fromJSON.
+  # NOTE: the samsite lane git-installs plugins via the `github-plugins-ro` PAT and needs
+  # that credential materialized from AWS Secrets Manager (req-dev-validation-product-
+  # line-lanes; not yet wired) — until then only test_all is green-capable.
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.pick.outputs.matrix }}
+    steps:
+      - id: pick
+        env:
+          EVENT: ${{ github.event_name }}
+          LINE: ${{ github.event.inputs.line }}
+        run: |
+          test_all='{"line":"test_all","profile":"test_all"}'
+          samsite='{"line":"samsite","profile":"samsite"}'
+          if [ "$EVENT" = "workflow_dispatch" ] && [ "$LINE" != "all" ]; then
+            case "$LINE" in
+              test_all) inc="$test_all" ;;
+              samsite)  inc="$samsite" ;;
+              *) echo "::error::unknown line '$LINE'"; exit 1 ;;
+            esac
+          else
+            inc="$test_all,$samsite"
+          fi
+          echo "matrix={\"include\":[$inc]}" >> "$GITHUB_OUTPUT"
+
+  line:
+    needs: setup
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
+    # CodeBuild GHA-runner label. Project name = tap-ci-<line> (Terraform name_prefix).
+    runs-on: codebuild-tap-ci-${{ matrix.line }}-${{ github.run_id }}-${{ github.run_attempt }}
+    timeout-minutes: 40
+    env:
+      COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
+      # Name of the per-worker clone-source template built below (in-container).
+      TAP_TEST_DB_TEMPLATE: tap_test_template
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Provide empty secrets root
+        run: |
+          rm -f tap_secrets
+          mkdir -p tap_secrets
+
+      - uses: docker/setup-buildx-action@v3
+      - name: Build web image (GHA layer cache)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: tap-web:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Boot THIS line's profile (preboot installs exactly that profile's plugins).
+      - name: Boot the ${{ matrix.profile }} profile
+        env:
+          TAP_BOOT_PROFILE: ${{ matrix.profile }}
+          TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE: "false"
+        run: |
+          docker compose --env-file .env up -d
+          ok=0
+          for i in $(seq 1 90); do
+            if docker compose --env-file .env logs web 2>/dev/null | grep -q 'TAP-ABORT:'; then
+              echo "::error::boot aborted (TAP-ABORT sentinel in web log)"
+              docker compose --env-file .env logs web; exit 1
+            fi
+            if docker compose --env-file .env exec -T web sh -c 'cd /app && uv run python manage.py health' >/dev/null 2>&1; then
+              echo "web healthy after ~$((i * 10))s"; ok=1; break
+            fi
+            sleep 10
+          done
+          if [ "$ok" != 1 ]; then
+            echo "::error::web did not become healthy within the timeout"
+            docker compose --env-file .env logs web | tail -150; exit 1
+          fi
+
+      # Build the per-profile template DB workers clone from. Honors the booted profile's
+      # installed app set (entry-point discovery), so the template schema matches the run.
+      - name: Build per-profile test-DB template
+        run: docker compose --env-file .env exec -T web sh -c 'cd /app && TAP_TEST_DB_TEMPLATE=tap_test_template scripts/build-test-template'
+
+      # This line's tests. install-aware collection (req-dev-validation-collection-complete)
+      # runs core + the booted profile's plugin tests. Worker DBs clone the template.
+      - name: Test lane — ${{ matrix.line }}
+        run: docker compose --env-file .env exec -T web sh -c 'cd /app && TAP_TEST_DB_TEMPLATE=tap_test_template uv run pytest -n 8'
+
+      - name: Dump web logs on failure
+        if: failure()
+        run: docker compose --env-file .env logs web | tail -200
