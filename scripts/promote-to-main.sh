@@ -126,6 +126,18 @@ else
     fail "Validation gate requires this session's stack to be up (scripts/dc up -d). \
 Refusing to promote an unvalidated tree to origin/main (req-dev-validation-promote-hook)."
   fi
+  # Clear mypy's incremental cache before the lane. mypy's `.mypy_cache` can go
+  # stale across the pre-push merge: when a merge moves or deletes a module (e.g.
+  # a plugin extraction removing a submodule), mypy's cached dependency graph can
+  # keep pointing at the old path and emit a false `import-untyped`/missing-module
+  # red in the mypy guard below. This is a tree-structure change, not an edit, so
+  # content-hash invalidation does not catch it. Clearing is unconditional so the
+  # gate always type-checks the merged tree from a cold, trustworthy state — one
+  # cold mypy run, negligible against the full lane. (Standardizes the fix for the
+  # github_core false red on tip a94bc98c; supersedes the "clear cache after
+  # merges" convention as a mechanical guarantee.)
+  info "Clearing mypy incremental cache (post-merge staleness guard) ..."
+  scripts/dc exec -T web sh -c 'rm -rf /app/.mypy_cache' 2>/dev/null || true
   # Three composed surfaces (req-dev-validation-suite-tiers-1, req-dev-validation-promote-hook):
   #   1. Full pytest lane — catches unit/functional regressions (e.g. a stale
   #      collector key red'ing a unit test — the exact class that shipped to main
