@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+# Clear mypy's incremental cache after a BRANCH checkout only. post-checkout args:
+#   $1 = ref of previous HEAD, $2 = ref of new HEAD, $3 = flag (1 = branch
+#   checkout / clone, 0 = file checkout). Skip file checkouts — they don't move
+#   the module tree. See _clear_mypy_cache.sh.
+[ "$3" = "1" ] || exit 0
+. "$(dirname "$0")/_clear_mypy_cache.sh"
+clear_mypy_cache

@@ -463,6 +463,12 @@ git worktree add "$WORKTREE" -b "session/$SESSION_NAME" "$BASE_REF"
 cd "$WORKTREE"
 info "Created. Now on branch session/$SESSION_NAME (branched from $BASE_REF)."
 
+# Point git at the tracked .githooks/ (post-merge/checkout/rewrite clear a stale
+# .mypy_cache — see .githooks/_clear_mypy_cache.sh). Idempotent: this writes the
+# SHARED config (worktrees share one common git dir), so all worktrees inherit it;
+# re-setting it per-spawn is just insurance for a fresh clone that never set it.
+git config core.hooksPath .githooks
+
 # --boot-file: stage the provided profile into this worktree's boot/ under its
 # basename id, then boot it like any named profile. The staged copy is a local,
 # uncommitted file in the throwaway worktree (fine — it goes away on despawn).
