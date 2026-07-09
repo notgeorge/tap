@@ -118,6 +118,33 @@ class _FakeHttpResponse:
         return False
 
 
+@pytest.fixture(autouse=True)
+def _stub_upstream_reachability(request, monkeypatch):
+    """Keep ``run_collection``'s readiness HEAD probe off the live network.
+
+    Per the module docstring these tests run deterministically against the
+    committed fixture: ``_fetch_upstream_bytes`` is overridden for the body fetch.
+    But ``KSICollector.self_test()`` makes a SEPARATE live ``urllib`` HEAD request
+    to ``UPSTREAM_URL`` for the ``UPSTREAM_REACHABLE`` readiness check, which
+    ``run_collection`` gates on. Left live, every ``run_collection`` test depends on
+    reaching ``raw.githubusercontent.com`` — a flaky dependency: GitHub rate-limits
+    cloud-provider egress, so it fails intermittently on non-GitHub CI runners
+    (e.g. AWS CodeBuild). Stub it to a 200 HEAD so the deterministic tests stay
+    hermetic, honoring the file's stated contract.
+
+    Exemptions: the ``@pytest.mark.live_fetch`` round-trip test needs the real
+    network; and ``test_self_test_checks_upstream_reachability`` installs its own
+    ``urlopen`` fake, which overrides this stub.
+    """
+    if request.node.get_closest_marker("live_fetch"):
+        return
+
+    def _fake_urlopen(req, *, timeout):
+        return _FakeHttpResponse()
+
+    monkeypatch.setattr(ksi_module.urllib.request, "urlopen", _fake_urlopen)
+
+
 def test_self_test_checks_upstream_reachability(monkeypatch):
     def fake_urlopen(request, *, timeout):
         assert request.get_method() == "HEAD"
