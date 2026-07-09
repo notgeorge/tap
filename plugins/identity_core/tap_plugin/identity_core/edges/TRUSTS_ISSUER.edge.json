@@ -1,0 +1,9 @@
+{
+  "slug": "TRUSTS_ISSUER__identity_core",
+  "name": "Trusts Issuer",
+  "description": "A principal registers trust in an OIDC issuer — its configured issuer URL matches the issuer's canonical host. A generic federation relationship, not specific to any one cloud: an AWS IAM OIDC provider, a GCP workload-identity pool, an Azure federated credential, or a Kubernetes/Vault JWT trust are all sources. The source is WILDCARD (omitted) precisely so any principal type can trust an issuer without identity_core depending upward on that principal's plugin — the substrate owns the generic vocabulary, the domain plugin supplies the source node. Owning this edge TYPE asserts no trust (existence != trust); a trust instance exists only when an emitter creates the edge. In v0 the only emitter is github_core's enrichment, matching aws_iam_oidc_provider.url against the issuer host. Derived link (not hotlink-backed): the provider is written by aws_core, which neither knows about nor emits this edge.",
+  "targets": ["identity_core__oidc_issuer"],
+  "default_dimensions": {
+    "identity.protocol": "oidc"
+  }
+}

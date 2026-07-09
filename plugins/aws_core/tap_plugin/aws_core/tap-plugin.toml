@@ -4,10 +4,6 @@ slug = "aws_core"
 name = "TAP AWS Core"
 description = "Resource-type models and edge types for AWS cloud infrastructure."
 
-depends_on = [
-    { slug = "identity_core", note = "TRUSTS_ISSUER targets the identity_core__oidc_issuer type (edge/vocabulary dependency — no code import); needs the type registered." },
-]
-
 [models]
 aws_core__aws_region = "tap_plugin.aws_core.models.aws_region.AwsRegion"
 aws_core__aws_az = "tap_plugin.aws_core.models.availability_zone.AvailabilityZone"
@@ -53,7 +49,6 @@ aws_core__aws_eventbridge_rule = "tap_plugin.aws_core.models.eventbridge_rule.Ev
 
 [edges]
 DIVIDED_INTO_AZ__aws_core = "edges/DIVIDED_INTO_AZ.edge.json"
-TRUSTS_ISSUER__aws_core = "edges/TRUSTS_ISSUER.edge.json"
 INVOKES__aws_core = "edges/INVOKES.edge.json"
 ROUTES_TRAFFIC__aws_core = "edges/ROUTES_TRAFFIC.edge.json"
 ASSUMES_ROLE__aws_core = "edges/ASSUMES_ROLE.edge.json"

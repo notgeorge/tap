@@ -12,9 +12,6 @@ dynamic = ["version"]
 # Tier-0: the boto3 collection engine is plugin-specific (not core-provided).
 dependencies = [
     "boto3>=1.43.9",
-    # Edge/vocabulary dependency: TRUSTS_ISSUER targets identity_core__oidc_issuer.
-    # Co-install so the type is registered (no code import — pure endpoint reference).
-    "tap-plugin-identity-core",
 ]
 
 [project.entry-points."tap.plugins"]
