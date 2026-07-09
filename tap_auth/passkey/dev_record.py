@@ -173,6 +173,9 @@ def import_dev_admin(record: dict[str, Any], *, username: str = DEV_ADMIN_USERNA
     cred = record["credential"]
 
     user, created = User.objects.get_or_create(
+        # TAP-WRITE-COV: below-the-capability-gate root-of-trust bootstrap (genesis-class,
+        # like sync.ensure_initial_admin) — auth bootstrap is the sanctioned direct-ORM
+        # exception; no capability-holding caller exists when the dev admin is first minted.
         username=username,
         defaults={"email": "", "user_kind": UserKind.HUMAN},
     )
