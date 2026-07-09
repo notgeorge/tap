@@ -119,7 +119,7 @@ fi
 # it (there is no push to gate). It requires the session's stack to be up.
 # ---------------------------------------------------------------------------
 if [[ "$DRY_RUN" -eq 1 ]]; then
-  info "[dry-run] would: scripts/test (full lane) then scripts/gate (cold-boot gate) then scripts/gate-lean (lean-boot independence)"
+  info "[dry-run] would: scripts/test --gryphon (full lane) then scripts/gate (cold-boot gate) then scripts/gate-lean (lean-boot independence)"
 else
   bold "Development-validation gate on the merged tree"
   if ! scripts/dc ps --status running --services 2>/dev/null | grep -qx web; then
@@ -144,8 +144,11 @@ Refusing to promote an unvalidated tree to origin/main (req-dev-validation-promo
   #      session tree — the exact tree about to become origin/main; local `main`
   #      isn't advanced until after the push) and nukes itself on exit.
   #      (req-dev-validation-lean-boot)
-  info "Full test lane (scripts/test) ..."
-  if ! scripts/test; then
+  # --gryphon forces the gryphon corpus ON regardless of the diff: the default lane
+  # relevance-skips it locally (req-dev-validation-suite-tiers-5), but the gate must
+  # always run the full corpus (req-dev-validation-suite-tiers-4). Do NOT drop this.
+  info "Full test lane (scripts/test --gryphon) ..."
+  if ! scripts/test --gryphon; then
     fail "Full test lane RED — aborting promote. origin/main is NOT advanced \
 (req-dev-validation-promote-hook-2). Fix the failing test(s) and re-run."
   fi

@@ -1,0 +1,23 @@
+manifest_version = "0"
+plugin_version = "0.1.0"
+slug = "compliance_core"
+name = "TAP Compliance Core"
+description = "Regime-agnostic compliance vocabulary — artifacts, per-regime context, evidence, findings, exceptions, and boundaries that every compliance regime (FedRAMP 20x, SOC2, CMMC, ISO 27001) shares. Substrate; consumers depend on it downward."
+
+# Regime-agnostic compliance vocabulary: the fetched-document artifact, per-regime
+# posture context, and the shared evidence / finding / exception / boundary nodes with
+# their edges (see specs/spec-compliance-core-v0.md, req-compliance-core-migration).
+[models]
+compliance_core__compliance_artifact = "tap_plugin.compliance_core.models.compliance_artifact.ComplianceArtifact"
+compliance_core__compliance_context = "tap_plugin.compliance_core.models.compliance_context.ComplianceContext"
+compliance_core__compliance_evidence = "tap_plugin.compliance_core.models.compliance_evidence.ComplianceEvidence"
+compliance_core__compliance_finding = "tap_plugin.compliance_core.models.compliance_finding.ComplianceFinding"
+compliance_core__compliance_exception = "tap_plugin.compliance_core.models.compliance_exception.ComplianceException"
+compliance_core__compliance_boundary = "tap_plugin.compliance_core.models.compliance_boundary.ComplianceBoundary"
+
+[edges]
+HAS_COMPLIANCE_EVIDENCE__compliance_core = "edges/HAS_COMPLIANCE_EVIDENCE.edge.json"
+COVERS_COMPLIANCE_FINDING__compliance_core = "edges/COVERS_COMPLIANCE_FINDING.edge.json"
+HAS_COMPLIANCE_FINDING__compliance_core = "edges/HAS_COMPLIANCE_FINDING.edge.json"
+SCOPED_TO_COMPLIANCE_BOUNDARY__compliance_core = "edges/SCOPED_TO_COMPLIANCE_BOUNDARY.edge.json"
+CONCERNS_COMPLIANCE_CONTROL__compliance_core = "edges/CONCERNS_COMPLIANCE_CONTROL.edge.json"

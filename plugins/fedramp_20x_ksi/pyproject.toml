@@ -27,7 +27,11 @@ dynamic = ["version"]
 # its third-party imports (jsonschema, django-simple-history) are core TAP deps the
 # host runtime always provides. Plugin-specific deps ride in with the plugins that
 # have them (PyYAML->github_core, boto3->aws_core, sigstore->sigstore_core).
-dependencies = []
+dependencies = [
+    # Regime-agnostic compliance vocabulary substrate: the compliance_view panel
+    # queries compliance_core__compliance_context (req-compliance-core-migration).
+    "tap-plugin-compliance-core",
+]
 
 [project.entry-points."tap.plugins"]
 fedramp_20x_ksi = "tap_plugin.fedramp_20x_ksi.apps:Fedramp20xKsiConfig"

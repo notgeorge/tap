@@ -1,8 +1,8 @@
 """Findings By KSI — plugin-owned table panel grouped by indicator.
 
-Renders all open findings (with a RELATED_INDICATOR linkage) as a Tabulator
+Renders all open findings (with a CONCERNS_COMPLIANCE_CONTROL linkage) as a Tabulator
 table grouped by KSI code. Sister panel to findings_by_system (same dataset,
-different group_by). Findings without a RELATED_INDICATOR edge are excluded
+different group_by). Findings without a CONCERNS_COMPLIANCE_CONTROL edge are excluded
 from this panel since there's no group to put them under. See
 spec-fedramp-20x-ksi-findings-page.md.
 """

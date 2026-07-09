@@ -1,0 +1,9 @@
+{
+  "slug": "HAS_COMPLIANCE_FINDING__compliance_core",
+  "name": "Has Compliance Finding",
+  "description": "An asset has a compliance finding observed against it. Source may be any entity type (wildcard); target is a finding.",
+  "targets": ["compliance_core__compliance_finding"],
+  "default_dimensions": {
+    "compliance": "finding"
+  }
+}

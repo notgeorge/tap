@@ -115,7 +115,7 @@ search with an expected predicate (`count == 0`, `every row has
 signature_verified=True`, etc.). Stash them as grift seeds in the
 `fedramp_20x_ksi` plugin. Run on demand (a "Run all checks" page) and on
 each KSI signal collection. A check that fails materializes a `finding`
-(model already exists) linked by `COVERS_FINDING` back to the relevant
+(model already exists) linked by `COVERS_COMPLIANCE_FINDING` back to the relevant
 `ksi_component`s. A check that passes materializes (or refreshes) an
 `evidence` node (also already in the model catalog). **No new model needed
 for v0** — we're using vocabulary that's already there.

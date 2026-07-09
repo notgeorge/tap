@@ -119,7 +119,7 @@ A plugin-owned panel type that renders all open findings as a Tabulator table gr
 - CSS: `fedramp_20x_ksi/css/findings_by_system.css`.
 - Registered in `Fedramp20xKsiConfig.ready()`.
 
-Data shape: server-side `get_view_context` runs a gryphon query (matching findings + their system + RELATED_INDICATOR + KSI), flattens to one row per finding with columns `title`, `system_name`, `system_id`, `description`, `ksi_code`, `ksi_name`, `ksi_relationship`, `created_at`, `age_days`, `finding_id`. Sorted by `age_days` ascending, ties broken by `created_at` descending.
+Data shape: server-side `get_view_context` runs a gryphon query (matching findings + their system + CONCERNS_COMPLIANCE_CONTROL + KSI), flattens to one row per finding with columns `title`, `system_name`, `system_id`, `description`, `ksi_code`, `ksi_name`, `ksi_relationship`, `created_at`, `age_days`, `finding_id`. Sorted by `age_days` ascending, ties broken by `created_at` descending.
 
 Tabulator config:
 
@@ -166,7 +166,7 @@ Tabulator config:
 - Columns: Title (linkable), Description, System (linkable to the system page once that exists; plain text for v0), Relationship (verdict pill), Age.
 - Initial sort: KSI code ascending, age within KSI ascending.
 
-Note: findings without a RELATED_INDICATOR edge are excluded from this panel (no group to put them under). They would still appear in the findings_by_system panel if any survived; the seed data does not currently produce orphans.
+Note: findings without a CONCERNS_COMPLIANCE_CONTROL edge are excluded from this panel (no group to put them under). They would still appear in the findings_by_system panel if any survived; the seed data does not currently produce orphans.
 
 #### Acceptance Criteria
 

@@ -12,6 +12,9 @@ dynamic = ["version"]
 # Tier-0: sigstore-ecosystem verification is plugin-specific (not core-provided).
 dependencies = [
     "sigstore>=4.2.0",
+    # Edge/vocabulary dependency: IDENTITY_VOUCHED_BY targets identity_core__oidc_issuer.
+    # Co-install so the type is registered (no code import — pure endpoint reference).
+    "tap-plugin-identity-core",
 ]
 
 [project.entry-points."tap.plugins"]

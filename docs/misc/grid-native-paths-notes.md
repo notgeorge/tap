@@ -301,6 +301,59 @@ There is no way to know the full set of capabilities this unlocks across the
 disciplines TAP may enter. But the intuition is strong: "the way" is not a
 decorative layer over the graph. It is one of the things the graph is for.
 
+## First Implementation Candidate: Structural Containment (AWS Topology)
+
+Added 2026-07-08 from the aws_core edge-rationalization discussion. This names a
+concrete, self-contained edge set as one of the first places to build reified
+paths against — a grounded early target for the abstract model above.
+
+**Why this set.** "What thing is inside what other thing" is the canonical
+reified-path concept: it is inherently *transitive and derived* (a task is inside
+a service is inside a cluster is inside an account), so it belongs at the path
+level, not as a single asserted edge. During the aws_core cleanup we deliberately
+declined to model a generic `CONTAINS` edge — a single-hop assertion of a
+multi-hop concept that also duplicated the specific edges already present — and
+instead broke it into specific parent→child relationships. The generalized
+inside-ness question is left to be *computed as a reified path* over those
+specific edges. That makes this family the natural first proving ground: the
+specific edges are the observed facts; the path layer is what answers "what is
+inside X" (and its inverse, "what is X inside of").
+
+**Direction convention.** Normalized **parent→child**, so a containment path is a
+uniform downward walk and "what contains X" is the same walk reversed. The
+pre-eviction cleanup drops the reverse-twin edges (e.g. `BELONGS_TO_VPC` as the
+inverse of `PARTITIONED_INTO_SUBNET`) in favor of traversing the one canonical
+edge backward. Note containment is a DAG, not a tree: a subnet is inside both a
+VPC (address space) and an AZ (physical location), so a node can have multiple
+containment parents — the path layer must expect that.
+
+**Candidate edge set (aws_core structural containment, parent→child).** New/renamed
+slugs below are illustrative — the naming is settled during the cleanup pass:
+
+- region → VPC — `HOSTS_VPC`
+- region → AZ — *new specific edge replacing part of `CONTAINS` (e.g. `DIVIDED_INTO_AZ`)*
+- VPC → subnet — `PARTITIONED_INTO_SUBNET`
+- AZ → subnet — *currently `BOUND_TO_AZ` (child→parent); renormalize to parent→child*
+- ECS cluster → service — *new specific edge replacing part of `CONTAINS` (e.g. `OPERATES_SERVICE`)*
+- ECS service → task — *new specific edge: the "what the service actually runs" grain
+  (e.g. `RUNS_TASK`). Container grain is finer still and waits on a container node type
+  (none exists today; `aws_ecs_task` is the finest existing grain).*
+- resource → account — `BELONGS_TO_ACCOUNT` *(ownership-flavored containment; renormalize direction)*
+- resource → region/AZ/VPC/subnet — `RESIDES_IN` *(the second generic multi-pair offender;
+  splitting it the same way `CONTAINS` is split is a fast-follow)*
+
+`CONTAINS__aws_core` itself is being **deleted** in the pre-eviction pass — it is
+the concept reified paths will replace, not an edge to keep.
+
+**Deferred edge-model hook (recorded here on purpose).** The clean way for the
+path layer to gather this family is a shared classification on the edges
+themselves — an edge `kind`/tag such as `structural: containment` — so paths
+select containment edges by class instead of a hardcoded slug list. We are
+**not** changing the edge model now to add that tag. When the reified-path spec
+pass happens it should decide whether to introduce that classification (and, if
+so, apply it to this set) rather than enumerate these slugs by hand. This
+paragraph is the placeholder for that decision.
+
 ## Future Spec Hooks
 
 Likely specs or spec sections when this becomes implementation work:

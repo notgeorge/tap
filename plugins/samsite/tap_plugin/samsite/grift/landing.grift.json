@@ -32,7 +32,7 @@
             "definition": {
               "query": [
                 "MATCH (account:aws_core__aws_account)",
-                "MATCH (b:fedramp_20x_ksi__boundary)",
+                "MATCH (b:compliance_core__compliance_boundary)",
                 "MATCH (gp:github_core__github_platform)",
                 "MATCH (ga:github_core__github_account)",
                 "MATCH (gr:github_core__github_repository)",
@@ -40,10 +40,10 @@
                 "MATCH (gapp:github_core__github_app)",
                 "MATCH (re:sigstore_core__rekor_log_entry)",
                 "MATCH (ca:sigstore_core__sigstore_ca)",
-                "MATCH (oi:github_core__oidc_issuer)",
+                "MATCH (oi:identity_core__oidc_issuer)",
                 "MATCH (sig:fedramp_20x_ksi__ksi_signal)",
                 "MATCH (vr:fedramp_20x_ksi__vdr_report)",
-                "MATCH (cart:fedramp_20x_ksi__compliance_artifact)",
+                "MATCH (cart:compliance_core__compliance_artifact)",
                 "MATCH (wh:computing_core__web_host)",
                 "MATCH (wd:computing_core__web_document)",
                 "MATCH (u:computing_core__user)",
@@ -216,9 +216,9 @@
               "height": "100%",
               "hide_header": true,
               "nav_rules": [
-                {"entity_type": "fedramp_20x_ksi__compliance_artifact", "where": {"kind": "oscal_ssp"}, "url_template": "/samsite/artifacts/ssp?oscal_ssp_artifact_entity_id={entity_id}"},
-                {"entity_type": "fedramp_20x_ksi__compliance_artifact", "where": {"kind": "oscal_poam"}, "url_template": "/samsite/artifacts/poam?oscal_poam_artifact_entity_id={entity_id}"},
-                {"entity_type": "fedramp_20x_ksi__compliance_artifact", "where": {"kind": "iiw"}, "url_template": "/samsite/artifacts/iiw?iiw_artifact_entity_id={entity_id}"},
+                {"entity_type": "compliance_core__compliance_artifact", "where": {"kind": "oscal_ssp"}, "url_template": "/samsite/artifacts/ssp?oscal_ssp_artifact_entity_id={entity_id}"},
+                {"entity_type": "compliance_core__compliance_artifact", "where": {"kind": "oscal_poam"}, "url_template": "/samsite/artifacts/poam?oscal_poam_artifact_entity_id={entity_id}"},
+                {"entity_type": "compliance_core__compliance_artifact", "where": {"kind": "iiw"}, "url_template": "/samsite/artifacts/iiw?iiw_artifact_entity_id={entity_id}"},
                 {"entity_type": "fedramp_20x_ksi__ksi_signal", "url_template": "/samsite/artifacts/ksi-signal?ksi_signal_entity_id={entity_id}"},
                 {"entity_type": "fedramp_20x_ksi__vdr_report", "url_template": "/samsite/artifacts/vdr-report?vdr_report_entity_id={entity_id}"},
                 {"entity_type": "github_core__github_repository", "url_field": "html_url", "external": true},
@@ -276,7 +276,7 @@
         {
           "entity": {
             "entity_id": "019e4afc-3e9f-76c9-8771-73ea77b8ff13",
-            "entity_type": "fedramp_20x_ksi__boundary",
+            "entity_type": "compliance_core__compliance_boundary",
             "name": "Samsite Authorization Boundary",
             "dimensions": {
               "compliance": "boundary"
@@ -284,7 +284,7 @@
           },
           "node": {
             "name": "Samsite Authorization Boundary",
-            "description": "The FedRAMP authorization boundary for the samsite deployment — the perimeter of components in scope for samaydlette.com's ATO. Currently a standalone node: the prior SCOPED_TO_BOUNDARY edge to the aws_account was removed because the account is now collector-owned (aws_account_singleton, synthesized after seed) and so does not exist at GRIFT-seed time — a hardcoded edge to it dangles on a clean boot. Future seam: a membership mechanism that declares which account(s)/resources sit inside the boundary, established once the collector has populated them rather than hardcoded in the seed."
+            "description": "The FedRAMP authorization boundary for the samsite deployment — the perimeter of components in scope for samaydlette.com's ATO. Currently a standalone node: the prior SCOPED_TO_COMPLIANCE_BOUNDARY edge to the aws_account was removed because the account is now collector-owned (aws_account_singleton, synthesized after seed) and so does not exist at GRIFT-seed time — a hardcoded edge to it dangles on a clean boot. Future seam: a membership mechanism that declares which account(s)/resources sit inside the boundary, established once the collector has populated them rather than hardcoded in the seed."
           }
         },
         {

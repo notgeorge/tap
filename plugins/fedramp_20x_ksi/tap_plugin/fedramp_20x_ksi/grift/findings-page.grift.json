@@ -28,11 +28,11 @@
           },
           "node": {
             "name": "All Open Findings With KSI Linkage",
-            "description": "Returns every open finding plus its HAS_FINDING parent (the system the finding applies to) and any RELATED_INDICATOR linkage to a KSI indicator. Multi-MATCH UNION-dedup so findings without a KSI link still appear in the envelope (the findings_by_ksi panel filters those out client-side; findings_by_system shows them).",
+            "description": "Returns every open finding plus its HAS_COMPLIANCE_FINDING parent (the system the finding applies to) and any CONCERNS_COMPLIANCE_CONTROL linkage to a KSI indicator. Multi-MATCH UNION-dedup so findings without a KSI link still appear in the envelope (the findings_by_ksi panel filters those out client-side; findings_by_system shows them).",
             "search_type": "gryphon",
             "root": "node",
             "definition": {
-              "query": "MATCH (s)-[h:HAS_FINDING__fedramp_20x_ksi]->(f:fedramp_20x_ksi__finding)\nMATCH (f:fedramp_20x_ksi__finding)-[r:RELATED_INDICATOR__fedramp_20x_ksi]->(i:fedramp_20x_ksi__ksi_indicator)\nWHERE f.status = \"open\""
+              "query": "MATCH (s)-[h:HAS_COMPLIANCE_FINDING__compliance_core]->(f:compliance_core__compliance_finding)\nMATCH (f:compliance_core__compliance_finding)-[r:CONCERNS_COMPLIANCE_CONTROL__compliance_core]->(i:fedramp_20x_ksi__ksi_indicator)\nWHERE f.status = \"open\""
             },
             "default_limit": 200,
             "max_limit": 500

@@ -48,11 +48,12 @@ class TestManifests:
         edge_types = {r["edge_type"] for r in manifest["rules"]}
         # YAML-ref rules emit REFERENCES_RESOURCE; the structural OIDC rule emits
         # FEDERATES_VIA (repo -> aws_iam_oidc_provider); the issuer-convergence
-        # rule emits TRUSTS_ISSUER (aws_iam_oidc_provider -> oidc_issuer).
+        # rule emits TRUSTS_ISSUER (aws_iam_oidc_provider -> identity_core__oidc_issuer),
+        # an aws_core-owned edge type this github enrichment rule still emits.
         assert edge_types == {
             "REFERENCES_RESOURCE__github_core",
             "FEDERATES_VIA__github_core",
-            "TRUSTS_ISSUER__github_core",
+            "TRUSTS_ISSUER__aws_core",
         }
 
     def test_link_manifest_oneof_source_enforced(self) -> None:

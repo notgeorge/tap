@@ -1,5 +1,11 @@
 # FedRAMP 20x KSI Compliance Artifacts Specification
 
+> **SUPERSEDED (Phase A, 2026-07-08).** The `compliance_artifact` model moved out of
+> `fedramp_20x_ksi` into the regime-agnostic **compliance_core** substrate; its contract
+> now lives in [`spec-compliance-core-v0.md`](../../compliance_core/specs/spec-compliance-core-v0.md)
+> as `compliance_core__compliance_artifact`. This document is retained for the OSCAL/IIW
+> modeling rationale that shaped it — the model is no longer defined here.
+
 ## Philosophy
 
 A modern compliance program emits machine-readable artifacts: a KSI validation

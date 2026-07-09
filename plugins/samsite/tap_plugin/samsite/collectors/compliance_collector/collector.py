@@ -19,6 +19,7 @@ from typing import Any
 
 from tap_plugin.sigstore_core.decompose import bundle_to_grift_fragment
 from tap_plugin.sigstore_core.verify import GitHubWorkflowPolicy, verify_bundle
+
 from tap_cares.collectors.base import CollectorBase
 
 from . import identity, kev_process, sigstore_link
@@ -351,7 +352,7 @@ class SamsiteComplianceCollector(CollectorBase):
 
         for fetched_item in fetched:
             artifact = fetched_item["artifact"]
-            if artifact["handling"] != "fedramp_20x_ksi__compliance_artifact":
+            if artifact["handling"] != "compliance_core__compliance_artifact":
                 continue
             decomp = decompose_compliance_artifact(
                 body=fetched_item["body"],

@@ -1,5 +1,13 @@
 # FedRAMP 20x KSI Authorization Boundary Specification
 
+> **SUPERSEDED (Phase B, 2026-07-08).** The `boundary` model moved out of `fedramp_20x_ksi`
+> into the regime-agnostic **compliance_core** substrate as
+> `compliance_core__compliance_boundary`, with its `SCOPED_TO_COMPLIANCE_BOUNDARY` edge —
+> generalized from a FedRAMP ATO boundary to a regime-agnostic authorization boundary. Its
+> contract now lives in
+> [`spec-compliance-core-v0.md`](../../compliance_core/specs/spec-compliance-core-v0.md).
+> Retained for the boundary-as-fan-in-scope rationale.
+
 ## Philosophy
 
 A FedRAMP authorization (ATO) is granted to a **system**, and a system is

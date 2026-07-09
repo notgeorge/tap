@@ -4,29 +4,22 @@ slug = "fedramp_20x_ksi"
 name = "FedRAMP 20x KSI"
 description = "FedRAMP 20x Key Security Indicators (KSI) framework catalog — themes and indicators."
 
+depends_on = [
+    { slug = "compliance_core", note = "consumes the regime-agnostic compliance substrate — compliance_context (posture) plus compliance_finding/evidence/exception/boundary node types and their edges (HAS_COMPLIANCE_EVIDENCE, COVERS_COMPLIANCE_FINDING, HAS_COMPLIANCE_FINDING, SCOPED_TO_COMPLIANCE_BOUNDARY, CONCERNS_COMPLIANCE_CONTROL — the last is a wildcard-target edge whose ksi_indicator targets our panels supply). Needs the types registered + boot-ordered ahead" },
+]
+
 [models]
 fedramp_20x_ksi__ksi_theme = "tap_plugin.fedramp_20x_ksi.models.ksi_theme.KsiTheme"
 fedramp_20x_ksi__ksi_indicator = "tap_plugin.fedramp_20x_ksi.models.ksi_indicator.KsiIndicator"
-fedramp_20x_ksi__finding = "tap_plugin.fedramp_20x_ksi.models.finding.Finding"
-fedramp_20x_ksi__exception = "tap_plugin.fedramp_20x_ksi.models.exception.ComplianceException"
-fedramp_20x_ksi__evidence = "tap_plugin.fedramp_20x_ksi.models.evidence.Evidence"
-fedramp_20x_ksi__compliance_context = "tap_plugin.fedramp_20x_ksi.models.compliance_context.ComplianceContext"
-fedramp_20x_ksi__boundary = "tap_plugin.fedramp_20x_ksi.models.boundary.Boundary"
 fedramp_20x_ksi__ksi_signal = "tap_plugin.fedramp_20x_ksi.models.ksi_signal.KsiSignal"
 fedramp_20x_ksi__ksi_component = "tap_plugin.fedramp_20x_ksi.models.ksi_component.KsiComponent"
 fedramp_20x_ksi__ksi_validation = "tap_plugin.fedramp_20x_ksi.models.ksi_validation.KsiValidation"
 fedramp_20x_ksi__ksi_violation = "tap_plugin.fedramp_20x_ksi.models.ksi_violation.KsiViolation"
 fedramp_20x_ksi__vdr_report = "tap_plugin.fedramp_20x_ksi.models.vdr_report.VdrReport"
 fedramp_20x_ksi__vdr_finding = "tap_plugin.fedramp_20x_ksi.models.vdr_finding.VdrFinding"
-fedramp_20x_ksi__compliance_artifact = "tap_plugin.fedramp_20x_ksi.models.compliance_artifact.ComplianceArtifact"
 
 [edges]
 CONTAINS_INDICATOR__fedramp_20x_ksi = "edges/CONTAINS_INDICATOR.edge.json"
-HAS_FINDING__fedramp_20x_ksi = "edges/HAS_FINDING.edge.json"
-RELATED_INDICATOR__fedramp_20x_ksi = "edges/RELATED_INDICATOR.edge.json"
-COVERS_FINDING__fedramp_20x_ksi = "edges/COVERS_FINDING.edge.json"
-HAS_EVIDENCE__fedramp_20x_ksi = "edges/HAS_EVIDENCE.edge.json"
-SCOPED_TO_BOUNDARY__fedramp_20x_ksi = "edges/SCOPED_TO_BOUNDARY.edge.json"
 DECLARES_COMPONENT__fedramp_20x_ksi = "edges/DECLARES_COMPONENT.edge.json"
 DECLARES_VALIDATION__fedramp_20x_ksi = "edges/DECLARES_VALIDATION.edge.json"
 EVALUATES_COMPONENT__fedramp_20x_ksi = "edges/EVALUATES_COMPONENT.edge.json"

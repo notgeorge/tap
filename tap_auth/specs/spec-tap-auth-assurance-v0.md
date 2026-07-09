@@ -1,15 +1,26 @@
 # TAP Auth Assurance v0 Specification
 
-> **Status — superseded / needs reconciliation (2026-06-23). Do not implement as-is.** This spec
-> predates two decisions that reshaped v1 auth: (1) the backstop is **stateless** — the contextvar
-> **decision ledger was removed** (`spec-tap-auth-v0.md` `req-tap-auth-policy-8`), so any "decision
-> ledger" language here (including the delegation-ledger keys below) describes a **future delegation
-> record or the rejected surface-centric model, NOT the v1 runtime backstop**; and (2) v1 auth is
-> deliberately **capability-centric, not surface-centric** — the Cedar/surface-identity apparatus in
-> this spec was evaluated and **rejected at this scale** (every real issue was a forgotten/bypassed
-> *capability* gate). A reconciliation pass is required before any of this is treated as the
-> contract; until then `spec-tap-auth-v0.md` + `docs/misc/doc-auth-per-app-standards.md` are
-> authoritative.
+> # ⚰️ DEPRECATED / RETIRED (2026-07-08) — kept for posterity, NOT the contract, NOT a plan of record.
+>
+> The **surface-identity organizing model** of this spec — surface registry, surface markers,
+> runtime surface-context, the surface-centric assurance matrix, and surface delegation — was
+> **evaluated and rejected** for TAP's scale: every real auth issue was a forgotten/bypassed
+> **capability** gate, and v1 auth is deliberately **capability-centric, not surface-centric**.
+> Authoritative today: `spec-tap-auth-v0.md` + `docs/misc/doc-auth-per-app-standards.md`. This file
+> is retained **only** as the record of that decision, so the surface apparatus is not re-proposed;
+> nothing in it is actionable and none of its `req-tap-auth-assurance-*` requirements should be built.
+>
+> **Harvest pass (2026-07-08).** Its concrete, capability-compatible ideas already shipped elsewhere:
+> `BaseModel.save()` last-ditch guard → `req-tap-auth-write-batch-routing`; multi-gate / chokepoint
+> enforcement → `req-tap-auth-orm-read-backstop` + the write backstop; dangerous-pattern static scan
+> → `req-tap-auth-policy-9` (Rules A/B); "internal defect ≠ user denial" outcome vocabulary →
+> `unguarded_operation` + the Flaw taxonomy; structured decision/denial records → `req-tap-auth-policy`
+> denial logging; per-app/plugin self-declaration of auth objects → the per-app actor-declaration
+> backlog. The un-landed remainders were **carried into `spec-tap-auth-v0.md`'s Backlog**: the
+> capability-centric assurance **test-matrix + generated fail-closed harness** (with persona/resource
+> catalogs and an optional OPA-export adapter), the **`policy_metadata_read`** primitive +
+> `not_found_after_auth` existence-non-leakage, a **formal described exemption registry**, and
+> **full decision records** (allow-logging + `policy_version`). Nothing further is actionable here.
 
 ## Philosophy
 

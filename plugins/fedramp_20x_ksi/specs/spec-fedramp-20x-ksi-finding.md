@@ -1,5 +1,14 @@
 # KSI Finding Specification
 
+> **SUPERSEDED (Phase B, 2026-07-08).** The `finding` and `exception` models moved out of
+> `fedramp_20x_ksi` into the regime-agnostic **compliance_core** substrate as
+> `compliance_core__compliance_finding` / `compliance_core__compliance_exception`, with the
+> `HAS_COMPLIANCE_FINDING` and `COVERS_COMPLIANCE_FINDING` edges. The bridge edge
+> `RELATED_INDICATOR` stays in `fedramp_20x_ksi` with its source retargeted to the moved
+> finding. Their contract now lives in
+> [`spec-compliance-core-v0.md`](../../compliance_core/specs/spec-compliance-core-v0.md).
+> Retained for the finding-bridges-graph-to-requirement rationale.
+
 ## Philosophy
 
 A Finding is the bridge between **what's in the graph** (assets — EC2 instances, databases, load balancers, services, users, and so on) and **what the compliance framework cares about** (KSI Indicators). It is the unit of "something here is not right, relative to a specific compliance requirement."

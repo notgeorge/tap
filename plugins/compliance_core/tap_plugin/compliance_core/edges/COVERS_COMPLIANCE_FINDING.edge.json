@@ -1,0 +1,10 @@
+{
+  "slug": "COVERS_COMPLIANCE_FINDING__compliance_core",
+  "name": "Covers Compliance Finding",
+  "description": "An exception covers a finding — formally accepting the risk the finding represents. An active exception may cover multiple findings.",
+  "sources": ["compliance_core__compliance_exception"],
+  "targets": ["compliance_core__compliance_finding"],
+  "default_dimensions": {
+    "compliance": "finding"
+  }
+}

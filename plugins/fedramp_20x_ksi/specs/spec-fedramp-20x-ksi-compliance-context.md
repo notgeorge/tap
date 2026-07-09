@@ -1,5 +1,12 @@
 # FedRAMP 20x KSI Compliance Context Specification
 
+> **SUPERSEDED (Phase A, 2026-07-08).** The `compliance_context` model moved out of
+> `fedramp_20x_ksi` into the regime-agnostic **compliance_core** substrate — realizing this
+> spec's own Future Work ("Move `ComplianceContext` out ... into a regime-agnostic home ...
+> once a second framework plugin lands"). Its contract now lives in
+> [`spec-compliance-core-v0.md`](../../compliance_core/specs/spec-compliance-core-v0.md) as
+> `compliance_core__compliance_context`. Retained for the per-regime-posture rationale.
+
 ## Philosophy
 
 Every Grid that runs Rampart is operating *under* something — a FedRAMP 20x certification class, a CMMC level, a SOC2 type, an ISO 27001 scope, or some combination. Real Grids will commonly carry *more than one* posture at a time: a federal customer's environment might be FedRAMP 20x Class B and CMMC Level 2 simultaneously, with each compliance program tracked in parallel.

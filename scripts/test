@@ -3,18 +3,24 @@
 #
 # Parallelism lives here, NOT in pyproject `addopts`, on purpose: `-n auto` adds a
 # per-worker DB-build tax that penalizes small/single-test runs (~4s serial vs ~15s
-# under -n auto, measured). So the DEFAULT `pytest` stays serial — best for
-# single-test debugging — and the parallel lanes are explicit.
+# under -n auto, measured). So the DEFAULT `pytest` stays serial (best for
+# single-test debugging), and the parallel lanes are explicit.
 #
 # Lanes (req-dev-validation-suite-tiers; docs/misc/test-parallelization-xdist-notes.md):
-#   scripts/test            FULL lane — every test incl. the gryphon_playground
-#                           corpus, -n auto. The authoritative lane; the promote
-#                           gate uses this. ~9 min. The gryphon executor
-#                           stage/branch-coverage guards ride this lane.
-#   scripts/test --fast     INNER-LOOP lane — -n auto minus the gryphon_playground
-#                           corpus (its ~7-18 min of scenarios). NOT a gate: it is
-#                           a local accelerator, so it skips the gryphon guards,
-#                           which the full lane still runs (req-dev-validation-suite-tiers-4).
+#   scripts/test            DEFAULT lane, -n auto, RELEVANCE-GATED on the gryphon
+#                           corpus (req-dev-validation-suite-tiers-5): runs the
+#                           corpus only when the diff since origin/main touches the
+#                           executor footprint, else skips it with a loud notice.
+#                           Non-interactive (piped/CI/promote) or an unresolvable
+#                           merge-base => RUNS the corpus (fail toward correctness),
+#                           so a gate never inherits a skip.
+#   scripts/test --gryphon  FULL lane — force the gryphon corpus ON unconditionally.
+#                           What the promote gate invokes (~9 min). The gryphon
+#                           executor stage/branch-coverage guards ride this corpus.
+#   scripts/test --fast     INNER-LOOP lane — -n auto minus the gryphon corpus
+#                           (~7-18 min of scenarios), unconditionally. NOT a gate: a
+#                           local accelerator, so it skips the gryphon guards, which
+#                           the full lane still runs (req-dev-validation-suite-tiers-4).
 #   scripts/test <args...>  Extra args pass through to pytest, e.g.
 #                           scripts/test tap_auth -k login
 #                           scripts/test --fast tap_web
@@ -25,14 +31,64 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
-pytest_args=(-n auto)
-if [[ "${1:-}" == "--fast" ]]; then
-  pytest_args+=(--ignore=plugins/gryphon_playground)
+# --- Gryphon corpus: force-on/off flags, else relevance-gate ------------------
+# The corpus (plugins/gryphon_playground) dominates the clock. It exercises the
+# Cypher->SQL executor, which compiles onto shared grid machinery — so the
+# footprint that "means the corpus must run" is conservative (errs toward running;
+# a false SKIP would be a silent-wrong-result false-green). Narrowing tap_grid/
+# to the executor's true import set is a later optimization.
+GRYPHON_CORPUS="plugins/gryphon_playground"
+GRYPHON_FOOTPRINT_RE='^(tap_grid/|plugins/gryphon_playground/|plugins/grid_fixtures/|tap_api/routers/gryphon\.py)'
+
+gryphon_mode=""  # "", "on" (force-run), "off" (force-skip via --fast)
+if [[ "${1:-}" == "--gryphon" ]]; then
+  gryphon_mode="on"
+  shift
+elif [[ "${1:-}" == "--fast" ]]; then
+  gryphon_mode="off"
   shift
 fi
 
+# Decide whether to run the corpus.
+run_gryphon=1
+if [[ "$gryphon_mode" == "on" ]]; then
+  run_gryphon=1
+elif [[ "$gryphon_mode" == "off" ]]; then
+  run_gryphon=0
+  echo "gryphon corpus SKIPPED (--fast): local accelerator, not a gate." >&2
+elif [[ ! -t 1 ]]; then
+  # Non-interactive (piped / CI / promote) — never auto-skip a gate. Fail toward
+  # correctness; the promote gate additionally passes --gryphon explicitly.
+  run_gryphon=1
+  echo "gryphon corpus INCLUDED (non-interactive run — gates never auto-skip)." >&2
+else
+  # Interactive default: relevance-gate on the diff vs origin/main.
+  base="$(git merge-base HEAD origin/main 2>/dev/null || true)"
+  if [[ -z "$base" ]]; then
+    run_gryphon=1
+    echo "gryphon corpus INCLUDED (no merge-base with origin/main — fail toward correctness)." >&2
+  else
+    # Everything changed since the base: committed + staged + unstaged (git diff
+    # against a commit spans the working tree) plus untracked files.
+    changed="$( { git diff --name-only "$base"; git ls-files --others --exclude-standard; } | sort -u )"
+    hit="$(printf '%s\n' "$changed" | grep -E "$GRYPHON_FOOTPRINT_RE" | head -1 || true)"
+    if [[ -n "$hit" ]]; then
+      run_gryphon=1
+      echo "gryphon corpus INCLUDED (relevance): diff touches the executor footprint (e.g. $hit)." >&2
+    else
+      run_gryphon=0
+      echo "gryphon corpus SKIPPED (relevance): diff since origin/main does not touch the executor footprint." >&2
+      echo "  footprint: tap_grid/ plugins/gryphon_playground/ plugins/grid_fixtures/ tap_api/routers/gryphon.py" >&2
+      echo "  force it:  scripts/test --gryphon" >&2
+    fi
+  fi
+fi
+
+pytest_args=(-n auto)
+[[ "$run_gryphon" -eq 0 ]] && pytest_args+=("--ignore=$GRYPHON_CORPUS")
+
 # Allocate a TTY when run interactively (colours, live output); use -T when piped
-# or run under automation (the future promote gate) so it does not require one.
+# or run under automation (the promote gate) so it does not require one.
 tty_args=()
 [[ -t 1 ]] || tty_args=(-T)
 

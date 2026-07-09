@@ -1,9 +1,0 @@
-{
-  "slug": "HAS_FINDING__fedramp_20x_ksi",
-  "name": "Has Finding",
-  "description": "An asset has a finding observed against it. Source may be any entity type; target is a finding.",
-  "targets": ["fedramp_20x_ksi__finding"],
-  "default_dimensions": {
-    "compliance": "fedramp-20x"
-  }
-}

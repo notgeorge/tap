@@ -32,7 +32,7 @@ The discipline running through every requirement here is honest coverage account
 | req-dev-validation-promote-hook | [Promote-Path Enforcement](#promote-path-enforcement) | Implemented | Reciprocal of `req-dev-multisession-promote-gate` |
 | req-dev-validation-ratchet-harness | [Reusable Ratchet Harness](#reusable-ratchet-harness) | Implemented | `tap/ratchet.py` + `tap.guards` harness; every bespoke ratchet migrated onto it (provenance-schema sub-req deferred as YAGNI) |
 | req-dev-validation-mypy-ratchet | [Static Typing Ratchet](#static-typing-ratchet) | Implemented | `mypy .` strict-mode error set frozen per file+error-code and ratcheting down; blocks new errors. Install-aware (filters to core + installed-plugin rows on both sides — see [spec-plugin-validation-distribution.md](spec-plugin-validation-distribution.md)) |
-| req-dev-validation-suite-tiers | [Suite Tiering & Performance](#suite-tiering--performance) | Partially Implemented | xdist full + `--fast` lanes built (`scripts/test`); affected/impact lane + profiled `slow` designations + per-profile fast lane still to build (coupled to the streamlined boot profiles) |
+| req-dev-validation-suite-tiers | [Suite Tiering & Performance](#suite-tiering--performance) | Partially Implemented | xdist full + `--fast` lanes built (`scripts/test`); relevance-gated Gryphon-corpus selection built (coarse affected lane for the one dominant-cost corpus); profiled `slow` designations + full test-impact analysis + per-profile fast lane still to build (coupled to the streamlined boot profiles) |
 | req-dev-validation-all-plugins-lane | [All-Plugins CI Lane](#all-plugins-ci-lane) | Proposed | Server-side lane that boots the full plugin union and runs the whole suite — the blocking all-plugins authority a focused local stack structurally cannot be once plugins leave the monorepo. Local validates what's installed here; this lane owns all-plugins truth. The boot record IS the known-good-set (BOM) it verifies. |
 
 Leaf surfaces referenced by the Map are owned elsewhere: spawn-env smoke in [spec-dev-multisession-smoketest.md](spec-dev-multisession-smoketest.md), teardown in [spec-dev-multisession-teardown.md](spec-dev-multisession-teardown.md), the log-site scanner in [spec-tap-logging.md](spec-tap-logging.md), and the async-delivery tiers in [spec-tap-cares-task-backend.md](../tap_cares/specs/spec-tap-cares-task-backend.md) (`req-tap-cares-task-backend-backlog-2`). This spec does not re-specify them.
@@ -356,6 +356,36 @@ at the promote gate and not on every save.
   DB-heavy integration suites. Slow is acceptable here *by design*; this lane is the
   binary gate, not the inner loop.
 
+#### As built — relevance-gated corpus (2026-07-08)
+
+The first increment of the affected lane is deliberately narrow: it targets the one
+surface that actually dominates the clock — the Gryphon corpus
+(`plugins/gryphon_playground`, 7–18 min). Rather than per-test impact analysis
+(`testmon`, deferred), `scripts/test` makes a single coarse decision: **run the corpus
+only when the diff since `origin/main` touches the executor's footprint**, otherwise
+skip it with a loud, logged notice. This lets `gryphon_playground` stay in the tree
+(keeping the corpus available to other sessions and as Player-3 food-for-thought)
+without taxing every unrelated local edit.
+
+- **Footprint** (conservative — errs toward *running*, because the executor compiles
+  onto shared grid machinery, so a false *skip* would be a silent-wrong-result
+  false-green, precisely what the corpus exists to catch): `tap_grid/`,
+  `plugins/gryphon_playground/`, `plugins/grid_fixtures/`, `tap_api/routers/gryphon.py`.
+  The `tap_grid/` prefix is intentionally coarse (the whole grid read/materialization/
+  edge layer, not just `tap_grid/gryphon/`); narrowing it to the executor's true
+  transitive-import set — *derived*, not hand-authored, to avoid drift — is a later
+  optimization. The wins land on the common cases that touch none of these: `tap_web`,
+  `tap_viz`, `tap_auth`, docs/specs, and non-fixture plugin work.
+- `--fast` remains the unconditional force-skip; `--gryphon` is the new unconditional
+  force-run. An undeterminable merge-base (detached/shallow clone) or a
+  non-interactive invocation defaults to **running** the corpus (fail toward
+  correctness).
+- **Gate safety** (`req-dev-validation-suite-tiers-4`): auto-selection is a
+  *local-interactive accelerator only*. The promote gate invokes `scripts/test
+  --gryphon` (explicit force-full) and the all-plugins CI lane runs `pytest -n 4`
+  directly (never through `scripts/test`), so neither can inherit a relevance-skip.
+  The corpus stays an un-sampled gate.
+
 #### Acceleration levers, ranked by ROI for this DB-bound suite
 
 1. **Parallelize first — `pytest-xdist -n auto`.** The single biggest win for a
@@ -393,10 +423,11 @@ at the promote gate and not on every save.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-dev-validation-suite-tiers-1 | Three named lanes | Partially Implemented | The suite exposes fast (`-m smoke`), affected (`-m "not slow"` or impact-selected), and full lanes, with a documented "which runs when". | Built: full + `--fast` lanes (`scripts/test`, documented in `docs/misc/test-parallelization-xdist-notes.md`). Missing: the affected/impact lane. Fast tier membership is owned by `req-dev-validation-canary-tier`. |
+| req-dev-validation-suite-tiers-1 | Three named lanes | Partially Implemented | The suite exposes fast (`-m smoke`), affected (`-m "not slow"` or impact-selected), and full lanes, with a documented "which runs when". | Built: full + `--fast` lanes (`scripts/test`, documented in `docs/misc/test-parallelization-xdist-notes.md`), plus the relevance-gated Gryphon-corpus selection (`suite-tiers-5`) as the first affected-lane increment. Missing: general per-test impact selection + the `-m smoke` fast tier (membership owned by `req-dev-validation-canary-tier`). |
 | req-dev-validation-suite-tiers-2 | Parallel full run | Implemented | The full lane runs under `pytest-xdist` with per-worker databases; this does not conflict with the shared-DB single-invocation rule. | `scripts/test` (`-n auto`), kept out of `addopts` on purpose. Highest-ROI lever; delivered. |
 | req-dev-validation-suite-tiers-3 | Profiled, not guessed | Proposed | `slow` designations follow from `--durations` evidence, not intuition. | |
-| req-dev-validation-suite-tiers-4 | Impact lane is not a gate | Proposed | Any test-impact/affected selection accelerates the inner loop only; the pre-push gate always runs the full lane. | Counters the substitution-backend blind spot. |
+| req-dev-validation-suite-tiers-4 | Impact lane is not a gate | Implemented | Any test-impact/affected selection accelerates the inner loop only; the pre-push gate always runs the full lane. | Counters the substitution-backend blind spot. Enforced for the corpus-relevance lane (`suite-tiers-5`): the promote gate calls `scripts/test --gryphon` (force-full), the all-plugins CI lane runs `pytest -n 4` directly (never via `scripts/test`), and a non-interactive `scripts/test` also force-runs — so no gate path can inherit a relevance-skip. |
+| req-dev-validation-suite-tiers-5 | Relevance-gated corpus | Implemented | The default local lane runs the Gryphon corpus only when the diff since `origin/main` (merge-base through working tree, incl. untracked) touches the executor footprint; `--fast` force-skips, `--gryphon` force-runs; an undeterminable base or a non-interactive run defaults to running it. | Coarse path-based first increment of the affected lane, scoped to the one dominant-cost corpus. Footprint (conservative, errs toward running): `tap_grid/`, `plugins/gryphon_playground/`, `plugins/grid_fixtures/`, `tap_api/routers/gryphon.py`. Local-interactive accelerator only — never weakens the gate (`suite-tiers-4`). `scripts/test`. |
 
 ### Lean-Boot Independence Gate
 ----
@@ -429,7 +460,7 @@ This is the second half of `req-boot-minimal-baseline-5` (spec-tap-boot-v0.md): 
 RID: `req-dev-validation-promote-hook`
 Status: `Implemented`
 
-The promote path MUST run the gate before advancing `origin/main` and refuse to push on red. This covers `scripts/promote-to-main.sh`, `scripts/promote-all-sessions.sh` (via the per-session script), and the documented manual fallback sequence. **As built the promote path composes three validation surfaces** (Step 2.5): the **full pytest lane** (`scripts/test`) — which catches unit/functional regressions the cold-boot cycle structurally cannot (e.g. a stale collector key red'ing a unit test — the exact class that shipped to `main` red *because no promote gate existed yet*: the 2026-07-02 collector-identity refactor left the module-path key in `test_orchestrator.py`'s `_KSI_COLLECTOR` fixture, and the ungated promote published it) — then the **cold-boot gate** (`scripts/gate`), then the **lean-boot independence gate** (`scripts/gate-lean`, [above](#lean-boot-independence-gate)) which catches the core→plugin-dep import-leakage class the full-venv cold-boot gate structurally cannot. All three must be green; any red aborts before the atomic push. This is the reciprocal of `req-dev-multisession-promote-gate` in [spec-dev-multisession.md](spec-dev-multisession.md): that spec owns the requirement *on the promote workflow*; this requirement owns the gate *contract it invokes*. The two cross-reference and MUST stay consistent.
+The promote path MUST run the gate before advancing `origin/main` and refuse to push on red. This covers `scripts/promote-to-main.sh`, `scripts/promote-all-sessions.sh` (via the per-session script), and the documented manual fallback sequence. **As built the promote path composes three validation surfaces** (Step 2.5): the **full pytest lane** (`scripts/test --gryphon` — `--gryphon` forces the Gryphon corpus on unconditionally so the gate never inherits the local relevance-skip of `req-dev-validation-suite-tiers-5`) — which catches unit/functional regressions the cold-boot cycle structurally cannot (e.g. a stale collector key red'ing a unit test — the exact class that shipped to `main` red *because no promote gate existed yet*: the 2026-07-02 collector-identity refactor left the module-path key in `test_orchestrator.py`'s `_KSI_COLLECTOR` fixture, and the ungated promote published it) — then the **cold-boot gate** (`scripts/gate`), then the **lean-boot independence gate** (`scripts/gate-lean`, [above](#lean-boot-independence-gate)) which catches the core→plugin-dep import-leakage class the full-venv cold-boot gate structurally cannot. All three must be green; any red aborts before the atomic push. This is the reciprocal of `req-dev-multisession-promote-gate` in [spec-dev-multisession.md](spec-dev-multisession.md): that spec owns the requirement *on the promote workflow*; this requirement owns the gate *contract it invokes*. The two cross-reference and MUST stay consistent.
 
 The gate runs after the pre-push merge (so it validates the exact tree that will become `origin/main`) and before the atomic dual-refspec push. On red, the push does not happen and the failure is reported; `origin/main` is never advanced past a tree that failed the gate. This is the mechanical enforcement of the otherwise prose-only "no messy/broken state to main" discipline that protects every spawned session.
 
@@ -437,7 +468,7 @@ The gate runs after the pre-push merge (so it validates the exact tree that will
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-dev-validation-promote-hook-1 | Gate before push | Implemented | The promote path runs the gate after the pre-push merge and before the atomic push. | `scripts/promote-to-main.sh` Step 2.5 (after merge, before atomic push): full lane → cold-boot gate → lean-boot gate. Validates the exact tree that becomes `origin/main`. |
+| req-dev-validation-promote-hook-1 | Gate before push | Implemented | The promote path runs the gate after the pre-push merge and before the atomic push. | `scripts/promote-to-main.sh` Step 2.5 (after merge, before atomic push): full lane (`scripts/test --gryphon`, force-full) → cold-boot gate → lean-boot gate. Validates the exact tree that becomes `origin/main`. |
 | req-dev-validation-promote-hook-2 | Red blocks the push | Implemented | A failing gate aborts the promote; `origin/main` is not advanced. | `scripts/gate` non-zero → `fail` before Step 3. |
 | req-dev-validation-promote-hook-3 | Covers script and fallback | Implemented | Enforcement applies to `promote-to-main.sh`, the all-sessions orchestrator, and the documented manual sequence. | `promote-all-sessions.sh` calls `promote-to-main.sh` per session (transitive). |
 | req-dev-validation-promote-hook-4 | Reciprocal consistency | Implemented | This requirement and `req-dev-multisession-promote-gate` cross-reference and stay consistent; neither restates the other's substance. | |
