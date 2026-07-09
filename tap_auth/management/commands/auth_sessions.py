@@ -19,6 +19,7 @@ from django.core.management.base import BaseCommand, CommandError
 
 from tap_auth.errors import AuthzError
 from tap_auth.sessions import (
+    AmbiguousUserSelector,
     invalidate_all_sessions,
     invalidate_session,
     invalidate_user_sessions,
@@ -42,18 +43,14 @@ class Command(BaseCommand):
         scope.add_argument("--session-key", metavar="KEY", help="Invalidate one session by key.")
 
     def handle(self, *args: Any, **options: Any) -> None:
-        actor = resolve_user(options["as_user"])
-        if actor is None:
-            raise CommandError(f"--as-user '{options['as_user']}' not found (must be a real, authorized user).")
+        actor = self._resolve(options["as_user"], "--as-user")
 
         try:
             if options["all"]:
                 count = invalidate_all_sessions(actor)
                 self.stdout.write(self.style.SUCCESS(f"Invalidated {count} session(s) (global)."))
             elif options["user"]:
-                target = resolve_user(options["user"])
-                if target is None:
-                    raise CommandError(f"--user '{options['user']}' not found.")
+                target = self._resolve(options["user"], "--user")
                 count = invalidate_user_sessions(actor, target)
                 self.stdout.write(self.style.SUCCESS(f"Invalidated {count} session(s) for {options['user']}."))
             else:
@@ -61,3 +58,15 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.SUCCESS(f"Invalidated {count} session(s) by key."))
         except AuthzError as exc:
             raise CommandError(f"Denied ({exc.reason}): {options['as_user']} lacks auth.manage_sessions.") from exc
+
+    def _resolve(self, selector: str, flag: str) -> Any:
+        """Resolve `selector` to a user, failing loud on not-found or on an
+        ambiguous email (req-tap-auth-email-not-identity — never silently pick
+        one; a wrong `--as-user`/`--user` is takeover/wrong-account DoS)."""
+        try:
+            user = resolve_user(selector)
+        except AmbiguousUserSelector as exc:
+            raise CommandError(f"{flag} {exc}") from exc
+        if user is None:
+            raise CommandError(f"{flag} '{selector}' not found (use a username or user id).")
+        return user
