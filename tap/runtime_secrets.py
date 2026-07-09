@@ -24,12 +24,19 @@ match the field-validation contract the tap_cares loader has always emitted, so
 the structural reason a caller records is unchanged.
 
 Secret material is returned in memory only; this module never logs ``data``.
+
+The manifest is always read from disk, but a manifest may route its *value* to an
+external store via ``metadata.source`` (``req-plugin-depres-sources``): the source-aware
+entry point :func:`resolve_secret_envelope` dispatches to a registered provider in
+``tap.secret_sources`` (disk built-in, cloud stores plugin-contributed) and returns the
+fetched value in ``data``. Absent a source, behavior is unchanged (inline ``data``). The
+provider layer is lazy-imported so the disk path — and core — stay cloud-SDK-free.
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +44,12 @@ from tap.jsonfiles import JsonFileError, load_json_file
 from tap.registry import validate_scoped_token
 
 SECRET_SUFFIX = ".secret.json"
+
+# The built-in source: the value is inline in the envelope's `data`. A manifest with no
+# `metadata.source` (or this value) never leaves disk. Kept as a local constant — mirrors
+# `tap.secret_sources.DISK_SOURCE` — so the common disk path imports no source machinery
+# and this module stays standalone unless a secret actually routes to an external source.
+_DISK_SOURCE = "disk"
 
 # The canonical envelope fields every `*.secret.json` declares
 # (req-tap-cares-secrets-shape). `metadata` is optional and validated separately.
@@ -133,6 +146,16 @@ def parse_secret_envelope(payload: Any, path: Path) -> SecretEnvelope:
         declared = metadata["max_bytes"]
         if isinstance(declared, bool) or not isinstance(declared, int) or declared <= 0:
             raise RuntimeSecretError(f"Secret file {path}: metadata.max_bytes must be a positive integer when present.")
+    # Source-routing (req-plugin-depres-sources-7): a manifest may route its VALUE to an
+    # external source. `source` names the provider (absent/"disk" => inline `data`);
+    # `source_ref` is that provider's opaque locator. Validate shape here so a malformed
+    # routing fails loud at parse, identically on every read path.
+    if "source" in metadata:
+        source = metadata["source"]
+        if not isinstance(source, str) or not source:
+            raise RuntimeSecretError(f"Secret file {path}: metadata.source must be a non-empty string when present.")
+    if "source_ref" in metadata and not isinstance(metadata["source_ref"], dict):
+        raise RuntimeSecretError(f"Secret file {path}: metadata.source_ref must be a JSON object when present.")
 
     return SecretEnvelope(
         scope=scope,
@@ -227,12 +250,43 @@ def find_secret_file(root: Path, scope: str, key: str, *, max_bytes: int = DEFAU
     )
 
 
+def _apply_source(envelope: SecretEnvelope) -> SecretEnvelope:
+    """Resolve the envelope's VALUE through its named source, or return it unchanged.
+
+    The manifest is always disk-resident; only the value may live elsewhere. A manifest
+    with no ``metadata.source`` (or ``source == "disk"``) keeps its inline ``data`` — the
+    built-in disk source, unchanged. A named source dispatches to a registered provider
+    (``tap.secret_sources``); the fetched value replaces ``data``. The provider layer is
+    **lazy-imported** so the disk path pulls in no source machinery and core stays
+    cloud-SDK-free until a secret actually routes to an external store. A source failure
+    is re-wrapped as :class:`RuntimeSecretError` so callers keep catching one type.
+    """
+    source = envelope.metadata.get("source")
+    if not source or source == _DISK_SOURCE:
+        return envelope
+    from tap.secret_sources import SecretSourceError, resolve_sourced_data  # lazy: no cloud SDK in core
+
+    ref = envelope.metadata.get("source_ref", {})
+    try:
+        data = resolve_sourced_data(str(source), ref, scope=envelope.scope, key=envelope.key)
+    except SecretSourceError as exc:
+        raise RuntimeSecretError(str(exc)) from exc
+    return replace(envelope, data=dict(data))
+
+
 def resolve_secret_envelope(
     root: Path, scope: str, key: str, *, default_max_bytes: int = DEFAULT_SECRET_MAX_BYTES
 ) -> SecretEnvelope:
-    """Discover and load the envelope for ``scope``/``key`` under ``root``."""
+    """Discover, load, and source-resolve the envelope for ``scope``/``key`` under ``root``.
+
+    This is the **source-aware** resolve entry point: after reading the disk manifest it
+    dispatches through :func:`_apply_source`, so a secret routed to an external store
+    (``metadata.source``) returns its fetched value transparently. Callers that want the
+    raw on-disk manifest without source resolution use :func:`load_secret_envelope`.
+    """
     path = find_secret_file(root, scope, key, max_bytes=default_max_bytes)
-    return load_secret_envelope(path, default_max_bytes=default_max_bytes)
+    envelope = load_secret_envelope(path, default_max_bytes=default_max_bytes)
+    return _apply_source(envelope)
 
 
 # --------------------------------------------------------------------------- #
