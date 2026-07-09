@@ -34,6 +34,19 @@ from tap.settings import LOGGING as _LOGGING
 # that gates creation of test-only built-ins such as the tap_test actor.
 TAP_TEST_MODE = True
 
+# The least-privilege search role (req-grid-search-readonly-role.sec) is provisioned at boot in
+# dev/prod, where the search_readonly connection authenticates as it. The test runner does not
+# run boot, so the suite keeps search_readonly on the app role — the whole corpus does not run
+# as the restricted role (which would red every read if a grant were missing). The role's grants
+# are validated authentically by tap_grid/tests/test_search_role.py via SET ROLE, so grant-
+# completeness assurance does not depend on flipping the suite. USER/PASSWORD revert to the app
+# role; the read-only session flag + resource GUCs (OPTIONS) and TEST.MIRROR are preserved.
+DATABASES["search_readonly"] = {  # noqa: F405
+    **DATABASES["search_readonly"],  # noqa: F405
+    "USER": DATABASES["default"]["USER"],  # noqa: F405
+    "PASSWORD": DATABASES["default"]["PASSWORD"],  # noqa: F405
+}
+
 TASKS = {
     "default": {
         "BACKEND": "django.tasks.backends.immediate.ImmediateBackend",
