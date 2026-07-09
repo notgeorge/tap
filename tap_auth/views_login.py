@@ -1,0 +1,94 @@
+"""Native passkey login — the IdP-free front door (req-tap-auth-passkey-rollout-2).
+
+A zero-provider TAP instance has no federated login and (in passwordless mode) no
+password login, so it needs a first-party authentication view. This is it:
+
+    GET  /auth/passkey/login/          → login page ("Sign in with a passkey")
+    POST /auth/passkey/login/options/  → usernameless authentication options
+    POST /auth/passkey/login/verify/   → verify assertion + establish session
+
+The ceremony is usernameless / discoverable: the user is unknown until the assertion
+verifies (req-tap-auth-passkey-webauthn-9/-10). On success we finalize with
+``auth.login`` under the :class:`PasskeyBackend`, cycling the session key. The page is
+under ``/auth/`` so the login wall never gates it (that would loop).
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from typing import Any
+
+from django.contrib.auth import login as auth_login
+from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.shortcuts import render
+from django.utils.http import url_has_allowed_host_and_scheme
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.http import require_GET, require_POST
+
+from tap_auth.passkey import ceremony, challenge
+
+logger = logging.getLogger(__name__)
+
+_PASSKEY_BACKEND = "tap_auth.auth_backends.PasskeyBackend"
+_CHALLENGE_KIND = "auth"
+
+
+@require_GET
+@ensure_csrf_cookie
+def login_page(request: HttpRequest) -> HttpResponse:
+    """Render the native passkey login page (LOGIN_URL target)."""
+    return render(request, "tap_web/auth/passkey_login.html", {"next": _safe_next(request)})
+
+
+@require_POST
+def login_options(request: HttpRequest) -> HttpResponse:
+    """Return usernameless (discoverable) authentication options + stash the challenge."""
+    options_json, challenge_bytes = ceremony.authentication_options()
+    challenge.stash(request.session, _CHALLENGE_KIND, challenge_bytes)
+    logger.info("[f985] passkey login options issued")
+    return HttpResponse(options_json, content_type="application/json")
+
+
+@require_POST
+def login_verify(request: HttpRequest) -> HttpResponse:
+    """Verify the assertion and establish an authenticated session (key cycled)."""
+    body = _read_json(request)
+    credential = body.get("credential")
+    if not isinstance(credential, dict):
+        return JsonResponse({"error": "invalid assertion"}, status=400)
+
+    stashed = challenge.pop(request.session, _CHALLENGE_KIND)
+    if stashed is None:
+        logger.warning("[173c] passkey login without a live challenge")
+        return JsonResponse({"error": "authentication failed"}, status=400)
+    expected_challenge, _bound = stashed
+
+    try:
+        user = ceremony.authenticate(credential, expected_challenge)
+    except ceremony.PasskeyCeremonyError:
+        # One generic client-facing failure — clone / forgery / UV-absent / unknown
+        # credential are already discriminated in the audit log, never to the client.
+        return JsonResponse({"error": "authentication failed"}, status=400)
+
+    auth_login(request, user, backend=_PASSKEY_BACKEND)
+    redirect_to = str(body.get("next") or "") or _safe_next(request)
+    if not url_has_allowed_host_and_scheme(redirect_to, allowed_hosts={request.get_host()}):
+        redirect_to = "/"
+    logger.info("[160c] passkey login ok user=%s", user.pk)
+    return JsonResponse({"redirect": redirect_to})
+
+
+def _safe_next(request: HttpRequest) -> str:
+    candidate = request.GET.get("next", "")
+    if candidate and url_has_allowed_host_and_scheme(candidate, allowed_hosts={request.get_host()}):
+        return candidate
+    return "/"
+
+
+def _read_json(request: HttpRequest) -> dict[str, Any]:
+    try:
+        data = json.loads(request.body or b"{}")
+    except ValueError, TypeError:
+        return {}
+    return data if isinstance(data, dict) else {}

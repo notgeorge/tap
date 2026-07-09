@@ -53,3 +53,8 @@ LOGGING = copy.deepcopy(_LOGGING)
 for _entry in LOGGING.get("loggers", {}).values():
     _entry["propagate"] = True
 del _entry
+
+# Passkey ceremony tests need a deterministic RP-ID + exact origin; the vendored
+# virtual authenticator signs for this exact origin (req-tap-auth-passkey-webauthn-7).
+TAP_PASSKEY_RP_ID = "localhost"
+TAP_PASSKEY_ORIGIN = "http://localhost:8090"

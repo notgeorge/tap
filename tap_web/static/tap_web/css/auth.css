@@ -200,6 +200,25 @@
 }
 .tap-auth-card button[type="submit"]:hover { background: #334155; }
 
+/* Passkey action — a primary <button type="button"> driven by in-page WebAuthn JS
+ * (enrollment + native login). Mirrors the allauth submit button's look; the JS
+ * disables it mid-ceremony, so carry a clear disabled state. */
+.tap-auth-btn {
+  width: 100%;
+  margin-top: 0.4rem;
+  padding: 0.6rem 1rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: #1e293b;
+  color: #f1f5f9;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+.tap-auth-btn:hover { background: #334155; }
+.tap-auth-btn:disabled { background: #94a3b8; cursor: default; }
+
 /* ------------------------------------------------------------------------- */
 /* TAP-owned pages (no-access / login-denied) — our own views' templates.    */
 /* ------------------------------------------------------------------------- */

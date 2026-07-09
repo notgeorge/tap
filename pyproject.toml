@@ -60,6 +60,7 @@ dependencies = [
     # the auth stack to an optional extra so headless instances drop it entirely
     # (req-plugin-arch-slim-install).
     "requests>=2.34.2",
+    "webauthn>=3",
 ]
 
 # -----------------------------------------------------------------------------

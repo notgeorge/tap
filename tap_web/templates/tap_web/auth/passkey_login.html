@@ -1,0 +1,104 @@
+{% load static %}
+<!DOCTYPE html>
+{% comment %}
+Native passkey login (req-tap-auth-passkey-rollout-2 / webauthn-14). The IdP-free front
+door: POST options/ -> navigator.credentials.get -> POST verify/ -> session established
+(auth.login cycles the key). Usernameless/discoverable — the user is unknown until the
+assertion verifies. Self-contained, styled with the shared auth.css.
+{% endcomment %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign in — {{ product_name|default:"TAP" }}</title>
+    <link rel="icon" type="image/x-icon" href="{% static 'tap_web/favicon.ico' %}">
+    <link rel="stylesheet" href="{% static 'tap_web/css/auth.css' %}">
+</head>
+<body class="tap-auth-body">
+    <header class="tap-auth-header">
+        <span class="tap-auth-wordmark">{{ product_name|default:"TAP" }}</span>
+        {% if session_label %}<span class="tap-auth-session-tag">[ {{ session_label }} ]</span>{% endif %}
+    </header>
+    <main class="tap-auth-main">
+        <div class="tap-auth-card">
+            <h1 class="tap-auth-title">Sign in</h1>
+            <p class="tap-auth-sub">Use the passkey registered on this device.</p>
+            <button id="login-btn" type="button" class="tap-auth-btn">Sign in with a passkey</button>
+            <p id="status" class="tap-auth-sub" role="status" aria-live="polite"></p>
+        </div>
+    </main>
+    <script>
+    (function () {
+        "use strict";
+        var CSRF = "{{ csrf_token }}";
+        var NEXT = "{{ next|escapejs }}";
+        var statusEl = document.getElementById("status");
+        var btn = document.getElementById("login-btn");
+
+        function setStatus(msg) { statusEl.textContent = msg; }
+
+        function b64urlToBuf(s) {
+            s = s.replace(/-/g, "+").replace(/_/g, "/");
+            var pad = s.length % 4; if (pad) { s += "====".slice(pad); }
+            var bin = atob(s); var buf = new Uint8Array(bin.length);
+            for (var i = 0; i < bin.length; i++) { buf[i] = bin.charCodeAt(i); }
+            return buf.buffer;
+        }
+        function bufToB64url(buf) {
+            var bytes = new Uint8Array(buf); var bin = "";
+            for (var i = 0; i < bytes.length; i++) { bin += String.fromCharCode(bytes[i]); }
+            return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+        }
+        function postJSON(url, body) {
+            return fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+                credentials: "same-origin",
+                body: JSON.stringify(body)
+            });
+        }
+
+        async function signIn() {
+            if (!window.PublicKeyCredential) { setStatus("This browser does not support passkeys."); return; }
+            btn.disabled = true;
+            setStatus("Requesting a challenge…");
+            try {
+                var optResp = await postJSON("options/", {});
+                if (!optResp.ok) { setStatus("Could not start sign-in. Try again."); btn.disabled = false; return; }
+                var options = await optResp.json();
+                options.challenge = b64urlToBuf(options.challenge);
+                (options.allowCredentials || []).forEach(function (c) { c.id = b64urlToBuf(c.id); });
+
+                setStatus("Follow your device's prompt…");
+                var assertion = await navigator.credentials.get({ publicKey: options });
+                var r = assertion.response;
+                var payload = {
+                    id: assertion.id,
+                    rawId: bufToB64url(assertion.rawId),
+                    type: assertion.type,
+                    clientExtensionResults: assertion.getClientExtensionResults(),
+                    response: {
+                        clientDataJSON: bufToB64url(r.clientDataJSON),
+                        authenticatorData: bufToB64url(r.authenticatorData),
+                        signature: bufToB64url(r.signature),
+                        userHandle: r.userHandle ? bufToB64url(r.userHandle) : null
+                    }
+                };
+                if (assertion.authenticatorAttachment) { payload.authenticatorAttachment = assertion.authenticatorAttachment; }
+
+                setStatus("Verifying…");
+                var verifyResp = await postJSON("verify/", { credential: payload, next: NEXT });
+                if (!verifyResp.ok) { setStatus("Sign-in failed. Try again."); btn.disabled = false; return; }
+                var out = await verifyResp.json();
+                window.location.href = out.redirect || "/";
+            } catch (err) {
+                setStatus("Sign-in was cancelled or failed. You can try again.");
+                btn.disabled = false;
+            }
+        }
+
+        btn.addEventListener("click", signIn);
+    })();
+    </script>
+</body>
+</html>

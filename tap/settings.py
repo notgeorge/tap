@@ -362,16 +362,24 @@ AUTH_PASSWORD_VALIDATORS = [
 AUTHENTICATION_BACKENDS = [
     "tap_auth.auth_backends.TapModelBackend",
     "tap_auth.auth_backends.TapAllauthBackend",
+    # Passkey (WebAuthn) sessions. Does not participate in password authenticate();
+    # exists so auth.login can attribute a phishing-resistant session to it and so
+    # the user reloads on later requests (req-tap-auth-passkey-webauthn-11).
+    "tap_auth.auth_backends.PasskeyBackend",
 ]
 
 # Single Site row per install (django.contrib.sites). allauth binds provider
 # apps + derives callback URLs against it.
 SITE_ID = 1
 
-# Login wall (TapLoginRequiredMiddleware). LOGIN_URL is allauth's login view;
-# unauthenticated requests to non-exempt paths redirect here. After login,
-# users land on "/" (the landing page / their no-access notice if cap-less).
-LOGIN_URL = "account_login"
+# Login wall (TapLoginRequiredMiddleware). LOGIN_URL is TAP's native passkey login
+# page (req-tap-auth-passkey-rollout-2): a zero-provider instance must be able to log
+# in without an IdP. Unauthenticated requests to non-exempt paths redirect here; after
+# login users land on "/" (the landing page / their no-access notice if cap-less). The
+# federated allauth login (account_login) is still mounted and reachable at its own URL
+# for instances that DO configure a provider; full repointing of the secondary template
+# links + logout redirect is Phase 3 (spec-tap-auth-passkey-v0 webauthn-6/slim-6).
+LOGIN_URL = "passkey_login"
 LOGIN_REDIRECT_URL = "/"
 ACCOUNT_LOGOUT_REDIRECT_URL = "account_login"
 
@@ -439,6 +447,16 @@ from tap_auth.providers import build_socialaccount_providers  # noqa: E402
 # allauth derives the runtime redirect_uri from the request; this is the
 # canonical value provider self-tests and boot validation use.
 TAP_BASE_URL = os.environ.get("TAP_BASE_URL", "")
+
+# Passkey (WebAuthn) RP config (req-tap-auth-passkey-webauthn-5/7). RP-ID is the
+# pinned registrable domain a credential is scoped to; the expected origin is EXACT
+# (scheme+host+port) — never a wildcard (a wildcard lets a co-resident service relay
+# an assertion). Dev uses RP-ID `localhost` (a WebAuthn secure context over http) and
+# origin `http://localhost:<host WEB_PORT>` — supplied by docker-compose from WEB_PORT.
+# Changing RP-ID after credentials exist invalidates every registered passkey.
+TAP_PASSKEY_RP_ID = os.environ.get("TAP_PASSKEY_RP_ID", "localhost")
+TAP_PASSKEY_RP_NAME = os.environ.get("TAP_PASSKEY_RP_NAME", "TAP")
+TAP_PASSKEY_ORIGIN = os.environ.get("TAP_PASSKEY_ORIGIN", "")
 
 _env_providers = os.environ.get("TAP_AUTH_PROVIDERS")
 TAP_AUTH_PROVIDERS = json.loads(_env_providers) if _env_providers else providers_for_settings(_TAP_BOOT_PROFILE)

@@ -16,6 +16,7 @@ tap_auth/specs/spec-tap-auth-v0.md.
 from __future__ import annotations
 
 import hashlib
+import secrets
 from typing import Any
 
 from django.conf import settings
@@ -352,3 +353,291 @@ class ExternalIdentity(models.Model):
         field uniquely and deterministically."""
         digest = hashlib.sha256(f"{provider_id}:{subject}".encode()).hexdigest()[:24]
         return f"ext-{provider_id}-{digest}"[:150]
+
+
+def _new_webauthn_user_handle() -> str:
+    """A fresh opaque, non-PII WebAuthn user handle: 64 CSPRNG bytes, hex-encoded
+    (req-tap-auth-passkey-webauthn-4). Never derived from email/username."""
+    return secrets.token_bytes(64).hex()
+
+
+class WebAuthnUserHandle(models.Model):
+    """The opaque, stable WebAuthn user handle for a TAP user (req-tap-auth-passkey-webauthn-4).
+
+    WebAuthn presents an opaque, <=64-byte, non-PII user handle at registration and
+    returns it in every assertion — never email/username. TAP mints one 64-byte
+    CSPRNG handle per user and binds it here; a discoverable assertion's returned
+    ``userHandle`` is confirmed against the owning user's handle before
+    authenticating (req-tap-auth-passkey-webauthn-10). Plain Django model (auth
+    infrastructure), deliberately off the Entity/graph spine (like
+    :class:`ExternalIdentity`).
+    """
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="webauthn_handle",
+        help_text="The TAP user this opaque handle identifies in WebAuthn ceremonies.",
+    )
+    handle = models.CharField(
+        max_length=128,  # 64 bytes hex-encoded = 128 chars
+        unique=True,
+        default=_new_webauthn_user_handle,
+        editable=False,
+        help_text="Opaque, non-PII WebAuthn user handle: 64 CSPRNG bytes, hex. Never email/username.",
+    )
+    created = models.DateTimeField(auto_now_add=True, help_text="When this handle was minted.")
+
+    class Meta:
+        db_table = "tap_webauthn_user_handle"
+
+    def __str__(self) -> str:
+        return f"handle:{self.handle[:12]}… (user={self.user_id})"
+
+
+class WebAuthnCredentialDeviceType(models.TextChoices):
+    """Backup-Eligibility-derived device type (from ``py_webauthn``'s
+    ``credential_device_type``). Device-bound credentials are the recovery
+    single-point-of-failure the BE-aware nudge escalates on."""
+
+    SINGLE_DEVICE = "single_device", "Single-device (device-bound)"
+    MULTI_DEVICE = "multi_device", "Multi-device (backup-eligible / syncable)"
+
+
+class WebAuthnCredential(models.Model):
+    """A registered passkey bound to a TAP user (req-tap-auth-passkey-identity).
+
+    A TAP-side, queryable projection of a stored WebAuthn credential — the server
+    holds only PUBLIC material (public key + credential id), never the private key,
+    which fits "TAP is its own identity authority". Plain Django model, off the
+    Entity/graph spine (like :class:`ExternalIdentity`); design-referenced from
+    ``django-otp-webauthn`` but dependency-free.
+
+    The synced-vs-device-bound determination rides the reliable BE/BS flags
+    (:attr:`device_type` / :attr:`backed_up`), NOT the AAGUID — which under
+    ``attestation=none`` is best-effort and frequently all-zeros
+    (``""`` = unknown here), so the recovery-risk queries hold even when it is
+    zeroed (req-tap-auth-passkey-identity-2/4).
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="webauthn_credentials",
+        help_text="The TAP user who owns this passkey.",
+    )
+    credential_id = models.CharField(
+        max_length=1400,  # base64url of up to ~1023 raw credential-id bytes
+        unique=True,
+        editable=False,
+        help_text=(
+            "Globally-unique WebAuthn credential id (base64url). A discoverable assertion "
+            "resolves to exactly one credential/owner via this (req-tap-auth-passkey-webauthn-10)."
+        ),
+    )
+    public_key = models.CharField(
+        max_length=1024,
+        editable=False,
+        help_text="COSE public key (base64url). Public material only — the private key never leaves the authenticator.",
+    )
+    sign_count = models.PositiveBigIntegerField(
+        default=0,
+        help_text=(
+            "Last verified signature counter; the new count is persisted after each assertion. "
+            "A regression is a cloned-authenticator signal, hard-denied by py_webauthn "
+            "(0/0 no-counter authenticators are exempt) (req-tap-auth-passkey-webauthn-8)."
+        ),
+    )
+    aaguid = models.CharField(
+        max_length=36,
+        blank=True,
+        default="",
+        help_text=(
+            "Authenticator model id (UUID string). Best-effort under attestation=none; '' or "
+            "all-zeros '00000000-0000-0000-0000-000000000000' = unknown. NOT used for the "
+            "synced-vs-device-bound determination (that rides BE/BS)."
+        ),
+    )
+    transports = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Client-reported transports (e.g. ['internal','hybrid','usb']). Advisory hint for the next ceremony.",
+    )
+    device_type = models.CharField(
+        max_length=16,
+        choices=WebAuthnCredentialDeviceType.choices,
+        default=WebAuthnCredentialDeviceType.SINGLE_DEVICE,
+        help_text=(
+            "BE-derived (py_webauthn credential_device_type): single_device (device-bound, no "
+            "sync safety net — nudge escalates) vs multi_device (backup-eligible/syncable). "
+            "Reliable under attestation=none."
+        ),
+    )
+    backed_up = models.BooleanField(
+        default=False,
+        help_text=(
+            "BS flag (py_webauthn credential_backed_up): whether the credential is CURRENTLY "
+            "backed up / synced. Mutable across assertions; reliable under attestation=none."
+        ),
+    )
+    device_label = models.CharField(
+        max_length=128,
+        blank=True,
+        default="",
+        help_text="Human-friendly device name (e.g. 'MacBook Touch ID'). Cosmetic; operator/UI-supplied.",
+    )
+    created = models.DateTimeField(auto_now_add=True, help_text="When this passkey was registered.")
+    last_used = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this passkey last completed a successful assertion.",
+    )
+
+    class Meta:
+        db_table = "tap_webauthn_credential"
+        indexes = [
+            models.Index(fields=["user"], name="tap_webauthn_cred_user_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"passkey:{self.redacted_credential_id} (user={self.user_id})"
+
+    @property
+    def redacted_credential_id(self) -> str:
+        """A truncated/hashed credential id for safe display/logging — raw
+        credential material is not duplicated into logs/UI (req-tap-auth-passkey-identity-5)."""
+        digest = hashlib.sha256(self.credential_id.encode("utf-8")).hexdigest()[:12]
+        return f"cred#{digest}"
+
+
+class InvitationAction(models.TextChoices):
+    """What redeeming an invitation does (req-tap-auth-passkey-enrollment / add-device)."""
+
+    ENROLL_FIRST = "enroll_first", "Enroll first passkey (create user)"
+    ADD_CREDENTIAL = "add_credential", "Add an additional passkey (existing user)"
+
+
+class InvitationStatus(models.TextChoices):
+    """Invitation lifecycle (req-tap-auth-passkey-enrollment)."""
+
+    PENDING = "pending", "Pending"
+    CONSUMED = "consumed", "Consumed"
+    EXPIRED = "expired", "Expired"
+    REVOKED = "revoked", "Revoked"
+
+
+class Invitation(models.Model):
+    """A one-time, hashed-at-rest enrollment token — the TAP-owned account-creation
+    chokepoint that replaces the IdP's ``pre_social_login`` (req-tap-auth-passkey-enrollment).
+
+    It carries an existing admin's cryptographic *vouch* for a human: redeeming it
+    runs the WebAuthn registration ceremony and either creates a user + binds the
+    first passkey (``enroll_first``) or binds an additional passkey to an existing
+    user (``add_credential``, req-tap-auth-passkey-add-device). kubeadm public-id /
+    secret split: the :attr:`public_id` is log-safe (lookup + revocation); the
+    high-entropy secret is shown once at mint and stored ONLY as :attr:`secret_hash`.
+    Consumed atomically at credential registration. Plain Django model, off the
+    Entity/graph spine (like :class:`ExternalIdentity`).
+    """
+
+    public_id = models.CharField(
+        max_length=32,
+        unique=True,
+        editable=False,
+        help_text=(
+            "Non-secret public id (kubeadm split): the log-safe lookup/revocation handle. "
+            "Redemption looks the row up by this, never by the secret (a by-secret query is a timing leak)."
+        ),
+    )
+    secret_hash = models.CharField(
+        max_length=128,  # sha-256 hex = 64, sha-512 hex = 128
+        editable=False,
+        help_text=(
+            "Plain SHA-256/512 hex of the >=128-bit CSPRNG secret half, verified with a constant-time "
+            "compare. Deliberately NOT a password KDF (full-entropy secret) and unsalted. Raw secret never stored."
+        ),
+    )
+    action = models.CharField(
+        max_length=16,
+        choices=InvitationAction.choices,
+        default=InvitationAction.ENROLL_FIRST,
+        help_text="enroll_first (create a new user + first passkey) | add_credential (bind another passkey to an existing user, no new grants).",
+    )
+    email = models.EmailField(
+        blank=True,
+        default="",
+        help_text="Intended identity for an enroll_first invite (profile snapshot, NOT identity). Empty for add_credential.",
+    )
+    display_name = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Intended display name for an enroll_first invite. Cosmetic.",
+    )
+    grants = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=(
+            "Human-assignable role names to apply on redemption (enroll_first only; empty for add_credential). "
+            "Applied via is_login_grantable + group membership; taken from this server row, never client input."
+        ),
+    )
+    target_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="incoming_invitations",
+        help_text="For add_credential: the existing user the new passkey binds to (bound by stable internal id at mint). Null for enroll_first.",
+    )
+    issued_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="issued_invitations",
+        help_text="The actor who minted this invitation (a human admin for runtime mints; tap_bootloader for genesis). Audit attribution.",
+    )
+    issued_at = models.DateTimeField(auto_now_add=True, help_text="When this invitation was minted.")
+    expires_at = models.DateTimeField(
+        help_text="Hard expiry (short bounded TTL with an enforced maximum). A redeem after this is refused.",
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=InvitationStatus.choices,
+        default=InvitationStatus.PENDING,
+        help_text="pending -> consumed (successful bind) | expired | revoked. Consumed atomically at credential registration.",
+    )
+    consumed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this invitation was successfully consumed (a passkey bound).",
+    )
+
+    class Meta:
+        db_table = "tap_invitation"
+        indexes = [
+            models.Index(fields=["status"], name="tap_invitation_status_idx"),
+        ]
+        constraints = [
+            # add_credential MUST target an existing user; enroll_first MUST NOT
+            # (it creates the user). Dual-layer with clean() below (house style).
+            models.CheckConstraint(
+                condition=(
+                    models.Q(action="add_credential", target_user__isnull=False)
+                    | models.Q(action="enroll_first", target_user__isnull=True)
+                ),
+                name="tap_invitation_target_iff_add_credential",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"invitation:{self.public_id} ({self.action}, {self.status})"
+
+    def clean(self) -> None:
+        """Mirror the DB CheckConstraint at the app layer (house dual-layer style)."""
+        super().clean()
+        if self.action == InvitationAction.ADD_CREDENTIAL and self.target_user_id is None:
+            raise ValidationError("add_credential invitation requires a target_user.")
+        if self.action == InvitationAction.ENROLL_FIRST and self.target_user_id is not None:
+            raise ValidationError("enroll_first invitation must not have a target_user.")
