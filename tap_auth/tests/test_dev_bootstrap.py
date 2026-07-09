@@ -83,6 +83,15 @@ def _record_for(user) -> dict[str, Any]:
     return build_dev_record(user_handle_hex=user.webauthn_handle.handle, credential=credential)
 
 
+def _free_credential_and_handle(user) -> None:
+    """Release the globally-unique credential id + user handle so a subsequent import can
+    re-bind them onto a fresh admin — modeling a new spawn WITHOUT deleting the User (a
+    User.delete() cascades through the simple-history signal machinery and is fragile under
+    the full lane; see test_passkey_assurance.test_concurrent_redeem's note)."""
+    WebAuthnCredential.objects.filter(user=user).delete()
+    WebAuthnUserHandle.objects.filter(user=user).delete()
+
+
 def _assert_authenticates(authenticator: VirtualAuthenticator, user):
     """Drive a REAL usernameless assertion for `user` and return the resolved user."""
     _options_json, challenge = ceremony.authentication_options()
@@ -123,11 +132,14 @@ def test_one_passkey_replays_into_a_fresh_session_as_admin():
     session binds the SAME credential onto admin with no ceremony, and the original
     authenticator completes a real assertion as that admin (dev-bootstrap-2/3/5)."""
     authenticator = _make_authenticator(uv=True, be=True, bs=True)
-    session_a_user = _register_admin(authenticator)
+    session_a_user = _register_admin(authenticator, email="sessiona@example.com")
     record = _record_for(session_a_user)
 
-    # Simulate a fresh spawn: the session-A DB is gone (cascade frees the credential id + handle).
-    User.objects.filter(pk=session_a_user.pk).delete()
+    # Simulate a fresh spawn: free the credential id + handle (the unique keys import
+    # re-binds). We drop only these plain off-spine rows, NOT the User — a User.delete()
+    # cascades through the simple-history signal machinery and is fragile under the full
+    # lane (see the note in test_passkey_assurance.test_concurrent_redeem).
+    _free_credential_and_handle(session_a_user)
     assert not WebAuthnCredential.objects.exists()
 
     imported = import_dev_admin(record)
@@ -147,9 +159,9 @@ def test_import_is_idempotent_across_repeated_spawns():
     """Re-importing the same record (each spawn re-runs it) converges: one admin, one
     credential, still authenticating — a reboot does not fork the account."""
     authenticator = _make_authenticator(uv=True)
-    user = _register_admin(authenticator)
+    user = _register_admin(authenticator, email="sessiona@example.com")
     record = _record_for(user)
-    User.objects.filter(pk=user.pk).delete()
+    _free_credential_and_handle(user)
 
     first = import_dev_admin(record)
     second = import_dev_admin(record)
@@ -267,13 +279,14 @@ def test_tampered_record_refused(tmp_path):
 @pytest.mark.django_db
 def test_tampered_record_never_binds_a_credential(tmp_path):
     """The integrity failure must abort import BEFORE any user/credential is written."""
-    user = _register_admin(_make_authenticator(uv=True))
+    user = _register_admin(_make_authenticator(uv=True), email="sessiona@example.com")
     record = _record_for(user)
-    User.objects.filter(pk=user.pk).delete()
+    _free_credential_and_handle(user)
     record["user_handle"] = "ff" * 8  # mutate a field, leave the stale digest
     path = tmp_path / "tampered.json"
     path.write_text(json.dumps(record))
 
+    # The integrity failure raises at load, before import_dev_admin writes anything.
     with pytest.raises(DevRecordError):
         import_dev_admin(load_dev_record(path))
     assert not User.objects.filter(username="admin").exists()
