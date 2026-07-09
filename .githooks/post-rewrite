@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+# Clear mypy's incremental cache after a history rewrite — rebase or
+# `commit --amend` ($1 names which). Rebase in particular can move/replay commits
+# that change the module tree. See _clear_mypy_cache.sh.
+. "$(dirname "$0")/_clear_mypy_cache.sh"
+clear_mypy_cache
