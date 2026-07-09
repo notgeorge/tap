@@ -222,6 +222,20 @@ Status: **active, targeted ~2026-09** (`req-cicd-base-image-lifecycle-5`). Three
 3. **`fipsinstall` in-image + reproducibility** — must run in the final build; the MAC pins the exact
    `fips.so`. Fits the build-stage model.
 
-Feasibility supported by the base-image spike (Python 3.14 on Wolfi, dynamic system-OpenSSL linkage). A
-dedicated FIPS spike — build `fips.so`, activate it, prove `python` + `cryptography` route through the
-provider — retires the remaining "does linkage + `--no-binary` work end-to-end" risk before the recipe is committed.
+### Spike evidence — the full recipe is proven end-to-end (2026-07-09)
+
+A dedicated FIPS spike (`spikes/fips/Dockerfile.fips`, three stages) ran the whole recipe on `wolfi-base`
+and **every assertion passed**:
+
+- **Builder** — OpenSSL **3.0.9** compiled with `./Configure enable-fips` on Wolfi → `fips.so` (#4282). Builds clean; retires "can we build the validated module ourselves."
+- **Binary-compat linchpin (the load-bearing claim)** — Wolfi's *current* system OpenSSL **3.6.3** ran `openssl fipsinstall` against our frozen **3.0.9** `fips.so`: self-tests **passed**, integrity MAC written, `version: 3.0.9`. Modern libcrypto + frozen validated module is not just documented — it *works*. OpenSSL-3.0-LTS-EOL confirmed irrelevant.
+- **Provider activation** — `openssl list -providers` → `fips 3.0.9 active` + `base active`; default provider gone. sha256 works; **md5 refused** (`evp_generic_fetch: unsupported`).
+- **Python stdlib, ZERO rebuild** — Wolfi `python-3.14` (3.14.6) links system OpenSSL 3.6.3; `_hashlib.new("md5")` → `ValueError: unsupported`; sha256 works. FIPS enforcement reaches Python's crypto with no Python rebuild.
+- **`cryptography` / `webauthn` engine (the TAP-specific proof)** — `cryptography 49.0.0` built `--no-binary` dynamically links system OpenSSL 3.6.3 (not its vendored static copy). **P-256 ECDSA sign+verify OK** (exactly the passkey-assertion verification), SHA-256 OK, **MD5 → `InternalError`** (FIPS provider refuses it).
+
+Two gotchas the spike surfaced, now baked into the recipe:
+
+1. **`openssl.cnf` directive order is load-bearing.** `openssl_conf = openssl_init` MUST sit in the default (pre-section) block *before* `.include fipsmodule.cnf` — because that included file *starts* with `[fips_sect]`, so an `.include` placed first silently swallows `openssl_conf` into that section. Symptom: config "parses" with no error but **no providers activate** and OpenSSL falls back to the default provider (FIPS not enforced). Put `openssl_conf` first.
+2. **`CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1` at build.** Keeps `cryptography` from loading OpenSSL's legacy provider, which would silently re-enable MD5/DES and defeat the enforcement. Set it (build- and run-time).
+
+Net: the recipe is validated end-to-end at **$0 license** on the free upstream **#4282** certificate — no Chainguard OpenSSL module needed. What remains before ~2026-09 is *productionizing* (fold into the real Wolfi `Dockerfile` + `docker-compose` Postgres, `[tool.uv] no-binary-package = ["cryptography"]`, boot + full test-lane validation) and the **OE vendor-affirmation acceptance** conversation with the compliance authority (risk #1 above) — a paperwork/posture question, not a technical unknown.
