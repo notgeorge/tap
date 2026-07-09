@@ -18,13 +18,6 @@ computing_core__web_host = "tap_plugin.computing_core.models.web_host.WebHost"
 computing_core__web_document = "tap_plugin.computing_core.models.web_document.WebDocument"
 
 [edges]
-HOSTS__computing_core = "edges/HOSTS.edge.json"
-RUNS_ON__computing_core = "edges/RUNS_ON.edge.json"
-HAS_IP__computing_core = "edges/HAS_IP.edge.json"
-AVAILABLE_AT__computing_core = "edges/AVAILABLE_AT.edge.json"
-LISTENS_ON__computing_core = "edges/LISTENS_ON.edge.json"
-CONNECTS_TO__computing_core = "edges/CONNECTS_TO.edge.json"
-PAIRED_WITH__computing_core = "edges/PAIRED_WITH.edge.json"
 GENERATES_FILE__computing_core = "edges/GENERATES_FILE.edge.json"
 HOSTED_BY__computing_core = "edges/HOSTED_BY.edge.json"
 FETCHES__computing_core = "edges/FETCHES.edge.json"

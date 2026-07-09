@@ -16,6 +16,7 @@ depends_on = [
     { slug = "github_core", note = "imports github_core models/panels for the repo + compliance surfaces at import time" },
     { slug = "roscale", note = "imports the OSCAL workbench panel types the compliance pages consume at import time" },
     { slug = "compliance_core", note = "compliance_collector creates compliance_core__compliance_artifact nodes; needs the type registered + boot-ordered ahead" },
+    { slug = "identity_core", note = "sigstore_link imports identity_core.issuer to mint the oidc_issuer node + compute its id at import/collection time" },
 ]
 
 [grift]

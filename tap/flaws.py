@@ -314,6 +314,55 @@ def report_readonly_write_blocked(
     )
 
 
+def report_db_permission_denied(
+    *,
+    message: str,
+    logger: logging.Logger,
+    **context: Any,
+) -> Flaw:
+    """Emit a `security` Flaw when PostgreSQL denies a statement for insufficient privilege.
+
+    SQLSTATE 42501 (``insufficient_privilege``) is raised whenever a database role is
+    denied a `SELECT`/write it is not granted. Unlike the read-only-write block
+    (:func:`report_readonly_write_blocked`, scoped to the ``search_readonly`` alias and
+    SQLSTATE 25006), this is the **broad** detection chokepoint: it fires for a 42501 on
+    *any* connection, alias, or role (``req-grid-db-permission-flaw.sec``). It is wired
+    unconditionally at the ORM connection layer so it forward-proofs the least-privilege
+    DB roles — the day a Gryphon read reaches a table the search role is not granted, the
+    DB denies it (the integrity half) and this Flaw fires (the detection half).
+
+    A 42501 is the highest-value signal in the defense-in-depth set: it means an in-code
+    guard (the field-path allowlist / table-scope guard) leaked and the database caught
+    what the application did not. Honest scope: this catches only Django-ORM connections;
+    a direct psycopg / psql / external-tool path bypasses it (that is pgaudit / DB-log
+    territory, a later backstop).
+
+    Blame class is decided by the offending callsite (core executor → `code`; a plugin
+    runner → `app`), matching :func:`report_readonly_write_blocked`. Always
+    `security`-tagged and operation-aborting; the caller re-raises the original DB error
+    after this returns, so the denial stands.
+
+    Args:
+        message: Human-readable description (no secrets — never the SQL text).
+        logger: The calling module's logger, so the record name is the callsite.
+        **context: Extra safe structured context merged into ``message_data``.
+
+    Returns:
+        The emitted Flaw.
+    """
+    path, site = _offending_callsite()
+    flaw_cls = flaw_class_for_path(path)
+    return flaw_cls.report(
+        invariant_id="db_permission_denied",
+        tags=["security"],
+        handling=HANDLING_ABORT_OPERATION,
+        message=f"{message} — offending callsite: {site}",
+        logger=logger,
+        offending_callsite=site,
+        **context,
+    )
+
+
 def _handling_problems(handling: str) -> list[str]:
     """Return human-readable problems with a handling value (empty = fine)."""
     if handling not in _HANDLINGS:

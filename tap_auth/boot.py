@@ -265,6 +265,22 @@ def _check_deploy_posture(echo: Echo) -> None:
     echo("Auth phase: deploy security posture OK.")
 
 
+def _pending_admin_invitation_exists() -> bool:
+    """Whether a live (pending, unexpired) first-enrollment invitation grants
+    ``tap_admin`` — the genesis ``enroll_admin`` path to a human admin on first login
+    (req-tap-auth-passkey-genesis-3). Uses the JSONB ``grants`` containment operator."""
+    from django.utils import timezone
+
+    from tap_auth.models import Invitation, InvitationAction, InvitationStatus
+
+    return Invitation.objects.filter(
+        status=InvitationStatus.PENDING,
+        action=InvitationAction.ENROLL_FIRST,
+        expires_at__gt=timezone.now(),
+        grants__contains=["tap_admin"],
+    ).exists()
+
+
 def _enforce_last_admin_invariant(*, allow_lockout: bool, declared_admin_path: bool, echo: Echo) -> None:
     """Boot must not converge to zero active human tap_admin (req-tap-auth-boot).
 
@@ -290,6 +306,13 @@ def _enforce_last_admin_invariant(*, allow_lockout: bool, declared_admin_path: b
         return
     if declared_admin_path:
         echo("Auth phase: last-admin invariant OK (initial_admins declared — admin on first login).")
+        return
+    if _pending_admin_invitation_exists():
+        # A genesis `enroll_admin` invitation is an unredeemed path to admin — exactly
+        # like initial_admins, but via the passkey enrollment chokepoint. Boot should
+        # not lock out just because the operator has minted but not yet redeemed it
+        # (req-tap-auth-passkey-genesis-3).
+        echo("Auth phase: last-admin invariant OK (pending tap_admin enrollment invitation).")
         return
     if allow_lockout:
         logger.warning("[5e22] admin lockout permitted by break-glass: zero active human tap_admin")

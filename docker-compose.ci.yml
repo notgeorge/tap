@@ -1,5 +1,6 @@
-# CI-only compose overlay — used exclusively by .github/workflows/all-plugins.yml
-# (activated via COMPOSE_FILE=docker-compose.yml:docker-compose.ci.yml in the job env).
+# CI-only compose overlay — used by the server-side test lanes
+# (.github/workflows/all-plugins.yml and product-lines.yml), activated via
+# COMPOSE_FILE=docker-compose.yml:docker-compose.ci.yml in the job env.
 #
 # The workflow builds the web image with docker/build-push-action + a GitHub Actions
 # layer cache (cache-from/to type=gha) and loads it locally as `tap-web:ci`. This
@@ -14,3 +15,43 @@ services:
     image: tap-web:ci
     # The image is always pre-loaded by the build step; never reach out to a registry.
     pull_policy: never
+    # CI-only: pass the secret-source preinstall list + the lane's ambient AWS role creds
+    # into the container so the boot's secret-source seam can reach AWS Secrets Manager for
+    # a plugin-pull credential (the samsite lane). The lane exports the CodeBuild role's
+    # temporary creds as STATIC AWS_ACCESS_KEY_ID/.../SESSION_TOKEN — this sidesteps the
+    # docker-in-docker credential-endpoint reachability problem (a nested container may not
+    # reach 169.254.170.2). All default empty, so this overlay is a no-op for test_all and
+    # for local use (which never set these).
+    environment:
+      TAP_SECRET_SOURCE_DISTS: ${TAP_SECRET_SOURCE_DISTS:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      AWS_REGION: ${AWS_REGION:-}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
+
+  # CI-only Postgres tuning. This database is created fresh and thrown away after the
+  # run, so trade every durability guarantee for throughput. The test lane is Postgres-
+  # I/O-bound (each xdist worker clones a migrated template DB and hammers it), so the
+  # single biggest speedup available is to (a) disable fsync / synchronous_commit /
+  # full_page_writes and (b) put the data directory on a tmpfs (RAM). NEVER use this in
+  # any environment whose data must survive a restart — a crash loses the whole cluster.
+  #
+  # PGDATA is pointed at the tmpfs mount rather than the base named volume: the base
+  # `postgres_data` volume stays mounted at .../data (harmless, unused), which avoids a
+  # duplicate-mountpoint conflict while keeping this overlay purely additive.
+  db:
+    command:
+      - "postgres"
+      - "-c"
+      - "max_locks_per_transaction=512"
+      - "-c"
+      - "fsync=off"
+      - "-c"
+      - "synchronous_commit=off"
+      - "-c"
+      - "full_page_writes=off"
+    environment:
+      PGDATA: /var/lib/postgresql/tmpdata
+    tmpfs:
+      - /var/lib/postgresql/tmpdata:size=4g

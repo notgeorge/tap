@@ -20,10 +20,11 @@ from django.urls import reverse
 class TestLoginWall:
     def test_anonymous_protected_page_redirects_to_login(self):
         """A non-exempt page (the landing root) redirects anonymous → login,
-        fail-closed, with a ?next back-reference."""
+        fail-closed, with a ?next back-reference. LOGIN_URL is the native passkey
+        login page (req-tap-auth-passkey-rollout-2), not allauth's account_login."""
         response = Client().get("/")
         assert response.status_code == 302
-        assert response.url.startswith("/auth/login/")
+        assert response.url.startswith("/auth/passkey/login/")
         assert "next=/" in response.url
 
     @pytest.mark.smoke

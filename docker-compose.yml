@@ -169,6 +169,12 @@ services:
       # allauth itself derives the runtime redirect_uri from the request. Empty
       # by default; set per-session in .env.local (e.g. http://localhost:8010).
       TAP_BASE_URL: "${TAP_BASE_URL:-}"
+      # Passkey (WebAuthn) RP config (req-tap-auth-passkey-webauthn). RP-ID is the
+      # registrable domain; the expected origin is EXACT (scheme+host+port). Dev binds
+      # RP-ID=localhost and origin=http://localhost:<host WEB_PORT> — the browser hits
+      # the host port, so the container must expect that exact origin.
+      TAP_PASSKEY_RP_ID: "${TAP_PASSKEY_RP_ID:-localhost}"
+      TAP_PASSKEY_ORIGIN: "${TAP_PASSKEY_ORIGIN:-http://localhost:${WEB_PORT:-8000}}"
 
     # Wait for the database to be healthy before starting Django
     # Prevents errors from Django trying to connect before PostgreSQL is ready

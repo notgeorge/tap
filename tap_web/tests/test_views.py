@@ -65,7 +65,7 @@ class TestLandingView:
         to login, not a rendered page (req-tap-auth-service-boundary)."""
         response = Client().get("/")
         assert response.status_code == 302
-        assert response.url.startswith("/auth/login/")
+        assert response.url.startswith("/auth/passkey/login/")
 
 
 @pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
@@ -250,13 +250,13 @@ class TestObjectViewReadGate:
         url_id = self._make_character()
         response = Client().get(f"/object/grid_fixtures__constrained_source/{url_id}/")
         assert response.status_code == 302
-        assert response.url.startswith("/auth/login/")
+        assert response.url.startswith("/auth/passkey/login/")
 
     def test_anonymous_object_edit_redirected_to_login(self):
         url_id = self._make_character()
         response = Client().get(f"/object/grid_fixtures__constrained_source/{url_id}/edit/")
         assert response.status_code == 302
-        assert response.url.startswith("/auth/login/")
+        assert response.url.startswith("/auth/passkey/login/")
 
     def test_no_cap_object_view_denied_403(self):
         url_id = self._make_character()

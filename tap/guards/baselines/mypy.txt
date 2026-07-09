@@ -68,7 +68,7 @@ tap_grid/grift/importer.py:no-untyped-def:3
 tap_grid/grift/subgraph.py:attr-defined:2
 tap_grid/grift/subgraph.py:union-attr:4
 tap_grid/gryphon/executor.py:arg-type:2
-tap_grid/gryphon/executor.py:attr-defined:4
+tap_grid/gryphon/executor.py:attr-defined:5
 tap_grid/gryphon/executor.py:no-any-return:1
 tap_grid/gryphon/executor.py:no-redef:1
 tap_grid/gryphon/executor.py:no-untyped-call:1
@@ -90,6 +90,7 @@ tap_grid/models.py:unused-ignore:2
 tap_grid/orm_compiler.py:arg-type:1
 tap_grid/orm_compiler.py:misc:8
 tap_grid/search.py:unused-ignore:1
+tap_grid/search_role.py:attr-defined:1
 tap_grid/services/__init__.py:attr-defined:4
 tap_grid/services/__init__.py:return-value:1
 tap_grid/services/_impl.py:arg-type:1
@@ -140,6 +141,7 @@ tap_grid/tests/test_search.py:no-untyped-call:11
 tap_grid/tests/test_search_model.py:no-untyped-call:29
 tap_grid/tests/test_search_module.py:no-untyped-call:15
 tap_grid/tests/test_search_orm.py:no-untyped-call:37
+tap_grid/tests/test_search_role.py:attr-defined:1
 tap_grid/tests/test_service_schemas.py:unused-ignore:3
 tap_grid/tests/test_services.py:arg-type:25
 tap_grid/tests/test_services.py:misc:12

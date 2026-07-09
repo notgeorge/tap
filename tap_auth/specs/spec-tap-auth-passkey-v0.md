@@ -89,6 +89,27 @@ This spec revises three decisions elsewhere for deployments that adopt passwordl
 | req-tap-auth-passkey-assurance | [Passkey AuthN Assurance](#passkey-authn-assurance) | Proposed | `authn_providers.passkey.json` rows: gating, replay/expiry, UV, RP-ID mismatch, dev-import-refused-in-prod |
 | req-tap-auth-passkey-rollout | [Rollout](#rollout) | Proposed | Feature phases (foundation → bootstrap → front door) × slim-install phases (A both-installable → B allauth-optional) |
 
+#### MVP landed (2026-07-08)
+
+A first pass landed the **passwordless-primary MVP**: a zero-provider instance where the
+admin account authenticates with a passkey. Requirement-level Status stays `Proposed`
+where any sub-criterion is deferred; per-ACID Status + evidence in the detailed tables
+below are authoritative. **Landed** (Implemented ACIDs): the WebAuthn ceremony core
+(`webauthn-2,3,4,7,8,9,10,11,12`), the invitation chokepoint + genesis
+(`enrollment-1,2,3,4,6`, `genesis-1,3,4`), native identity/credential projection
+(`identity-1,2,3,5`), and the zero-provider bootstrap + native login front door
+(`rollout-2`) — with a vendored virtual authenticator driving the real `py_webauthn`
+across the assurance corpus. **Honesty caveats:** this is *additive*, not yet
+passwordless-global — both allauth password backends stay live and allauth is still
+installed; only the genesis admin gets `set_unusable_password()`. **Deferred:** the
+login-methods registry (`methods-*`), slim-install (`slim-install-*`, `rollout-4`),
+add-a-device (`add-device-*`), dev-bootstrap replay (`dev-bootstrap-*`), password
+retirement + recovery floor (`recovery-*`, `rollout-3`), the full assurance corpus +
+manifest (`assurance-*`), rate-limiting + conditional-UI + self-add
+(`webauthn-13,14,15`), and the method self-test (`webauthn-5`, `methods-4`). The MVP's
+unthrottled ceremony/options endpoints are a named localhost-demo open risk carried into
+Phase 3 (`webauthn-13`).
+
 ---
 
 ### Login Methods Registry
@@ -203,17 +224,17 @@ TAP MUST implement the passkey method natively on **`py_webauthn`** (Duo Labs; P
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-tap-auth-passkey-webauthn-1 | Native Core | Proposed | The passkey method is implemented on `py_webauthn`; no allauth dependency. | |
-| req-tap-auth-passkey-webauthn-2 | Discoverable Required | Proposed | Registration requires discoverable credentials so usernameless login works. | |
-| req-tap-auth-passkey-webauthn-3 | User Verification Required | Proposed | Registration and assertion require user verification, **enforced at the verify call** (`require_user_verification=True`), not merely requested in the options. | |
-| req-tap-auth-passkey-webauthn-4 | Opaque Handle | Proposed | The user handle is opaque/non-PII (`token_bytes(64)`); email is never used as the handle. | |
-| req-tap-auth-passkey-webauthn-5 | RP-ID Configured & Pinned | Proposed | RP-ID/origin are explicit boot config; a mismatch fails the method self-test; changing RP-ID is a loud, documented mass-invalidation. | |
-| req-tap-auth-passkey-webauthn-6 | Owns Login Views | Proposed | A passkey-only build serves login/logout from `tap_auth`, not allauth. | |
-| req-tap-auth-passkey-webauthn-7 | Origin/RP-ID Enforced Every Ceremony | Proposed | Every registration and assertion enforces the pinned `expected_rp_id` and an **exact** `expected_origin` (scheme+host+port); no any-origin / any-`localhost` wildcard; the allowlist holds only RP-controlled origins. | |
-| req-tap-auth-passkey-webauthn-8 | Sign-Counter Regression | Proposed | Each assertion passes the stored sign count and persists `max(stored, new)`; a regression (either nonzero) is flagged as a clone signal; `0/0` is exempt (no-counter authenticator). | |
-| req-tap-auth-passkey-webauthn-9 | Challenge Bound & Single-Use | Proposed | The server-side challenge is CSPRNG (≥16B), TTL'd, atomically single-use, and bound **per ceremony**: registration/enrollment to invitation/user + session; authentication (usernameless) to session + ceremony metadata only, with the user resolved post-verify (binding an auth challenge to a user up front is not required). | |
-| req-tap-auth-passkey-webauthn-10 | Credential-Id Unique + Owner-Bound | Proposed | `credential_id` is globally unique; a discoverable assertion is resolved by `credential_id` and the asserted `userHandle` is confirmed to equal the owning user's stored handle before authenticating. | |
-| req-tap-auth-passkey-webauthn-11 | Session-Fixation Defense | Proposed | A successful assertion is finalized via `django.contrib.auth.login()` (cycles the session key); the backend never writes the auth session keys directly. | |
-| req-tap-auth-passkey-webauthn-12 | Ceremony CSRF | Proposed | Registration/authentication/redeem POSTs run under CSRF protection (never `@csrf_exempt`); the WebAuthn challenge is not treated as a CSRF substitute. | |
+| req-tap-auth-passkey-webauthn-2 | Discoverable Required | Implemented | Registration requires discoverable credentials so usernameless login works. | `ceremony.registration_options` pins `resident_key=REQUIRED` |
+| req-tap-auth-passkey-webauthn-3 | User Verification Required | Implemented | Registration and assertion require user verification, **enforced at the verify call** (`require_user_verification=True`), not merely requested in the options. | Assurance: `test_happy_path_uv_present_*`, `test_uv_absent_registration_refused`, `test_uv_absent_authentication_refused` |
+| req-tap-auth-passkey-webauthn-4 | Opaque Handle | Implemented | The user handle is opaque/non-PII (`token_bytes(64)`); email is never used as the handle. | `_HANDLE_BYTES=64` in views_enroll / assurance `_register` |
+| req-tap-auth-passkey-webauthn-5 | RP-ID Configured & Pinned | Proposed | RP-ID/origin are explicit boot config; a mismatch fails the method self-test; changing RP-ID is a loud, documented mass-invalidation. | Partial: RP-ID/origin are settings-pinned (`passkey.config`); the method `self_test` is Phase 1b |
+| req-tap-auth-passkey-webauthn-6 | Owns Login Views | Proposed | A passkey-only build serves login/logout from `tap_auth`, not allauth. | Partial: `tap_auth` serves native login (`views_login`) + owns `LOGIN_URL`, but allauth is still installed (slim-install is Phase 3) |
+| req-tap-auth-passkey-webauthn-7 | Origin/RP-ID Enforced Every Ceremony | Implemented | Every registration and assertion enforces the pinned `expected_rp_id` and an **exact** `expected_origin` (scheme+host+port); no any-origin / any-`localhost` wildcard; the allowlist holds only RP-controlled origins. | Assurance: `test_registration_origin_mismatch_refused`, `test_any_localhost_origin_refused_on_authentication` |
+| req-tap-auth-passkey-webauthn-8 | Sign-Counter Regression | Implemented | Each assertion passes the stored sign count to `py_webauthn`, which **hard-denies** a regression (a cloned-authenticator signal) — v0 **rejects** the assertion, it does not soft-flag; the new count is persisted on success; `0/0` is exempt (no-counter authenticator). | Assurance: `test_sign_count_regression_hard_denied` |
+| req-tap-auth-passkey-webauthn-9 | Challenge Bound & Single-Use | Implemented | The server-side challenge is CSPRNG (≥16B), TTL'd, atomically single-use, and bound **per ceremony**: registration/enrollment to invitation/user + session; authentication (usernameless) to session + ceremony metadata only, with the user resolved post-verify (binding an auth challenge to a user up front is not required). | `passkey.challenge` (session-stashed, `pop`-single-use, 300s TTL) |
+| req-tap-auth-passkey-webauthn-10 | Credential-Id Unique + Owner-Bound | Implemented | `credential_id` is globally unique; a discoverable assertion is resolved by `credential_id` and the asserted `userHandle` is confirmed to equal the owning user's stored handle before authenticating. | Assurance: `test_userhandle_owner_mismatch_refused` |
+| req-tap-auth-passkey-webauthn-11 | Session-Fixation Defense | Implemented | A successful assertion is finalized via `django.contrib.auth.login()` (cycles the session key); the backend never writes the auth session keys directly. | Assurance: `test_enroll_web_flow_cycles_session_key`; the `PasskeyBackend` never sets `_auth_user_id` |
+| req-tap-auth-passkey-webauthn-12 | Ceremony CSRF | Implemented | Registration/authentication/redeem POSTs run under CSRF protection (never `@csrf_exempt`); the WebAuthn challenge is not treated as a CSRF substitute. | No `@csrf_exempt` on any enroll/login view; `CsrfViewMiddleware` in force |
 | req-tap-auth-passkey-webauthn-13 | Login Surface Hygiene | Proposed | `?next=` is validated with `url_has_allowed_host_and_scheme`; logout completes via `auth.logout()` (server-side flush); ceremony/redeem/admin-login endpoints are throttled; the slim boot still runs the `req-tap-auth-boot-7` deploy gate and the `https`-origin self-test for customer profiles. | |
 | req-tap-auth-passkey-webauthn-14 | Explicit Passkey Login Action | Proposed | The login page offers both conditional-UI autofill (where supported) and an explicit "Sign in with a passkey" button that starts a modal, non-conditional assertion, so hardware/hybrid credentials are reachable. | |
 | req-tap-auth-passkey-webauthn-15 | Authenticated Self-Add | Proposed | A logged-in user can register an additional passkey to their own account from an authenticated session (no invitation; keep-and-add; `excludeCredentials` prevents duplicates) — the v0 affordance backing the permit-N backup nudge. | |
@@ -243,12 +264,12 @@ Account creation MUST pass through a TAP-owned enrollment chokepoint — the nat
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-auth-passkey-enrollment-1 | Gated Creation | Proposed | A user/passkey can be created only by redeeming a valid, unexpired, unconsumed invitation (or genesis). | |
-| req-tap-auth-passkey-enrollment-2 | Token Hygiene | Proposed | Tokens use a public-id/secret split, CSPRNG ≥128-bit, single-use, hashed-at-rest with a **plain SHA-256/512 + constant-time compare** looked up by public-id, TTL'd with an **enforced maximum**, and consumed atomically (`rowcount==1`-guarded transition); a failed ceremony leaves the token `pending`. | |
-| req-tap-auth-passkey-enrollment-3 | Identity & Grant Bound | Proposed | Redemption applies only the invited identity, grants, and handle **from the server-stored invitation** (client-supplied identity fields ignored); non-human-grantable roles are refused. | |
-| req-tap-auth-passkey-enrollment-4 | No Email | Proposed | Tokens are displayed in admin UI / `manage.py` only; TAP sends no invitation email; the `--print-token` stdout exposure is named. | |
-| req-tap-auth-passkey-enrollment-5 | Audited | Proposed | Mint/redeem/revoke are capability-gated and produce structured audit records. | |
-| req-tap-auth-passkey-enrollment-6 | Non-Enumerating Redemption & Secret-In-Fragment | Proposed | All redemption failures collapse to one generic constant-time response; the enrollment page carries `no-store`/`noindex`/`no-referrer`; the secret rides the URL **fragment** (never path/query) so it never reaches a server log, and the redeem POST body is never logged. | |
+| req-tap-auth-passkey-enrollment-1 | Gated Creation | Implemented | A user/passkey can be created only by redeeming a valid, unexpired, unconsumed invitation (or genesis). | Assurance: `test_enrollment_creates_admin_*`, `test_wrong_secret_refused_*`, `test_unknown_public_id_refused` |
+| req-tap-auth-passkey-enrollment-2 | Token Hygiene | Implemented | Tokens use a public-id/secret split, CSPRNG ≥128-bit, single-use, hashed-at-rest with a **plain SHA-256 + constant-time compare** looked up by public-id, TTL'd with an **enforced maximum**, and consumed atomically (`rowcount==1`-guarded transition); a failed ceremony leaves the token `pending`. | Assurance: `test_expired_*`, `test_consumed_*_replay_refused`, `test_concurrent_redeem_*`, `test_failed_ceremony_rolls_back_*` |
+| req-tap-auth-passkey-enrollment-3 | Identity & Grant Bound | Implemented | Redemption applies only the invited identity, grants, and handle **from the server-stored invitation** (client-supplied identity fields ignored); non-human-grantable roles are refused. | `redeem_invitation` reads identity/grants/handle from the server row only; `_apply_grants` fails loud via the `is_login_grantable` guard |
+| req-tap-auth-passkey-enrollment-4 | No Email | Implemented | Tokens are displayed in admin UI / `manage.py` only; TAP sends no invitation email; the `--print-token` stdout exposure is named. | `enroll_admin --print-token`; no mail path exists |
+| req-tap-auth-passkey-enrollment-5 | Audited | Proposed | Mint/redeem/revoke are capability-gated and produce structured audit records. | Partial: mint (gated)/redeem log structured records; `revoke` is not built in the MVP |
+| req-tap-auth-passkey-enrollment-6 | Non-Enumerating Redemption & Secret-In-Fragment | Implemented | All redemption failures collapse to one generic constant-time response; the enrollment page carries `no-store`/`noindex`/`no-referrer`; the secret rides the URL **fragment** (never path/query) so it never reaches a server log, and the redeem POST body is never logged. | `load_redeemable` sentinel-hash constant-time compare; `_harden` headers; `#secret` fragment |
 | req-tap-auth-passkey-enrollment-7 | Shell Mint Command | Proposed | `manage.py enroll-user --email … --role … --print-token` mints an invitation for any human-assignable role from the shell (non-human roles refused); `enroll-admin` is retained as sugar for `--role tap_admin`; the role is an argument, the secret never is. | |
 
 ---
@@ -304,10 +325,10 @@ A fresh instance has no users and no prior trust anchor, so the **first** passke
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-auth-passkey-genesis-1 | Shell Genesis | Proposed | `manage.py enroll-admin --print-token` mints a first-admin enrollment on an instance with zero users, printing the URL to stdout. | |
-| req-tap-auth-passkey-genesis-2 | Grants As Invitations | Proposed | First boot can mint pending invitations from `initial_admins`/`initial_grants`. | |
-| req-tap-auth-passkey-genesis-3 | Zero-Provider Invariant | Proposed | The last-admin invariant is satisfiable with no federated provider; a no-admin/no-invitation boot warns loudly, never silently unreachable. | |
-| req-tap-auth-passkey-genesis-4 | Named Surface | Proposed | Genesis runs as a named system actor through a registered surface. | |
+| req-tap-auth-passkey-genesis-1 | Shell Genesis | Implemented | `manage.py enroll_admin --print-token` mints a first-admin enrollment (works on a zero-user instance; warns non-fatally if an admin already exists), printing the URL to stdout. | Assurance: `test_enroll_admin_mints_pending_*`, `test_enroll_admin_without_print_token_withholds_the_secret` |
+| req-tap-auth-passkey-genesis-2 | Grants As Invitations | Proposed | First boot can mint pending invitations from `initial_admins`/`initial_grants`. | Deferred from MVP: boot-time minting from `initial_admins` not built; `enroll_admin` is the CLI genesis path |
+| req-tap-auth-passkey-genesis-3 | Zero-Provider Invariant | Implemented | The last-admin invariant is satisfiable with no federated provider; a no-admin/no-invitation boot warns loudly, never silently unreachable. | `boot._enforce_last_admin_invariant` accepts a pending admin invitation; assurance `test_pending_admin_invitation_*` |
+| req-tap-auth-passkey-genesis-4 | Named Surface | Implemented | Genesis runs below the capability gate attributed to the named `tap_bootloader` program actor (attribution, not authority — precedent `ensure_initial_admin`). | Assurance: `test_enroll_admin_mints_pending_tap_admin_invitation_attributed_to_bootloader` |
 
 ---
 
@@ -364,11 +385,11 @@ A passkey-native human has **no `ExternalIdentity` row** — the `User` is the i
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-auth-passkey-identity-1 | No External Row | Proposed | A passkey-native user has no `ExternalIdentity`; the User is the anchor. | |
-| req-tap-auth-passkey-identity-2 | Queryable Projection | Proposed | Each passkey has a described `WebAuthnCredential` projection row incl. BE/BS/AAGUID, queryable from the DB/service layer. | |
-| req-tap-auth-passkey-identity-3 | Characteristics At Bind | Proposed | Phishing-resistance / factor / syncable characteristics are recorded at registration; the model leaves room for a future AAL3 tier. | |
-| req-tap-auth-passkey-identity-4 | Recovery-Risk Legible | Proposed | The projection distinguishes synced vs device-bound and surfaces single-credential users. | |
-| req-tap-auth-passkey-identity-5 | Safe Display | Proposed | Credential identifiers are redacted in logs/UI; raw material is not duplicated. | |
+| req-tap-auth-passkey-identity-1 | No External Row | Implemented | A passkey-native user has no `ExternalIdentity`; the User is the anchor. | `_create_enrolled_user` mints a bare User + `WebAuthnUserHandle`; no `ExternalIdentity` is created |
+| req-tap-auth-passkey-identity-2 | Queryable Projection | Implemented | Each passkey has a described `WebAuthnCredential` projection row incl. BE/BS/AAGUID, queryable from the DB/service layer. | `WebAuthnCredential` (device_type, backed_up, aaguid, transports); assurance asserts `backed_up` |
+| req-tap-auth-passkey-identity-3 | Characteristics At Bind | Implemented | Phishing-resistance / factor / syncable characteristics are recorded at registration; the model leaves room for a future AAL3 tier. | `bind_credential` records device_type/backed_up/aaguid from the verification result |
+| req-tap-auth-passkey-identity-4 | Recovery-Risk Legible | Proposed | The projection distinguishes synced vs device-bound and surfaces single-credential users. | Partial: `device_type` distinguishes synced vs device-bound; the single-credential-user surfacing query/UI is deferred |
+| req-tap-auth-passkey-identity-5 | Safe Display | Implemented | Credential identifiers are redacted in logs/UI; raw material is not duplicated. | `redacted_credential_id` (sha256[:12]); ceremony logs use the redacted form |
 
 ---
 
@@ -467,7 +488,7 @@ Two intertwined axes: **feature phases** (what works) and **slim-install phases*
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-tap-auth-passkey-rollout-1 | Foundation First | Proposed | Feature Phase 1 lands with no change to existing federated login behavior. | |
-| req-tap-auth-passkey-rollout-2 | Bootstrap Stands Alone | Proposed | After feature Phase 2 (slim Phase A), a zero-provider sole-passkey instance bootstraps and admits users. | |
+| req-tap-auth-passkey-rollout-2 | Bootstrap Stands Alone | Implemented | After feature Phase 2 (slim Phase A), a zero-provider sole-passkey instance bootstraps and admits users. | Assurance: `test_native_passkey_login_web_flow`, `test_enroll_web_flow_cycles_session_key`; live `enroll_admin` smoke |
 | req-tap-auth-passkey-rollout-3 | Retirement Reconciled | Proposed | Feature Phase 3 applies the `req-tap-auth-policy-6` supersession in the auth spec in the same change. | |
 | req-tap-auth-passkey-rollout-4 | Lean Payoff | Proposed | After slim Phase B, a passkey-only install has allauth neither installed nor imported. | |
 

@@ -1,0 +1,14 @@
+# Terraform state + local-only artifacts (never commit these).
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+# Real var values may contain account IDs / ARNs; keep only the .example in git.
+terraform.tfvars
+*.auto.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json

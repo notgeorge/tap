@@ -92,6 +92,8 @@ Duplicate `scope:key` values are configuration errors even when they appear in d
 
 The low-level mechanics of reading this store — discovering a `<key>.secret.json` by `scope`/`key` and validating the canonical envelope shape — live in the app-neutral `tap/runtime_secrets.py`, **not** in tap_cares. tap_cares is the *major* secrets manager: it owns the registry, the resilient-load report, the system check, the health probe, the basename/key match, and `required_for_boot` semantics, and it builds the rich `Secret` on top of the shared envelope. tap_auth resolves provider client credentials from the same store at settings-import time (before `tap_cares.ready()` runs) and so calls the shared resolver directly rather than importing tap_cares — keeping the two apps free of a cross-dependency. The resolver is import-safe (no Django settings access at import); each caller supplies the secrets root and re-wraps the resolver's neutral `RuntimeSecretError` in its own domain exception.
 
+**Pluggable source seam (being added).** The resolver is disk-only today. `spec-plugin-dependency-resolution.md` `req-plugin-depres-sources` adds a source-provider seam so a manifest may route its *value* to an external store while its envelope stays disk-resident and TAP-owned: an optional `metadata.source` (absent ⇒ the built-in disk source, unchanged) plus a `metadata.source_ref` locator, dispatched to a provider discovered via the `tap.secret_sources` entry-point group (disk in core, cloud stores from a slim allow-listed distribution, e.g. `aws_secrets_source`). This does not change the required envelope fields, discovery, or the size/leak guards — see that spec for the seam design, trust-gating, and the AWS Secrets Manager worked example.
+
 ### Example Layout
 
 ```text

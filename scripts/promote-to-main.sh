@@ -171,26 +171,42 @@ fi
 # ---------------------------------------------------------------------------
 # Step 2.6: all-plugins CI gate (req-dev-multisession-ci-gate, option B).
 # The local Step 2.5 gate only validates the plugins installed in THIS stack.
-# Once plugins leave the monorepo, all-plugins truth is server-side
-# (req-dev-validation-all-plugins-lane); this step triggers that lane on the
-# exact merged tree and blocks the atomic push on red — the reciprocal that
-# protects main's full plugin set. Option B (trigger + poll) is used, not a
-# PR-gated merge, specifically so Step 3's atomic dual-refspec push survives.
+# Once plugins leave the monorepo, all-plugins truth is server-side; this step
+# triggers the server lane on the exact merged tree and blocks the atomic push
+# on red — the reciprocal that protects main's full plugin set. Option B
+# (trigger + poll) is used, not a PR-gated merge, specifically so Step 3's
+# atomic dual-refspec push survives.
+#
+# The gate lane is the product-lines `test_all` union lane on AWS CodeBuild
+# (req-dev-validation-product-line-lanes-6). It runs the same all-plugins union
+# as the retained free-runner all-plugins.yml (req-dev-validation-all-plugins-
+# lane), but ~3× faster (~6 min vs ~21 min) and along the meaningful product
+# axis. all-plugins.yml stays on main as the documented free-runner fallback:
+# if CodeBuild/CodeConnections is unavailable, set TAP_PROMOTE_CI_WORKFLOW=
+# all-plugins.yml (or the escape hatch below) to fall back.
 #
 # It runs the lane against a THROWAWAY ref (not the session branch), so neither
 # origin/main nor origin/session/<name> moves before validation — the atomic
 # push in Step 3 stays the only thing that advances them.
 #
-# Bootstrap: workflow_dispatch only works once .github/workflows/all-plugins.yml
-# is on origin/main. Until the first promote lands it there, this gate cannot
-# run and is SKIPPED — that first promote is ungated by construction. Detection
-# uses git (the file's presence on origin/main), so bootstrap needs no gh.
+# Bootstrap: workflow_dispatch only works once the gate workflow is on
+# origin/main. Until the first promote lands it there, this gate cannot run and
+# is SKIPPED — that first promote is ungated by construction. Detection uses git
+# (the file's presence on origin/main), so bootstrap needs no gh. Switching the
+# gate to product-lines.yml re-triggers exactly one bootstrap-skip promote (the
+# one that lands product-lines.yml on main), by construction.
 #
 # Escape hatch: TAP_PROMOTE_SKIP_CI_GATE=1 skips loudly — use only when the full
 # plugin set is validated another way (e.g. a full-monorepo local lane where the
 # stack already has every plugin installed, as in the session that landed this).
 # ---------------------------------------------------------------------------
-CI_WORKFLOW="all-plugins.yml"
+# The gate lane; override with TAP_PROMOTE_CI_WORKFLOW to fall back to the
+# free-runner all-plugins.yml when CodeBuild is unavailable.
+CI_WORKFLOW="${TAP_PROMOTE_CI_WORKFLOW:-product-lines.yml}"
+# product-lines.yml is a per-line matrix; the promote gate runs only the
+# all-plugins `test_all` union lane. all-plugins.yml takes no inputs.
+CI_DISPATCH_ARGS=()
+[[ "$CI_WORKFLOW" == "product-lines.yml" ]] && CI_DISPATCH_ARGS=(-f line=test_all)
 if [[ "$DRY_RUN" -eq 1 ]]; then
   info "[dry-run] would: trigger the all-plugins CI lane on the merged tree and poll to green before pushing (unless bootstrap or TAP_PROMOTE_SKIP_CI_GATE)"
 elif ! git cat-file -e "origin/main:.github/workflows/$CI_WORKFLOW" 2>/dev/null; then
@@ -211,7 +227,8 @@ else
   _ci_cleanup() { git push origin --delete "$CI_REF" >/dev/null 2>&1 || true; }
   trap _ci_cleanup EXIT
   info "Dispatching $CI_WORKFLOW on $CI_REF ($TIP) ..."
-  gh workflow run "$CI_WORKFLOW" --ref "$CI_REF" >/dev/null 2>&1 || fail "Failed to dispatch $CI_WORKFLOW on $CI_REF (does the token carry the 'workflow' scope?)."
+  # Empty-array expansion under `set -u` on bash 3.2 (macOS) needs the +alt-value guard.
+  gh workflow run "$CI_WORKFLOW" --ref "$CI_REF" "${CI_DISPATCH_ARGS[@]+"${CI_DISPATCH_ARGS[@]}"}" >/dev/null 2>&1 || fail "Failed to dispatch $CI_WORKFLOW on $CI_REF (does the token carry the 'workflow' scope?)."
   # workflow_dispatch does not return a run id — poll for the run on our exact SHA.
   RUN_ID=""
   for _ in $(seq 1 40); do
@@ -221,7 +238,7 @@ else
     sleep 5
   done
   [[ -n "$RUN_ID" && "$RUN_ID" != "null" ]] || fail "Could not locate the dispatched CI run for $TIP on $CI_REF."
-  info "Watching all-plugins CI run $RUN_ID (the full lane — ~20-30 min) ..."
+  info "Watching all-plugins CI run $RUN_ID ($CI_WORKFLOW — ~6-8 min on CodeBuild, ~20-30 min on the all-plugins.yml fallback) ..."
   # NB: `gh run watch --exit-status` conflates "CI failed" with "gh itself errored" — a
   # transient API blip (e.g. HTTP 401 mid-watch over a 20-30 min run) exits non-zero and would
   # false-abort a perfectly green run. Drive the poll ourselves and decide on the run's REAL
