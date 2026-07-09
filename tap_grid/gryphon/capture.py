@@ -40,6 +40,18 @@ from django.db import connections
 # around the executor call.
 _READ_STATEMENT_RE = re.compile(r"^\s*(SELECT|WITH)\b", re.IGNORECASE)
 
+# psycopg lazily registers custom types (hstore, citext, ranges) by querying the
+# PostgreSQL system catalogs (pg_type, pg_range, ...) exactly once, on a
+# connection's *first* use. Those queries are driver connection-setup plumbing,
+# not Gryphon reads — the executor only ever reads application (`tap_*`) tables,
+# never a `pg_` catalog. Whether they land inside a capture depends purely on
+# connection warmth, which makes the capture non-deterministic: a Gryphon read
+# runs on the `search_readonly` connection (req-grid-traversal-exec-scope.sec-5),
+# which a test can reach cold, capturing the one-time registration on the first
+# read but not the second. Excluding catalog reads keeps captures independent of
+# connection state, for both consumers (the Gridkin snapshot and `gryphon explain`).
+_DRIVER_SETUP_RE = re.compile(r"\bFROM\s+(pg_catalog\.)?pg_\w+", re.IGNORECASE)
+
 # Major SQL keywords the renderer breaks a line before, purely so a long
 # compiled statement is readable in a committed snapshot. Comparison is
 # whitespace-normalized, so this formatting never affects assertions.
@@ -130,7 +142,12 @@ def gryphon_stage(label: str) -> Iterator[None]:
 def _capture_wrapper(execute: Any, sql: str, params: Any, many: bool, context: Any) -> Any:
     """``connection.execute_wrapper`` callback — records reads, then runs them."""
     capture = _active_capture.get()
-    if capture is not None and not many and _READ_STATEMENT_RE.match(sql or ""):
+    if (
+        capture is not None
+        and not many
+        and _READ_STATEMENT_RE.match(sql or "")
+        and not _DRIVER_SETUP_RE.search(sql or "")
+    ):
         capture.statements.append(
             CapturedStatement(
                 stage=_current_stage.get(),
@@ -159,6 +176,15 @@ def capture_sql(*db_aliases: str) -> Iterator[SqlCapture]:
     try:
         with contextlib.ExitStack() as stack:
             for alias in aliases:
+                # Establish the connection BEFORE installing the capture wrapper. A connection
+                # first opened *inside* the capture fires ``connection_created`` (which the
+                # always-on guards use to (re)install their execute_wrappers), desyncing the
+                # capture wrapper mid-run and yielding an incomplete, connection-warmth-dependent
+                # capture. A Gryphon read now runs on the ``search_readonly`` connection
+                # (req-grid-traversal-exec-scope.sec-5), which a caller can reach cold — so
+                # ensure it first, making the capture complete and deterministic regardless of
+                # warmth. (It also moves psycopg's one-time type registration out of the block.)
+                connections[alias].ensure_connection()
                 stack.enter_context(connections[alias].execute_wrapper(_capture_wrapper))
             yield capture
     finally:
