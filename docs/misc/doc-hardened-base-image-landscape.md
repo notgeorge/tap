@@ -26,23 +26,35 @@ reader (human or agent) doesn't re-litigate settled ground or miss a re-evaluati
 
 ## The decision criterion (read this first)
 
-TAP installs its dependencies **and** its plugins at container **start**, not at image build
-(runtime `uv sync`; from-git plugin install at pre-boot; the `--from` bootstrap-pointer boot).
-That single architectural fact is the filter that decides everything below:
+> **RETRACTED (2026-07-09).** An earlier version of this doc argued: *TAP installs deps + plugins
+> at container start, therefore the base must ship a **package manager**, therefore every
+> fixed/distroless image is out.* **That is a non-sequitur and it is wrong.**
 
-> **We need a hardened base that ships a *package manager*, so we can `add` exactly TAP's
-> runtime binaries onto it.**
+`uv sync` and `uv pip install git+https://…` are **Python-package** operations, not **OS-package**
+operations. They need `python`, `uv`, `git`, `bash` (+ `sed`/`grep`/`coreutils`) — every one of
+which can be baked at **build** time by any means. Nothing in TAP's runtime-install architecture
+requires `apk`/`apt`/`dnf` to survive into the runtime image. TAP's own `Dockerfile` already proves
+the principle: `COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/` installs `uv` with no
+package manager involved at all.
 
-This cleanly splits the 2026 field into two models:
+**Proven by spike** (`spikes/distroless/`, both `BUILD_EXIT=0`) — each using the vendor's *own*
+install-into-a-rootfs flow, then copying that rootfs into a package-manager-less runtime:
 
-| Model | Examples | Fits TAP's runtime-install architecture? |
+| Runtime base | Build process | Result |
 | --- | --- | --- |
-| **Base + package manager** (you `add` binaries) | **Wolfi (`apk`)**, Red Hat UBI (`dnf`), SUSE BCI (`zypper`), Alpine (`apk`), Debian slim (`apt`) | **Yes** — our lane |
-| **Fixed / distroless image** (no package manager) | Docker Hardened `python`, Red Hat Hardened micro, Google Distroless, Ubuntu Chiseled | No — bake-once only; you can't `add git` to them |
+| `cgr.dev/chainguard/python:latest` — no `apk`, no `apt`, **not even `/bin/sh`** | `apk add --root /rootfs --initdb` | Python 3.14.6, git 2.55.0, uv 0.11.28; `uv sync` of TAP's real closure (django 6.0.2 + webauthn); from-git install (click 8.1.7) |
+| `registry.access.redhat.com/ubi9/ubi-micro` — no package manager | `dnf -y install --installroot=/rootfs` (Red Hat's documented distroless build) | Python 3.14.5, OpenSSL 3.5.5, `_ssl` → system `libcrypto.so.3`; `uv sync` + from-git install both OK |
 
-Most of the exciting *new* free hardened images are **fixed/distroless** — excellent for a future
-bake-once variant, useless for adding our binaries today. That, plus the **Python 3.14** filter
-(we run bleeding-edge Python; Debian/RHEL-derived bases lag), is why Wolfi wins now.
+So the field is **not** split by package manager. The criteria that actually decide it:
+
+1. **Python-3.14 currency.** `requires-python = ">=3.14"` is the hard filter. Measured: Wolfi
+   **3.14.6** · UBI9 `dnf install python3.14` → **3.14.5** · Google Distroless `python3-debian13`
+   → **3.13.5** (out; the `debian12` line, showing 3.11.2, is deprecated).
+2. **In-image vs host-derived FIPS.** The load-bearing one — see the FIPS section below.
+3. **Who patches, how fast**, and whether we can pull without credentials.
+
+**Wolfi is the standard base** (`req-cicd-base-image-lifecycle-3`). Alternatives are **parked, not
+eliminated**; the reopen triggers are listed below.
 
 ## Provider matrix (2026)
 
@@ -233,7 +245,33 @@ and **every assertion passed**:
 - **Python stdlib, ZERO rebuild** — Wolfi `python-3.14` (3.14.6) links system OpenSSL 3.6.3; `_hashlib.new("md5")` → `ValueError: unsupported`; sha256 works. FIPS enforcement reaches Python's crypto with no Python rebuild.
 - **`cryptography` / `webauthn` engine (the TAP-specific proof)** — `cryptography 49.0.0` built `--no-binary` dynamically links system OpenSSL 3.6.3 (not its vendored static copy). **P-256 ECDSA sign+verify OK** (exactly the passkey-assertion verification), SHA-256 OK, **MD5 → `InternalError`** (FIPS provider refuses it).
 
-Two gotchas the spike surfaced, now baked into the recipe:
+### FIPS is on by default — and the non-approved-algorithm audit that makes that safe
+
+`req-cicd-base-image-lifecycle-6` makes the recipe a build flag, `ARG TAP_FIPS` (**default `1`**),
+on both web and DB images. `TAP_FIPS=0` is an explicitly-requested escape hatch, never a silent
+fallback; `cryptography` is built `--no-binary` in **both** modes so only *provider activation*
+differs; the image declares its mode machine-legibly (`org.tap.fips` OCI label + `TAP_FIPS_MODE`);
+and a boot check must **prove** the declared mode (fips provider active **and** a non-approved
+primitive actually refused) or emit `TAP-ABORT`. Assert, don't assume — the spike's first pass
+"parsed" a config that activated nothing and silently ran the default provider.
+
+Turning FIPS on globally disables non-approved algorithms, so "will anything break?" was answered
+by measurement rather than hope (2026-07-09):
+
+| Question | Answer |
+| --- | --- |
+| Does SHA-1 break? | **No.** SHA-1 is a FIPS-*approved* hash (restricted only for signature generation) and is served by the `fips` provider. |
+| Does `uuid5` break? | **No** — and this was the real landmine: `uuid5` is SHA-1-based and TAP mints deterministic node/edge ids with it in **17 files**. CPython 3.14's `uuid5` passes `usedforsecurity=False`, and SHA-1 is approved anyway. |
+| Does MD5 break? | **Yes**, `hashlib.md5()` → `UnsupportedDigestmodError`. But `hashlib.md5(usedforsecurity=False)` succeeds — served by `_hashlib` from a **separate non-FIPS `OSSL_LIB_CTX`** CPython keeps for non-security uses. |
+| Does TAP use either? | **No.** Zero `md5`/`sha1`/`uuid3` in our code; only `hashlib.sha256` (13 sites) + `hmac.compare_digest` (2). |
+| Do our deps? | Bare `md5()` only in Django's legacy `MD5PasswordHasher` (**not** in Django's default `PASSWORD_HASHERS`; TAP doesn't override them → unreachable) and `faker` (test-only). Bare `sha1()` in `cryptography`, `webauthn`, `oauthlib`, `django.template.loaders.cached` — all approved, all fine. **No runtime hard-fail surface.** |
+
+Honest residuals: `usedforsecurity=False` is a *reachable* non-validated path (FIPS permits it for
+non-security use, but don't imply it's absent), and `_blake2` remains a built-in non-validated
+implementation. Re-run the sweep on dependency bumps — a new bare `md5()` in a runtime dep is a
+boot-breaking regression under `TAP_FIPS=1`, which is precisely what the fail-closed boot check catches.
+
+### Two gotchas the spike surfaced, now baked into the recipe
 
 1. **`openssl.cnf` directive order is load-bearing.** `openssl_conf = openssl_init` MUST sit in the default (pre-section) block *before* `.include fipsmodule.cnf` — because that included file *starts* with `[fips_sect]`, so an `.include` placed first silently swallows `openssl_conf` into that section. Symptom: config "parses" with no error but **no providers activate** and OpenSSL falls back to the default provider (FIPS not enforced). Put `openssl_conf` first.
 2. **`CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1` at build.** Keeps `cryptography` from loading OpenSSL's legacy provider, which would silently re-enable MD5/DES and defeat the enforcement. Set it (build- and run-time).
