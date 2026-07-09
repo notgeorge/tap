@@ -99,6 +99,7 @@ cheap-edge doctrine; the rest are the larger deploy-half build, rightly deferred
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
 | req-cicd-base-image-sourcing | [Source Base Images Off Anonymous Docker Hub](#source-base-images-off-anonymous-docker-hub) | Implemented | Container base images resolve from AWS's credential-free public ECR mirror, not docker.io — removes the anonymous-pull `429` single point of failure on the promote gate. First cheap edge landed. |
+| req-cicd-base-image-lifecycle | [Self-Host Base-Image Currency + Minimization](#self-host-base-image-currency--minimization) | Proposed | Curated-minimal Wolfi base carrying exactly TAP's runtime binaries (spike: OS-CVEs 311→0) + a self-hosted auto-patch loop + CVE gate, instead of buying a managed hardened catalog. Demand-gated FIPS path. Survey doc: [doc-hardened-base-image-landscape](../docs/misc/doc-hardened-base-image-landscape.md). |
 | req-cicd-branch-protection | [Enforce The Gate Server-Side](#enforce-the-gate-server-side) | Proposed | Protect `main` at the forge with a bypass for the promote identity; the gate stops being bypassable. Closes the biggest hole. |
 | req-cicd-security-scanning | [Shift-Left Security Scanning](#shift-left-security-scanning) | Proposed | SAST + dependency audit + secret scan + container scan as a standing CI layer. The table-stakes layer TAP conspicuously lacks. |
 | req-cicd-dep-automation | [Automate Dependency Updates](#automate-dependency-updates) | Proposed | Dependabot/Renovate on `uv.lock` — pinned deps rot without it. |
@@ -139,6 +140,43 @@ cache with digest-pinned bases** (and, later, hardened/minimized base images; se
 base-image-strategy survey) — is deferred and composes with `req-cicd-build-once-artifact` /
 `req-cicd-supply-chain-provenance`. The v0 edge buys availability now; provenance is the next
 layer when air-gap/attestation demand arrives.
+
+### Self-Host Base-Image Currency + Minimization
+
+RID: `req-cicd-base-image-lifecycle`
+
+Sourcing base images off a rate-limit-free mirror (`req-cicd-base-image-sourcing`) fixes
+*availability*; it does nothing for *attack surface* or *CVE currency*. The market answer is a
+paid managed-hardened-image catalog (Chainguard, Docker Hardened Images, Red Hat Hardened
+Images, Minimus). TAP's answer is to **self-host the same two properties — currency and
+minimization — with free/OSS tooling**, keeping the runtime-install architecture intact and
+avoiding a per-image subscription until a customer requirement (FIPS/FedRAMP) actually demands
+one. The full landscape survey, the decision criteria, the re-evaluation triggers, and the
+FIPS analysis live in the doc: [doc-hardened-base-image-landscape](../docs/misc/doc-hardened-base-image-landscape.md).
+
+**Grounding evidence (spike, 2026-07-09).** A real build of `cgr.dev/chainguard/wolfi-base`
++ `apk add python-3.14 git bash postgresql-client curl` + the copied `uv` binary: Python
+**3.14.6** present (Wolfi tracks latest — Google Distroless / UBI lag on Debian/RHEL Python),
+TAP's full dependency closure `uv sync`'d cleanly (glibc manylinux wheels, no source builds —
+the Alpine/musl trap avoided), the from-git plugin path worked (`git ls-remote` over TLS), and
+Trivy OS-package CVEs came in at **0, versus 311 (8 critical / 63 high) on `python:3.14-slim`** —
+*with* git/bash/uv still on board. The decisive architectural criterion: because TAP installs
+deps + plugins at runtime, the base must ship a **package manager** to `apk add` our binaries —
+which selects a curated base like Wolfi and rules out fixed distroless images (DHI `python`, Red
+Hat micro, Google Distroless), which only fit a future bake-once model.
+
+| RID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-cicd-base-image-lifecycle-1 | Digest-pinned auto-patch loop | Proposed | Base images are digest-pinned; **Renovate** (self-hosted GHA cron, not the Mend app — keeps repo-write in-house) opens digest + `uv.lock` bump PRs and **auto-merges on a green `test_all` lane**. | Composes `req-cicd-dep-automation`. **Depends on `req-cicd-branch-protection`**: bot auto-merge to `main` must be CI-gated server-side, else it bypasses the promote gate. Dependabot can't update `uv.lock` or track `cgr.dev` → Renovate. Keep Dependabot *Alerts* on for the native advisory feed. |
+| req-cicd-base-image-lifecycle-2 | Image CVE gate | Proposed | A Trivy (or Grype) High/Critical OS+dep CVE gate runs in CI on the built image; optional Copacetic in-place patch for the upstream-lag window. | Realizes `req-cicd-security-scanning-4`. The spike's 311→0 is this gate's baseline signal. |
+| req-cicd-base-image-lifecycle-3 | Curated-minimal Wolfi base | Proposed | The web image's base becomes a curated-minimal **Wolfi** base carrying exactly TAP's runtime binaries (`python-3.14 git bash postgresql-client` + copied `uv`), preserving the runtime-install architecture. Start: `wolfi-base` + `apk` (digest-pinned via `-1`). Graduate: self-built **apko/melange** image (reproducible, our registry, self-generated SBOM). | Replaces the earlier Google-Distroless direction (Debian-lagged, no Python 3.14, worst-CVE-of-three). `git`/`bash`/`curl` are **named, itemized attack-surface line-items**, present because the runtime-plugin-install architecture requires them and kept current by `-1`. |
+| req-cicd-base-image-lifecycle-4 | Minimal-binary off-ramps | Proposed | Named levers to shrink the binary set when cost/benefit flips — **not now** (`git` = 0 CVEs on Wolfi today). (A) Watch **uv #12324** (embedded git via gitoxide): if it ships, delete `git` for free. (B) An `archive`-tarball plugin source type (`https://forge/.../archive/<sha>.tar.gz`, fetched by uv's own HTTPS, sha256-pinned like the boot record) drops **both `git` and `curl`** — take it when we adopt the bake-once variant. | End-state minimum runtime = `python + uv + app` (+ psql for snapshot, a POSIX-sh/Python entrypoint instead of bash). Off-ramps are byproducts of the bake-once move, not standalone chores. |
+| req-cicd-base-image-lifecycle-5 | FIPS crypto path (demand-gated) | Proposed | Deferred until a customer/engagement requires it. TWO paths, chosen by **which FIPS is actually required**: (A, buy) Chainguard `python-fips` / STIG-hardened FIPS image — inherits the CMVP certificate + STIG + VEX evidence; right when the ask is a *certified/attested platform* (FedRAMP/DoD). (B, DIY-short) OpenSSL 3 FIPS provider + Python linked to it + **`cryptography` rebuilt `--no-binary`** against it — yields *FIPS-validated crypto operations* (the control), not a platform certificate. TAP's algorithms (P-256/ECDSA, SHA-256, HMAC, PBKDF2, AES-GCM) are **already all FIPS-approved**, so no crypto redesign either way. | Choosing Wolfi now de-risks BOTH futures (DIY on Wolfi's OpenSSL, or buy the Wolfi-lineage `python-fips`). Key DIY gotcha: `cryptography` bundles its own OpenSSL — the `--no-binary` rebuild is the whole integration point. Analysis + decision criterion in the survey doc. |
+
+**Named residuals + triggers (deferred, not hidden):**
+- We own the **rebuild cadence + break-glass** when an auto-patch PR reds (the price of not buying an SLA).
+- Until `-3` graduates to self-built apko, we trust `cgr.dev`'s `wolfi-base` (mutable tag → digest-pin via `-1`).
+- **Re-evaluate the base provider** (DHI, Red Hat Hardened, Minimus) when: (a) we adopt the bake-once/distroless variant — benchmark free **DHI `python`** first; (b) a FIPS/FedRAMP ask lands — price Chainguard `python-fips` vs. the DIY `-5B` path; (c) Python-version lag stops mattering (we settle off bleeding-edge). Triggers + the full provider matrix live in the survey doc.
 
 ### Enforce The Gate Server-Side
 
