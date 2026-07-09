@@ -40,7 +40,7 @@
                 "MATCH (gapp:github_core__github_app)",
                 "MATCH (re:sigstore_core__rekor_log_entry)",
                 "MATCH (ca:sigstore_core__sigstore_ca)",
-                "MATCH (oi:github_core__oidc_issuer)",
+                "MATCH (oi:identity_core__oidc_issuer)",
                 "MATCH (sig:fedramp_20x_ksi__ksi_signal)",
                 "MATCH (vr:fedramp_20x_ksi__vdr_report)",
                 "MATCH (cart:compliance_core__compliance_artifact)",

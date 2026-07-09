@@ -45,6 +45,7 @@ dependencies = [
     "tap-plugin-fedramp-20x-ksi",
     "tap-plugin-computing-core",
     "tap-plugin-compliance-core",
+    "tap-plugin-identity-core",
 ]
 
 [project.entry-points."tap.plugins"]

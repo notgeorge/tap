@@ -1,0 +1,22 @@
+{
+  "slug": "CONCERNS_COMPLIANCE_CONTROL__compliance_core",
+  "name": "Concerns Compliance Control",
+  "description": "A finding concerns a compliance control it bears on — the control/requirement/indicator the finding was observed against. The relationship_type property classifies the verdict (passing, violation, informational, other). Regime-agnostic and free-floating: the target is a wildcard so a single finding can concern controls in FedRAMP (a ksi_indicator), SOC2, ISO 27001, or several regimes at once. The generic control supertype that would constrain the target is deferred until a second regime lands (compliance_core v0 non-goals); until then the target is open and consumers constrain it in their queries. Vocabulary aligns with HAS_COMPLIANCE_EVIDENCE.support_kind.",
+  "sources": ["compliance_core__compliance_finding"],
+  "property_schema": {
+    "type": "object",
+    "required": ["relationship_type"],
+    "additionalProperties": false,
+    "properties": {
+      "relationship_type": {
+        "type": "string",
+        "enum": ["passing", "violation", "informational", "other"]
+      },
+      "name": {"type": "string"},
+      "description": {"type": "string"}
+    }
+  },
+  "default_dimensions": {
+    "compliance": "control"
+  }
+}

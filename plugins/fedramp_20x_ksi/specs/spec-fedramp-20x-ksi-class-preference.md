@@ -262,7 +262,7 @@ The internal helpers that pick a class-variant statement when the indicator has 
 RID: `req-ksi-classpref-finding-future`
 Status: `Backlog`
 
-Today the finding model does not vary by class — findings carry a `RELATED_INDICATOR` edge with a `relationship_type` property, but no class-scoped fields. The finding profile (`spec-fedramp-20x-ksi-finding-profile.md`) therefore does not consume the preference today.
+Today the finding model does not vary by class — findings carry a `CONCERNS_COMPLIANCE_CONTROL` edge with a `relationship_type` property, but no class-scoped fields. The finding profile (`spec-fedramp-20x-ksi-finding-profile.md`) therefore does not consume the preference today.
 
 When (and only when) class-scoped finding rollups, severity adjustments, or class-aware rollup tables are added — under follow-on iterations of `spec-fedramp-20x-ksi-finding.md` or its descendants — the consumer reads `request.client_state["fedramp"]["class"]` via the same pattern used by the indicator profile and compliance view.
 

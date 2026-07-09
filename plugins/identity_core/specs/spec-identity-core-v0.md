@@ -12,11 +12,18 @@
       normalization every observer runs before keying an issuer.
     - `identity_core.issuer.oidc_issuer_id(raw: str) -> UUID` — the deterministic entity
       id, derived from the canonical form. The **only** way to compute an issuer id.
-    - `identity_core.issuer.oidc_issuer_node_envelope(raw: str, *, dimensions=None,
-      display_name=None) -> <node envelope>` — mints a GRIFT node fragment a consumer
-      merges into its own batch.
-  - **Edge types:** **none owned in v0.** The issuer is a convergence *target*; every
-    edge that touches it is owned by the plugin that *asserts* the relationship
+    - `identity_core.issuer.oidc_issuer_node_envelope(raw: str, *, dimensions=None)
+      -> <node envelope>` — mints a GRIFT node fragment a consumer merges into its own
+      batch. (The `display_name` param from the original design is dropped in v0: the
+      entity spine projects `get_name()`=issuer_url on save, so a divergent name would
+      not survive — the node name is always the issuer_url.)
+  - **Edge types:** one — `TRUSTS_ISSUER__identity_core` (generic, **wildcard source**,
+    target `identity_core__oidc_issuer`). Trusting an OIDC issuer is a cross-cloud
+    federation relationship (AWS/GCP/Azure/k8s/Vault all do it), so the substrate owns
+    the generic vocabulary; the wildcard source keeps deps downward-only. Owning the
+    type asserts no trust (existence != trust) — instances exist only when an emitter
+    creates the edge. The other issuer-touching edges (`ENABLED_ON`, `IDENTITY_VOUCHED_BY`)
+    are domain-specific and stay with the plugin that asserts them
     (`req-identity-core-edge-retargets`).
   - **Default dimensions** (see `req-identity-core-dimensions`): `identity.protocol: oidc`.
 
@@ -97,35 +104,37 @@ a one-hop graph traversal rather than code-reading.
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-identity-core-scope | [Plugin Scope](#plugin-scope) | Proposed | Substrate library; `oidc_issuer` model + issuer helpers; no collector, no owned edges. |
-| req-identity-core-model | [OIDC Issuer Model](#oidc-issuer-model) | Proposed | `identity_core__oidc_issuer`; keyed on canonical issuer URL; minimal fields. |
-| req-identity-core-canonical-url | [Canonical Issuer URL](#canonical-issuer-url) | Proposed | One normalization spanning scheme'd/scheme-less forms; the convergence guarantee. |
-| req-identity-core-issuer-id | [Deterministic Issuer Id](#deterministic-issuer-id) | Proposed | `oidc_issuer_id(raw)` over the canonical form; the sole id path — nobody hardcodes. |
-| req-identity-core-envelope | [Node Envelope Helper](#node-envelope-helper) | Proposed | `oidc_issuer_node_envelope(...)` returns a GRIFT node fragment consumers merge. |
-| req-identity-core-synthesis-general | [General-Case Synthesis](#general-case-synthesis) | Proposed | Any observer mints; idempotent convergence by id; no seed / no well-known list. |
-| req-identity-core-existence-not-trust | [Existence Is Not Trust](#existence-is-not-trust) | Proposed | Node asserts reference/existence only; trust is a separate explicit edge. |
-| req-identity-core-edge-retargets | [Consumer Edge Retargets](#consumer-edge-retargets) | Proposed | Consumers retarget issuer-touching edges to `identity_core__oidc_issuer`; identity_core owns none. |
-| req-identity-core-dimensions | [Dimension Strategy](#dimension-strategy) | Proposed | `identity.protocol: oidc` on the model default. |
-| req-identity-core-deps | [Dependency Direction](#dependency-direction) | Proposed | Downward-only; declared in consumers' `pyproject.toml` + `depends_on`. |
-| req-identity-core-migration | [Extraction & Migration](#extraction--migration) | Proposed | `github_core__oidc_issuer` → `identity_core__oidc_issuer`; id regenerates (collected, not seeded); kill the samsite→github import; pre-eviction ordering. |
-| req-identity-core-nongoals | [v0 Non-Goals](#v0-non-goals) | Proposed | Passkey/subject/credential nodes; issuer-metadata fetch; liveness; trust policy; well-known name catalog. |
+| req-identity-core-scope | [Plugin Scope](#plugin-scope) | Implemented | Substrate library; `oidc_issuer` model + issuer helpers; no collector, no owned edges. |
+| req-identity-core-model | [OIDC Issuer Model](#oidc-issuer-model) | Implemented | `identity_core__oidc_issuer`; keyed on canonical issuer host; minimal fields. `get_name()` is the `issuer_url` (no well-known catalog; `display_name` deferred — no backing field). |
+| req-identity-core-canonical-url | [Canonical Issuer URL](#canonical-issuer-url) | Implemented | One normalization spanning scheme'd/scheme-less forms; the convergence guarantee. |
+| req-identity-core-issuer-id | [Deterministic Issuer Id](#deterministic-issuer-id) | Implemented | `oidc_issuer_id(raw)` over the canonical form; the sole id path. Namespace is the per-plugin `IDENTITY_CORE_NAMESPACE` (no repo-wide `TAP_NAMESPACE` constant exists; per-plugin is the convention). |
+| req-identity-core-envelope | [Node Envelope Helper](#node-envelope-helper) | Implemented | `oidc_issuer_node_envelope(raw, *, dimensions=None)` returns the `{entity, node}` GRIFT fragment consumers merge. `display_name` param dropped — the spine projects `get_name()`=issuer_url, so a divergent name would be overwritten (honest v0 deviation). |
+| req-identity-core-synthesis-general | [General-Case Synthesis](#general-case-synthesis) | Partial | Mechanism shipped (any observer *may* mint via the helper; github + samsite do). Order-independence (general-3) NOT fully realized in v0: aws_core has no enrichment phase, so the AWS-side TRUSTS_ISSUER link still relies on github's collector minting the singleton in the same run. |
+| req-identity-core-existence-not-trust | [Existence Is Not Trust](#existence-is-not-trust) | Implemented | Node asserts reference/existence only; no trust field/default/edge. Trust is a separate explicit edge. |
+| req-identity-core-edge-retargets | [Consumer Edge Retargets](#consumer-edge-retargets) | Implemented | github `ENABLED_ON` (source retargeted) + sigstore `IDENTITY_VOUCHED_BY` (target retargeted) stay with their asserting plugin. The generic `TRUSTS_ISSUER` (wildcard source) is owned by identity_core — trusting an issuer is cross-cloud, not AWS-specific; github's enrichment emits the instances. |
+| req-identity-core-dimensions | [Dimension Strategy](#dimension-strategy) | Implemented | `identity.protocol: oidc` on the model default. |
+| req-identity-core-deps | [Dependency Direction](#dependency-direction) | Implemented | Downward-only; declared in github/aws_core/sigstore_core/samsite `pyproject.toml` + `depends_on`. Only github + samsite import the helper (code dep); aws + sigstore are edge/vocabulary deps. |
+| req-identity-core-migration | [Extraction & Migration](#extraction--migration) | Implemented | `github_core__oidc_issuer` → `identity_core__oidc_issuer`; id regenerates (collected, not seeded); samsite→github import killed. Old model dropped via a forward github `0004` DeleteModel (not a lineage rewrite). |
+| req-identity-core-nongoals | [v0 Non-Goals](#v0-non-goals) | Implemented | Passkey/subject/credential nodes; issuer-metadata fetch; liveness; trust policy; well-known name catalog — all held out of v0. |
 
 ### Plugin Scope
 ----
 RID: `req-identity-core-scope`
-Status: `Proposed`
+Status: `Implemented`
 
 `identity_core` is a **library / substrate** plugin. Its v0 surface is one model
-(`oidc_issuer`) plus the issuer helper module (`identity_core.issuer`). It registers
-its node type and dimensions at load; it ships **no collector** (`apps.py` is `pass`;
-no `tap_cares` registration) and **owns no edge types**. Consumers import only from
-`identity_core.*`. The plugin is install-only: it stands up the vocabulary and the
-minting mechanism that github_core, aws_core, sigstore_core, and samsite call into.
+(`oidc_issuer`), the issuer helper module (`identity_core.issuer`), and one generic
+edge type (`TRUSTS_ISSUER__identity_core`, wildcard source). It registers its node
+type, that edge type, and its dimensions at load; it ships **no collector** (`apps.py`
+is `pass`; no `tap_cares` registration) and emits no edges itself. Consumers import
+only from `identity_core.*`. The plugin is install-only: it stands up the vocabulary
+and the minting mechanism that github_core, aws_core, sigstore_core, and samsite call
+into (or point their edges at).
 
 ### OIDC Issuer Model
 ----
 RID: `req-identity-core-model`
-Status: `Proposed`
+Status: `Implemented`
 
 `ENTITY_TYPE = "identity_core__oidc_issuer"`, `ENTITY_NAME = "OIDC Issuer"`,
 `ENTITY_DESCRIPTION = "An OpenID Connect identity provider (issuer)."` The node is the
@@ -150,7 +159,7 @@ reference. The node carries `DEFAULT_DIMENSIONS = {"identity.protocol": "oidc"}`
 ### Canonical Issuer URL
 ----
 RID: `req-identity-core-canonical-url`
-Status: `Proposed`
+Status: `Implemented`
 
 `canonical_issuer_url(raw)` defines the **single** canonical form so independent
 observers converge. It:
@@ -168,14 +177,14 @@ none; the scheme'd `iss` is retained as the `issuer_url` display field.)
 
 | ACID | Title | Status | Description |
 | --- | --- | :---: | --- |
-| req-identity-core-canonical-url-1 | Scheme-spanning | Proposed | Scheme'd and scheme-less inputs for the same issuer normalize to one key. |
-| req-identity-core-canonical-url-2 | Single definition | Proposed | Exactly one implementation; consumers call it, never re-implement normalization. |
-| req-identity-core-canonical-url-3 | Path-preserving | Proposed | A path in the `iss` is preserved (issuers may carry one); only scheme/case/trailing-slash are normalized. |
+| req-identity-core-canonical-url-1 | Scheme-spanning | Implemented | Scheme'd and scheme-less inputs for the same issuer normalize to one key. |
+| req-identity-core-canonical-url-2 | Single definition | Implemented | Exactly one implementation; consumers call it, never re-implement normalization. |
+| req-identity-core-canonical-url-3 | Path-preserving | Implemented | A path in the `iss` is preserved (issuers may carry one); only scheme/case/trailing-slash are normalized. |
 
 ### Deterministic Issuer Id
 ----
 RID: `req-identity-core-issuer-id`
-Status: `Proposed`
+Status: `Implemented`
 
 `oidc_issuer_id(raw) -> UUID` is `uuid5(TAP_NAMESPACE, "identity_core__oidc_issuer:" +
 canonical_issuer_url(raw))`. It is the **only** sanctioned way to compute an issuer
@@ -187,14 +196,14 @@ is idempotent across runs and observers.
 
 | ACID | Title | Status | Description |
 | --- | --- | :---: | --- |
-| req-identity-core-issuer-id-1 | Canonical-keyed | Proposed | Id derives from `canonical_issuer_url`, so scheme'd/scheme-less inputs give one id. |
-| req-identity-core-issuer-id-2 | Sole path | Proposed | All consumers obtain the id from this helper; none hardcode or re-derive it. |
-| req-identity-core-issuer-id-3 | Idempotent | Proposed | Repeated synthesis of the same issuer yields the same node; no duplicates. |
+| req-identity-core-issuer-id-1 | Canonical-keyed | Implemented | Id derives from `canonical_issuer_url`, so scheme'd/scheme-less inputs give one id. |
+| req-identity-core-issuer-id-2 | Sole path | Implemented | All consumers obtain the id from this helper; none hardcode or re-derive it. |
+| req-identity-core-issuer-id-3 | Idempotent | Implemented | Repeated synthesis of the same issuer yields the same node; no duplicates. |
 
 ### Node Envelope Helper
 ----
 RID: `req-identity-core-envelope`
-Status: `Proposed`
+Status: `Implemented`
 
 `oidc_issuer_node_envelope(raw, *, dimensions=None, display_name=None)` returns a GRIFT
 node fragment (entity id from `oidc_issuer_id`, `entity_type =
@@ -207,7 +216,7 @@ their own dimensions/anchor context; the helper does not write to the grid itsel
 ### General-Case Synthesis
 ----
 RID: `req-identity-core-synthesis-general`
-Status: `Proposed`
+Status: `Partial`
 
 Issuer nodes are synthesized **generally**, by any observer, never seeded. There is no
 well-known-issuer catalog and no boot-time seed record for issuers. A collector that
@@ -216,43 +225,53 @@ provider `url`, samsite reading a verification policy's `oidc_issuer` — mints 
 via `oidc_issuer_node_envelope` and merges it. Convergence is automatic: all observers
 of the same issuer produce the same id (`req-identity-core-issuer-id`) and merge.
 
-This removes the v0 **run-order hazard**. Today the AWS-convergence enrichment relies
-on "the github collector synthesized the issuer earlier in the same run." Under
-general-case synthesis both sides mint the issuer from their own observation, so there
-is no privileged creator and no ordering dependency — whoever observes it first
-creates it; the rest merge onto it.
+The **mechanism** is fully in place: the helper is the single mint path and any observer
+may call it. Two of the three observers do — github's collector mints the singleton, and
+samsite's compliance collector mints from the verification policy's issuer, both through
+the shared helper, and they converge by id. **aws does NOT mint in v0**: aws_core's boto3
+collector is single-phase with no grid-link engine, so the AWS-side `TRUSTS_ISSUER` link
+is still resolved by github_core's enrichment, which relies on github having minted the
+issuer earlier in the same run. So the **run-order hazard is reduced but not eliminated**
+in v0 — general-3 below is Deferred until aws_core grows its own issuer-minting (or an
+enrichment phase). This is the honest state; the vocabulary now lives where aws *could*
+mint from without reaching into github.
 
 | ACID | Title | Status | Description |
 | --- | --- | :---: | --- |
-| req-identity-core-synthesis-general-1 | No seed | Proposed | No boot record or seed data creates issuer instances; identity_core ships mechanism only. |
-| req-identity-core-synthesis-general-2 | Any observer mints | Proposed | Every consumer that sees an issuer URL can synthesize the node via the helper. |
-| req-identity-core-synthesis-general-3 | Order-independent convergence | Proposed | Independent observers converge with no run-order dependency; the enrichment no longer assumes a synthesizer ran first. |
+| req-identity-core-synthesis-general-1 | No seed | Implemented | No boot record or seed data creates issuer instances; identity_core ships mechanism only. |
+| req-identity-core-synthesis-general-2 | Any observer mints | Implemented | Every consumer that sees an issuer URL can synthesize the node via the helper; github + samsite do. |
+| req-identity-core-synthesis-general-3 | Order-independent convergence | Deferred | NOT realized in v0: aws_core has no minting/enrichment path, so the AWS TRUSTS_ISSUER link still depends on github's same-run synthesis. Realized when aws mints the issuer from its own observation. |
 
 ### Existence Is Not Trust
 ----
 RID: `req-identity-core-existence-not-trust`
-Status: `Proposed`
+Status: `Implemented`
 
 The presence of an `oidc_issuer` node conveys only that an issuer identity was
 referenced by some observer. It is **not** an assertion that the issuer exists in the
 world, is reachable, or is trusted by anyone. Trust and relationship semantics live
-exclusively on explicit edges owned by the asserting plugin (`TRUSTS_ISSUER`,
-`IDENTITY_VOUCHED_BY`, `ENABLED_ON`). identity_core defines no trust field, no trust
-default, and no trust edge. A consumer that wants to reason about trust must follow an
-explicit trust edge, never infer it from node existence.
+exclusively on explicit edge **instances** created by an emitter (`TRUSTS_ISSUER`,
+`IDENTITY_VOUCHED_BY`, `ENABLED_ON`). identity_core defines no trust field and no trust
+default, and — though it owns the generic `TRUSTS_ISSUER` edge *type* (schema) — it
+never creates a trust *instance*: a trust edge exists only when some emitter (in v0,
+github's enrichment) writes one. Owning the type is vocabulary, not an assertion. A
+consumer reasoning about trust must follow an explicit trust edge, never infer it from
+node existence.
 
 ### Consumer Edge Retargets
 ----
 RID: `req-identity-core-edge-retargets`
-Status: `Proposed`
+Status: `Implemented`
 
-identity_core owns no edges. Each consumer retargets its issuer-touching edge to
-`identity_core__oidc_issuer`, and edge *ownership* follows the principal that asserts
-the relationship:
+Each consumer retargets its issuer-touching edge to `identity_core__oidc_issuer`. Edge
+ownership follows one rule: a **domain-specific** assertion stays with the plugin that
+asserts it; a **generic, cross-plugin** relationship is owned by the substrate with a
+wildcard source (so no upward dep — the same pattern as compliance_core's wildcard-
+source edges).
 
-- **github_core — `ENABLED_ON`** (`oidc_issuer → github_repository`): stays in github; retarget the source type.
-- **aws_core — `TRUSTS_ISSUER`** (`aws_iam_oidc_provider → oidc_issuer`): **ownership moves from github_core to aws_core** — it is an AWS→issuer fact — and retargets the target type. (This is the Tier-A "github_core independent of aws_core" move; slug becomes `TRUSTS_ISSUER__aws_core`.)
-- **sigstore_core — `IDENTITY_VOUCHED_BY`** (and any other issuer-referencing sigstore edge, e.g. `ATTESTED_BY` where it anchors the issuer): stays in sigstore; retarget the target type.
+- **github_core — `ENABLED_ON`** (`oidc_issuer → github_repository`): domain-specific (a github_app / github's issuer enabled on a github repo). Stays in github; retarget the source type.
+- **identity_core — `TRUSTS_ISSUER`** (`* → oidc_issuer`): **generic.** "A principal trusts an OIDC issuer" is a cross-cloud federation relationship (AWS IAM providers, GCP workload-identity pools, Azure federated credentials, k8s/Vault JWT trust) — not AWS-specific. So the substrate owns the one generic type (`TRUSTS_ISSUER__identity_core`) with a **wildcard source** rather than one `TRUSTS_ISSUER__<cloud>` per principal. A constrained source would reference a domain type and make identity_core depend *upward* — the wildcard is what makes substrate ownership possible. github's enrichment emits the AWS instances in v0; aws_core owns nothing here (no dep on identity_core).
+- **sigstore_core — `IDENTITY_VOUCHED_BY`** (and any other issuer-referencing sigstore edge, e.g. `ATTESTED_BY` where it anchors the issuer): domain-specific (a *rekor log entry* vouches). Stays in sigstore; retarget the target type.
 
 Endpoint constraints on these edges reference `identity_core__oidc_issuer`; where an
 edge should accept any workflow/source (Bucket-1 wildcard precedent), it stays wildcard.
@@ -260,7 +279,7 @@ edge should accept any workflow/source (Bucket-1 wildcard precedent), it stays w
 ### Dimension Strategy
 ----
 RID: `req-identity-core-dimensions`
-Status: `Proposed`
+Status: `Implemented`
 
 The model default dimension is `{"identity.protocol": "oidc"}`, establishing the
 `identity.*` dimension namespace as the home for identity-vocabulary scoping. Future
@@ -270,7 +289,7 @@ inventing sibling ones.
 ### Dependency Direction
 ----
 RID: `req-identity-core-deps`
-Status: `Proposed`
+Status: `Implemented`
 
 identity_core depends on nothing above core (`tap_grid`/`tap` only). Consumers depend
 **downward** on it: `github_core`, `aws_core`, `sigstore_core`, and `samsite` declare
@@ -283,7 +302,7 @@ github_core` issuer import is deleted in the same change (samsite imports
 ### Extraction & Migration
 ----
 RID: `req-identity-core-migration`
-Status: `Proposed`
+Status: `Implemented`
 
 The move renames `github_core__oidc_issuer` → `identity_core__oidc_issuer`. That
 changes the `entity_type` string and therefore the `uuid5`-derived issuer id — but the
@@ -291,22 +310,26 @@ issuer node is **collected** (re-produced each run via the envelope helper), not
 static seed, so it regenerates cleanly on the next collection (contrast the
 uuid5-hash-token-fallout that bit a *static seed*). Steps:
 
-1. Stand up `identity_core`: model + `identity_core.issuer` helper module + one migration.
-2. Move the id/normalization/envelope logic out of `github_core.collectors.github_collector.identity` into `identity_core.issuer`; github's collector calls the new helper.
-3. Delete `github_core/models/oidc_issuer.py` (+ its migration lineage) and the `github_core__oidc_issuer` reference from `spec-github-core-v0.md`.
-4. Retarget consumer edges (`req-identity-core-edge-retargets`) and move `TRUSTS_ISSUER` ownership to aws_core.
-5. Replace the `samsite → github_core` issuer import with `identity_core.issuer`.
-6. Update the github collector's grid-link manifest comment (the run-order note is now obsolete — see `req-identity-core-synthesis-general-3`).
+As-built steps:
 
-Ordering: this is namespace churn (a new `entity_type`, a new edge owner), so it MUST
-land **before eviction** freezes the plugins at released tags; otherwise the rename
-becomes a coordinated multi-repo re-tag across identity_core + github + aws + sigstore +
-samsite.
+1. Stood up `identity_core`: `OidcIssuer` model + `identity_core.issuer` helper module + `0001_initial`.
+2. Moved the id/normalization/envelope logic into `identity_core.issuer` (`canonical_issuer_url` is new — it did not exist before; github keyed the id on the raw scheme'd URL, samsite host-normalized ad hoc). github's collector + samsite's `sigstore_link` now call the shared helper. `github_core.collectors.github_collector.identity.oidc_issuer_id` was removed.
+3. Dropped `github_core/models/oidc_issuer.py` via a **forward** `github_core/0004` `DeleteModel` (the create-then-drop lineage is left intact rather than rewritten — standard, and migrations squash on eviction anyway). Updated `spec-github-core-v0.md` (7 models, 8 edges).
+4. Retargeted consumer edges (`req-identity-core-edge-retargets`) and made `TRUSTS_ISSUER` a generic `identity_core`-owned edge (`TRUSTS_ISSUER__identity_core`, **wildcard source**) rather than one type per cloud. The `aws_oidc_provider_trusts_issuer` **enrichment rule stays in github's manifest** (edge types resolve globally, so github may emit an identity_core-owned type; aws_core has no enrichment engine to host the rule) — only its `edge_type`/`target_entity_type` strings + comment changed. aws_core ends up with **no dependency on identity_core** (it neither owns nor references the edge).
+5. Replaced the `samsite → github_core` issuer import with `identity_core.issuer` (samsite's `sigstore_link` wrappers now delegate to it).
+6. Updated the github enrichment rule's comment to the new architecture (issuer vocabulary in identity_core; github still mints the singleton in v0, so the same-run ordering note is honest, not obsolete — general-3 is Deferred).
+7. Registered identity_core in `boot/test_all.boot.json` (install-only, ordered before its consumers).
+
+Ordering: this is namespace churn (a new `entity_type`, a new edge owner), so it landed
+**before eviction** freezes the plugins at released tags; otherwise the rename would have
+become a coordinated multi-repo re-tag across identity_core + github + aws + sigstore +
+samsite. (The evicted-tag demo profile `boot/samsite.boot.json` still references the old
+world; it resyncs at plugin re-release, like the compliance_core extraction before it.)
 
 ### v0 Non-Goals
 ----
 RID: `req-identity-core-nongoals`
-Status: `Proposed`
+Status: `Implemented`
 
 Explicitly out of scope for v0:
 

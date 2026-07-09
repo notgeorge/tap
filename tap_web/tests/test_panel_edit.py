@@ -57,7 +57,7 @@ class TestPanelEditReadGate:
         panel = self._create_panel()
         response = Client().get(self._edit_url(panel))
         assert response.status_code == 302
-        assert response.url.startswith("/auth/login/")
+        assert response.url.startswith("/auth/passkey/login/")
 
     def test_no_cap_panel_edit_denied_403(self):
         panel = self._create_panel()

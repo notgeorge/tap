@@ -11,6 +11,8 @@ import base64
 import logging
 from typing import Any
 
+from tap_plugin.identity_core.issuer import oidc_issuer_id, oidc_issuer_node_envelope
+
 from tap_cares.collectors import (
     CollectorDocRef,
     CollectorReadinessStatus,
@@ -37,7 +39,6 @@ from .identity import (
     edge_id,
     github_app_id,
     job_id,
-    oidc_issuer_id,
     platform_id,
     repository_id,
     run_id,
@@ -107,20 +108,11 @@ _TERMINAL_RUN_STATUSES: frozenset[str] = frozenset({"completed"})
 _PLATFORM_HOST = "github.com"
 _PLATFORM_DIMENSIONS = {"github.platform": "github.com"}
 
-# GitHub Actions' OIDC issuer — the identity convergence node. Synthesized as a
-# singleton (well-known constant): AWS IAM federation trusts it and Sigstore
-# binds signing certs to it. `host` is the scheme-less form AWS IAM stores.
+# GitHub Actions' OIDC issuer URL — the identity convergence node github enables
+# on every repo. The node itself (id, canonical host, provider, display name) is
+# minted by identity_core's general-case helper from this URL; github owns none
+# of that vocabulary any more (see plugins/identity_core).
 _OIDC_ISSUER_URL = "https://token.actions.githubusercontent.com"
-_OIDC_ISSUER_HOST = "token.actions.githubusercontent.com"
-# Terse, issuer-specific display name; the full issuer URL stays on the
-# `issuer_url`/`host` fields (and is the natural key behind the deterministic
-# entity id). Specific enough to stay unambiguous alongside other OIDC issuers.
-# NOTE: Entity.name is a subordinate projection of OidcIssuer.get_name(), so the
-# *authority* for the node's grid name is _WELL_KNOWN_NAMES in
-# plugins/github_core/models/oidc_issuer.py — this envelope name is overwritten
-# by it on save and only needs to match it (GRIFT rejects a name mismatch).
-# Renaming the issuer means editing BOTH this constant and that map.
-_OIDC_ISSUER_NAME = "GitHub Actions OIDC"
 
 
 class GithubCollectorError(Exception):
@@ -309,25 +301,13 @@ class GithubCollector(CollectorBase):
             )
         )
 
-        # --- OIDC issuer singleton: GitHub Actions' identity issuer, the
-        # convergence node. AWS federation trusts it (TRUSTS_ISSUER, resolved in
-        # enrichment) and Sigstore vouches identities by it (IDENTITY_VOUCHED_BY,
-        # emitted by the sigstore consumer). Deterministic id keyed on the URL.
-        nodes.append(
-            node_envelope(
-                entity_id=oidc_issuer_id(_OIDC_ISSUER_URL),
-                entity_type="github_core__oidc_issuer",
-                name=_OIDC_ISSUER_NAME,
-                dimensions={"identity.protocol": "oidc"},
-                fields={
-                    "issuer_url": _OIDC_ISSUER_URL,
-                    "host": _OIDC_ISSUER_HOST,
-                    "provider": "github-actions",
-                    "configuration": {},
-                    "tags": {},
-                },
-            )
-        )
+        # --- OIDC issuer: GitHub Actions' identity issuer, the convergence node,
+        # minted through the identity_core general-case helper (no privileged
+        # creator — samsite mints the same node from its own observation and both
+        # merge by deterministic id). AWS federation trusts it (TRUSTS_ISSUER,
+        # resolved in enrichment) and Sigstore vouches identities by it
+        # (IDENTITY_VOUCHED_BY, emitted by the sigstore consumer).
+        nodes.append(oidc_issuer_node_envelope(_OIDC_ISSUER_URL))
 
         # --- collection phase: per-repo walk ---
         for full_name in repos:
@@ -697,7 +677,6 @@ class GithubCollector(CollectorBase):
         unbounded but typically small (only new runs since last collection).
         """
         from django.db.models import Max
-
         from tap_plugin.github_core.models import GithubActionsRun
 
         max_ts = GithubActionsRun.objects.filter(full_name=full_name).aggregate(Max("run_started_at"))[

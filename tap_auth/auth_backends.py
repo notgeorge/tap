@@ -47,6 +47,33 @@ class TapModelBackend(ModelBackend):
         return super().authenticate(request, username=username, password=password, **kwargs)
 
 
+class PasskeyBackend(ModelBackend):
+    """Backend for phishing-resistant WebAuthn sessions (req-tap-auth-passkey-webauthn-11).
+
+    Passkey login does NOT go through ``authenticate(password=...)``: the ceremony
+    (:mod:`tap_auth.passkey.ceremony`) verifies the assertion and resolves the user,
+    then the view calls ``django.contrib.auth.login(request, user, backend=...)`` with
+    THIS backend passed explicitly, so the session's ``_auth_user_backend`` records
+    that the session was minted by a passkey — not by a password path. Borrowing a
+    password backend's identity here would mislabel a phishing-resistant session as
+    password-auth and corrupt future audit / step-up / password-retirement logic.
+
+    ``authenticate`` always returns ``None`` — this backend never participates in the
+    credential-guessing chain; it exists only to (a) be a valid, resolvable ``backend``
+    argument to ``auth.login`` and (b) reload the user (``get_user``, inherited) on
+    subsequent requests. Permission resolution is inherited from ``ModelBackend`` and
+    is identical to the other backends'."""
+
+    def authenticate(
+        self,
+        request: HttpRequest | None,
+        username: str | None = None,
+        password: str | None = None,
+        **kwargs: Any,
+    ) -> Any:
+        return None
+
+
 class TapAllauthBackend(AllauthBackend):
     """allauth's authentication backend is a SECOND local-password path (it
     authenticates accounts by username/email + password). Gate it with the same

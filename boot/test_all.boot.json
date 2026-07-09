@@ -28,6 +28,12 @@
         "note": "Package-mode (tap_plugin.roscale). Install-only: registers the OSCAL workbench panel types samsite's compliance pages consume; no grift seed, so it is not a population step, but samsite imports it at ready() — it must be installed."
       },
       {
+        "slug": "identity_core",
+        "enabled": true,
+        "source": { "type": "editable", "path": "plugins/identity_core" },
+        "note": "Package-mode (tap_plugin.identity_core). Install-only substrate: cross-cutting federated-identity vocabulary (the oidc_issuer convergence node) + issuer identity primitives. github_core imports its issuer helper; aws_core/sigstore_core/samsite reference identity_core__oidc_issuer as an edge endpoint — listed before them so its type registers first. Owns no collector and no edges; no GRIFT population seed."
+      },
+      {
         "slug": "aws_core",
         "enabled": true,
         "source": { "type": "editable", "path": "plugins/aws_core" },

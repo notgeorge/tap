@@ -8,7 +8,6 @@ from tap_plugin.github_core.models.github_platform import GithubPlatform
 from tap_plugin.github_core.models.github_repository import GithubRepository
 from tap_plugin.github_core.models.github_runner import GithubRunner
 from tap_plugin.github_core.models.github_workflow import GithubWorkflow
-from tap_plugin.github_core.models.oidc_issuer import OidcIssuer
 
 __all__ = [
     "GithubAccount",
@@ -19,5 +18,4 @@ __all__ = [
     "GithubRepository",
     "GithubRunner",
     "GithubWorkflow",
-    "OidcIssuer",
 ]

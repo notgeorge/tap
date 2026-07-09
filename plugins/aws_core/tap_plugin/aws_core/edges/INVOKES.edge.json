@@ -1,7 +1,8 @@
 {
   "slug": "INVOKES__aws_core",
   "name": "Invokes",
-  "description": "One service invokes another (Lambda calls another Lambda, ECS calls an API, etc.).",
+  "description": "A service invokes a Lambda function (e.g. an EventBridge rule targeting a Lambda). Source is open because several service types can invoke a Lambda; the target is the invoked Lambda. This is the only invocation relationship the collector emits today.",
+  "targets": ["aws_core__aws_lambda"],
   "property_schema": {
     "type": "object",
     "properties": {

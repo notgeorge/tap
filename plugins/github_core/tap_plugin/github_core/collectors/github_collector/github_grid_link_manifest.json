@@ -55,13 +55,13 @@
       "name": "aws_oidc_provider_trusts_issuer",
       "source_entity_type": "aws_core__aws_iam_oidc_provider",
       "source_field_path": "url",
-      "target_entity_type": "github_core__oidc_issuer",
+      "target_entity_type": "identity_core__oidc_issuer",
       "target_field": "host",
-      "edge_type": "TRUSTS_ISSUER__github_core",
+      "edge_type": "TRUSTS_ISSUER__identity_core",
       "match_mode": "exact",
       "zero_candidates": "info",
       "multiple_candidates": "warn_no_edge",
-      "description": "Converges the AWS federation path onto the OIDC issuer node: matches each AWS IAM OIDC provider's scheme-less url against an oidc_issuer's host and emits aws_iam_oidc_provider -> oidc_issuer TRUSTS_ISSUER. The github_core collector synthesizes the oidc_issuer singleton earlier in the same run, so it is on the grid when this enrichment rule evaluates. Source is an AWS node (no full_name), so the resolver falls back to a type-scoped scan."
+      "description": "Converges the AWS federation path onto the OIDC issuer node: matches each AWS IAM OIDC provider's scheme-less url against an identity_core__oidc_issuer's canonical host and emits aws_iam_oidc_provider -> oidc_issuer TRUSTS_ISSUER. The edge type is the generic identity_core-owned TRUSTS_ISSUER (wildcard source — any principal can trust an issuer); edge types resolve globally, so github's enrichment may emit it. The issuer vocabulary lives in identity_core; any observer may mint the issuer via identity_core.issuer, but in v0 github_core's own collector mints the singleton earlier in this same run, so it is on the grid when this enrichment rule evaluates (aws_core has no enrichment phase of its own — synthesis-general-3 is not fully realized). Source is an AWS node (no full_name), so the resolver falls back to a type-scoped scan."
     }
   ]
 }

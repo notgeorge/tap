@@ -1,0 +1,10 @@
+{
+  "slug": "DIVIDED_INTO_AZ__aws_core",
+  "name": "Divided Into AZ",
+  "description": "An AWS region is divided into an availability zone (parent -> child). Reference topology: each region consists of multiple isolated availability zones. 'Which AZs are in region X' is a fan-out over this edge; 'which region is AZ Y in' is the same edge reversed. Replaces the former generic CONTAINS edge, which conflated this with unrelated parent/child pairs.",
+  "sources": ["aws_core__aws_region"],
+  "targets": ["aws_core__aws_az"],
+  "default_dimensions": {
+    "tap.cloud": "aws"
+  }
+}

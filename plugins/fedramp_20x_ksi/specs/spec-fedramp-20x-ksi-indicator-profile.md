@@ -180,7 +180,7 @@ A per-system table of findings related to this indicator — one row per (system
 - Section header: "Findings Affecting This Indicator". Placed after the Reference section and before the Change Log.
 - Rendered as a Tabulator table initialized from a JSON payload embedded in the panel template (same pattern as the finding profile's KSI / Evidence tables and the genericom open-alerts panel). Layout: `fitColumns`, no pagination — counts are bounded by how many findings any one indicator picks up.
 - Data is loaded by an additional gryphon query the panel runs alongside the existing hub-and-spoke. The new query is two-hop with both `MATCH` clauses inner-joined:
-  - `MATCH (i)<-[r1:RELATED_INDICATOR]-(f:finding)` (findings linked to this indicator)
+  - `MATCH (i)<-[r1:CONCERNS_COMPLIANCE_CONTROL]-(f:finding)` (findings linked to this indicator)
   - `MATCH (s)-[r2:HAS_COMPLIANCE_FINDING]->(f)` (each finding's system parents)
   - `WHERE i.entity_id = $entity_id`
   - Return `f, r1, r2, s` so the panel can build flat (system, finding) row pairs.
@@ -204,7 +204,7 @@ A per-system table of findings related to this indicator — one row per (system
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-ksi-profile-findings-table-1 | Two-Hop Gryphon | Implemented | The findings table is loaded by a two-hop gryphon query (`RELATED_INDICATOR` ← finding ← `HAS_COMPLIANCE_FINDING`) returning flat (system, finding) row pairs. | |
+| req-ksi-profile-findings-table-1 | Two-Hop Gryphon | Implemented | The findings table is loaded by a two-hop gryphon query (`CONCERNS_COMPLIANCE_CONTROL` ← finding ← `HAS_COMPLIANCE_FINDING`) returning flat (system, finding) row pairs. | |
 | req-ksi-profile-findings-table-2 | Per-System Rows | Implemented | A finding with multiple `HAS_COMPLIANCE_FINDING` parents emits one row per parent. Findings without any parent are not surfaced in v0 (gryphon parser limitation; tracked in Future Work). | |
 | req-ksi-profile-findings-table-3 | System Link | Implemented | The System cell links to `/grid/<entity_id>` for the parent asset when present. | |
 | req-ksi-profile-findings-table-4 | Finding Link | Implemented | The Finding cell links to `/fedramp-ksi/finding?entity_id=<entity_id>`. | |

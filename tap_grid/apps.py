@@ -29,6 +29,16 @@ class TapCoreConfig(AppConfig):
 
         connection_created.connect(install_readonly_write_guard, dispatch_uid="tap_grid.search_readonly_guard")
 
+        # Broad detection backstop for insufficient-privilege denials
+        # (req-grid-db-permission-flaw.sec): attach an execute_wrapper to *every*
+        # connection that turns PostgreSQL's SQLSTATE 42501 into a loud security Flaw
+        # before re-raising. A 42501 means an in-code guard leaked and the DB caught it;
+        # wired unconditionally (not per-alias) so it forward-proofs the least-privilege
+        # DB roles without per-role wiring.
+        from tap_grid.db_permission_guard import install_db_permission_guard
+
+        connection_created.connect(install_db_permission_guard, dispatch_uid="tap_grid.db_permission_guard")
+
         # Register grid-standard edge types (e.g. PRODUCED_BATCH). Pure
         # in-memory registry writes — no DB — so this runs unconditionally,
         # before the DB-touching bootstrap below.

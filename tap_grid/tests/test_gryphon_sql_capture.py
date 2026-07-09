@@ -6,11 +6,14 @@ in order, stage-labelled, and deterministically. They assert the seam, not
 executor correctness — executor correctness is Gridkin's job
 (``plugins/gryphon_playground/``).
 
-Seeding uses direct ORM writes (an intentional below-service-layer test);
-the executor reads the same ``default`` alias the data is seeded on.
+Seeding uses direct ORM writes (an intentional below-service-layer test) on the
+``default`` alias; the executor reads on the ``search_readonly`` alias
+(``req-grid-traversal-exec-scope.sec-5``), which in the test settings mirrors the
+same physical database, so the read sees the seeded data.
 """
 
 import pytest
+from django.db import connections
 
 from tap_grid.gryphon import capture_sql, execute_gryphon_raw, explain_gryphon_raw
 from tap_grid.gryphon.capture import SqlCapture
@@ -124,3 +127,16 @@ class TestGryphonSqlCapture:
         with capture_sql() as cap:
             pass
         assert cap.statements == []
+
+    def test_driver_catalog_queries_are_not_captured(self):
+        """psycopg's one-time type registration (``SELECT ... FROM pg_type ...``) runs on a
+        connection's first use — driver plumbing, not a Gryphon read. It must never land in a
+        capture, else a cold connection (the read path runs on ``search_readonly``, which a
+        test can reach cold) makes the capture non-deterministic. Guards ``_DRIVER_SETUP_RE``.
+        """
+        with capture_sql("default") as cap:
+            with connections["default"].cursor() as cur:
+                cur.execute("SELECT oid, typarray FROM pg_type WHERE typname = %s", ["hstore"])
+                cur.fetchone()
+        leaked = [s.sql for s in cap.statements if "pg_type" in s.sql]
+        assert not leaked, f"driver catalog query leaked into the capture: {leaked}"

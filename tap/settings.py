@@ -314,15 +314,64 @@ DATABASES = {
     ),
 }
 
-# search_readonly: same DB, PostgreSQL read-only session parameter set at connection
-# time. Prevents writes at the database level for all search execution (req-grid-search-readonly.sec).
-# TEST.MIRROR tells Django's test runner this alias shares the same physical DB as
-# "default" so it skips creating/flushing a separate test database for it.
+# Resource bounds for the read-only search connection (req-grid-traversal-exec-resource-bounds.sec).
+# Conservative defaults, overridable per deployment. They bound a runaway Gryphon read on three
+# axes the read path is exposed to: time (statement_timeout / lock_timeout), memory (work_mem — a
+# per-operation throttle before spill), and disk (temp_file_limit — a hard per-session cap; a query
+# whose sort/hash spill exceeds it is aborted by PostgreSQL). Set at connection time on the search
+# connection; the raw Gryphon path defaults here too (req-grid-traversal-exec-scope.sec-5), so these
+# ride every search read. When the least-privilege role lands, they move to ALTER ROLE … SET
+# (req-grid-search-readonly-role.sec-6) — connection OPTIONS is the interim, role-independent home.
+SEARCH_STATEMENT_TIMEOUT = os.environ.get("TAP_SEARCH_STATEMENT_TIMEOUT", "30s")
+SEARCH_LOCK_TIMEOUT = os.environ.get("TAP_SEARCH_LOCK_TIMEOUT", "5s")
+SEARCH_WORK_MEM = os.environ.get("TAP_SEARCH_WORK_MEM", "64MB")
+SEARCH_TEMP_FILE_LIMIT = os.environ.get("TAP_SEARCH_TEMP_FILE_LIMIT", "1GB")
+
+# Least-privilege read-only search role (req-grid-search-readonly-role.sec). The
+# search_readonly connection authenticates as this role so a Gryphon read is constrained at
+# the database level to SELECT on grid tables + spine (grant set derived from the registry;
+# provisioned at boot by tap_grid.search_role via req-boot-search-role). tap/test_settings.py
+# overrides the credentials back to the app role so the suite is unaffected; the role's grants
+# are validated authentically by a dedicated SET ROLE test.
+SEARCH_READONLY_ROLE = os.environ.get("TAP_SEARCH_READONLY_ROLE", "tap_gryphon_ro")
+SEARCH_READONLY_PASSWORD = os.environ.get("TAP_SEARCH_READONLY_PASSWORD", "tap_gryphon_ro_dev")
+# GUCs pinned on the role at provision time (req-grid-search-readonly-role.sec-6). Same values
+# as the connection OPTIONS below; the role is the durable home, OPTIONS the belt-and-suspenders.
+SEARCH_ROLE_GUCS = {
+    "statement_timeout": SEARCH_STATEMENT_TIMEOUT,
+    "lock_timeout": SEARCH_LOCK_TIMEOUT,
+    "work_mem": SEARCH_WORK_MEM,
+    "temp_file_limit": SEARCH_TEMP_FILE_LIMIT,
+}
+
+# NB: `temp_file_limit` is a superuser-only (SUSET) parameter — a non-superuser role (the
+# least-privilege search role) cannot set it via the connection `-c` options, so it is NOT
+# listed here. It is pinned on the role instead via ALTER ROLE … SET (SEARCH_ROLE_GUCS,
+# applied by the superuser at provision time and enforced at the role's login). The other
+# three are USERSET (any role may set them at connect time), so they ride the connection.
+_SEARCH_READONLY_OPTIONS = " ".join(
+    [
+        "-c default_transaction_read_only=on",
+        f"-c statement_timeout={SEARCH_STATEMENT_TIMEOUT}",
+        f"-c lock_timeout={SEARCH_LOCK_TIMEOUT}",
+        f"-c work_mem={SEARCH_WORK_MEM}",
+    ]
+)
+
+# search_readonly: same DB, authenticating as the least-privilege search role, with the
+# read-only session parameter + resource bounds set at connection time. The role scopes reads
+# to grid tables + spine at the database level (req-grid-search-readonly-role.sec); the session
+# flag prevents writes (req-grid-search-readonly.sec); the GUCs cap resource consumption
+# (req-grid-traversal-exec-resource-bounds.sec). TEST.MIRROR tells Django's test runner this
+# alias shares the same physical DB as "default". tap/test_settings.py overrides USER/PASSWORD
+# back to the app role for the suite (the role is validated by a dedicated SET ROLE test).
 DATABASES["search_readonly"] = {
     **DATABASES["default"],
+    "USER": SEARCH_READONLY_ROLE,
+    "PASSWORD": SEARCH_READONLY_PASSWORD,
     "OPTIONS": {
         **DATABASES["default"].get("OPTIONS", {}),
-        "options": "-c default_transaction_read_only=on",
+        "options": _SEARCH_READONLY_OPTIONS,
     },
     "TEST": {"MIRROR": "default"},
 }
@@ -362,16 +411,24 @@ AUTH_PASSWORD_VALIDATORS = [
 AUTHENTICATION_BACKENDS = [
     "tap_auth.auth_backends.TapModelBackend",
     "tap_auth.auth_backends.TapAllauthBackend",
+    # Passkey (WebAuthn) sessions. Does not participate in password authenticate();
+    # exists so auth.login can attribute a phishing-resistant session to it and so
+    # the user reloads on later requests (req-tap-auth-passkey-webauthn-11).
+    "tap_auth.auth_backends.PasskeyBackend",
 ]
 
 # Single Site row per install (django.contrib.sites). allauth binds provider
 # apps + derives callback URLs against it.
 SITE_ID = 1
 
-# Login wall (TapLoginRequiredMiddleware). LOGIN_URL is allauth's login view;
-# unauthenticated requests to non-exempt paths redirect here. After login,
-# users land on "/" (the landing page / their no-access notice if cap-less).
-LOGIN_URL = "account_login"
+# Login wall (TapLoginRequiredMiddleware). LOGIN_URL is TAP's native passkey login
+# page (req-tap-auth-passkey-rollout-2): a zero-provider instance must be able to log
+# in without an IdP. Unauthenticated requests to non-exempt paths redirect here; after
+# login users land on "/" (the landing page / their no-access notice if cap-less). The
+# federated allauth login (account_login) is still mounted and reachable at its own URL
+# for instances that DO configure a provider; full repointing of the secondary template
+# links + logout redirect is Phase 3 (spec-tap-auth-passkey-v0 webauthn-6/slim-6).
+LOGIN_URL = "passkey_login"
 LOGIN_REDIRECT_URL = "/"
 ACCOUNT_LOGOUT_REDIRECT_URL = "account_login"
 
@@ -439,6 +496,16 @@ from tap_auth.providers import build_socialaccount_providers  # noqa: E402
 # allauth derives the runtime redirect_uri from the request; this is the
 # canonical value provider self-tests and boot validation use.
 TAP_BASE_URL = os.environ.get("TAP_BASE_URL", "")
+
+# Passkey (WebAuthn) RP config (req-tap-auth-passkey-webauthn-5/7). RP-ID is the
+# pinned registrable domain a credential is scoped to; the expected origin is EXACT
+# (scheme+host+port) — never a wildcard (a wildcard lets a co-resident service relay
+# an assertion). Dev uses RP-ID `localhost` (a WebAuthn secure context over http) and
+# origin `http://localhost:<host WEB_PORT>` — supplied by docker-compose from WEB_PORT.
+# Changing RP-ID after credentials exist invalidates every registered passkey.
+TAP_PASSKEY_RP_ID = os.environ.get("TAP_PASSKEY_RP_ID", "localhost")
+TAP_PASSKEY_RP_NAME = os.environ.get("TAP_PASSKEY_RP_NAME", "TAP")
+TAP_PASSKEY_ORIGIN = os.environ.get("TAP_PASSKEY_ORIGIN", "")
 
 _env_providers = os.environ.get("TAP_AUTH_PROVIDERS")
 TAP_AUTH_PROVIDERS = json.loads(_env_providers) if _env_providers else providers_for_settings(_TAP_BOOT_PROFILE)

@@ -340,6 +340,14 @@ The plugin favors a small but expressive edge family over generic catch-all edge
 
 #### Implementation
 
+> **Candidate set pruned (pre-eviction, 2026-07-08).** These are aspirational candidate
+> edge types, not a built inventory. Seven scaffolded-but-never-emitted edge definitions
+> (`HOSTS`, `RUNS_ON`, `HAS_IP`, `AVAILABLE_AT`, `LISTENS_ON`, `CONNECTS_TO`, `PAIRED_WITH`)
+> were deleted rather than frozen into the release tag as speculative surface. The only
+> edges computing_core actually ships today are the ones its collector emits / seeds:
+> `FETCHES`, `GENERATES_FILE`, `HOSTED_BY`. The candidates below return — correctly named
+> per the add-edge skill — when a collector actually emits them.
+
 Representative relationship categories for v0 include:
 
 | Category | Candidate Edge Types | Description |

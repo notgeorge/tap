@@ -139,7 +139,7 @@ def _build_rows(envelope: dict[str, Any], asset_id: str) -> list[dict[str, Any]]
 
         if et == "HAS_COMPLIANCE_FINDING__compliance_core" and from_id == asset_id and to_id in findings_by_id:
             asset_findings.add(to_id)
-        elif et == "RELATED_INDICATOR__fedramp_20x_ksi" and from_id in findings_by_id:
+        elif et == "CONCERNS_COMPLIANCE_CONTROL__compliance_core" and from_id in findings_by_id:
             ksi_node = nodes_by_id.get(to_id or "")
             if ksi_node is None:
                 continue
@@ -187,7 +187,7 @@ def _build_rows(envelope: dict[str, Any], asset_id: str) -> list[dict[str, Any]]
         f["ksis"].sort(key=lambda k: (k["code"], k["entity_id"]))
         primary_ksi = f["ksis"][0] if f["ksis"] else {}
         # Verdict precedence: aggregate-from-evidence wins, then the
-        # RELATED_INDICATOR.relationship_type signal (so a violation finding
+        # CONCERNS_COMPLIANCE_CONTROL.relationship_type signal (so a violation finding
         # without seeded evidence still reads as "violation"), then the raw
         # lifecycle status as a final fallback.
         verdict = (

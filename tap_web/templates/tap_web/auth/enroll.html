@@ -1,0 +1,115 @@
+{% load static %}
+<!DOCTYPE html>
+{% comment %}
+Passkey enrollment shell (req-tap-auth-passkey-enrollment / webauthn-11). The invitee
+arrives at /auth/enroll/<public-id>#<secret>; the secret lives in the URL FRAGMENT and
+never reaches the server. In-page JS reads it and drives a WebAuthn registration:
+POST options/ (secret-gated) -> navigator.credentials.create -> POST verify/ (redeem +
+bind + login). Self-contained, styled with the shared auth.css. Static regardless of
+whether the public-id is valid — the POST is the only decision point.
+{% endcomment %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="referrer" content="no-referrer">
+    <title>Set up your passkey — {{ product_name|default:"TAP" }}</title>
+    <link rel="icon" type="image/x-icon" href="{% static 'tap_web/favicon.ico' %}">
+    <link rel="stylesheet" href="{% static 'tap_web/css/auth.css' %}">
+</head>
+<body class="tap-auth-body">
+    <header class="tap-auth-header">
+        <span class="tap-auth-wordmark">{{ product_name|default:"TAP" }}</span>
+        {% if session_label %}<span class="tap-auth-session-tag">[ {{ session_label }} ]</span>{% endif %}
+    </header>
+    <main class="tap-auth-main">
+        <div class="tap-auth-card">
+            <h1 class="tap-auth-title">Set up your passkey</h1>
+            <p class="tap-auth-sub">
+                Register a passkey on this device to finish creating your account. You'll
+                use it to sign in — no password.
+            </p>
+            <button id="enroll-btn" type="button" class="tap-auth-btn">Create passkey</button>
+            <p id="status" class="tap-auth-sub" role="status" aria-live="polite"></p>
+        </div>
+    </main>
+    <script>
+    (function () {
+        "use strict";
+        var PUBLIC_ID = "{{ public_id|escapejs }}";
+        var CSRF = "{{ csrf_token }}";
+        var BASE = "/auth/enroll/" + encodeURIComponent(PUBLIC_ID) + "/";
+        var statusEl = document.getElementById("status");
+        var btn = document.getElementById("enroll-btn");
+
+        function setStatus(msg) { statusEl.textContent = msg; }
+
+        function b64urlToBuf(s) {
+            s = s.replace(/-/g, "+").replace(/_/g, "/");
+            var pad = s.length % 4; if (pad) { s += "====".slice(pad); }
+            var bin = atob(s); var buf = new Uint8Array(bin.length);
+            for (var i = 0; i < bin.length; i++) { buf[i] = bin.charCodeAt(i); }
+            return buf.buffer;
+        }
+        function bufToB64url(buf) {
+            var bytes = new Uint8Array(buf); var bin = "";
+            for (var i = 0; i < bytes.length; i++) { bin += String.fromCharCode(bytes[i]); }
+            return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+        }
+        function postJSON(url, body) {
+            return fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+                credentials: "same-origin",
+                body: JSON.stringify(body)
+            });
+        }
+
+        async function enroll() {
+            if (!window.PublicKeyCredential) { setStatus("This browser does not support passkeys."); return; }
+            var secret = location.hash.slice(1);
+            if (!secret) { setStatus("Enrollment link is missing its secret."); return; }
+            btn.disabled = true;
+            setStatus("Requesting registration options…");
+            try {
+                var optResp = await postJSON(BASE + "options/", { secret: secret });
+                if (!optResp.ok) { setStatus("This enrollment link is invalid or expired."); btn.disabled = false; return; }
+                var options = await optResp.json();
+                options.challenge = b64urlToBuf(options.challenge);
+                options.user.id = b64urlToBuf(options.user.id);
+                (options.excludeCredentials || []).forEach(function (c) { c.id = b64urlToBuf(c.id); });
+
+                setStatus("Follow your device's prompt to create the passkey…");
+                var cred = await navigator.credentials.create({ publicKey: options });
+                var r = cred.response;
+                var payload = {
+                    id: cred.id,
+                    rawId: bufToB64url(cred.rawId),
+                    type: cred.type,
+                    clientExtensionResults: cred.getClientExtensionResults(),
+                    response: {
+                        clientDataJSON: bufToB64url(r.clientDataJSON),
+                        attestationObject: bufToB64url(r.attestationObject),
+                        transports: (r.getTransports && r.getTransports()) || []
+                    }
+                };
+                if (cred.authenticatorAttachment) { payload.authenticatorAttachment = cred.authenticatorAttachment; }
+
+                setStatus("Finishing enrollment…");
+                var verifyResp = await postJSON(BASE + "verify/", { secret: secret, credential: payload });
+                if (!verifyResp.ok) { setStatus("Enrollment could not be completed. Ask for a fresh invitation."); btn.disabled = false; return; }
+                var out = await verifyResp.json();
+                setStatus("Passkey created. Signing you in…");
+                window.location.href = out.redirect || "/";
+            } catch (err) {
+                setStatus("Passkey setup was cancelled or failed. You can try again.");
+                btn.disabled = false;
+            }
+        }
+
+        btn.addEventListener("click", enroll);
+    })();
+    </script>
+</body>
+</html>

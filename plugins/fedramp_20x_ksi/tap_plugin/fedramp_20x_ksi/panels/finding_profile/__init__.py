@@ -4,7 +4,7 @@ Displays a single Finding's full story: hero header with status, identity
 section (system(s), description), related KSI table, and evidence table with
 click-to-expand details. Data is loaded via a gryphon hub-and-spoke query
 that returns the finding plus everything connected by HAS_COMPLIANCE_FINDING (inbound),
-RELATED_INDICATOR (outbound), and HAS_COMPLIANCE_EVIDENCE (outbound) edges in one pass.
+CONCERNS_COMPLIANCE_CONTROL (outbound), and HAS_COMPLIANCE_EVIDENCE (outbound) edges in one pass.
 
 Spec: plugins/fedramp_20x_ksi/specs/spec-fedramp-20x-ksi-finding-profile.md
 """
@@ -199,7 +199,7 @@ class KsiFindingProfilePanelType:
                         "name": sys_ent.get("name") or sys_body.get("name") or "",
                     }
                 )
-            elif etype == "RELATED_INDICATOR__fedramp_20x_ksi" and from_id == entity_id:
+            elif etype == "CONCERNS_COMPLIANCE_CONTROL__compliance_core" and from_id == entity_id:
                 ksi_node = nodes_by_id.get(to_id or "")
                 if ksi_node is None:
                     continue
