@@ -369,10 +369,9 @@ def test_concurrent_redeem_yields_exactly_one_account():
 
     assert sorted(results.values()) == ["err", "ok"]
     assert User.objects.filter(email="race@example.com").count() == 1
-
-    # Clean up the row created on the non-transactional test DB.
-    User.objects.filter(email="race@example.com").delete()
-    Invitation.objects.filter(pk=invitation.pk).delete()
+    # No manual cleanup: the django_db(transaction=True) teardown flushes the test DB.
+    # (A manual User.delete() here would cascade through the simple-history tables,
+    # which is both redundant and fragile.)
 
 
 @pytest.mark.spec("req-tap-auth-passkey-enrollment-2")
