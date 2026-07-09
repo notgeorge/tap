@@ -138,12 +138,18 @@ not the legacy `FIPS_mode_set`). Validated modules:
 - **#5132** — **OpenSSL 3.4.0** FIPS provider (Chainguard, 2026-03-17) — *the only 3.4-based module with FIPS 140-3 validation*.
 - 3.6 (adds PQC: ML-KEM/ML-DSA/SLH-DSA/LMS) submitted, pending.
 
-**Key fact:** the validated modules for *modern* OpenSSL are largely **Chainguard's**. Upstream's
-freely-buildable validated module is OpenSSL **3.0** (#4282). So "DIY with a validated module"
-means either accepting OpenSSL 3.0-era crypto, or using Chainguard's (paid) modules for 3.1.2/3.4.
-([Chainguard FIPS 3.1.2/#5102](https://www.chainguard.dev/unchained/chainguard-fips-enters-2026-with-openssl-3-1-2-and-better-cmvp-visibility),
-[Chainguard FIPS 3.4.0/#5132](https://www.chainguard.dev/unchained/introducing-the-chainguard-fips-provider-for-openssl-3-4-0),
-[CMVP #4282](https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/4282)).
+**The linchpin — why #4282 is sufficient, not a compromise.** OpenSSL guarantees a FIPS provider
+from *any* certified release is **binary-compatible with any *later* libcrypto/libssl** — in their
+own words, *"you can build OpenSSL 3.4 and use the OpenSSL 3.0.9 FIPS provider with it"*
+([OpenSSL fips_module](https://docs.openssl.org/3.3/man7/fips_module/),
+[README-FIPS](https://github.com/openssl/openssl/blob/master/README-FIPS.md)). So we build **only**
+the frozen, validated **3.0.9 `fips.so`** (#4282 covers OpenSSL 3.0.8/3.0.9) and load it against the
+base's **current, patched** libcrypto. OpenSSL 3.0's September-2026 LTS-EOL is therefore irrelevant —
+the base libraries stay modern (CVEs outside the FIPS boundary keep getting fixed); only the validated
+*provider* is frozen, which is the entire point of a validated module. Chainguard's newer validated
+modules (3.1.2 #5102, 3.4 #5132, paid) are **not needed**. ([OpenSSL 3.0.9 FIPS validated](https://www.openssl.org/blog/blog/2024/01/23/fips-309/),
+[CMVP #4282](https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/4282),
+[140sp4282 security policy](https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp4282.pdf)).
 
 ### TAP's crypto surface — the good news
 
@@ -163,24 +169,59 @@ module you must **rebuild it from source against the system OpenSSL**: `uv pip i
 maintenance cost on every `cryptography` bump). ([pyca/cryptography + system OpenSSL](https://cryptography.io/en/latest/installation/),
 [Python + FIPS OpenSSL discussion](https://discuss.python.org/t/python-3-with-openssl-3-fips-enabled/20287)).
 
-### The two paths
+### The chosen recipe — self-built #4282 provider (web container)
 
-- **Path A — buy (Chainguard `python-fips`).** FIPS-validated + STIG-hardened + FedRAMP-ready,
-  daily rebuilds under SLA, SBOM/VEX evidence included. Not in the free tier (contact sales).
-  Right when the ask is a **certified/attested platform**. Saves the 2-weeks-to-3-months-per-engineer
-  STIG effort. ([Chainguard python-fips](https://images.chainguard.dev/directory/image/python-fips/overview),
-  [STIG-hardened FIPS images](https://www.chainguard.dev/unchained/chainguards-stig-hardened-fips-images-now-generally-available)).
-- **Path B — DIY-short (OpenSSL 3 FIPS provider).** Base with OpenSSL 3 + validated `fips.so`,
-  Python linked to it, `cryptography` rebuilt `--no-binary` against it, FIPS mode enabled in
-  `openssl.cnf`, self-tests passing. Yields **FIPS-validated crypto operations** — but *not* a
-  platform CMVP certificate. Right when the ask is **"our crypto uses a validated module,"** not a
-  formal certification. Ceiling: with free tooling you're on upstream OpenSSL **3.0** (#4282); modern
-  (3.4) validated modules are Chainguard's.
+Decided (`req-cicd-base-image-lifecycle-5`, targeted ~2026-09): DIY the free #4282 provider; no vendor
+module. The mechanism, and why it's lighter than it first appears:
 
-### Recommendation
+1. **Builder stage — build the validated provider.** Compile OpenSSL **3.0.9** with `./Configure
+   enable-fips`, **following the #4282 security policy's exact build instructions** (the build recipe is
+   part of what's validated). Output: `fips.so`.
+2. **Activate it on the base's modern OpenSSL.** Place `fips.so` in the system `ossl-modules/` dir and run
+   **`openssl fipsinstall`** — it runs the module self-tests and writes `fipsmodule.cnf` carrying the
+   module's integrity **MAC**. This MUST run in the final image; if `fips.so`'s bytes change without
+   re-running it, the provider refuses to load.
+3. **Point OpenSSL at a FIPS config.** `openssl.cnf` → `.include fipsmodule.cnf`, activate the `fips` +
+   `base` providers, `default_properties = fips=yes`; `ENV OPENSSL_CONF=/etc/ssl/openssl-fips.cnf`. The
+   system OpenSSL now serves only FIPS-approved algorithms.
+4. **Python stdlib is FIPS with NO rebuild.** Wolfi's `python-3.14` dynamically links the *system*
+   libcrypto/libssl, so `hashlib`/`ssl`/`hmac` inherit the activated provider for free.
+5. **`cryptography` is the one chore.** Its wheel statically bundles its own OpenSSL and ignores the
+   system provider, so build it **`--no-binary cryptography`** against the system OpenSSL (uv:
+   `[tool.uv] no-binary-package = ["cryptography"]`), baked at build time so the runtime carries no
+   Rust/C toolchain. ([cryptography + system OpenSSL](https://cryptography.io/en/latest/installation/),
+   [bundled-OpenSSL FIPS issue #5008](https://github.com/pyca/cryptography/issues/5008)).
 
-**Defer — demand-gated.** No current FIPS requirement, so build neither now. When one lands, the
-decision is a single question to the customer/engagement: **"FIPS-validated crypto" (Path B suffices,
-cheap) or "FIPS-certified platform with CMVP + STIG evidence" (Path A / buy)?** Because we're already
-on the **Wolfi lineage**, both futures are smooth: DIY against Wolfi's OpenSSL, or buy the
-Wolfi-family `python-fips`. Choosing Wolfi now is itself the FIPS-hedge.
+Both Python stdlib crypto and `cryptography`/`webauthn` then route through the validated 3.0.9 module.
+TAP's algorithms are all FIPS-approved, so nothing is redesigned.
+
+### Postgres — minimal + the same FIPS recipe
+
+Today's `postgres:16-alpine` is a needless CVE surface for a real-world posture (Alpine still ships an
+`apk` package set; the official non-alpine image carries *hundreds* of packages). The consistent answer:
+build a **minimal Postgres on `wolfi-base` + `apk add postgresql-16`** (mirrors the web image's model),
+then apply the **identical #4282 recipe** — Postgres links the base's system OpenSSL for TLS + `pgcrypto`,
+so the same `fips.so` + `fipsinstall` + `OPENSSL_CONF` makes it FIPS with no Postgres rebuild. One provider
+artifact, one recipe, both containers, all free. (Chainguard's free `cgr.dev/chainguard/postgres` /
+`-slim` is a zero-CVE alternative, but it's distroless — `COPY`-only, no `RUN` — so activating the provider
+means a multi-stage copy-in; owning the `wolfi-base` + `apk` build keeps parity with the web image and the
+same add-our-binaries model. Chainguard `postgres-fips` exists but is paid — not needed.)
+([Chainguard postgres](https://images.chainguard.dev/directory/image/postgres/overview)).
+
+### Named risks + status
+
+Status: **active, targeted ~2026-09** (`req-cicd-base-image-lifecycle-5`). Three risks to work, none a blocker:
+
+1. **Operational Environment (OE) portability.** #4282's security policy lists the *tested* platforms;
+   Wolfi is almost certainly not one, so we rely on **FIPS 140-3 vendor-affirmed portability** (same CPU
+   arch + glibc; we affirm correct operation). Common and widely accepted, but the **3PAO / compliance
+   authority has final say** — confirm acceptance *before* building the recipe (this is the one thing that
+   could force a validated-OE base or, last resort, a vendor's platform CMVP).
+2. **`fips=yes` disables non-approved algorithms globally** (MD5, etc.). Audit Django/deps for any
+   import-time non-approved primitive without `usedforsecurity=False` (modern Django is clean; verify with a script).
+3. **`fipsinstall` in-image + reproducibility** — must run in the final build; the MAC pins the exact
+   `fips.so`. Fits the build-stage model.
+
+Feasibility supported by the base-image spike (Python 3.14 on Wolfi, dynamic system-OpenSSL linkage). A
+dedicated FIPS spike — build `fips.so`, activate it, prove `python` + `cryptography` route through the
+provider — retires the remaining "does linkage + `--no-binary` work end-to-end" risk before the recipe is committed.
