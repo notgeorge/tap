@@ -254,6 +254,7 @@ def _run_structure_checks(plugin_root: Path, result: ValidationResult) -> Any:
         _check_tests_dir(package_root, result)
         _check_identity_coherence(plugin_root, package_root, manifest, result)
         _check_declared_dependencies(package_root, manifest, result)
+        _check_requires_tap(manifest, result)
     return manifest
 
 
@@ -550,6 +551,55 @@ def _check_declared_dependencies(package_root: Path, manifest: Any, result: Vali
         check.info(f"declared (data/vocabulary dependency, not imported): {dep}")
     if not observed and not declared:
         check.info("No cross-plugin dependencies")
+
+    result.checks.append(check)
+
+
+def _check_requires_tap(manifest: Any, result: ValidationResult) -> None:
+    """Verify the plugin's ``requires_tap`` compatibility floor against this harness core.
+
+    ``req-plugin-extdev-compat-floor`` (the VS Code ``engines.vscode`` model): a plugin
+    declares the range of core (``tap``) versions it supports; the pre-boot gate refuses
+    a mismatch at standup. This author-time check surfaces the same thing in the
+    developer's own cloned-core harness — a declared floor the harness core does *not*
+    satisfy is a failure, so the developer sees the mismatch before release rather than
+    at their users' boot. An absent floor is informational only: ``requires_tap`` is
+    optional in v0 (``req-plugin-extdev-compat-floor-4``), so absence must NOT fail — not
+    even under ``--strict`` (a warning would, and strict is the reusable-CI conformance
+    gate). It tightens to a warning/failure in a later version once every TAP-owned plugin
+    declares one. The specifier itself is already validated at manifest parse (a malformed
+    value fails the manifest-parse check upstream), so here it is either None or well-formed.
+    """
+    from tap.core_version import CoreVersionError, core_satisfies_requires_tap, core_tap_version
+
+    check = CheckResult(id="requires-tap", name="Compatibility floor (requires_tap) is declared and satisfied")
+
+    requires_tap = getattr(manifest, "requires_tap", None)
+    if requires_tap is None:
+        check.info(
+            "no requires_tap declared (optional in v0) — recommend declaring the range of TAP core "
+            'versions this plugin supports (e.g. requires_tap = ">=0.1,<0.2") so an incompatible core '
+            "is refused at boot"
+        )
+        result.checks.append(check)
+        return
+
+    try:
+        core_version = core_tap_version()
+    except CoreVersionError as exc:
+        check.info(
+            f"requires_tap = {requires_tap!r}; harness core version could not be resolved ({exc}) — not verified here"
+        )
+        result.checks.append(check)
+        return
+
+    if core_satisfies_requires_tap(requires_tap, core_version=core_version):
+        check.info(f"requires_tap = {requires_tap!r}; satisfied by harness core {core_version}")
+    else:
+        check.fail(
+            f"requires_tap = {requires_tap!r} is NOT satisfied by this harness core {core_version} — "
+            f"the plugin would be refused at boot against this core"
+        )
 
     result.checks.append(check)
 

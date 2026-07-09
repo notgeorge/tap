@@ -25,6 +25,7 @@ _ALLOWED_TOP_KEYS = {
     "slug",
     "name",
     "description",
+    "requires_tap",
     "depends_on",
     "models",
     "edges",
@@ -139,6 +140,7 @@ class PluginManifest:
     slug: str
     name: str
     description: str
+    requires_tap: str | None
     depends_on: list[DependencyEntry]
     models: list[ModelEntry]
     edges: list[EdgeEntry]
@@ -173,6 +175,7 @@ def load_manifest(plugin_root: Path) -> PluginManifest:
 
     _validate_top_level(raw, manifest_path)
 
+    requires_tap = _parse_requires_tap(raw.get("requires_tap"), manifest_path)
     depends_on = _parse_depends_on(raw.get("depends_on", []), raw["slug"], manifest_path)
     models = _parse_models(raw.get("models", {}), manifest_path)
     edges = _parse_edges(raw.get("edges", {}), manifest_path, plugin_root)
@@ -187,6 +190,7 @@ def load_manifest(plugin_root: Path) -> PluginManifest:
         slug=raw["slug"],
         name=raw["name"],
         description=raw.get("description", ""),
+        requires_tap=requires_tap,
         depends_on=depends_on,
         models=models,
         edges=edges,
@@ -206,6 +210,29 @@ def load_manifest(plugin_root: Path) -> PluginManifest:
 # ---------------------------------------------------------------------------
 # Section parsers
 # ---------------------------------------------------------------------------
+
+
+def _parse_requires_tap(raw_value: Any, manifest_path: Path) -> str | None:
+    """Parse the optional top-level ``requires_tap`` compatibility floor.
+
+    A PEP 440 version specifier string (e.g. ``">=0.1,<0.2"``) naming the range of
+    core (``tap``) versions this plugin supports. Absent → None (no declared floor,
+    allowed in v0). A malformed specifier is a hard manifest error — the shared
+    validator in ``tap.core_version`` is the single specifier-parsing implementation,
+    reused by the pre-boot compatibility gate. See ``req-plugin-extdev-compat-floor``.
+    """
+    if raw_value is None:
+        return None
+    if not isinstance(raw_value, str) or not raw_value:
+        raise PluginManifestError(f"'requires_tap' must be a non-empty string in {manifest_path}")
+
+    from tap.core_version import parse_requires_tap
+
+    try:
+        parse_requires_tap(raw_value, source=str(manifest_path))
+    except ValueError as exc:
+        raise PluginManifestError(str(exc)) from exc
+    return raw_value
 
 
 def _parse_depends_on(raw_deps: Any, own_slug: str, manifest_path: Path) -> list[DependencyEntry]:

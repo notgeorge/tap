@@ -205,6 +205,17 @@ standard formats and signing the ecosystem consumes. Grafana signing every plugi
 nearest-neighbor precedent. Sequenced after `req-cicd-build-once-artifact` (you sign and
 attest the artifact you publish).
 
+**Plugin release signing lands here.** `req-plugin-extdev-signing`
+(`spec-plugin-external-development.md`) — signed plugin release tags / boot-record digests
+verified at install, closing the moved-tag / compromised-repo gap — is the plugin-artifact
+face of this same signing capability. It is **pinned to the GitHub-org refactor** because the
+publisher/signing identity is org-rooted: building it before the org exists means rebuilding
+it against the new identity root. So plugin signing is deferred to this requirement's wave,
+not built speculatively now; for the Aug-1 friendly-developer phase the trust boundary
+(TAP-controlled org, repos, read-only PAT, known developers) is tight enough to defer
+enforcement. Grafana (signed plugins) and Terraform (GPG-verified provider tags) are the
+precedents for both faces — one signing story, two layers (image artifact + plugin tag).
+
 ### Continuous Delivery
 
 RID: `req-cicd-continuous-delivery`

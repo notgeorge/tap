@@ -14,6 +14,8 @@ import pytest
 
 from tap.plugin_testing import requires_plugins
 from tap_plugins.validate.service import (
+    CheckResult,
+    ValidationResult,
     validate_plugin,
 )
 
@@ -40,6 +42,41 @@ def _make_plugin(tmp_path: Path, *, toml: str, extra_files: dict[str, str] | Non
             full.parent.mkdir(parents=True, exist_ok=True)
             full.write_text(content)
     return plugin_dir
+
+
+def _named_check(result: ValidationResult, check_id: str) -> CheckResult:
+    """Return the single check with the given id (raises if absent/duplicated)."""
+    matches = [c for c in result.checks if c.id == check_id]
+    assert len(matches) == 1, f"expected exactly one {check_id!r} check, got {len(matches)}"
+    return matches[0]
+
+
+_MIN_TOML = 'manifest_version = "0"\nplugin_version = "0.1.0"\nslug = "test_plugin"\nname = "T"\n'
+
+
+class TestRequiresTapCheck:
+    """The compatibility-floor structure check (req-plugin-extdev-compat-floor)."""
+
+    def test_absent_is_informational_not_fatal(self, tmp_path: Path) -> None:
+        # requires_tap is optional in v0: absence must not fail, not even under --strict
+        # (the reusable-CI conformance gate runs strict). Info, not warn.
+        plugin = _make_plugin(tmp_path, toml=_MIN_TOML)
+        check = _named_check(validate_plugin(plugin, strict=True), "requires-tap")
+        assert check.status == "pass"
+        assert any("optional in v0" in m.text for m in check.messages)
+
+    def test_satisfied_passes(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("tap.core_version.core_tap_version", lambda: "0.1.0")
+        plugin = _make_plugin(tmp_path, toml=_MIN_TOML + 'requires_tap = ">=0.1,<0.2"\n')
+        check = _named_check(validate_plugin(plugin), "requires-tap")
+        assert check.status == "pass", check.messages
+
+    def test_unsatisfied_fails(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("tap.core_version.core_tap_version", lambda: "0.1.0")
+        plugin = _make_plugin(tmp_path, toml=_MIN_TOML + 'requires_tap = ">=0.5"\n')
+        result = validate_plugin(plugin)
+        assert not result.ok
+        assert _named_check(result, "requires-tap").status == "fail"
 
 
 # ---------------------------------------------------------------------------

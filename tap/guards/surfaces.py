@@ -85,6 +85,27 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
         ),
     ),
     DeclaredSurface(
+        surface="Plugin compatibility floor (requires_tap)",
+        rid="req-plugin-extdev-compat-floor",
+        cadence="Pre-boot (`python -m tap.preboot`) + author-time (`validate_plugin`)",
+        status="CI-guarded",
+        enforced_by=(
+            "`tap.preboot._requires_tap_gate` (reject-at-boot) + the `requires-tap` "
+            "`validate_plugin` check; unit-guarded by `tap/tests/test_core_version.py` and "
+            "`tap/tests/test_preboot.py`, exercised end-to-end by the cold-boot gate (grid_fixtures declares a floor)"
+        ),
+    ),
+    DeclaredSurface(
+        surface="Per-plugin repo CI (reusable workflow)",
+        rid="req-plugin-extdev-repo-ci",
+        cadence="Per-PR in external plugin repos (`workflow_call`)",
+        status="In development — conformance job is the solid core; boot-and-test is the dial-in surface for Aug-1",
+        enforced_by=(
+            "`.github/workflows/plugin-ci.yml` — `validate_plugin --strict` against a pinned "
+            "core harness on free runners, plus an opt-in boot-and-test job"
+        ),
+    ),
+    DeclaredSurface(
         surface="Per-product-line CI lanes (CodeBuild)",
         rid="req-dev-validation-product-line-lanes",
         cadence="Pre-push (promote-triggered `test_all` union) + CI (every line on PR)",
