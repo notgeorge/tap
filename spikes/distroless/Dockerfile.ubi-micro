@@ -1,0 +1,66 @@
+# SPIKE: Red Hat's OWN "add packages to a distroless image" build process.
+#
+# ubi-micro ships no package manager. Red Hat's documented flow is to install FROM THE
+# OUTSIDE into a rootfs with `dnf --installroot`, then COPY that rootfs into ubi-micro.
+# This is the RPM analogue of `apk add --root` (Wolfi) and of apko.
+#
+# Why this matters for TAP:
+#   - UBI9 packages python3.14 (clears requires-python >= 3.14) — no CPython build needed.
+#   - UBI9's OpenSSL is 3.5.5 and python's _ssl dynamically links /lib64/libcrypto.so.3,
+#     so our proven #4282 fips.so recipe transplants unchanged.
+#   - Red Hat ALREADY ships /usr/lib64/ossl-modules/fips.so — a module validated with
+#     RHEL 9 as a *tested* Operational Environment, which is the one risk the Wolfi path
+#     carries (vendor-affirmed OE portability).
+#
+#   docker build -f spikes/distroless/Dockerfile.ubi-micro --target proof -t tap-ubi:proof .
+
+# ---- builder: full UBI9 (has dnf) installs INTO a separate rootfs ----
+FROM registry.access.redhat.com/ubi9/ubi:latest AS builder
+
+# Red Hat's documented distroless build: resolve+install into --installroot.
+# --nodocs / no weak deps keeps the rootfs minimal (the "micro" in ubi-micro).
+RUN dnf -y install --installroot=/rootfs --releasever=9 \
+      --setopt=install_weak_deps=false --setopt=tsflags=nodocs \
+      python3.14 git bash coreutils sed grep openssl \
+ && dnf -y --installroot=/rootfs clean all \
+ && rm -rf /rootfs/var/cache/* /rootfs/var/log/*
+
+# uv is a static Rust binary — no RPM needed (TAP already COPYs it today).
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /rootfs/usr/bin/
+
+# Strip the package manager out of the rootfs: the runtime must carry none.
+RUN rm -rf /rootfs/usr/bin/dnf* /rootfs/usr/bin/microdnf /rootfs/usr/bin/yum \
+           /rootfs/usr/bin/rpm /rootfs/usr/lib/rpm /rootfs/var/lib/rpm /rootfs/var/lib/dnf
+
+# ---- runtime: ubi-micro (no package manager at all) + the rootfs we built ----
+FROM registry.access.redhat.com/ubi9/ubi-micro:latest AS runtime
+COPY --from=builder /rootfs /
+ENV UV_LINK_MODE=copy PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+WORKDIR /app
+
+FROM runtime AS proof
+
+# PROOF 1: no package manager survived; the binaries TAP needs are present.
+RUN echo "=== PROOF 1: no OS package manager in runtime ===" \
+ && for pm in dnf microdnf yum rpm apt apk; do \
+      if command -v "$pm" >/dev/null 2>&1; then echo "UNEXPECTED: $pm present"; exit 1; fi; \
+    done \
+ && echo "EXPECTED: no dnf/microdnf/yum/rpm/apt/apk present" \
+ && python3.14 --version && git --version && uv --version && echo "bash ${BASH_VERSION}"
+
+# PROOF 2: OpenSSL 3 + Python links the SYSTEM libcrypto (the FIPS precondition).
+RUN echo "=== PROOF 2: OpenSSL 3 + system-libcrypto linkage ===" \
+ && openssl version \
+ && python3.14 -c "import ssl; print('py OpenSSL:', ssl.OPENSSL_VERSION)" \
+ && echo -n "  ossl-modules: " && ls /usr/lib64/ossl-modules/ \
+ && test -f /usr/lib64/ossl-modules/fips.so \
+ && echo "EXPECTED: Red Hat's own FIPS provider present (RHEL 9 = a TESTED OE for it)"
+
+# PROOF 3: TAP's real dependency closure installs; from-git plugin path works.
+COPY pyproject.toml uv.lock ./
+RUN echo "=== PROOF 3: uv sync + from-git plugin install ===" \
+ && uv sync --frozen --no-install-project --python /usr/bin/python3.14 \
+ && /app/.venv/bin/python -c "import django, webauthn; print('django', django.get_version(), '| webauthn ok')" \
+ && uv pip install --python /app/.venv/bin/python "click @ git+https://github.com/pallets/click@8.1.7" \
+ && /app/.venv/bin/python -c "import click; print('click from git:', click.__version__)" \
+ && echo "EXPECTED: uv sync + from-git install OK in a package-manager-less UBI runtime"
