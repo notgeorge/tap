@@ -10,9 +10,11 @@
 # `tap-ci-<line>` (Terraform `runner_labels` output). Adding a line = add a matrix entry
 # here AND a `product_lines` entry in the Terraform.
 #
-# NOT wired into the promote gate yet — this runs once CodeBuild is stood up and the
-# CodeConnections GitHub app is authorized. Until then the known-green all-plugins.yml
-# lane remains the authority.
+# PROMOTE GATE: the `test_all` union lane here is the promote gate — promote-to-main.sh
+# Step 2.6 dispatches `line=test_all` and blocks the atomic push on red (option B,
+# req-dev-validation-product-line-lanes-6). The free-runner all-plugins.yml lane is
+# retained as the fallback (TAP_PROMOTE_CI_WORKFLOW=all-plugins.yml) for when CodeBuild
+# is unavailable.
 
 name: product-lines
 
