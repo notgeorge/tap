@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "profile_kind": "dev_local",
   "description": "Samsite demo \u2014 stand a fresh session up end-to-end: seed the plugin GRIFT (AWS/GitHub/KSI/samsite pages + schedules), then fire the collectors that pull the live world in. INSTALL SOURCES (eviction complete, 2026-07-09): the 8 evicted substrate/domain plugins install from their OWN repos at pinned immutable tags (type:git + the read-only github-plugins-ro PAT fed via GIT_ASKPASS, never token-in-URL) \u2014 identity_core/compliance_core @ v0.1.0 (new substrate repos), computing_core/roscale/aws_core/sigstore_core/github_core/fedramp_20x_ksi @ v0.2.0 (re-released with the substrate refactor). administrivia/lotr/samsite/grid_fixtures stay editable from the monorepo (samsite is evict-last; lotr + grid_fixtures are core-suite test vocabulary retained editable for test_all; administrivia is TAP admin). Seed order is INSTALLED_APPS order; collector order matters: samsite-compliance reads aws_account nodes (boto3) AND content-matches github_workflow nodes (github_core), so both must run before it. Install order lists substrate (identity_core, compliance_core) before its consumers so git-sourced dependency resolution finds them already installed, not on an index.",
   "install": {
     "plugins": [

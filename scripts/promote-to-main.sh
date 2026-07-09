@@ -108,167 +108,177 @@ if [[ "$BEHIND" -gt 0 ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Step 2.5: development-validation gate (req-dev-multisession-promote-gate ↔
-# req-dev-validation-promote-hook). Runs AFTER the pre-push merge so it validates
-# the exact tree that will become origin/main, and BEFORE the atomic push so red
-# blocks the advance — a session never publishes a tree it has not validated,
-# which is what protects every session spawned from local main.
+# Step 2.5 + 2.6: parallelized validation gate (req-dev-multisession-promote-gate,
+# req-dev-multisession-ci-gate, req-dev-validation-product-line-lanes-6).
 #
-# The gate stands up a fresh scratch DB inside the running compose image and runs
-# the ordered cold-boot cycle; it is not reimplemented here. On --dry-run we skip
-# it (there is no push to gate). It requires the session's stack to be up.
+# Two validation surfaces gate the push, and they OVERLAP in wall-clock:
+#
+#   * CLOUD (Step 2.6) — the product-lines `test_all` union lane on AWS CodeBuild:
+#     the all-plugins authority (full plugin set, real image, Tier-0-tuned). Same
+#     suite the local lane would run, but definitive. Dispatched FIRST so it runs
+#     while the local gates run underneath it.
+#
+#   * LOCAL (Step 2.5) — cold-boot gate + lean-boot gate (structural checks the
+#     cloud lane does NOT do) plus a pytest lane. When the cloud gate is ACTIVE it
+#     owns the full corpus, so the local pytest is only the FAST fail-fast subset
+#     (`scripts/test --fast`, no gryphon corpus — deferred to the cloud). When the
+#     cloud gate is INACTIVE (bootstrap / skip-hatch), the local lane is the SOLE
+#     authority and runs the FULL corpus (`scripts/test --gryphon`).
+#
+# Wall-clock is max(local, cloud), not sum: the cloud run is kicked off, the local
+# gates run in its shadow, then we JOIN on the cloud run's conclusion. A local red
+# CANCELS the in-flight cloud run (saves compute). Both green ⇒ push. Either red, a
+# lost-contact timeout, or an un-runnable cloud gate ⇒ abort with origin/main NOT
+# advanced (fail-closed).
+#
+# The cloud lane runs against a THROWAWAY ref (_ci-gate/<session>), so neither
+# origin/main nor origin/session/<name> moves before validation — only Step 3's
+# atomic push advances them.
+#
+# Bootstrap: workflow_dispatch only works once the gate workflow is on origin/main;
+# until then the cloud gate is SKIPPED (detected via git) and the local FULL lane is
+# the sole authority for that one promote. Escape hatches: TAP_PROMOTE_CI_WORKFLOW=
+# all-plugins.yml (free-runner fallback) and TAP_PROMOTE_SKIP_CI_GATE=1 (skip cloud;
+# local FULL lane is authority). When the cloud gate SHOULD run, gh with the
+# 'workflow' scope is REQUIRED — a missing gh fails closed rather than silently
+# downgrading to a possibly-focused local stack.
 # ---------------------------------------------------------------------------
-if [[ "$DRY_RUN" -eq 1 ]]; then
-  info "[dry-run] would: scripts/test --gryphon (full lane) then scripts/gate (cold-boot gate) then scripts/gate-lean (lean-boot independence)"
-else
-  bold "Development-validation gate on the merged tree"
-  if ! scripts/dc ps --status running --services 2>/dev/null | grep -qx web; then
-    fail "Validation gate requires this session's stack to be up (scripts/dc up -d). \
-Refusing to promote an unvalidated tree to origin/main (req-dev-validation-promote-hook)."
-  fi
-  # Three composed surfaces (req-dev-validation-suite-tiers-1, req-dev-validation-promote-hook):
-  #   1. Full pytest lane — catches unit/functional regressions (e.g. a stale
-  #      collector key red'ing a unit test — the exact class that shipped to main
-  #      before this hook existed).
-  #   2. Cold-boot gate — catches what the suite structurally cannot: a cold boot
-  #      from zero, per-profile resolution, the real backend, real health. It boots
-  #      the full `test_all` union, so it is inherently a FULL-install check; on a
-  #      focused session (a plugin subset installed) it SKIPS via
-  #      --skip-if-not-installable and the all-plugins CI lane (Step 2.6) owns full
-  #      cold-boot truth (req-dev-validation-all-plugins-lane). On a full stack it runs.
-  #   3. Lean-boot independence gate — catches what BOTH above structurally cannot:
-  #      a core module importing a plugin-only dependency (requests/jwt class). The
-  #      cold-boot gate reuses this stack's FULL venv where the leak is invisible;
-  #      gate-lean stands up a separate stack with a core-only venv (~1 min) where
-  #      the leak fails loud. It branches the throwaway off HEAD (the just-merged
-  #      session tree — the exact tree about to become origin/main; local `main`
-  #      isn't advanced until after the push) and nukes itself on exit.
-  #      (req-dev-validation-lean-boot)
-  # --gryphon forces the gryphon corpus ON regardless of the diff: the default lane
-  # relevance-skips it locally (req-dev-validation-suite-tiers-5), but the gate must
-  # always run the full corpus (req-dev-validation-suite-tiers-4). Do NOT drop this.
-  info "Full test lane (scripts/test --gryphon) ..."
-  if ! scripts/test --gryphon; then
-    fail "Full test lane RED — aborting promote. origin/main is NOT advanced \
-(req-dev-validation-promote-hook-2). Fix the failing test(s) and re-run."
-  fi
-  info "Full test lane GREEN. Cold-boot gate (scripts/gate; skips on a focused stack) ..."
-  if ! scripts/gate --skip-if-not-installable; then
-    fail "Cold-boot gate RED — aborting promote. origin/main is NOT advanced \
-(req-dev-validation-promote-hook-2). Fix the failing step and re-run."
-  fi
-  info "Cold-boot gate GREEN. Lean-boot independence gate (scripts/gate-lean) ..."
-  if ! scripts/gate-lean; then
-    fail "Lean-boot gate RED — aborting promote. origin/main is NOT advanced \
-(req-dev-validation-promote-hook-2). Read the VERDICT line in the *-diag.log for the \
-classified cause — image-build/infra (a network flake, not your code) vs. import-leak \
-(a core module importing a plugin-only dependency) vs. boot/health — then the \
-/diagnose-failed-session-spawn skill."
-  fi
-  info "Validation GREEN (full lane + cold-boot gate + lean-boot gate) — proceeding to push."
-fi
-
-# ---------------------------------------------------------------------------
-# Step 2.6: all-plugins CI gate (req-dev-multisession-ci-gate, option B).
-# The local Step 2.5 gate only validates the plugins installed in THIS stack.
-# Once plugins leave the monorepo, all-plugins truth is server-side; this step
-# triggers the server lane on the exact merged tree and blocks the atomic push
-# on red — the reciprocal that protects main's full plugin set. Option B
-# (trigger + poll) is used, not a PR-gated merge, specifically so Step 3's
-# atomic dual-refspec push survives.
-#
-# The gate lane is the product-lines `test_all` union lane on AWS CodeBuild
-# (req-dev-validation-product-line-lanes-6). It runs the same all-plugins union
-# as the retained free-runner all-plugins.yml (req-dev-validation-all-plugins-
-# lane), but ~3× faster (~6 min vs ~21 min) and along the meaningful product
-# axis. all-plugins.yml stays on main as the documented free-runner fallback:
-# if CodeBuild/CodeConnections is unavailable, set TAP_PROMOTE_CI_WORKFLOW=
-# all-plugins.yml (or the escape hatch below) to fall back.
-#
-# It runs the lane against a THROWAWAY ref (not the session branch), so neither
-# origin/main nor origin/session/<name> moves before validation — the atomic
-# push in Step 3 stays the only thing that advances them.
-#
-# Bootstrap: workflow_dispatch only works once the gate workflow is on
-# origin/main. Until the first promote lands it there, this gate cannot run and
-# is SKIPPED — that first promote is ungated by construction. Detection uses git
-# (the file's presence on origin/main), so bootstrap needs no gh. Switching the
-# gate to product-lines.yml re-triggers exactly one bootstrap-skip promote (the
-# one that lands product-lines.yml on main), by construction.
-#
-# Escape hatch: TAP_PROMOTE_SKIP_CI_GATE=1 skips loudly — use only when the full
-# plugin set is validated another way (e.g. a full-monorepo local lane where the
-# stack already has every plugin installed, as in the session that landed this).
-# ---------------------------------------------------------------------------
-# The gate lane; override with TAP_PROMOTE_CI_WORKFLOW to fall back to the
-# free-runner all-plugins.yml when CodeBuild is unavailable.
 CI_WORKFLOW="${TAP_PROMOTE_CI_WORKFLOW:-product-lines.yml}"
-# product-lines.yml is a per-line matrix; the promote gate runs only the
-# all-plugins `test_all` union lane. all-plugins.yml takes no inputs.
+# product-lines.yml is a per-line matrix; the promote gate runs only the all-plugins
+# `test_all` union lane. all-plugins.yml takes no inputs.
 CI_DISPATCH_ARGS=()
 [[ "$CI_WORKFLOW" == "product-lines.yml" ]] && CI_DISPATCH_ARGS=(-f line=test_all)
+
+# Run the local validation surfaces in order. $1 = "fast" | "full". Called in a
+# condition (`if ! run_local_gates ...`), so `set -e` is relaxed inside the body —
+# every step handles its own failure with an explicit `|| return 1`.
+run_local_gates() {
+  local mode="$1"
+  if ! scripts/dc ps --status running --services 2>/dev/null | grep -qx web; then
+    warn "Validation gate requires this session's stack to be up (scripts/dc up -d)."
+    return 1
+  fi
+  # Clear mypy's incremental cache — it goes stale across the pre-push merge when a
+  # merge moves/deletes a module (content-hash invalidation misses the tree-structure
+  # change → false import-untyped in the mypy guard). The .githooks/post-merge hook
+  # also clears it; this is the hook-independent fail-safe on the branch that advances
+  # origin/main. (Standardizes the fix for the github_core false red on tip a94bc98c.)
+  info "Clearing mypy incremental cache (post-merge staleness guard) ..."
+  scripts/dc exec -T web sh -c 'rm -rf /app/.mypy_cache' 2>/dev/null || true
+  if [[ "$mode" == "full" ]]; then
+    # Sole authority: run the FULL corpus. --gryphon forces the gryphon corpus ON
+    # regardless of the diff (req-dev-validation-suite-tiers-4).
+    info "Local pytest — FULL lane (scripts/test --gryphon; cloud gate inactive → sole authority) ..."
+    scripts/test --gryphon || return 1
+  else
+    # Cloud owns the full corpus incl. gryphon; local runs the fast fail-fast subset.
+    info "Local pytest — FAST lane (scripts/test --fast; cloud gate owns the full corpus incl. gryphon) ..."
+    scripts/test --fast || return 1
+  fi
+  # Cold-boot gate — a cold boot from zero, per-profile resolution, real backend/health.
+  # Boots the full `test_all` union, so it is inherently a FULL-install check; on a
+  # focused session it SKIPS via --skip-if-not-installable and the cloud lane owns full
+  # cold-boot truth (req-dev-validation-all-plugins-lane). On a full stack it runs.
+  info "Local pytest GREEN. Cold-boot gate (scripts/gate; skips on a focused stack) ..."
+  scripts/gate --skip-if-not-installable || return 1
+  # Lean-boot independence — catches a core module importing a plugin-only dependency
+  # (requests/jwt class) in an isolated core-only venv where the leak fails loud; the
+  # cold-boot gate's full venv hides it (req-dev-validation-lean-boot).
+  info "Cold-boot gate GREEN. Lean-boot independence gate (scripts/gate-lean) ..."
+  scripts/gate-lean || return 1
+  info "Local gates GREEN (pytest + cold-boot + lean-boot)."
+  return 0
+}
+
 if [[ "$DRY_RUN" -eq 1 ]]; then
-  info "[dry-run] would: trigger the all-plugins CI lane on the merged tree and poll to green before pushing (unless bootstrap or TAP_PROMOTE_SKIP_CI_GATE)"
-elif ! git cat-file -e "origin/main:.github/workflows/$CI_WORKFLOW" 2>/dev/null; then
-  warn "all-plugins CI workflow not yet on origin/main — bootstrap promote, all-plugins CI gate SKIPPED."
-  warn "Expected exactly once: the promote that first lands .github/workflows/$CI_WORKFLOW on main. Every promote after is gated."
-elif [[ "${TAP_PROMOTE_SKIP_CI_GATE:-0}" == "1" ]]; then
-  warn "TAP_PROMOTE_SKIP_CI_GATE=1 — SKIPPING the all-plugins CI gate (req-dev-multisession-ci-gate)."
-  warn "Only this stack's installed plugin subset is server-validated. Do this only when the full set is known green another way."
+  info "[dry-run] would: dispatch $CI_WORKFLOW (line=test_all) on the merged tree, run the local gates (scripts/test --fast + cold-boot + lean-boot) CONCURRENTLY in its shadow, JOIN on the cloud run, and push only if both are green. When the cloud gate is bootstrap/skipped, would run the FULL local lane (--gryphon) as the sole authority instead."
 else
-  bold "All-plugins CI gate on the merged tree (req-dev-multisession-ci-gate)"
-  command -v gh >/dev/null 2>&1 || fail "The all-plugins CI gate is live (workflow on origin/main) but 'gh' is not installed/on PATH — cannot validate the full plugin set. Install+auth gh, or set TAP_PROMOTE_SKIP_CI_GATE=1 if the full set is validated another way."
-  gh repo view --json nameWithOwner -q .nameWithOwner >/dev/null 2>&1 || fail "gh could not resolve the repo (auth?). Run 'gh auth login' (needs the 'workflow' scope)."
-  TIP="$(git rev-parse HEAD)"
-  CI_REF="_ci-gate/$SESSION"
-  info "Publishing merged tree to origin/$CI_REF (throwaway ref) for CI ..."
-  git push -f origin "HEAD:refs/heads/$CI_REF" >/dev/null 2>&1 || fail "Could not publish the CI ref origin/$CI_REF."
-  # Clean the throwaway ref up on ANY exit path from here on.
-  _ci_cleanup() { git push origin --delete "$CI_REF" >/dev/null 2>&1 || true; }
-  trap _ci_cleanup EXIT
-  info "Dispatching $CI_WORKFLOW on $CI_REF ($TIP) ..."
-  # Empty-array expansion under `set -u` on bash 3.2 (macOS) needs the +alt-value guard.
-  gh workflow run "$CI_WORKFLOW" --ref "$CI_REF" "${CI_DISPATCH_ARGS[@]+"${CI_DISPATCH_ARGS[@]}"}" >/dev/null 2>&1 || fail "Failed to dispatch $CI_WORKFLOW on $CI_REF (does the token carry the 'workflow' scope?)."
-  # workflow_dispatch does not return a run id — poll for the run on our exact SHA.
-  RUN_ID=""
-  for _ in $(seq 1 40); do
-    RUN_ID="$(gh run list --workflow "$CI_WORKFLOW" --branch "$CI_REF" --json databaseId,headSha \
-                -q "[.[] | select(.headSha==\"$TIP\")][0].databaseId" 2>/dev/null || true)"
-    [[ -n "$RUN_ID" && "$RUN_ID" != "null" ]] && break
-    sleep 5
-  done
-  [[ -n "$RUN_ID" && "$RUN_ID" != "null" ]] || fail "Could not locate the dispatched CI run for $TIP on $CI_REF."
-  info "Watching all-plugins CI run $RUN_ID ($CI_WORKFLOW — ~6-8 min on CodeBuild, ~20-30 min on the all-plugins.yml fallback) ..."
-  # NB: `gh run watch --exit-status` conflates "CI failed" with "gh itself errored" — a
-  # transient API blip (e.g. HTTP 401 mid-watch over a 20-30 min run) exits non-zero and would
-  # false-abort a perfectly green run. Drive the poll ourselves and decide on the run's REAL
-  # conclusion: treat gh/API errors as transient (retry), and let only a completed non-success
-  # abort. Fail-closed is preserved — a timeout or sustained lost-contact still refuses to push.
-  CI_CONCLUSION=""
-  _ci_errs=0
-  for _ in $(seq 1 240); do          # 240 * 15s = 60 min ceiling
-    _ci_line="$(gh run view "$RUN_ID" --json status,conclusion \
-                  -q '.status + "|" + (.conclusion // "")' 2>/dev/null || true)"
-    if [[ -z "$_ci_line" ]]; then
-      _ci_errs=$((_ci_errs + 1))
-      [[ "$_ci_errs" -ge 20 ]] && fail "Lost contact with GitHub polling CI run $RUN_ID (20 consecutive errors) \
-— cannot confirm green, so refusing to push. origin/main is NOT advanced. Check gh auth; inspect: gh run view $RUN_ID"
-      sleep 15
-      continue
+  # --- Decide the cloud gate's disposition. ---
+  CLOUD_ACTIVE=0
+  if ! git cat-file -e "origin/main:.github/workflows/$CI_WORKFLOW" 2>/dev/null; then
+    warn "Cloud gate workflow ($CI_WORKFLOW) not yet on origin/main — bootstrap promote, cloud gate SKIPPED."
+    warn "The local FULL lane is the sole authority for this one promote. Every promote after is cloud-gated."
+  elif [[ "${TAP_PROMOTE_SKIP_CI_GATE:-0}" == "1" ]]; then
+    warn "TAP_PROMOTE_SKIP_CI_GATE=1 — SKIPPING the cloud gate. The local FULL lane is the authority."
+    warn "Only this stack's installed plugin subset is validated locally; do this only when the full set is known green another way."
+  else
+    # Cloud gate SHOULD run — require gh (fail-closed: never silently downgrade to a
+    # possibly-focused local stack when cloud validation was expected).
+    command -v gh >/dev/null 2>&1 || fail "Cloud gate is live (workflow on origin/main) but 'gh' is not installed/on PATH. Install+auth gh, or set TAP_PROMOTE_SKIP_CI_GATE=1 if the full set is validated another way."
+    gh repo view --json nameWithOwner -q .nameWithOwner >/dev/null 2>&1 || fail "gh could not resolve the repo (auth?). Run 'gh auth login' (needs the 'workflow' scope)."
+    CLOUD_ACTIVE=1
+  fi
+
+  if [[ "$CLOUD_ACTIVE" -eq 0 ]]; then
+    # --- Serial: local FULL lane is the sole authority (bootstrap / skip-hatch). ---
+    bold "Development-validation gate on the merged tree (local FULL lane — cloud gate inactive)"
+    run_local_gates full || fail "Local validation RED — aborting promote. origin/main is NOT advanced (req-dev-validation-promote-hook-2). Fix and re-run."
+    info "Validation GREEN — proceeding to push."
+  else
+    # --- Parallel: kick off the cloud gate, run local gates in its shadow, join. ---
+    bold "Parallel validation gate (cloud CodeBuild lane + local gates overlap)"
+    TIP="$(git rev-parse HEAD)"
+    CI_REF="_ci-gate/$SESSION"
+    info "Publishing merged tree to origin/$CI_REF (throwaway ref) for the cloud gate ..."
+    git push -f origin "HEAD:refs/heads/$CI_REF" >/dev/null 2>&1 || fail "Could not publish the CI ref origin/$CI_REF."
+    # Clean the throwaway ref up on ANY exit path from here on.
+    _ci_cleanup() { git push origin --delete "$CI_REF" >/dev/null 2>&1 || true; }
+    trap _ci_cleanup EXIT
+    info "Dispatching $CI_WORKFLOW on $CI_REF ($TIP) ..."
+    # Empty-array expansion under `set -u` on bash 3.2 (macOS) needs the +alt-value guard.
+    gh workflow run "$CI_WORKFLOW" --ref "$CI_REF" "${CI_DISPATCH_ARGS[@]+"${CI_DISPATCH_ARGS[@]}"}" >/dev/null 2>&1 || fail "Failed to dispatch $CI_WORKFLOW on $CI_REF (does the token carry the 'workflow' scope?)."
+    # workflow_dispatch does not return a run id — poll for the run on our exact SHA.
+    RUN_ID=""
+    for _ in $(seq 1 40); do
+      RUN_ID="$(gh run list --workflow "$CI_WORKFLOW" --branch "$CI_REF" --json databaseId,headSha \
+                  -q "[.[] | select(.headSha==\"$TIP\")][0].databaseId" 2>/dev/null || true)"
+      [[ -n "$RUN_ID" && "$RUN_ID" != "null" ]] && break
+      sleep 5
+    done
+    [[ -n "$RUN_ID" && "$RUN_ID" != "null" ]] || fail "Could not locate the dispatched CI run for $TIP on $CI_REF."
+    info "Cloud gate running: $CI_WORKFLOW run $RUN_ID (~6-8 min). Running local gates underneath it ..."
+
+    # Local gates run NOW, concurrently with the cloud run. Fail-fast: a local red
+    # cancels the in-flight cloud run to save compute, then aborts.
+    if ! run_local_gates fast; then
+      warn "Local gates RED — cancelling in-flight cloud run $RUN_ID to save compute ..."
+      gh run cancel "$RUN_ID" >/dev/null 2>&1 || true
+      fail "Local gates RED — aborting promote. origin/main is NOT advanced (req-dev-validation-promote-hook-2). Fix and re-run."
     fi
+
+    # JOIN: local is green; now wait on the cloud run's REAL conclusion.
+    # NB: `gh run watch --exit-status` conflates "CI failed" with "gh itself errored" — a
+    # transient API blip (e.g. HTTP 401 mid-watch) exits non-zero and would false-abort a
+    # green run. Drive the poll ourselves: treat gh/API errors as transient (retry), and
+    # let only a completed non-success abort. Fail-closed — a timeout or sustained
+    # lost-contact still refuses to push.
+    info "Local gates GREEN — joining on cloud run $RUN_ID ..."
+    CI_CONCLUSION=""
     _ci_errs=0
-    if [[ "${_ci_line%%|*}" == "completed" ]]; then
-      CI_CONCLUSION="${_ci_line##*|}"
-      break
-    fi
-    sleep 15
-  done
-  [[ "$CI_CONCLUSION" == "success" ]] || fail "All-plugins CI lane not green (run $RUN_ID, \
+    for _ in $(seq 1 240); do          # 240 * 15s = 60 min ceiling
+      _ci_line="$(gh run view "$RUN_ID" --json status,conclusion \
+                    -q '.status + "|" + (.conclusion // "")' 2>/dev/null || true)"
+      if [[ -z "$_ci_line" ]]; then
+        _ci_errs=$((_ci_errs + 1))
+        [[ "$_ci_errs" -ge 20 ]] && fail "Lost contact with GitHub polling cloud run $RUN_ID (20 consecutive errors) \
+— cannot confirm green, so refusing to push. origin/main is NOT advanced. Check gh auth; inspect: gh run view $RUN_ID"
+        sleep 15
+        continue
+      fi
+      _ci_errs=0
+      if [[ "${_ci_line%%|*}" == "completed" ]]; then
+        CI_CONCLUSION="${_ci_line##*|}"
+        break
+      fi
+      sleep 15
+    done
+    [[ "$CI_CONCLUSION" == "success" ]] || fail "Cloud gate not green (run $RUN_ID, \
 conclusion='${CI_CONCLUSION:-<timeout/unknown>}') — aborting promote. origin/main is NOT advanced \
 (req-dev-multisession-ci-gate-2). Inspect: gh run view $RUN_ID --log-failed"
-  info "All-plugins CI lane GREEN (run $RUN_ID) — proceeding to push."
-  _ci_cleanup
-  trap - EXIT
+    info "Cloud gate GREEN (run $RUN_ID) + local gates GREEN — proceeding to push."
+    _ci_cleanup
+    trap - EXIT
+  fi
 fi
 
 # ---------------------------------------------------------------------------

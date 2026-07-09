@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tap.dev/schemas/dev-passkey-record.schema.json",
+  "title": "TAP Dev Passkey Record",
+  "description": "The PUBLIC credential record a developer exports once (after registering a localhost passkey) so every freshly-spawned dev session can bind that same passkey with no re-registration (req-tap-auth-passkey-dev-bootstrap). Contains ONLY public material — never the private key, which stays under the authenticator/platform. CONFIDENTIALITY IS LOW-STAKES (reading this grants nothing); INTEGRITY IS LOAD-BEARING: import substitutes file bytes for the registration ceremony's proof-of-possession, so whoever controls these bytes controls which public key becomes admin. The record is written 0600 in an operator-owned dir (the named load-bearing mitigation) and carries a self-digest for corruption detection; the dev/local allowlist gate (req-tap-auth-passkey-dev-bootstrap-4) bounds blast radius. Schema validation checks SHAPE, not authenticity.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "rp_id", "origin_policy", "user_handle", "credential", "integrity"],
+  "properties": {
+    "version": {
+      "description": "Record schema version. 1 for the v0 shape.",
+      "type": "integer",
+      "const": 1
+    },
+    "rp_id": {
+      "description": "The Relying Party ID the credential is scoped to. In v0 this is ALWAYS `localhost`: WebAuthn's http secure-context carve-out is host `localhost`, and RP-ID `localhost` (which ignores port) is what lets one credential span every session's stack. A record with any other rp_id is refused.",
+      "type": "string",
+      "const": "localhost"
+    },
+    "origin_policy": {
+      "description": "How the login origin is resolved at import/login time. ALWAYS `per_session_localhost_exact`: the expected origin is NOT baked into this shared record — each importing session enforces its OWN exact origin `http://localhost:<its WEB_PORT>` (scheme+host+port), taken from that session's settings. This is the only thing preventing a co-resident `localhost:<other>` service from relaying a TAP-challenge assertion; a baked-in or any-`localhost` wildcard origin would open that relay (req-tap-auth-passkey-dev-bootstrap-6). Recorded here as a described constant so the policy travels with the file, not as a concrete origin.",
+      "type": "string",
+      "const": "per_session_localhost_exact"
+    },
+    "user_handle": {
+      "description": "The opaque WebAuthn user handle (hex) the ORIGINAL registration used as `user.id` — captured once and replayed so every session's imported admin shares this handle and the discoverable credential on the authenticator resolves consistently (autofill). NOT a secret; it identifies which discoverable credential to offer, not proof of anything.",
+      "type": "string",
+      "pattern": "^[0-9a-f]+$",
+      "minLength": 2,
+      "maxLength": 256
+    },
+    "credential": {
+      "description": "The public credential material captured from the registered WebAuthnCredential.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["credential_id", "public_key", "sign_count", "aaguid", "transports", "device_type", "backed_up"],
+      "properties": {
+        "credential_id": {
+          "description": "The globally-unique credential id (base64url). The authenticator returns this on assertion; import binds it so a later assertion resolves to the imported admin.",
+          "type": "string",
+          "minLength": 1
+        },
+        "public_key": {
+          "description": "The COSE-encoded public key (base64url). The public half used to verify assertion signatures; the private half is never exported.",
+          "type": "string",
+          "minLength": 1
+        },
+        "sign_count": {
+          "description": "The signature counter captured at export (0 for platform passkeys, which do not increment). Imported as the stored baseline; because a real authenticator's counter only advances, a fresh session's assertion never regresses below this — so replay across sessions is safe (req-tap-auth-passkey-webauthn-8).",
+          "type": "integer",
+          "minimum": 0
+        },
+        "aaguid": {
+          "description": "The authenticator AAGUID (UUID string; all-zeros = unknown under attestation none). Public, informational.",
+          "type": "string"
+        },
+        "transports": {
+          "description": "The transports the authenticator advertised (e.g. `internal`, `hybrid`). Public hint.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "device_type": {
+          "description": "Whether the credential is device-bound (`single_device`) or multi-device/synced (`multi_device`) — derived from the BE flag at registration. Feeds recovery-risk legibility, not authorization.",
+          "type": "string",
+          "enum": ["single_device", "multi_device"]
+        },
+        "backed_up": {
+          "description": "The Backup State (BS) flag at registration — whether the credential is currently backed up / synced. Public characteristic.",
+          "type": "boolean"
+        }
+      }
+    },
+    "exported_at": {
+      "description": "Optional ISO-8601 timestamp the record was exported. Informational only; not part of the integrity digest's authority (it is inside the digested content, but the digest is corruption-detection, not authenticity).",
+      "type": "string"
+    },
+    "integrity": {
+      "description": "Corruption-detection self-digest. `digest` is the sha256 (hex) of the CANONICAL record with this `integrity` object removed. It catches accidental truncation/corruption and pins the shape; it is NOT anti-tamper against a same-uid process (which could recompute it) — that residual is the NAMED load-bearing risk the 0600 + operator-owned-dir mitigation covers (req-tap-auth-passkey-dev-bootstrap-8).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["digest_alg", "digest"],
+      "properties": {
+        "digest_alg": {
+          "description": "The digest algorithm. Always `sha256` in v0.",
+          "type": "string",
+          "const": "sha256"
+        },
+        "digest": {
+          "description": "Lowercase-hex sha256 of the canonical record (sorted keys, tight separators) with the `integrity` key removed.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    }
+  }
+}

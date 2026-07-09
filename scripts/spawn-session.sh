@@ -463,6 +463,12 @@ git worktree add "$WORKTREE" -b "session/$SESSION_NAME" "$BASE_REF"
 cd "$WORKTREE"
 info "Created. Now on branch session/$SESSION_NAME (branched from $BASE_REF)."
 
+# Point git at the tracked .githooks/ (post-merge/checkout/rewrite clear a stale
+# .mypy_cache — see .githooks/_clear_mypy_cache.sh). Idempotent: this writes the
+# SHARED config (worktrees share one common git dir), so all worktrees inherit it;
+# re-setting it per-spawn is just insurance for a fresh clone that never set it.
+git config core.hooksPath .githooks
+
 # --boot-file: stage the provided profile into this worktree's boot/ under its
 # basename id, then boot it like any named profile. The staged copy is a local,
 # uncommitted file in the throwaway worktree (fine — it goes away on despawn).
@@ -747,6 +753,39 @@ if ! scripts/dc exec \
 fi
 
 info "Instance booted via manage.py boot. Credentials saved to $WORKTREE/.dev-credentials (gitignored)."
+
+# ============================================================================
+# Step 6.4: Dev passkey replay — register once, replay forever (conditional)
+#
+# The turnkey passkey login for multi-session dev (req-tap-auth-passkey-dev-bootstrap):
+# a developer registers a `localhost` passkey ONCE, exports the PUBLIC record
+# (`manage.py export_dev_passkey`) into the shared secrets dir, and every future
+# spawn binds that same passkey onto `admin` here — one-gesture passkey login with
+# no re-registration, exercising the real passkey path instead of the password bridge.
+#
+# Conditional + fail-open by design:
+#   * No record yet (the common first-run case) → skip, print how to enable it.
+#     The password bridge from Step 6 still logs the developer in.
+#   * Record present but the profile is not `dev_local` → the command REFUSES
+#     (fail closed, req-…-dev-bootstrap-4); we surface it and fall back to the
+#     password bridge rather than aborting the spawn.
+# The bind runs AFTER boot so sync_auth has provisioned the `tap_admin` group.
+# ============================================================================
+DEV_PASSKEY_RECORD_HOST="$WORKTREE/tap_secrets/dev-passkey/admin.dev-passkey.json"
+if [[ -f "$DEV_PASSKEY_RECORD_HOST" ]]; then
+  bold "Step 6.4: Binding dev passkey (register-once replay)"
+  if scripts/dc exec -T web uv run python manage.py enroll_admin \
+      --import-dev-passkey --profile "$BOOT_PROFILE_EFFECTIVE"; then
+    info "Dev passkey bound to admin. Log in at http://localhost:$WEB_PORT/ with your passkey (no password needed)."
+  else
+    info "Dev passkey import was refused or failed (profile '$BOOT_PROFILE_EFFECTIVE' may not be 'dev_local', \
+or the record is invalid) — continuing with the password bridge. See the output above."
+  fi
+else
+  info "No dev passkey record at $DEV_PASSKEY_RECORD_HOST — skipping passkey replay (password bridge only)."
+  info "  To enable one-gesture passkey login on every future spawn: register a passkey in this session, then"
+  info "  scripts/dc exec web uv run python manage.py export_dev_passkey > \"$DEV_PASSKEY_RECORD_HOST\""
+fi
 
 # ============================================================================
 # Step 6.5: Functional health gate (manage.py health)

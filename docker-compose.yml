@@ -6,8 +6,10 @@ services:
   # PostgreSQL Database
   # ============================================================================
   db:
-    # Official PostgreSQL 16 image (Alpine variant for smaller size)
-    image: postgres:16-alpine
+    # Official PostgreSQL 16 (Alpine variant), via AWS's credential-free public ECR mirror
+    # of Docker Official Images — not docker.io — to avoid Docker Hub's anonymous per-IP
+    # pull rate limit (429) on shared CI runners (req-cicd-base-image-sourcing).
+    image: public.ecr.aws/docker/library/postgres:16-alpine
 
     # Raise the lock table for parallel test runs. Each pytest-xdist worker's
     # transaction=True flush TRUNCATEs the full table set (~247 tables → one
@@ -18,7 +20,27 @@ services:
     # 512 gives a ~51k-slot pool — ample headroom for `-n auto`. Test/dev infra
     # only; the extra shared memory is negligible.
     # (req-dev-validation-suite-tiers; docs/misc/test-parallelization-xdist-notes.md)
-    command: ["postgres", "-c", "max_locks_per_transaction=512"]
+    #
+    # Local Tier-0 throughput tuning (the disk-safe subset of docker-compose.ci.yml's
+    # override). The dev/test cluster holds only reproducible data, so trade durability
+    # for speed: fsync/synchronous_commit/full_page_writes off eliminates the per-commit
+    # sync that dominates the Postgres-I/O-bound test lane (the full lane is ~95%
+    # DB-bound). Unlike CI we do NOT put PGDATA on tmpfs — the persistent `postgres_data`
+    # volume is kept, so your data survives a CLEAN restart. The only cost: an UNCLEAN
+    # shutdown (power loss, OOM/kill -9 of postgres) can corrupt the cluster — rebuild
+    # with `scripts/dc down -v` + re-seed. CI fully replaces this command (with tmpfs),
+    # so this base tuning affects local stacks only. Takes effect on the next db
+    # container recreate (`scripts/dc up -d`).
+    command:
+      - "postgres"
+      - "-c"
+      - "max_locks_per_transaction=512"
+      - "-c"
+      - "fsync=off"
+      - "-c"
+      - "synchronous_commit=off"
+      - "-c"
+      - "full_page_writes=off"
 
     # Persist database data between container restarts
     # Without this, your data disappears when the container stops

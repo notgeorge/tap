@@ -23,6 +23,8 @@ Example (fresh instance):
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
 from typing import Any
 
 from django.conf import settings
@@ -30,9 +32,21 @@ from django.core.management.base import BaseCommand, CommandError
 from django.urls import reverse
 
 from tap_auth.actors import BOOTLOADER, get_builtin_actor
+from tap_auth.boot import read_profile_kind
 from tap_auth.errors import MissingActor
 from tap_auth.invitations import GENESIS_TTL, _mint_invitation
 from tap_auth.models import InvitationAction, User, UserKind
+from tap_auth.passkey.dev_record import (
+    DevImportNotAllowed,
+    DevRecordError,
+    assert_dev_import_allowed,
+    import_dev_admin,
+    load_dev_record,
+)
+
+# Default record location: the operator's read-only secrets mount, mirroring the
+# `export_dev_passkey > ~/tap-secrets/dev-passkey/admin.dev-passkey.json` convention.
+_DEV_RECORD_RELPATH = "dev-passkey/admin.dev-passkey.json"
 
 
 class Command(BaseCommand):
@@ -41,9 +55,10 @@ class Command(BaseCommand):
     def add_arguments(self, parser: Any) -> None:
         parser.add_argument(
             "--email",
-            required=True,
+            default="",
             metavar="EMAIL",
-            help="Contact email recorded on the invitation (NOT identity — a label only).",
+            help="Contact email recorded on the invitation (NOT identity — a label only). "
+            "Required for the mint path; ignored by --import-dev-passkey.",
         )
         parser.add_argument(
             "--display-name",
@@ -62,8 +77,42 @@ class Command(BaseCommand):
             action="store_true",
             help="Emit the one-time enrollment link INCLUDING its secret fragment to stdout.",
         )
+        parser.add_argument(
+            "--import-dev-passkey",
+            action="store_true",
+            help=(
+                "DEV ONLY: skip minting an invitation and instead bind a previously-exported dev "
+                "passkey record directly onto the admin (register-once → replay). Permitted ONLY "
+                "under an explicitly 'dev_local' boot profile; refused (fail closed) otherwise."
+            ),
+        )
+        parser.add_argument(
+            "--dev-passkey-record",
+            default="",
+            metavar="PATH",
+            help=(
+                "Path to the exported dev passkey record for --import-dev-passkey "
+                f"(default: $TAP_SECRETS_ROOT/{_DEV_RECORD_RELPATH})."
+            ),
+        )
+        parser.add_argument(
+            "--profile",
+            default="",
+            metavar="NAME",
+            help=(
+                "Boot profile whose profile_kind gates --import-dev-passkey "
+                "(default: $TAP_BOOT_PROFILE). Must classify as 'dev_local' to permit import."
+            ),
+        )
 
     def handle(self, *args: Any, **options: Any) -> None:
+        if options["import_dev_passkey"]:
+            self._handle_dev_import(options)
+            return
+
+        if not options["email"]:
+            raise CommandError("--email is required when minting an enrollment invitation.")
+
         # Resolve the bootloader actor for the audit attribution. If it is absent, auth
         # sync has not run — refuse loudly rather than mint an unattributable invitation.
         try:
@@ -106,6 +155,52 @@ class Command(BaseCommand):
                 f"Public id: {invitation.public_id}. Re-run with --print-token to reveal the "
                 "one-time enrollment link (the secret is shown once and never stored)."
             )
+
+    def _handle_dev_import(self, options: dict[str, Any]) -> None:
+        """Bind an exported dev passkey record onto the admin — the gated replay path.
+
+        Two guards are the entire trust basis (:mod:`tap_auth.passkey.dev_record`): the
+        profile-kind ALLOWLIST (permit only under an explicitly ``dev_local`` profile,
+        checked FIRST so a wrong profile never even reads the record) and the record's own
+        schema + integrity check. Below the capability gate like genesis — it binds an admin
+        credential with no ceremony, so both guards are load-bearing."""
+        profile_id = options["profile"] or os.environ.get("TAP_BOOT_PROFILE", "")
+        profile_kind = read_profile_kind(profile_id)
+        try:
+            assert_dev_import_allowed(profile_kind)
+        except DevImportNotAllowed as exc:
+            raise CommandError(str(exc)) from exc
+
+        record_path = self._resolve_record_path(options["dev_passkey_record"])
+        try:
+            record = load_dev_record(record_path)
+            user = import_dev_admin(record)
+        except DevRecordError as exc:
+            raise CommandError(f"dev passkey import failed: {exc}") from exc
+
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Imported dev passkey onto admin '{user.username}' from {record_path} "
+                f"(profile '{profile_id}' = {profile_kind}). Log in with the passkey — no ceremony needed."
+            )
+        )
+
+    def _resolve_record_path(self, override: str) -> Path:
+        """Where to read the record: the explicit ``--dev-passkey-record`` path, else the
+        default under the operator's secrets mount. Refuse loudly if it is not a file."""
+        if override:
+            path = Path(override)
+        else:
+            secrets_root = getattr(settings, "TAP_SECRETS_ROOT", "") or os.environ.get(
+                "TAP_SECRETS_ROOT", "/run/tap-secrets"
+            )
+            path = Path(secrets_root) / _DEV_RECORD_RELPATH
+        if not path.is_file():
+            raise CommandError(
+                f"dev passkey record not found at {path} — run `manage.py export_dev_passkey` from a "
+                "session that has registered a passkey and redirect it there first."
+            )
+        return path
 
     def _default_base_url(self) -> str:
         origin = getattr(settings, "TAP_PASSKEY_ORIGIN", "") or getattr(settings, "TAP_BASE_URL", "")

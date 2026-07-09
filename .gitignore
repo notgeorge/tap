@@ -102,3 +102,4 @@ coverage.json
 htmlcov/
 tmp-build/
 wheelhouse/
+.test_durations

@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "profile_kind": "dev_local",
   "description": "Gryphon soak — the fuzz-campaign flavor. Same install as the playground record (grid_fixtures + gryphon_playground, git-sourced), but RESERVED for the differential-fuzz soak: a long unattended campaign that grinds fresh seed bands looking for executor/oracle divergences. IMPORTANT (honest scope, not a latent guarantee): the fuzz campaign is driven OUT-OF-BAND today by scripts/gryphon-fuzz-campaign against a standing instance; it is NOT yet a runtime boot-population task loop. This record exists now to exercise multi-record selection (`<source-ref>#soak` vs `#playground`) and the manifest↔files coherence guard; its population steps are wired to the campaign task loop later, when that task surface exists (tracked, not implied here). Until then, boot `#soak`, then run scripts/gryphon-fuzz-campaign against it. Selected by pointer `<source-ref>#soak`.",
   "install": {
     "plugins": [

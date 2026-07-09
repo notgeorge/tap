@@ -1,6 +1,10 @@
 # TAP Development Dockerfile
-# Base image: Official Python 3.14 slim variant (smaller than full image, has what we need)
-FROM python:3.14-slim
+# Base image: Official Python 3.14 slim variant, sourced via AWS's credential-free public
+# ECR mirror of Docker Official Images rather than docker.io. Anonymous docker.io pulls
+# share GitHub Actions' runner-pool IPs and routinely hit Docker Hub's per-IP rate limit
+# (HTTP 429) — a nondeterministic single point of failure on the promote gate's image
+# build. The public.ecr.aws mirror has no such limit (req-cicd-base-image-sourcing).
+FROM public.ecr.aws/docker/library/python:3.14-slim
 
 # ============================================================================
 # Environment Variables
