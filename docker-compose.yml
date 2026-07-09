@@ -6,8 +6,10 @@ services:
   # PostgreSQL Database
   # ============================================================================
   db:
-    # Official PostgreSQL 16 image (Alpine variant for smaller size)
-    image: postgres:16-alpine
+    # Official PostgreSQL 16 (Alpine variant), via AWS's credential-free public ECR mirror
+    # of Docker Official Images — not docker.io — to avoid Docker Hub's anonymous per-IP
+    # pull rate limit (429) on shared CI runners (req-cicd-base-image-sourcing).
+    image: public.ecr.aws/docker/library/postgres:16-alpine
 
     # Raise the lock table for parallel test runs. Each pytest-xdist worker's
     # transaction=True flush TRUNCATEs the full table set (~247 tables → one

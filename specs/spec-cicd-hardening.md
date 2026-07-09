@@ -98,6 +98,7 @@ cheap-edge doctrine; the rest are the larger deploy-half build, rightly deferred
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
+| req-cicd-base-image-sourcing | [Source Base Images Off Anonymous Docker Hub](#source-base-images-off-anonymous-docker-hub) | Implemented | Container base images resolve from AWS's credential-free public ECR mirror, not docker.io — removes the anonymous-pull `429` single point of failure on the promote gate. First cheap edge landed. |
 | req-cicd-branch-protection | [Enforce The Gate Server-Side](#enforce-the-gate-server-side) | Proposed | Protect `main` at the forge with a bypass for the promote identity; the gate stops being bypassable. Closes the biggest hole. |
 | req-cicd-security-scanning | [Shift-Left Security Scanning](#shift-left-security-scanning) | Proposed | SAST + dependency audit + secret scan + container scan as a standing CI layer. The table-stakes layer TAP conspicuously lacks. |
 | req-cicd-dep-automation | [Automate Dependency Updates](#automate-dependency-updates) | Proposed | Dependabot/Renovate on `uv.lock` — pinned deps rot without it. |
@@ -105,6 +106,39 @@ cheap-edge doctrine; the rest are the larger deploy-half build, rightly deferred
 | req-cicd-supply-chain-provenance | [Sign Artifacts, Emit SBOM](#sign-artifacts-emit-sbom) | Proposed | Sigstore/cosign signing + CycloneDX/SPDX SBOM; connect the boot-record BOM to standard formats. |
 | req-cicd-continuous-delivery | [Continuous Delivery](#continuous-delivery) | Proposed | Environments (staging/prod), progressive delivery, and a rollback path. The unbuilt deploy half. |
 | req-cicd-pipeline-observability | [Measure The Pipeline](#measure-the-pipeline) | Proposed | The four DORA metrics + systematic flaky-test tracking. |
+
+### Source Base Images Off Anonymous Docker Hub
+
+RID: `req-cicd-base-image-sourcing`
+
+The promote gate's cloud CI (`product-lines.yml`, the `test_all` lane gating **every** promote
+to `origin/main`) builds the web image on a GitHub Actions runner, and that build pulled its
+base image **anonymously from `docker.io`**. GHA's hosted runners share a pool of egress IPs
+across all of GitHub's customers, so Docker Hub's anonymous per-IP pull limit is frequently
+already exhausted at push time → `429 Too Many Requests` on the manifest HEAD → `buildx` dies
+in ~25s → the promote aborts. This is a **nondeterministic single point of failure on the
+critical path to shipping anything** — not specific to any one change (it blocked a passkey
+promote three times running, 2026-07-09), with no backpressure we control. Two base images
+were exposed: `python:3.14-slim` (`Dockerfile`) and `postgres:16-alpine` (`docker-compose.yml`).
+
+**Fix (the cheap, foundational edge):** resolve Docker Official Images through **AWS's public
+ECR mirror** (`public.ecr.aws/docker/library/<image>`) — a credential-free mirror not subject
+to Docker Hub's limit. Two one-line base changes; no new secret, no new infra; self-applying
+(the commit that swaps the base is the commit whose CI uses it, so it lands through the gate
+without a lucky retry) and it fixes local dev too. This is the `spec-security-posture.md`
+cheap-edge play: near-zero marginal cost now, removes a class of availability failure.
+
+| RID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-cicd-base-image-sourcing-1 | No anonymous Docker Hub base pulls | Implemented | No build/dev/CI base image is pulled anonymously from `docker.io`; all Docker Official Images resolve via `public.ecr.aws/docker/library/*`. | `Dockerfile` (`python:3.14-slim`) + `docker-compose.yml` (`postgres:16-alpine`). |
+| req-cicd-base-image-sourcing-2 | Rate-limit-free promote gate | Implemented | The promote gate's image build no longer depends on Docker Hub's anonymous quota, so a shared-runner IP exhaustion cannot red the gate. | Removes the observed `429` SPOF. |
+
+**Named residual (deferred, not hidden):** we still trust AWS's mirror rather than a copy we
+pin and control, and tags are mutable. Full supply-chain control — a **private ECR pull-through
+cache with digest-pinned bases** (and, later, hardened/minimized base images; see the
+base-image-strategy survey) — is deferred and composes with `req-cicd-build-once-artifact` /
+`req-cicd-supply-chain-provenance`. The v0 edge buys availability now; provenance is the next
+layer when air-gap/attestation demand arrives.
 
 ### Enforce The Gate Server-Side
 
