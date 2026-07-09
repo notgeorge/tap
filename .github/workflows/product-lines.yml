@@ -32,23 +32,40 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Pick the lane set. On dispatch, run only the selected lane (default test_all); a
+  # 'line=all' dispatch and every PR run all lanes. The matrix context is not available
+  # in a job-level if, so we compute the matrix here and feed it in via fromJSON.
+  # NOTE: the samsite lane git-installs plugins via the `github-plugins-ro` PAT and needs
+  # that credential materialized from AWS Secrets Manager (req-dev-validation-product-
+  # line-lanes; not yet wired) — until then only test_all is green-capable.
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.pick.outputs.matrix }}
+    steps:
+      - id: pick
+        env:
+          EVENT: ${{ github.event_name }}
+          LINE: ${{ github.event.inputs.line }}
+        run: |
+          test_all='{"line":"test_all","profile":"test_all"}'
+          samsite='{"line":"samsite","profile":"samsite"}'
+          if [ "$EVENT" = "workflow_dispatch" ] && [ "$LINE" != "all" ]; then
+            case "$LINE" in
+              test_all) inc="$test_all" ;;
+              samsite)  inc="$samsite" ;;
+              *) echo "::error::unknown line '$LINE'"; exit 1 ;;
+            esac
+          else
+            inc="$test_all,$samsite"
+          fi
+          echo "matrix={\"include\":[$inc]}" >> "$GITHUB_OUTPUT"
+
   line:
-    # On dispatch, run only the selected lane (default test_all); PRs run all lanes.
-    # NOTE: the samsite lane git-installs plugins via the `github-plugins-ro` PAT and
-    # needs that credential materialized from AWS Secrets Manager (req-dev-validation-
-    # product-line-lanes; not yet wired) — until then only test_all is green-capable.
-    if: >-
-      github.event_name != 'workflow_dispatch' ||
-      github.event.inputs.line == 'all' ||
-      github.event.inputs.line == matrix.line
+    needs: setup
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - line: test_all # the union superset lane
-            profile: test_all
-          - line: samsite # the SAM site product line
-            profile: samsite
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
     # CodeBuild GHA-runner label. Project name = tap-ci-<line> (Terraform name_prefix).
     runs-on: codebuild-tap-ci-${{ matrix.line }}-${{ github.run_id }}-${{ github.run_attempt }}
     timeout-minutes: 40
