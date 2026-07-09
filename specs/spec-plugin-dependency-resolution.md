@@ -34,9 +34,9 @@ The throughline is TAP's standing discipline: lean on the ecosystem tool (uv) fo
 | req-plugin-depres-bootemit | [Boot Record Emits uv Config](#boot-record-emits-uv-config) | Proposed | Boot record carries index list + routing + credential bindings; narrows to policy + order |
 | req-plugin-depres-lock | [uv.lock As BOM](#uvlock-as-bom) | Proposed | The resolved lockfile is the pinned, integrity-verified known-good-set |
 | req-plugin-depres-keyring | [Keyring-Subprocess Materialization](#keyring-subprocess-materialization) | Proposed | `--keyring-provider subprocess` → a first-party `runtime_secrets`-backed keyring backend in core |
-| req-plugin-depres-sources | [Pluggable Secret Sources](#pluggable-secret-sources) | Proposed | `tap.secret_sources` entry-point registry; disk source in core, cloud sources plugin-contributed |
-| req-plugin-depres-bootstrap | [Two-Phase Bootstrap Ordering](#two-phase-bootstrap-ordering) | Proposed | Source-provider plugins are bootstrap-tier; ambient cloud IAM for the store itself |
-| req-plugin-depres-trust | [Trust Boundary & Gated Registration](#trust-boundary--gated-registration) | Proposed | keyring backend is core-only; source registration is trust-gated; a secret resolves only via its named source |
+| req-plugin-depres-sources | [Pluggable Secret Sources](#pluggable-secret-sources) | Proposed | `tap.secret_sources` entry-point registry; disk in core, cloud via a slim `aws_secrets_source` distro (Decision A). **Being implemented now**, CI-driven (`req-dev-validation-product-line-lanes`) |
+| req-plugin-depres-bootstrap | [Two-Phase Bootstrap Ordering](#two-phase-bootstrap-ordering) | Proposed | Source-provider distros are bootstrap-tier; ambient cloud IAM for the store. First slice **preinstalls** the provider (Decision B); general two-phase engine deferred |
+| req-plugin-depres-trust | [Trust Boundary & Gated Registration](#trust-boundary--gated-registration) | Proposed | keyring backend core-only; source registration allow-listed (`{aws_secrets_source}`); a secret resolves only via its named source |
 | req-plugin-depres-registry-flaws | [Scoped-Registry FLAW Integration](#scoped-registry-flaw-integration) | Open | Collisions / blocked overwrites in the routing + source registries emit FLAW-tagged, severity-appropriate signals — **deferred to a separate design discussion** |
 
 ### Tier-0 uv Resolution
@@ -202,16 +202,31 @@ No cloud SDK enters core: boto3 rides with `aws_core` (which already carries it)
 - **The disk + ambient floor is irreducible.** The disk source is always core-resident, and the store's own auth is ambient cloud IAM (`req-plugin-depres-bootstrap`), never a TAP secret — so bootstrap-critical secrets can never be trapped behind a plugin-contributed source. This floor is the trust anchor, not a limitation.
 - **Read-only in v0.** `runtime_secrets` *resolves* values from a source; it does not create or rotate them. Secret creation/rotation stays out-of-band (the store directly, or IaC). A write path is explicitly out of scope for v0.
 
+#### Design Decisions (2026-07-08)
+
+Settled while pulling this seam forward to serve the AWS CodeBuild CI lanes (`spec-dev-validation.md` `req-dev-validation-product-line-lanes`), which need the `github-plugins-ro` git credential resolved from AWS Secrets Manager in the cloud and from disk locally — the exact "works local and cloud" case this seam exists for.
+
+- **Routing lives in the envelope `metadata`, not a new required field.** A manifest names its source with `metadata.source` (absent ⇒ the built-in disk source, today's behavior unchanged) and locates the value with `metadata.source_ref` (provider-specific, e.g. `{"secret_id": "tap-ci/github-plugins-ro"}`). The canonical `data` object stays required: for a disk secret it holds the value inline; for a sourced secret it is `{}` and the provider *returns* the effective `data`. The manifest is **always disk-resident** — only the value moves — so discovery, the size/leak guards, and `scope`/`key`/`kind`/`description` legibility are unchanged.
+- **Decision A — a slim, dedicated source-provider distribution, NOT `aws_core`.** The provider ships as a minimal package (working name `aws_secrets_source`: boto3 + one `AwsSecretsManagerSource` class + the `tap.secret_sources` entry point) rather than dragging all of `aws_core` into every cloud profile. Rationale: source providers must be **bootstrap-tier** (installable with no secret, `req-plugin-depres-bootstrap-1`), and the fine-grained-capability discipline favors a purpose-built public distribution over a heavy dependency. It contributes only a secret source — it is *not* a grid plugin (no `tap.plugins` entry, no BaseModel, no collectors). Supersedes this section's earlier "aws_core ships it" framing.
+- **The provider protocol is minimal:** `fetch(ref: Mapping, *, envelope) -> Mapping` returns the effective `data`. The registry is a settings-free `ScopedRegistry` populated from `tap.secret_sources` at preboot (mirroring `discover_entry_points()` for `tap.plugins`), so a source is available at install/resolve time before the Django app registry boots.
+
+#### Worked Example — `github-plugins-ro` on CodeBuild vs. locally
+
+- **Locally:** `~/tap-secrets/.../github-plugins-ro.secret.json` has the PAT inline in `data` and no `metadata.source` ⇒ disk source, unchanged.
+- **On CodeBuild:** the lane materializes a **routing manifest** (no secret material — safe to generate in the workflow) with `metadata.source = "aws_secrets_manager"` and `metadata.source_ref = {"secret_id": "tap-ci/github-plugins-ro"}`. At boot, `tap/plugin_source_auth.py` resolves the credential through `runtime_secrets` exactly as today; the seam dispatches to the `AwsSecretsManagerSource`, which calls `GetSecretValue` using the **CodeBuild role's ambient IAM** (`req-plugin-depres-bootstrap-3` — store auth is ambient, never a TAP secret, so no resolution recursion). The value is fed to `GIT_ASKPASS` and the private plugins install. The Terraform (`ci/terraform/codebuild-runners/`) creates the Secrets Manager secret (empty shell; the PAT is populated out-of-band, never in git) and grants the lane role `secretsmanager:GetSecretValue` on that one ARN.
+- **Cross-scope note:** `github-plugins-ro` lives in the install-system `tap_plugins.source` scope, whose resolution trips the detective `CONCERN` tripwire (`spec-tap-cares-secrets.md` `req-tap-cares-secrets-cross-scope-concern`). The install system resolving its own scope is the legitimate case; the seam does not change who resolves it, only where the value comes from.
+
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-plugin-depres-sources-1 | Source seam | Proposed | A secret declares its source; `runtime_secrets` dispatches to a registered provider. | Disk is the built-in. |
+| req-plugin-depres-sources-1 | Source seam | Proposed | A secret declares its source via `metadata.source`; `runtime_secrets` dispatches to a registered provider (absent ⇒ disk). | Disk is the built-in; manifest stays disk-resident. |
 | req-plugin-depres-sources-2 | Entry-point discovery | Proposed | Sources are discovered from `tap.secret_sources` distribution metadata, settings-free at preboot. | Mirrors `discover_entry_points()`. |
-| req-plugin-depres-sources-3 | Cloud sources are plugin-contributed | Proposed | aws_core ships the AWS Secrets Manager source; core carries no cloud SDK. | Reuses aws_core's boto session. |
+| req-plugin-depres-sources-3 | Cloud sources are plugin-contributed | Proposed | A slim, dedicated `aws_secrets_source` distribution ships the AWS Secrets Manager source (boto3); core carries no cloud SDK. | **Decision A** — not `aws_core`; bootstrap-tier, source-only (no `tap.plugins`). |
 | req-plugin-depres-sources-4 | Missing source fails loud | Proposed | A secret naming an unregistered source raises, never silently degrades. | |
 | req-plugin-depres-sources-5 | Seam is general | Proposed | The source seam serves all `runtime_secrets` consumers, not just keyring; `~/tap-secrets` becomes the disk source; the manifest stays TAP-owned while only the value moves; migration is per-secret. | Deliberately general by design. |
 | req-plugin-depres-sources-6 | Read-only in v0 | Proposed | `runtime_secrets` resolves values from a source; it does not create or rotate them. A write path is out of scope for v0. | Rotation stays in the store / IaC. |
+| req-plugin-depres-sources-7 | Routing in envelope metadata | Proposed | Routing is `metadata.source` + `metadata.source_ref`; `data` stays required (inline for disk, `{}` + provider-returned for a source). | No change to required fields or the guards. |
 
 ### Two-Phase Bootstrap Ordering
 ----
@@ -225,13 +240,15 @@ A secret-source provider that lives in a plugin creates an ordering constraint: 
 
 The store *itself* authenticates via **ambient cloud IAM** (an instance role), never a TAP secret — so there is no resolution recursion.
 
+**Decision B (2026-07-08) — first slice preinstalls the source provider; the general two-phase-install engine is deferred.** The `aws_secrets_source` distribution is public and secret-free, so for the CI lanes it is simply **baked into the CodeBuild image** (or installed in a pre-boot step) — present and registered before boot resolves the git credential. This satisfies bootstrap-tier (`-1`) and ambient auth (`-3`) on the concrete case *now* without building the general bootstrap-vs-gated install ordering (`-2`), which stays `Proposed` until a deployment needs source-provider install ordering it cannot preinstall. Get the concrete case working, generalize when a second case demands it.
+
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-plugin-depres-bootstrap-1 | Source providers are bootstrap-tier | Proposed | A plugin contributing a secret source installs without a plugin-supplied secret. | Public aws_core is the exemplar. |
-| req-plugin-depres-bootstrap-2 | Two-phase install | Proposed | Bootstrap plugins (+ their sources) resolve before secret-gated private plugins. | |
-| req-plugin-depres-bootstrap-3 | Ambient store auth | Proposed | The secret store authenticates via ambient cloud IAM, not a TAP secret — no recursion. | |
+| req-plugin-depres-bootstrap-1 | Source providers are bootstrap-tier | Proposed | A distribution contributing a secret source installs without a plugin-supplied secret. | `aws_secrets_source` is public/secret-free — the exemplar. |
+| req-plugin-depres-bootstrap-2 | Two-phase install | Proposed | Bootstrap distributions (+ their sources) resolve before secret-gated private plugins. | **Deferred** (Decision B): CI preinstalls the provider instead; general engine awaits a second case. |
+| req-plugin-depres-bootstrap-3 | Ambient store auth | Proposed | The secret store authenticates via ambient cloud IAM, not a TAP secret — no recursion. | CodeBuild role's `GetSecretValue`. |
 
 ### Trust Boundary & Gated Registration
 ----
@@ -241,8 +258,8 @@ Status: `Proposed`
 Distributing secret sources to plugins opens a surface: a malicious plugin could register a source that intercepts credential resolution. The boundary:
 
 - **The keyring backend is core-only** — a plugin is never the uv-facing credential shim.
-- **Source registration is trust-gated** — first-party / explicit allow-list, not "any installed plugin registers a credential source."
-- **A secret resolves only via the source named in its own config** — a registered source cannot claim secrets bound to another source, so even a permitted source cannot hijack resolution.
+- **Source registration is trust-gated** — an explicit first-party **allow-list of distributions** permitted to register a `tap.secret_sources` provider (initially `{aws_secrets_source}`), enforced at registration time in core. Not "any installed distribution registers a credential source": an unlisted distribution's entry point is ignored (and the attempt is a security-relevant signal, see `req-plugin-depres-registry-flaws`). The disk source is core-resident and always available, never gated.
+- **A secret resolves only via the source named in its own config** — a registered source cannot claim secrets bound to another source, so even a permitted source cannot hijack resolution. The resolver passes a source only its own `source_ref`, never the manifest of a secret routed elsewhere.
 
 #### Acceptance Criteria
 
