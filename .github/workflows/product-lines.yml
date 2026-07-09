@@ -17,7 +17,13 @@
 name: product-lines
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      line:
+        description: "Lane to run on dispatch. 'all' runs every lane; a single lane runs just that one. PR events always run all lanes."
+        type: choice
+        options: [test_all, samsite, all]
+        default: test_all
   pull_request:
     branches: [main]
 
@@ -27,6 +33,14 @@ concurrency:
 
 jobs:
   line:
+    # On dispatch, run only the selected lane (default test_all); PRs run all lanes.
+    # NOTE: the samsite lane git-installs plugins via the `github-plugins-ro` PAT and
+    # needs that credential materialized from AWS Secrets Manager (req-dev-validation-
+    # product-line-lanes; not yet wired) — until then only test_all is green-capable.
+    if: >-
+      github.event_name != 'workflow_dispatch' ||
+      github.event.inputs.line == 'all' ||
+      github.event.inputs.line == matrix.line
     strategy:
       fail-fast: false
       matrix:

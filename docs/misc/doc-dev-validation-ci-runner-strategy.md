@@ -133,6 +133,41 @@ AWS-native capability):
    required checks (the trust-boundary inflection in the sibling note), not for 8-core
    speed; it forces the promote→PR-gate redesign, so treat it as its own project.
 
+## Identity isolation — the machine-account graduation step
+
+Standing up CodeBuild requires authorizing the **AWS Connector for GitHub** App on the
+CI repo. It is a single GitHub App with a **fixed permission manifest** — install is
+all-or-nothing on the *permissions*; the only knob is *which repos*. Two of the perms
+are load-bearing for the runner mechanism and cannot be declined:
+
+- **Repository hooks** (write) — creates the `WORKFLOW_JOB_QUEUED` webhook.
+- **Administration** (write) — registers/deregisters the ephemeral self-hosted runner
+  (the runner registration-token API is admin-scoped).
+
+Commit-statuses / pull-requests / contents come along unused (they serve the App's
+CodeBuild-source-build and CodePipeline modes, which we do not use).
+
+**As stood up today** the App is installed under the **personal `notgeorge` account**,
+scoped to the **`tap` repo only**. The named, bounded risk: Administration-write sits on
+a repo owned by the personal identity. This is the accepted cost of the *keyless,
+managed* runner path — the narrow alternative (self-managed runner registration via a
+fine-grained PAT) reintroduces a long-lived secret an AI-operated CI would hold, which is
+exactly what keyless SSO was chosen to avoid. Administration-on-one-personal-repo is the
+better side of that asymmetry.
+
+**Graduation step (do at org-migration time, not before):** when TAP moves into a GitHub
+**Organization** (a decision driven by branch-protection + required checks — see item 3
+above and the sibling note — and likely wanted for company formation anyway), introduce a
+`tap-ci-bot` **machine account**: a login-less GitHub user that *is* the identity CI acts
+as. Make it a scoped **org member** (access via a team granting only the CI repos) and
+re-authorize the CodeConnections connection **as the bot**. This does not shrink the App's
+permission set — it relocates *whose identity* holds Administration-write off the personal
+account onto a disposable, narrowly-scoped one. On a personal account the pattern is
+cosmetic (you'd have to transfer `tap` to the bot or add it as an admin collaborator); it
+only becomes clean isolation inside an org. So: **accept the App on `tap` under
+`notgeorge` now; graduate to `tap-ci-bot` in the org when the org is created.** Do not
+build the bot before the org — it is org-shaped work that does not pay off standalone.
+
 ## Prior art / sources
 
 - GitHub Actions runner pricing (2026): 2-core $0.006, 4-core $0.012, 8-core $0.022 /min;
