@@ -16,6 +16,11 @@
       "description": "Human label shown by `boot --list` and in review.",
       "type": "string"
     },
+    "profile_kind": {
+      "description": "Deployment-context classification of this profile, orthogonal to the plugin set. An EXPLICIT allowlist value that fail-closed guards key off (req-tap-auth-passkey-dev-bootstrap-4): a dev/local-only affordance (e.g. `manage.py enroll_admin --import-dev-passkey`, which binds an admin credential with zero proof-of-possession) is permitted ONLY under `dev_local`; `customer`/`deploy`/absent all refuse it. Omitted = unclassified = fail closed (never assume dev). This is NOT the `deploy = not settings.DEBUG` posture selector — it only TIGHTENS, never loosens. Values: `dev_local` (a developer's local multi-session / CI stack — losing this box is not a customer incident), `customer` (a customer-operated deployment), `deploy` (any non-local served deployment).",
+      "type": "string",
+      "enum": ["dev_local", "customer", "deploy"]
+    },
     "auth": {
       "description": "The auth section (req-tap-auth-boot): external login providers, initial-admin emails, local-password toggle, and admin-lockout break-glass. tap_auth OWNS this section's schema (tap_auth/schemas/auth-boot-section.schema.json) and the bootloader composes it — only its object-shape is asserted here; the boot auth phase validates it strictly against the tap_auth fragment before applying. Omit for a local-password-only standup.",
       "type": "object"

@@ -91,6 +91,10 @@ class BootProfile:
     # Raw auth section (req-tap-auth-boot). tap_auth owns its schema fragment and
     # validates it strictly in the boot auth phase; the bootloader only carries it.
     auth: dict[str, Any] | None = None
+    # Deployment-context classification, orthogonal to the plugin set. None = unclassified.
+    # Fail-closed guards (e.g. the dev-passkey import gate, req-tap-auth-passkey-dev-bootstrap-4)
+    # allowlist off an EXPLICIT value; it only tightens, never the DEBUG posture selector.
+    profile_kind: str | None = None
 
     @property
     def has_population(self) -> bool:
@@ -193,4 +197,5 @@ def _parse(profile_id: str, data: dict[str, Any]) -> BootProfile:
         on_failure=population.get("on_failure", DEFAULT_ON_FAILURE),
         steps=tuple(steps),
         auth=data.get("auth"),
+        profile_kind=data.get("profile_kind"),
     )

@@ -147,6 +147,32 @@ def local_password_enabled_from_profile(profile_id: str) -> bool:
     return bool(read_auth_section(profile_id).get("local_password_enabled", True))
 
 
+def read_profile_kind(profile_id: str) -> str | None:
+    """Return the profile's top-level ``profile_kind`` classification, or ``None``.
+
+    ``None`` when the profile id is empty, the file is absent/unreadable, or the field
+    is unset — i.e. **unclassified**. Fail-closed guards (the dev-passkey import gate,
+    req-tap-auth-passkey-dev-bootstrap-4) treat ``None`` and any non-``dev_local`` value
+    as "not permitted" and refuse; only an EXPLICIT allowlisted value permits.
+
+    Reads the profile JSON directly (no ``tap_boot`` import — this stays a leaf-level
+    reader, mirroring :func:`read_auth_section`, and avoids a sideways app dependency).
+    Tolerant: any read/parse problem yields ``None`` (fail closed), logged.
+    """
+    if not profile_id:
+        return None
+    path = _profile_path(profile_id)
+    if not path.is_file():
+        return None
+    try:
+        data = load_json_file(path)
+    except JsonFileError as exc:
+        logger.warning("[3821] could not read profile_kind from %s: %s", path, exc)
+        return None
+    kind = data.get("profile_kind")
+    return kind if isinstance(kind, str) else None
+
+
 # --------------------------------------------------------------------------- #
 # boot-phase application
 # --------------------------------------------------------------------------- #

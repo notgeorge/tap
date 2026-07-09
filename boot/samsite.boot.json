@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "profile_kind": "dev_local",
   "description": "Samsite demo — stand a fresh session up end-to-end: seed the plugin GRIFT (AWS/GitHub/KSI/samsite pages + schedules), then fire the collectors that pull the live world in. Seed order is INSTALLED_APPS order; collector order matters: samsite-compliance reads aws_account nodes (boto3) AND content-matches github_workflow nodes (github_core), so both must run before it. INSTALL SOURCES — TEMPORARILY ALL EDITABLE (monorepo): the substrate refactors (compliance_core + identity_core extraction, aws_core edge prune, TRUSTS_ISSUER relocation) landed on core-main but have NOT been re-released to the plugin repos, so their pinned tags (github/aws/sigstore/fedramp @ v0.1.x) are stale and a git-sourced boot is version-skewed (old github_core__oidc_issuer vs new identity_core__oidc_issuer, missing compliance_core, etc.). Editable monorepo sources give one coherent current-code world so the demo boots. Flip each consumer back to {type:git, rev:vX.Y.Z} once the code-build CI re-releases the set (identity_core + compliance_core first — the two new substrate deps have no repos yet). Install set + seed path here match the test_all union, so they are proven by the cold-boot gate; only the fire-collector steps are demo-runtime (live AWS/GitHub/network).",
   "install": {
     "plugins": [
