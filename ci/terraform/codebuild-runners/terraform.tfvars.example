@@ -9,12 +9,18 @@ github_repo  = "tap"
 # Subsequent: paste the authorized connection ARN to reuse it.
 codeconnection_arn = ""
 
-# Product lines to stand up. Start with the proof lane + samsite.
+# Product lines to stand up. Start with the proof lane + samsite. `needs_plugin_pull`
+# grants that line GetSecretValue on the plugin-pull secret (lines that git-install
+# private plugins); in-tree lines like test_all leave it false.
 product_lines = {
   test_all = { profile = "test_all" }
-  samsite  = { profile = "samsite" }
+  samsite  = { profile = "samsite", needs_plugin_pull = true }
 }
 
 # Capability axis:
 bedrock_enabled      = true
 sts_assume_role_arns = [] # e.g. ["arn:aws:iam::<acct>:role/tap-aws-core-test"]
+
+# The plugin-pull secret SHELL name (value set out-of-band via put-secret-value; never
+# managed by Terraform). Empty "" disables the secret + grants for a monorepo-only setup.
+plugin_pull_secret_name = "tap-ci/github-plugins-ro"

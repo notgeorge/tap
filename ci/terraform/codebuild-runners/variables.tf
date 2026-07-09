@@ -42,11 +42,28 @@ variable "product_lines" {
   type = map(object({
     profile      = string
     compute_type = optional(string, "BUILD_GENERAL1_LARGE") # 8 vCPU / 15 GB
+    # Lines that git-install PRIVATE plugins need the read-only github-plugins-ro PAT
+    # (resolved from Secrets Manager via the source seam). In-tree lines (test_all) do not.
+    needs_plugin_pull = optional(bool, false)
   }))
   default = {
-    test_all = { profile = "test_all" } # the union superset lane
-    samsite  = { profile = "samsite" }  # the SAM site product line
+    test_all = { profile = "test_all" }                          # the union superset lane (in-tree)
+    samsite  = { profile = "samsite", needs_plugin_pull = true } # git-installs the fedramp line
   }
+}
+
+variable "plugin_pull_secret_name" {
+  description = <<-EOT
+    Name of the AWS Secrets Manager secret holding the read-only github-plugins-ro PAT that
+    lanes use to git-install private plugins. Terraform creates only the SHELL (the named
+    secret + each needing-line's GetSecretValue grant) and NEVER the value — a Terraform-
+    managed value would land in terraform.tfstate in plaintext. Populate it out-of-band:
+      aws secretsmanager put-secret-value --secret-id <this> \
+        --secret-string '{"token":"ghp_...","host":"github.com","username":"x-access-token"}'
+    Empty ("") disables the secret + grants (a monorepo-only deployment needs neither).
+  EOT
+  type        = string
+  default     = "tap-ci/github-plugins-ro"
 }
 
 variable "codebuild_image" {

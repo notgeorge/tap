@@ -35,9 +35,11 @@ jobs:
   # Pick the lane set. On dispatch, run only the selected lane (default test_all); a
   # 'line=all' dispatch and every PR run all lanes. The matrix context is not available
   # in a job-level if, so we compute the matrix here and feed it in via fromJSON.
-  # NOTE: the samsite lane git-installs plugins via the `github-plugins-ro` PAT and needs
-  # that credential materialized from AWS Secrets Manager (req-dev-validation-product-
-  # line-lanes; not yet wired) — until then only test_all is green-capable.
+  # NOTE: the samsite lane git-installs plugins via the `github-plugins-ro` PAT, which it
+  # resolves from AWS Secrets Manager through the secret-source seam (req-plugin-depres-
+  # sources). needs_plugin_pull=true drives the routing-manifest + provider-preinstall +
+  # ambient-creds steps below. The Secrets Manager secret VALUE must be populated
+  # out-of-band once (Terraform creates only the shell) or the lane fails loud.
   setup:
     runs-on: ubuntu-latest
     outputs:
@@ -49,7 +51,7 @@ jobs:
           LINE: ${{ github.event.inputs.line }}
         run: |
           test_all='{"line":"test_all","profile":"test_all"}'
-          samsite='{"line":"samsite","profile":"samsite"}'
+          samsite='{"line":"samsite","profile":"samsite","needs_plugin_pull":true}'
           if [ "$EVENT" = "workflow_dispatch" ] && [ "$LINE" != "all" ]; then
             case "$LINE" in
               test_all) inc="$test_all" ;;
@@ -80,6 +82,49 @@ jobs:
         run: |
           rm -f tap_secrets
           mkdir -p tap_secrets
+
+      # Plugin-pull lanes (samsite) resolve the read-only github-plugins-ro PAT from AWS
+      # Secrets Manager via the secret-source seam. We (1) drop a ROUTING MANIFEST (no
+      # secret material — just source + source_ref) into the secrets root, (2) tell the
+      # container to preinstall the AWS source provider before boot, and (3) export the
+      # runner's ambient CodeBuild-role creds as STATIC temporary creds so boto3 inside the
+      # nested container can GetSecretValue without reaching the DinD metadata endpoint.
+      - name: Route plugin-pull credential to AWS Secrets Manager
+        if: ${{ matrix.needs_plugin_pull }}
+        env:
+          SECRET_ID: tap-ci/github-plugins-ro
+          AWS_REGION: us-east-1
+        run: |
+          mkdir -p tap_secrets/tap_plugins
+          cat > tap_secrets/tap_plugins/github-plugins-ro.secret.json <<JSON
+          {
+            "scope": "tap_plugins.source",
+            "key": "github-plugins-ro",
+            "kind": "github_pat",
+            "description": "Read-only GitHub PAT for git-installing private plugins; value resolved from AWS Secrets Manager via the CodeBuild role's ambient IAM (secret-source seam).",
+            "data": {},
+            "metadata": {
+              "source": "aws_secrets_manager",
+              "source_ref": { "secret_id": "${SECRET_ID}", "region": "${AWS_REGION}" }
+            }
+          }
+          JSON
+          # Preinstall the AWS source provider into the container before pre-boot.
+          echo "TAP_SECRET_SOURCE_DISTS=/app/plugins/aws_secrets_source" >> "$GITHUB_ENV"
+          # Export the ambient role's temporary creds as static env for the container.
+          creds="$(aws configure export-credentials --format env-no-export)"
+          key="$(printf '%s\n' "$creds" | sed -n 's/^AWS_ACCESS_KEY_ID=//p')"
+          secret="$(printf '%s\n' "$creds" | sed -n 's/^AWS_SECRET_ACCESS_KEY=//p')"
+          token="$(printf '%s\n' "$creds" | sed -n 's/^AWS_SESSION_TOKEN=//p')"
+          echo "::add-mask::$secret"
+          echo "::add-mask::$token"
+          {
+            echo "AWS_ACCESS_KEY_ID=$key"
+            echo "AWS_SECRET_ACCESS_KEY=$secret"
+            echo "AWS_SESSION_TOKEN=$token"
+            echo "AWS_REGION=$AWS_REGION"
+            echo "AWS_DEFAULT_REGION=$AWS_REGION"
+          } >> "$GITHUB_ENV"
 
       - uses: docker/setup-buildx-action@v3
       - name: Build web image (GHA layer cache)

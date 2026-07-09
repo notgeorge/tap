@@ -25,3 +25,16 @@ output "line_role_arns" {
   description = "Per-line IAM role ARNs (attach further least-privilege grants here)."
   value       = { for k, r in aws_iam_role.line : k => r.arn }
 }
+
+output "plugin_pull_secret" {
+  description = <<-EOT
+    The plugin-pull secret SHELL (value set out-of-band). Populate before dispatching a
+    needs_plugin_pull lane:
+      aws secretsmanager put-secret-value --secret-id <name> --secret-string '{"token":"ghp_...","host":"github.com","username":"x-access-token"}'
+  EOT
+  value = local.plugin_pull_enabled ? {
+    name          = aws_secretsmanager_secret.github_plugins_ro[0].name
+    arn           = aws_secretsmanager_secret.github_plugins_ro[0].arn
+    granted_lines = keys(local.plugin_pull_lines)
+  } : null
+}

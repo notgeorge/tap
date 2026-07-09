@@ -31,6 +31,23 @@ echo "==> Syncing Python dependencies (uv sync --all-packages)..."
 uv sync --all-packages
 
 # ---------------------------------------------------------------------------
+# Bootstrap-tier secret-source providers (req-plugin-depres-bootstrap, Decision B).
+# ---------------------------------------------------------------------------
+# A plugin's git-install credential can be routed to an external store (e.g. AWS Secrets
+# Manager) whose provider distribution must be importable BEFORE pre-boot resolves that
+# credential. TAP_SECRET_SOURCE_DISTS is a space-separated list of `uv pip install` targets
+# (local paths or requirements) installed into the venv here, ahead of pre-boot. It is
+# UNSET in normal/dev boots, so no cloud SDK enters the default venv — this is the CI
+# preinstall hook, not the general two-phase install engine (that stays deferred). Like
+# pre-boot's own plugin installs, these persist across the subsequent `uv run` (its implicit
+# sync is additive, not exact).
+if [ -n "${TAP_SECRET_SOURCE_DISTS:-}" ]; then
+    echo "==> Installing secret-source provider(s): ${TAP_SECRET_SOURCE_DISTS}"
+    # shellcheck disable=SC2086  # intentional word-splitting on the space-separated list
+    uv pip install ${TAP_SECRET_SOURCE_DISTS} || { emit_abort preboot "secret-source provider install failed"; exit 1; }
+fi
+
+# ---------------------------------------------------------------------------
 # Pre-boot stage (settings-free; runs BEFORE Django reads settings).
 # ---------------------------------------------------------------------------
 # tap/preboot.py reads the boot profile as plain JSON, uv-installs the profile's
