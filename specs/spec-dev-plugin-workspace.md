@@ -35,7 +35,7 @@ boot profiles, not a new package manager.
 | req-dev-workspace-model | [The Workspace Model](#the-workspace-model) | Implemented | Harness (core clone) + editable dev plugins + rest git-pinned, booted as one mixed profile. Proven 2026-07-09: a real `--dev-plugins compliance_core` spawn booted healthy. |
 | req-dev-workspace-spawn | [Spawning A Workspace](#spawning-a-workspace) | Implemented | `spawn-session --dev-plugins <slugs>` resolves each slug against the base profile, clones it editable, pins the rest. `tap/dev_workspace.py` + spawn wiring. |
 | req-dev-workspace-loop | [The Inner Loop](#the-inner-loop) | Proposed | edit → relevance-gated test → `validate_plugin` → release, all against the running workspace. |
-| req-dev-workspace-release | [Scripted Plugin Release](#scripted-plugin-release) | Proposed | `release-plugin` tags the repo and bumps consuming boot profiles, substrate-first. |
+| req-dev-workspace-release | [Scripted Plugin Release](#scripted-plugin-release) | Implemented | `release-plugin` tags the repo and bumps consuming boot profiles, substrate-first. `scripts/release-plugin.sh` + `tap/plugin_release.py`, built 2026-07-09. |
 | req-dev-workspace-coupled | [Coupled Cross-Plugin Changes](#coupled-cross-plugin-changes) | Proposed | Two coupled plugins checked out editable together; released in dependency order. |
 | req-dev-workspace-uv-native | [Lean On uv Native Sources](#lean-on-uv-native-sources) | Proposed | Editable/pinned selection uses uv's own source mechanism; TAP integrates, does not reinvent. |
 | req-dev-workspace-nongoals | [Non-Goals](#non-goals) | Proposed | Registry, multi-workspace orchestration, and generator scaffolding are out of scope here. |
@@ -154,7 +154,7 @@ Steps 2–3 are the identical entrypoints the reusable per-repo CI runs
 ### Scripted Plugin Release
 ----
 RID: `req-dev-workspace-release`
-Status: `Proposed`
+Status: `Implemented`
 
 A plugin release is one command. `release-plugin <slug> <version>` closes the "no promote
 equivalent for evicted plugins" gap (today's evicted-plugin release is a hand-typed
@@ -170,17 +170,29 @@ push + tag + boot-rev bump, which silently drifts if the tag step is skipped).
   **substrate-first**: a substrate plugin (e.g. `compliance_core`) is released and its consumers'
   pins bumped before the consumers themselves release, so dependency order holds.
 
-It is the plugin-repo analogue of `promote-to-main.sh` (which is monorepo-only). Boot records
-are the bill of materials it edits; the boot-record hash guard keeps those edits honest.
+It is the plugin-repo analogue of `promote-to-main.sh` (which is monorepo-only). The deployment
+boot profiles under `boot/` are the bill of materials it edits; those profile records carry no
+inline integrity hash (that guard is for *in-package* boot records, one level up — see
+`tap.boot_records`), so the bump is a plain, derivation-driven JSON edit, and the git-sourced
+`test_all` CI lane booting the resulting profile is what keeps the pins honest end-to-end.
+
+Status Details (Implemented 2026-07-09): `scripts/release-plugin.sh` orchestrates the guard →
+tag → bump flow; the pure, host-runnable pin-bump core is `tap/plugin_release.py` (stdlib-only,
+like `tap.dev_workspace`), unit-tested in `tap/tests/test_plugin_release.py`. Conformance + the
+plugin suite run **in the harness container** against the editable checkout at
+`/app/_dev-plugins/<slug>` (the plugin's real install environment); the immutable-tag and
+clean-tree guards refuse a red or drifting release; `--dry-run` reports the tag/push/bump without
+side effects. Signing (`req-dev-workspace-release-4`'s signed-tag half) rides
+`req-plugin-extdev-signing`, deferred to the GitHub-org refactor.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-dev-workspace-release-1 | One Command | Proposed | `release-plugin <slug> <version>` tags the repo and bumps consuming profiles. | Closes the hand-typed-release drift gap. |
-| req-dev-workspace-release-2 | Pre-Release Guard | Proposed | Release refuses if the conformance gate or the plugin's tests are red. | Same gate as CI. |
-| req-dev-workspace-release-3 | Substrate-First Ordering | Proposed | A substrate plugin releases and its consumers' pins bump before the consumers release. | Dependency order preserved. |
-| req-dev-workspace-release-4 | Immutable Tag | Proposed | The release creates an immutable `v<version>` tag (signed once signing lands). | Ties to `req-plugin-extdev-signing`. |
+| req-dev-workspace-release-1 | One Command | Implemented | `release-plugin <slug> <version>` tags the repo and bumps consuming profiles. | Closes the hand-typed-release drift gap. |
+| req-dev-workspace-release-2 | Pre-Release Guard | Implemented | Release refuses if the conformance gate or the plugin's tests are red. | Same gate as CI; runs in-container against the editable checkout. |
+| req-dev-workspace-release-3 | Substrate-First Ordering | Implemented | A substrate plugin releases and its consumers' pins bump before the consumers release. | Each call bumps every consumer of the released slug; operator releases substrate-first. |
+| req-dev-workspace-release-4 | Immutable Tag | Implemented | The release creates an immutable `v<version>` tag (signed once signing lands). | Unsigned tag built; refuses to move an existing tag. Signing ties to `req-plugin-extdev-signing`. |
 
 ### Coupled Cross-Plugin Changes
 ----

@@ -106,6 +106,17 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
         ),
     ),
     DeclaredSurface(
+        surface="Scripted plugin release pre-release guard (release-plugin)",
+        rid="req-dev-workspace-release",
+        cadence="Operator-invoked at plugin release time (`scripts/release-plugin.sh`)",
+        status="Built 2026-07-09 — refuses a red release; pure pin-bump core unit-guarded",
+        enforced_by=(
+            "`scripts/release-plugin.sh` runs `validate_plugin --strict` + the plugin suite "
+            "in-container before tagging (refuse-on-red), then bumps consuming boot profiles via "
+            "`tap.plugin_release`; the bump core is unit-guarded by `tap/tests/test_plugin_release.py`"
+        ),
+    ),
+    DeclaredSurface(
         surface="Per-product-line CI lanes (CodeBuild)",
         rid="req-dev-validation-product-line-lanes",
         cadence="Pre-push (promote-triggered `test_all` union) + CI (every line on PR)",
