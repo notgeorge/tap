@@ -74,7 +74,18 @@ class CallerContextMiddleware:
         Scope is deliberate. `unguarded_operation` is NOT an AuthzError and stays
         a 500 — an internal defect, not a denial. A `RequestException` from any
         non-auth view likewise stays a 500 (a real defect): only the login flow,
-        the one place TAP makes outbound IdP calls inside a request, is rescued."""
+        the one place TAP makes outbound IdP calls inside a request, is rescued.
+
+        KNOWN GAP (unrescued, by design until FIPS ships). Under `TAP_FIPS=1`, an
+        OIDC login against an IdP signing with a non-approved algorithm (JWS
+        `ES256K`, or RSA < 2048) fails inside allauth's `jwtkit.fetch_key ->
+        algorithm.from_jwk()` with `cryptography.exceptions.InternalError:
+        Unknown OpenSSL error` or `ValueError: Unable to sign/verify with this
+        key`. Neither is a `PyJWTError` nor an allauth error type, so it escapes
+        both allauth's handler and this one, surfacing as an uncaught 500 with no
+        hint that FIPS is the cause. The rescue belongs here, alongside the
+        RequestException branch. Design + exact error signatures:
+        docs/misc/doc-fips-assessment-record.md sec 5.3."""
         if isinstance(exception, AuthzError):
             logger.warning("[a6b7] web authz denied: reason=%s path=%s", exception.reason, request.path)
             return HttpResponseForbidden(f"Forbidden ({exception.reason}). You do not have access to this resource.")
