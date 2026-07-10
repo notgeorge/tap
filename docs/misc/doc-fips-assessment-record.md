@@ -492,6 +492,62 @@ Not built because FIPS is not yet live (`-6` unimplemented), so the code path is
 **Build it in the same change that turns `TAP_FIPS=1` on**, and give it a spec RID alongside
 `req-tap-auth-google-oidc`'s existing callback-hardening requirement.
 
+### 5.4 The Postgres container — spiked, and it carries a NON-crypto hazard
+
+The spec previously asserted *"Postgres = identical recipe on `wolfi-base` + `apk postgresql-16`."*
+That was an assertion with no evidence. It has now been spiked (`spikes/fips/Dockerfile.postgres`,
+`BUILD_EXIT=0`). **The crypto claim holds. A separate, larger hazard was found.**
+
+**Crypto surface — all measured, under the FIPS provider:**
+
+| Check | Result |
+| --- | --- |
+| `fipsinstall` on the PG image | self-tests pass; `fips 3.0.9` + `base` active |
+| Postgres links **system** `libssl.so.3` / `libcrypto.so.3` | yes — the recipe transplants unchanged |
+| `initdb` + server start under FIPS | **OK** |
+| `password_encryption` | **`scram-sha-256`** (HMAC-SHA256 + PBKDF2, approved). A cluster using **`md5` auth would hard-fail** — check this before any FIPS cutover. |
+| SCRAM password login | **authenticates** |
+| `gen_random_uuid()` (OpenSSL DRBG) | **OK** |
+| `sha256()` builtin | **OK** |
+| **`SELECT md5('x')`** | **REFUSED** — `ERROR: could not compute MD5 hash: unsupported` |
+| TLS ciphers offered | `TLS_AES_256_GCM_SHA384`, `TLS_AES_128_GCM_SHA256` only |
+
+`SELECT md5()` is a **server-side builtin** routed through OpenSSL — a crypto surface the Django-side
+audit (§5) cannot see. TAP never calls it: no `pgcrypto`, no `uuid-ossp`, only `plpgsql`. **Re-check
+this whenever a plugin adds SQL**, since a single `md5()` in a query becomes a runtime error under FIPS.
+
+**Wolfi ships `postgresql-16-oci-entrypoint`**, providing `/usr/bin/docker-entrypoint.sh` that honours
+the same `POSTGRES_DB / POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_HOST_AUTH_METHOD /
+POSTGRES_INITDB_ARGS / POSTGRES_INITDB_WALDIR` contract and `docker-entrypoint-initdb.d` as the
+official image. And `postgresql-16` is **16.14** — the exact version we run. So the DB image is a
+**drop-in, not a reimplementation** of the official image's 389-line entrypoint.
+
+#### ⚠️ The hazard: collation, not crypto
+
+The outgoing `postgres:16-alpine` is **musl**; Wolfi is **glibc**. musl implements no locale collation,
+so the outgoing cluster is **labelled `en_US.utf8` but sorts like `C`**. Measured:
+
+| Cluster | `datcollate` | `ORDER BY` of `a, B, _b, A, b` |
+| --- | --- | --- |
+| `postgres:16-alpine` (musl) — **today** | `en_US.utf8` | `A  B  _b  a  b` |
+| Wolfi (glibc) `--locale=C` | `C` | `A  B  _b  a  b`  ← **matches today** |
+| Wolfi (glibc) `--locale=en_US.utf8` | `en_US.utf8` | `a  A  _b  b  B`  ← **different!** |
+
+**Carrying the locale *label* across would silently change text sort order and text-index ordering.**
+The correct move is `initdb --locale=C`, which reproduces the outgoing cluster's *actual* behaviour and
+is additionally immune to the classic "a glibc upgrade invalidates your text indexes" hazard. Locked in
+as PROOF 3 of the spike, which fails the build on ordering drift.
+
+Two consequences for the cutover:
+
+- **The data volume must be recreated, not reused.** `datcollate` is recorded in the cluster; Postgres 15+
+  will warn on a collation-version mismatch and text indexes built under the old collation may be subtly
+  wrong. Dev does `dc down -v`; the promote gate provisions fresh databases. Any real deployment needs a
+  dump/restore, not an in-place image swap.
+- `--locale=C` means `ORDER BY <text>` is byte order (uppercase before lowercase). That is exactly what we
+  get today, so **no query results change** — but it is now a *deliberate* choice rather than an accident
+  of musl.
+
 ## 6. Verification suite (re-runnable ground truth)
 
 **Run this before trusting any measurement in this document.** Base images move.
@@ -529,6 +585,9 @@ Each is stated as a **falsifiable check with a negative control**. A FIPS claim 
 | `F13` | grep the installed dep closure for `hashlib.md5(` without `usedforsecurity=False` | only `MD5PasswordHasher` (unreachable) + `faker` (test-only) |
 | `F14` | `OPENSSL_CONF=/dev/null openssl list -providers` | shows **`default` active** — proving the boundary is the config, not the modules dir (L13). Do **not** cite `ls ossl-modules/` as evidence. |
 | `F15` | `openssl req -new -newkey ec:… -subj /CN=x` | succeeds, `ecdsa-with-SHA256` — the `.include ca.cnf` trap is closed (L14) |
+| `F16` | Postgres: `SELECT md5('x')` under FIPS | **refused** — `could not compute MD5 hash: unsupported` (negative control, server-side) |
+| `F17` | Postgres: `SHOW password_encryption` | `scram-sha-256` — `md5` auth would hard-fail under FIPS |
+| `F18` | Postgres: `initdb --locale=C` sort of `a,B,_b,A,b` | `A B _b a b` — collation parity with the outgoing musl cluster (§5.4) |
 
 Machine-readable form for an automated assessor:
 

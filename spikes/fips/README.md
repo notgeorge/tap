@@ -13,6 +13,9 @@ test-lane validation) is the ~2026-09 productionization tracked by the requireme
 ## Reproduce
 
 ```sh
+# 0. Postgres: does the recipe transplant to the DB container? (+ the collation hazard)
+docker build -f spikes/fips/Dockerfile.postgres --target proof -t tap-pg-fips:proof .
+
 # 1. Build the validated 3.0.9 fips.so on Wolfi (retires "can we build it ourselves").
 docker build -f spikes/fips/Dockerfile.fips --target ossl-builder  -t tap-fips:builder .
 

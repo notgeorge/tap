@@ -1,0 +1,133 @@
+# SPIKE: does the OpenSSL 3.0 #4282 FIPS recipe transplant to the Postgres container?
+#
+# The spec claimed "Postgres = identical recipe on wolfi-base + apk postgresql-16". That was an
+# ASSERTION, never evidence. This proves (or refutes) it, and exercises the Postgres-specific
+# crypto surface that the Django audit does not cover:
+#
+#   - Postgres links the SYSTEM libcrypto for TLS + its cryptohash functions.
+#   - SCRAM-SHA-256 password auth (HMAC-SHA256 + PBKDF2) must keep working. `md5` auth would NOT.
+#   - `SELECT md5(...)` is a *server-side* builtin routed through OpenSSL -> must be REFUSED.
+#   - `gen_random_uuid()` draws from OpenSSL's DRBG -> must keep working.
+#   - initdb + server start must survive FIPS self-tests.
+#
+#   docker build -f spikes/fips/Dockerfile.postgres --target proof -t tap-pg-fips:proof .
+
+# ---- Builder: the validated OpenSSL 3.0.9 FIPS provider (same as Dockerfile.fips) ----
+FROM cgr.dev/chainguard/wolfi-base AS ossl-builder
+RUN apk add --no-cache build-base perl linux-headers curl
+WORKDIR /build
+RUN curl -fsSL https://github.com/openssl/openssl/releases/download/openssl-3.0.9/openssl-3.0.9.tar.gz -o o.tgz \
+ && tar xf o.tgz
+WORKDIR /build/openssl-3.0.9
+RUN ./Configure enable-fips && make -j"$(nproc)" && make install_fips
+
+# ---- Runtime: minimal Wolfi Postgres 16 with the FIPS provider activated ----
+FROM cgr.dev/chainguard/wolfi-base AS pg-fips
+# postgresql-16-oci-entrypoint ships docker-entrypoint.sh handling the same POSTGRES_* env
+# contract as the official image (POSTGRES_DB/USER/PASSWORD/HOST_AUTH_METHOD/INITDB_*, initdb.d)
+# -> a drop-in, not a reimplementation.
+RUN apk add --no-cache postgresql-16 postgresql-16-client postgresql-16-oci-entrypoint openssl bash
+
+COPY --from=ossl-builder /usr/local/lib/ossl-modules/fips.so /usr/lib/ossl-modules/fips.so
+RUN openssl fipsinstall -out /etc/ssl/fipsmodule.cnf -module /usr/lib/ossl-modules/fips.so \
+ && echo "=== fipsinstall OK (self-tests passed on the PG image) ==="
+
+# ORDER IS LOAD-BEARING: openssl_conf must precede the .include (see L1).
+# ca.cnf is re-included because pointing OPENSSL_CONF here displaces the stock file (see L14).
+RUN printf '%s\n' \
+  'config_diagnostics = 1' \
+  'openssl_conf = openssl_init' \
+  '' \
+  '.include /etc/ssl/fipsmodule.cnf' \
+  '.include /etc/ssl/ca.cnf' \
+  '' \
+  '[openssl_init]' \
+  'providers = provider_sect' \
+  'alg_section = algorithm_sect' \
+  '' \
+  '[provider_sect]' \
+  'fips = fips_sect' \
+  'base = base_sect' \
+  '' \
+  '[base_sect]' \
+  'activate = 1' \
+  '' \
+  '[algorithm_sect]' \
+  'default_properties = fips=yes' \
+  > /etc/ssl/openssl-fips.cnf
+ENV OPENSSL_CONF=/etc/ssl/openssl-fips.cnf
+
+FROM pg-fips AS proof
+
+# PROOF 1: provider active on the PG image; postgres links the SYSTEM libcrypto.
+RUN echo "=== PROOF 1: FIPS provider + postgres linkage ===" \
+ && openssl list -providers | grep -E "name:|version:" \
+ && postgres --version \
+ && echo "  --- postgres dynamic OpenSSL linkage (must be the system one) ---" \
+ && (ldd "$(command -v postgres)" 2>/dev/null | grep -E "libcrypto|libssl" || echo "  (ldd absent on Wolfi — expected; see L2)") \
+ && echo "EXPECTED: fips 3.0.9 active on the Postgres image"
+
+# PROOF 2: initdb + server start under FIPS, scram-sha-256 auth, and the crypto surface.
+RUN printf '%s\n' \
+  '#!/bin/bash' \
+  'set -e' \
+  'export PGDATA=/tmp/pgdata PGPASSWORD=tap' \
+  'adduser -D -H postgres 2>/dev/null || true' \
+  'mkdir -p "$PGDATA" /tmp/sock && chown -R postgres "$PGDATA" /tmp/sock' \
+  'echo "=== initdb under FIPS (scram-sha-256) ==="' \
+  'echo tap > /tmp/pw && chown postgres /tmp/pw' \
+  'su postgres -c "initdb -D $PGDATA -U tap --auth-host=scram-sha-256 --auth-local=scram-sha-256 --pwfile=/tmp/pw" >/dev/null' \
+  'echo "EXPECTED: initdb OK under FIPS"' \
+  'su postgres -c "pg_ctl -D $PGDATA -o \"-k /tmp/sock -c listen_addresses=\" -l /tmp/pg.log -w start" >/dev/null' \
+  'echo "EXPECTED: postgres started under FIPS"' \
+  'q() { su postgres -c "psql -h /tmp/sock -U tap -d postgres -tAc \"$1\"" 2>&1 | head -1; }' \
+  'echo' \
+  'echo "=== password_encryption (md5 auth would break; scram must be in use) ==="' \
+  'echo "  $(q "SHOW password_encryption;")"' \
+  'echo "=== SCRAM auth actually authenticates a password login ==="' \
+  'echo "  $(q "SELECT 1;")  <- a successful query IS a successful scram-sha-256 auth"' \
+  'echo' \
+  'echo "=== gen_random_uuid() — OpenSSL DRBG, approved (expect OK) ==="' \
+  'echo "  $(q "SELECT gen_random_uuid();")"' \
+  'echo "=== sha256 builtin (approved, expect OK) ==="' \
+  'echo "  $(q "SELECT encode(sha256(decode('"'"'78'"'"','"'"'hex'"'"')),'"'"'hex'"'"');")"' \
+  'echo' \
+  'echo "=== SELECT md5() — server-side builtin, NON-APPROVED (expect REFUSAL) ==="' \
+  'out=$(q "SELECT md5('"'"'x'"'"');")' \
+  'case "$out" in' \
+  '  *9dd4e461*) echo "  UNEXPECTED: md5 succeeded -> $out" ;;' \
+  '  *) echo "  EXPECTED: md5 refused -> $out" ;;' \
+  'esac' \
+  'echo' \
+  'echo "=== TLS ciphers available under FIPS ==="' \
+  'echo "  $(openssl ciphers -s -tls1_3 2>/dev/null | head -c 80)"' \
+  > /tmp/pgtest.sh \
+ && chmod +x /tmp/pgtest.sh \
+ && echo "=== PROOF 2: Postgres crypto surface under FIPS ===" \
+ && /tmp/pgtest.sh
+
+# PROOF 3: COLLATION — the non-crypto hazard. The outgoing postgres:16-alpine cluster is
+# labelled `en_US.utf8` but sorts like `C`, because musl implements no locale collation.
+# Wolfi is glibc, where `en_US.utf8` is a REAL collation with different ordering. Copying the
+# label would silently change text sort order and text-index ordering. `--locale=C` on glibc
+# reproduces the outgoing cluster's ACTUAL behaviour, and is immune to the classic
+# glibc-upgrade-invalidates-text-indexes hazard.
+RUN printf '%s\n' \
+  '#!/bin/bash' \
+  'set -e' \
+  'adduser -D -H postgres 2>/dev/null || true' \
+  'cat > /tmp/q.sql <<SQL' \
+  "SELECT string_agg(x, ' ' ORDER BY x) FROM (VALUES ('a'),('B'),('_b'),('A'),('b')) t(x);" \
+  'SQL' \
+  'chmod 644 /tmp/q.sql' \
+  'mkdir -p /tmp/pgc /tmp/skc && chown -R postgres /tmp/pgc /tmp/skc' \
+  'su postgres -c "initdb -D /tmp/pgc -U tap --auth-local=trust --locale=C" >/dev/null 2>&1' \
+  'su postgres -c "pg_ctl -D /tmp/pgc -o \"-k /tmp/skc -c listen_addresses=\" -l /tmp/lc -w start" >/dev/null 2>&1' \
+  'got=$(su postgres -c "psql -h /tmp/skc -U tap -d postgres -tA -f /tmp/q.sql" | tr -s " " | tr -d "\n")' \
+  'want="A B _b a b"' \
+  'echo "  --locale=C sort: [$got]"' \
+  'if [ "$got" = "$want" ]; then echo "EXPECTED: C collation reproduces the outgoing alpine cluster ordering"; else echo "UNEXPECTED: ordering drift [$got] != [$want]"; exit 1; fi' \
+  > /tmp/collation.sh \
+ && chmod +x /tmp/collation.sh \
+ && echo "=== PROOF 3: collation parity with the outgoing cluster ===" \
+ && /tmp/collation.sh
