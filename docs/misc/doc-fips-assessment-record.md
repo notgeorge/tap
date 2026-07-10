@@ -11,6 +11,8 @@ update-triggers:
   - The compliance authority rules on vendor-affirmed Operational Environment portability
   - OpenSSL publishes a newer free/upstream validated FIPS provider (post-#4282)
   - The base image changes away from Wolfi
+  - django-allauth or PyJWT is upgraded (re-audit the OIDC algorithm surface, sec 5.2)
+  - TAP_FIPS=1 goes live (build the OIDC crypto-error rescue designed in sec 5.3)
 assumes:
   - Reader may be an AI assistant validating or extending TAP's FIPS posture
   - Wolfi is the standard base (req-cicd-base-image-lifecycle-3)
@@ -40,6 +42,8 @@ If you are an **AI assistant** asked to validate, extend, or productionize TAP's
    this document's measurements over a fresh run** — they were true on 2026-07-09 against specific
    image digests, and base images move.
 5. Consult §7 for the risk register. §7.1 is **accepted and owned** (not a blocker); §7.2–7.5 are genuinely open — do not report those as closed.
+
+**If you are debugging a crypto error that only happens under FIPS, jump straight to §5.3.**
 
 If you are a **human**: §1, §2, §4, and §7 are the substance. §3 is the recipe, §6 is how to check it.
 
@@ -78,7 +82,7 @@ find out which bar they mean before designing anything.** The answer changes the
 | D3 | **Build `fips.so` ourselves** in a builder stage, per the #4282 security policy's build instructions. | The build recipe is part of what is validated. | — |
 | D4 | Run the **frozen 3.0.9 `fips.so` against the base's modern libcrypto.** | OpenSSL guarantees a certified `fips.so` is binary-compatible with **any later** libcrypto. Verified: Wolfi's OpenSSL **3.6.3** `fipsinstall`ed and self-tested our 3.0.9 module. **Therefore OpenSSL 3.0's Sept-2026 LTS-EOL is irrelevant** — base libs stay patched; only the validated module is frozen. | OpenSSL revokes the compatibility guarantee. |
 | D5 | Activate via **`openssl fipsinstall` in-image** + an `openssl.cnf` + `ENV OPENSSL_CONF`. | `fipsinstall` runs self-tests and writes the module's integrity **MAC**. It must run in the final image; if `fips.so`'s bytes change without re-running it, the provider refuses to load. | — |
-| D6 | **Strict provider set: `fips` + `base` only. No `default` provider.** | Loading `default` would silently re-supply every non-approved algorithm. | Never, for convenience. Only if an unavoidable non-security consumer cannot use `usedforsecurity=False`. |
+| D6 | **Strict provider set: `fips` + `base` only. No `default` provider.** | Loading `default` would silently re-supply every non-approved algorithm. **The `default` provider is built into `libcrypto`, not a file** — so the boundary is the *config*, not the modules directory (L13). `base` adds **no crypto primitives** (encoders/decoders only): dropping it blocks no MD5 and breaks OpenSSL key-file I/O, so `fips`+`base` is correct rather than `fips` alone (L15). Verified: TLS 1.3 still negotiates and `openssl req` still signs P-256 with the strict set. | Never, for convenience. Only if an unavoidable non-security consumer cannot use `usedforsecurity=False`. |
 | D7 | Build **`cryptography` `--no-binary`** against the system OpenSSL — **in both FIPS and non-FIPS modes.** | Its wheel *statically bundles its own OpenSSL* and would bypass the system FIPS provider entirely. Building it the same way in both modes means only *provider activation* differs; otherwise non-FIPS passes on a bundled wheel and FIPS breaks at the far end of the pipeline. | — |
 | D8 | Set **`CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1`**. | Otherwise `cryptography` loads OpenSSL's legacy provider, silently re-enabling MD5/DES. | — |
 | D9 | **No Python rebuild.** | Wolfi's `python-3.14` dynamically links the *system* libcrypto, so `hashlib`/`ssl`/`hmac` inherit the activated provider for free. Verified. | The base ships a statically-linked or vendored-OpenSSL Python. |
@@ -107,6 +111,7 @@ Five steps. Reproducible via `spikes/fips/Dockerfile.fips` (three stages, all gr
    openssl_conf = openssl_init
 
    .include /etc/ssl/fipsmodule.cnf
+   .include /etc/ssl/ca.cnf          # restore the stock openssl.cnf include we displace
 
    [openssl_init]
    providers = provider_sect
@@ -256,6 +261,96 @@ control the customer's host. Hence D11.
 **Check `openssl fipsinstall` availability on any candidate base, early.** It tells you which model
 you're in, in one command.
 
+### L13 — An empty `ossl-modules/` does **NOT** mean only FIPS can do crypto ⚠️ FAIL-OPEN reasoning
+
+**The tempting inference:** `/usr/lib/ossl-modules/` contains only `fips.so`, therefore no other
+module can perform crypto operations. **This is false, and an assessor will catch it.**
+
+In OpenSSL 3 the **`default` and `base` providers are compiled into `libcrypto` itself.** They are
+not `.so` files. Only `fips.so` and `legacy.so` ship as separately-loadable modules. Proof, on our
+own image:
+
+- `ls /usr/lib/ossl-modules/` → `fips.so`, and nothing else.
+- `find / -name '*.so*' | grep -E '/(default|base|legacy)\.so'` → **no matches.**
+- Yet `openssl list -providers` reports **`base`, version 3.6.3, active.** It has no file.
+- Neutralise *only the config*, same filesystem:
+  `OPENSSL_CONF=/dev/null openssl list -providers` → **"OpenSSL Default Provider 3.6.3, active"**,
+  and `openssl dgst -md5` **works**.
+
+**The FIPS boundary is enforced by the configuration** (`default_properties = fips=yes`, plus not
+activating `default`), **not by the contents of the modules directory.** This is also precisely how
+CPython reaches MD5 under `usedforsecurity=False` (L8): it creates a second `OSSL_LIB_CTX` that
+loads the built-in default provider — no file needed.
+
+**Consequences:**
+- Never cite the modules-directory listing as evidence of the cryptographic boundary.
+- The config **is** the boundary, so it is integrity-critical: anything that can set `OPENSSL_CONF`,
+  or write the file it points at, can silently disable FIPS. Treat both as protected assets.
+- This is exactly why the fail-closed boot assertion (D15) must *execute crypto and observe a
+  refusal*, rather than inspect files or parse config.
+
+### L15 — `base` supplies **no cryptographic algorithms**; it is not a hole in the boundary
+
+A natural follow-on to L13: *"if `default` is what serves MD5, and `base` is also active, wouldn't
+dropping `base` tighten the boundary?"* **No.** Measured on our image, `fips`-only vs `fips`+`base`:
+
+| | `fips` + `base` (shipped) | `fips` only |
+| --- | --- | --- |
+| `md5(usedforsecurity=False)` | works | **still works** (built-in `default`, separate libctx — L8) |
+| `md5()` for security use | refused | refused |
+| `sha256` | works (fips) | works (fips) |
+| OpenSSL encoders available | **232** | **1** |
+| `openssl` write/read a PEM key, `openssl req` | OK | **fails** (`unable to write elliptic curve parameters`) |
+
+`base` provides **encoders, decoders and serializers** (PEM/DER key + certificate handling) and
+**zero crypto primitives**. Removing it therefore removes no algorithm from reach, blocks no MD5,
+and breaks OpenSSL key-file I/O. Keeping it is correct, and is the direct justification for D6's
+`fips` + `base` set rather than `fips` alone.
+
+Note also (measured, and contrary to the obvious guess): **`cryptography` does not need `base`** — it
+serializes PEM in its own Rust ASN.1 code and never calls OpenSSL's encoders. Only the OpenSSL CLI
+path depends on it.
+
+### L14 — Overriding `OPENSSL_CONF` displaces the stock config, includes and all
+
+Pointing `OPENSSL_CONF` at our own file means the base image's `/etc/ssl/openssl.cnf` is **not read**
+— including its `.include /etc/ssl/ca.cnf`. On Wolfi, `ca.cnf` defines `[ca]`/`[CA_default]`/`[req]`
+for the `openssl ca` / `openssl req` **CLI subcommands** (certificate issuance).
+
+TLS **trust** is unaffected — that comes from `/etc/ssl/cert.pem` + `/etc/ssl/certs`, verified: 145
+CA certs load and a real TLS 1.3 handshake succeeds under FIPS. But dropping it is a **latent trap**:
+a future `openssl req` fails on a missing section, with a non-obvious cause. Fixed by re-adding
+`.include /etc/ssl/ca.cnf`; verified this restores `openssl req` (P-256 CSR, `ecdsa-with-SHA256`)
+**without** widening the provider set — `fips`+`base` only, md5 still refused.
+
+### L16 — `fips=yes` restricts you to the **module**, not to the module's **approved subset**
+
+Setting `default_properties = fips=yes` means "only fetch algorithms from a provider advertising
+`fips=yes`". It does **not** mean "only FIPS-approved algorithms." A validated module may expose
+services its CMVP security policy does not list as approved, and FIPS 140-3 permits this.
+
+Measured on our self-built 3.0.9 module, with only `fips` + `base` active:
+
+- `openssl list -signature-algorithms -verbose` attributes **`ED25519`, `ED448` and `DSA` to `@ fips`.**
+  All satisfy an explicit `-propquery fips=yes`.
+- **DSA signature *generation* is disallowed** under SP 800-131A, yet the module signs with it.
+- `fipsmodule.cnf` carries a `dsa-sign-disabled` knob — **inert on a 3.0.9 module.** Setting it to `1`
+  and re-running: DSA signing still **ALLOWED**. Those knobs (`hmac-key-check`, `no-short-mac`,
+  `signature-digest-check`, `tdes-encrypt-disabled`, …) are 3.1+/3.4+ features written into the file
+  by the *host's* newer `fipsinstall` (3.6.3 here) and ignored by the older validated module.
+- There is **no EdDSA knob at all** (`grep -ci ed25519 fipsmodule.cnf` → 0), so no config lever exists
+  to narrow it.
+
+**Corrections to earlier claims in this document's own history:** (a) it was asserted that Ed25519 is
+absent from the #4282 module — **false**, it is present and `fips=yes`. (b) **FIPS 186-5 (Feb 2023)
+approves EdDSA** (Ed25519/Ed448), so its presence is not itself a finding. The durable lesson is the
+general one: *presence + `fips=yes` ≠ listed as an approved service on the certificate.* The
+authoritative source is the **#4282 security policy's Approved Algorithms table and its CAVP
+certificates** — check there, not against the module's advertised algorithm list.
+
+Practically irrelevant for TAP (we use P-256/ECDSA, SHA-256, HMAC, PBKDF2, AES-GCM), but an assessor
+will probe exactly this, and "we set `fips=yes`" is not a sufficient answer.
+
 ### L11 — Ecosystem facts we got wrong until we measured them
 
 Every one of these was asserted confidently (by me, or by a research pass) and was **false**:
@@ -287,6 +382,115 @@ under test, and print it explicitly. An assessment harness that lies about pass/
 
 TAP's algorithms — P-256/ECDSA (passkeys), SHA-256, HMAC, PBKDF2, AES-GCM — are **all
 FIPS-approved**. No crypto redesign is required by FIPS.
+
+### 5.1 What depends on the `default` provider (and therefore loads it at runtime)
+
+Our config never activates `default`. It is nonetheless **loaded lazily, in a separate
+`OSSL_LIB_CTX`**, by any caller asking for a non-approved primitive with `usedforsecurity=False`
+(L8). Seven such sites exist in the installed closure; **exactly one is reached by TAP**:
+
+| Site | Reached? | Why |
+| --- | --- | --- |
+| `django/db/backends/utils.py:names_digest()` — `md5(usedforsecurity=False)` | **YES — on every boot** | Shortens index/constraint names; runs during `migrate`. |
+| `django/utils/cache.py` `_generate_etag` / `_generate_cache_key` | no | No `ConditionalGetMiddleware`; no `@cache_page`. |
+| `django/contrib/staticfiles/storage.py` | no | Not using `ManifestStaticFilesStorage`. |
+| `django/core/cache/backends/filebased.py` | no | We use `DatabaseCache`. |
+| `django/core/cache/utils.py` `make_template_fragment_key` | no | No `{% cache %}` template tag. |
+| `requests/auth.py` (HTTP Digest) | no | `HTTPDigestAuth` unused. |
+| `uuid.uuid3` | no | Unused (we use `uuid5` — SHA-1, approved; L7). |
+
+**Consequence — state this to an assessor rather than let them find it:** we **cannot** claim the
+default provider is never loaded. Django loads it on every boot to name database indexes. The use is
+non-security and correctly flagged `usedforsecurity=False`, which is what FIPS permits.
+
+### 5.2 django-allauth + the OIDC provider (the default IdP path)
+
+Audited because `allauth`'s OIDC provider is the intended default identity path.
+
+- **allauth's own MD5** appears only in `mailru`, `odnoklassniki`, `draugiem` — legacy social
+  providers, **not on the OIDC path**. Bare `md5()`; they would raise under FIPS if ever enabled.
+- **allauth's SHA-1** is `mfa/totp` and `mfa/recovery_codes` (**HMAC-SHA1**, FIPS-approved) and
+  `oauth2/utils.py` PKCE (**SHA-256**). All fine.
+- **`id_token` verification is FIPS crypto.** Path:
+  `openid_connect/views.py` → `socialaccount/internal/jwtkit.py::verify_and_decode` → **PyJWT** →
+  `cryptography` (built `--no-binary`, D7) → system OpenSSL → **FIPS provider.**
+
+Measured behaviour of each JWS algorithm under FIPS:
+
+| Algorithm | Result | Note |
+| --- | --- | --- |
+| RS256 / PS256 (RSA ≥ 2048) | works | |
+| ES256 / ES384 | works | the normal case |
+| HS256 | works | HMAC-SHA256 |
+| **EdDSA** (Ed25519) | **works** | in-module; FIPS 186-5 approves EdDSA (see L16) |
+| **ES256K** (secp256k1) | **fails** | `InternalError: Unknown OpenSSL error` |
+| **RSA-1024** | **fails** | `ValueError: Unable to sign/verify with this key` |
+
+Two properties worth knowing:
+
+1. **allauth trusts the algorithm the token claims.** `jwtkit.fetch_key` reads `alg` from the
+   **unverified** header and passes `algorithms=[alg]` to `jwt.decode`. PyJWT's default set is
+   `ES256, ES256K, ES384, ES512, ES521, EdDSA, HS256/384/512, PS256/384/512, RS256/384/512, none`.
+   This is **not exploitable** — PyJWT refuses `alg=none` unless the key is `""`, and refuses an
+   asymmetric key as an HMAC secret — but the accepted surface is wider than FIPS allows.
+2. **In a federal deployment the IdP is itself FIPS-configured**, so only FIPS-compatible algorithms
+   should ever arrive. The risk is a **non-FedRAMP IdP in a FedRAMP staging environment** — a real
+   scenario we must support. There, verification fails **fail-closed but unhelpfully** (§5.3).
+
+### 5.3 Failure modes under FIPS — debugging guide
+
+**Read this first if a crypto operation fails only when `TAP_FIPS=1`.**
+
+| Symptom (exact string) | Raised by | Meaning |
+| --- | --- | --- |
+| `ValueError: [digital envelope routines] unsupported` | `_hashlib`, `hashlib.md5()` | A **non-approved digest** (MD5) was requested for security use. The caller should pass `usedforsecurity=False` if the use is genuinely non-security. |
+| `cryptography.exceptions.InternalError: Unknown OpenSSL error` | `cryptography`, key construction or verify | Almost always a **non-approved curve** — e.g. `secp256k1` (JWS `ES256K`). The message is generic; check the curve/algorithm. |
+| `ValueError: Unable to sign/verify with this key` | `cryptography` RSA | **Key too small.** FIPS requires RSA ≥ 2048. |
+| `UnsupportedAlgorithm` | `cryptography` | Algorithm absent from the active providers. |
+| `openssl` CLI: `evp_generic_fetch: unsupported` | OpenSSL | Same as the first row, from the CLI. |
+
+#### The trap: these do **not** reach allauth's error handling
+
+Under FIPS, an OIDC login against an IdP using a non-approved algorithm fails **before** `jwt.decode`,
+inside `jwtkit.fetch_key → algorithm.from_jwk()`. The exception is
+`cryptography.exceptions.InternalError` or a plain `ValueError`. Neither is a `jwt.PyJWTError`
+(so `jwtkit`'s `except jwt.PyJWTError` does not wrap it into an `OAuth2Error`), and neither is in
+allauth's callback handler:
+
+```python
+# allauth/socialaccount/providers/oauth2/views.py  (OAuth2CallbackView.dispatch)
+except (PermissionDenied, OAuth2Error, RequestException, ProviderException) as e:
+    return render_authentication_error(request, provider, exception=e, ...)
+```
+
+**Result: the exception escapes both `try` blocks and becomes an uncaught HTTP 500.** No branded error
+page, no `on_authentication_error` adapter hook, just a traceback. An operator federating a
+non-FIPS IdP into a FedRAMP staging environment sees `Unknown OpenSSL error` and no explanation.
+
+#### Where to fix it (designed, deliberately NOT built)
+
+TAP already has the exact seam and an exact precedent:
+`tap_auth/middleware.py::CallerContextMiddleware.process_exception` rescues a
+`requests.RequestException` on an `/auth/` path into a branded 503
+(`tap_web/auth/provider_unreachable.html`) rather than a raw 500. The FIPS case is the same shape:
+
+1. Add a **generic, Django-free explainer** in `tap/` — e.g. `tap/crypto_errors.py::explain_crypto_error(exc) -> str | None`
+   — that walks `exc.__cause__` / `__context__` and matches the signatures in the table above.
+   It belongs in `tap/`, not `tap_auth/`, per the "no `tap_*` interdependencies; push shared
+   mechanics down" rule in `CLAUDE.md`.
+2. Add a branch to `process_exception`: on an `/auth/` path, if `explain_crypto_error(exception)`
+   returns text, log it and render a new `tap_web/auth/provider_algorithm_unsupported.html`.
+   Use **502** (the upstream IdP returned something we cannot process) rather than 503 — it is not
+   transient, so no `Retry-After`.
+3. Message should name the likely cause: *"the identity provider signed its `id_token` with an
+   algorithm this FIPS-mode deployment cannot verify (e.g. `ES256K`, or an RSA key below 2048 bits).
+   Configure the IdP to sign with RS256/PS256/ES256, or run this instance with `TAP_FIPS=0`."*
+4. Optionally, pin an explicit JWS algorithm allowlist rather than accepting the token's claimed
+   `alg`, which converts the opaque crypto error into a clean, early rejection.
+
+Not built because FIPS is not yet live (`-6` unimplemented), so the code path is unreachable today.
+**Build it in the same change that turns `TAP_FIPS=1` on**, and give it a spec RID alongside
+`req-tap-auth-google-oidc`'s existing callback-hardening requirement.
 
 ## 6. Verification suite (re-runnable ground truth)
 
@@ -323,6 +527,8 @@ Each is stated as a **falsifiable check with a negative control**. A FIPS claim 
 | `F11` | `ec.generate_private_key(ec.SECP256R1())` + sign + verify | succeeds (the passkey path, through FIPS) |
 | `F12` | `hashes.Hash(hashes.MD5())` via `cryptography` | raises `InternalError` (negative control) |
 | `F13` | grep the installed dep closure for `hashlib.md5(` without `usedforsecurity=False` | only `MD5PasswordHasher` (unreachable) + `faker` (test-only) |
+| `F14` | `OPENSSL_CONF=/dev/null openssl list -providers` | shows **`default` active** — proving the boundary is the config, not the modules dir (L13). Do **not** cite `ls ossl-modules/` as evidence. |
+| `F15` | `openssl req -new -newkey ec:… -subj /CN=x` | succeeds, `ecdsa-with-SHA256` — the `.include ca.cnf` trap is closed (L14) |
 
 Machine-readable form for an automated assessor:
 
