@@ -78,7 +78,7 @@ find out which bar they mean before designing anything.** The answer changes the
 | D3 | **Build `fips.so` ourselves** in a builder stage, per the #4282 security policy's build instructions. | The build recipe is part of what is validated. | — |
 | D4 | Run the **frozen 3.0.9 `fips.so` against the base's modern libcrypto.** | OpenSSL guarantees a certified `fips.so` is binary-compatible with **any later** libcrypto. Verified: Wolfi's OpenSSL **3.6.3** `fipsinstall`ed and self-tested our 3.0.9 module. **Therefore OpenSSL 3.0's Sept-2026 LTS-EOL is irrelevant** — base libs stay patched; only the validated module is frozen. | OpenSSL revokes the compatibility guarantee. |
 | D5 | Activate via **`openssl fipsinstall` in-image** + an `openssl.cnf` + `ENV OPENSSL_CONF`. | `fipsinstall` runs self-tests and writes the module's integrity **MAC**. It must run in the final image; if `fips.so`'s bytes change without re-running it, the provider refuses to load. | — |
-| D6 | **Strict provider set: `fips` + `base` only. No `default` provider.** | Loading `default` would silently re-supply every non-approved algorithm. | Never, for convenience. Only if an unavoidable non-security consumer cannot use `usedforsecurity=False`. |
+| D6 | **Strict provider set: `fips` + `base` only. No `default` provider.** | Loading `default` would silently re-supply every non-approved algorithm. **The `default` provider is built into `libcrypto`, not a file** — so the boundary is the *config*, not the modules directory (L13). Verified: TLS 1.3 still negotiates and `openssl req` still signs P-256 with the strict set. | Never, for convenience. Only if an unavoidable non-security consumer cannot use `usedforsecurity=False`. |
 | D7 | Build **`cryptography` `--no-binary`** against the system OpenSSL — **in both FIPS and non-FIPS modes.** | Its wheel *statically bundles its own OpenSSL* and would bypass the system FIPS provider entirely. Building it the same way in both modes means only *provider activation* differs; otherwise non-FIPS passes on a bundled wheel and FIPS breaks at the far end of the pipeline. | — |
 | D8 | Set **`CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1`**. | Otherwise `cryptography` loads OpenSSL's legacy provider, silently re-enabling MD5/DES. | — |
 | D9 | **No Python rebuild.** | Wolfi's `python-3.14` dynamically links the *system* libcrypto, so `hashlib`/`ssl`/`hmac` inherit the activated provider for free. Verified. | The base ships a statically-linked or vendored-OpenSSL Python. |
@@ -107,6 +107,7 @@ Five steps. Reproducible via `spikes/fips/Dockerfile.fips` (three stages, all gr
    openssl_conf = openssl_init
 
    .include /etc/ssl/fipsmodule.cnf
+   .include /etc/ssl/ca.cnf          # restore the stock openssl.cnf include we displace
 
    [openssl_init]
    providers = provider_sect
@@ -256,6 +257,46 @@ control the customer's host. Hence D11.
 **Check `openssl fipsinstall` availability on any candidate base, early.** It tells you which model
 you're in, in one command.
 
+### L13 — An empty `ossl-modules/` does **NOT** mean only FIPS can do crypto ⚠️ FAIL-OPEN reasoning
+
+**The tempting inference:** `/usr/lib/ossl-modules/` contains only `fips.so`, therefore no other
+module can perform crypto operations. **This is false, and an assessor will catch it.**
+
+In OpenSSL 3 the **`default` and `base` providers are compiled into `libcrypto` itself.** They are
+not `.so` files. Only `fips.so` and `legacy.so` ship as separately-loadable modules. Proof, on our
+own image:
+
+- `ls /usr/lib/ossl-modules/` → `fips.so`, and nothing else.
+- `find / -name '*.so*' | grep -E '/(default|base|legacy)\.so'` → **no matches.**
+- Yet `openssl list -providers` reports **`base`, version 3.6.3, active.** It has no file.
+- Neutralise *only the config*, same filesystem:
+  `OPENSSL_CONF=/dev/null openssl list -providers` → **"OpenSSL Default Provider 3.6.3, active"**,
+  and `openssl dgst -md5` **works**.
+
+**The FIPS boundary is enforced by the configuration** (`default_properties = fips=yes`, plus not
+activating `default`), **not by the contents of the modules directory.** This is also precisely how
+CPython reaches MD5 under `usedforsecurity=False` (L8): it creates a second `OSSL_LIB_CTX` that
+loads the built-in default provider — no file needed.
+
+**Consequences:**
+- Never cite the modules-directory listing as evidence of the cryptographic boundary.
+- The config **is** the boundary, so it is integrity-critical: anything that can set `OPENSSL_CONF`,
+  or write the file it points at, can silently disable FIPS. Treat both as protected assets.
+- This is exactly why the fail-closed boot assertion (D15) must *execute crypto and observe a
+  refusal*, rather than inspect files or parse config.
+
+### L14 — Overriding `OPENSSL_CONF` displaces the stock config, includes and all
+
+Pointing `OPENSSL_CONF` at our own file means the base image's `/etc/ssl/openssl.cnf` is **not read**
+— including its `.include /etc/ssl/ca.cnf`. On Wolfi, `ca.cnf` defines `[ca]`/`[CA_default]`/`[req]`
+for the `openssl ca` / `openssl req` **CLI subcommands** (certificate issuance).
+
+TLS **trust** is unaffected — that comes from `/etc/ssl/cert.pem` + `/etc/ssl/certs`, verified: 145
+CA certs load and a real TLS 1.3 handshake succeeds under FIPS. But dropping it is a **latent trap**:
+a future `openssl req` fails on a missing section, with a non-obvious cause. Fixed by re-adding
+`.include /etc/ssl/ca.cnf`; verified this restores `openssl req` (P-256 CSR, `ecdsa-with-SHA256`)
+**without** widening the provider set — `fips`+`base` only, md5 still refused.
+
 ### L11 — Ecosystem facts we got wrong until we measured them
 
 Every one of these was asserted confidently (by me, or by a research pass) and was **false**:
@@ -323,6 +364,8 @@ Each is stated as a **falsifiable check with a negative control**. A FIPS claim 
 | `F11` | `ec.generate_private_key(ec.SECP256R1())` + sign + verify | succeeds (the passkey path, through FIPS) |
 | `F12` | `hashes.Hash(hashes.MD5())` via `cryptography` | raises `InternalError` (negative control) |
 | `F13` | grep the installed dep closure for `hashlib.md5(` without `usedforsecurity=False` | only `MD5PasswordHasher` (unreachable) + `faker` (test-only) |
+| `F14` | `OPENSSL_CONF=/dev/null openssl list -providers` | shows **`default` active** — proving the boundary is the config, not the modules dir (L13). Do **not** cite `ls ossl-modules/` as evidence. |
+| `F15` | `openssl req -new -newkey ec:… -subj /CN=x` | succeeds, `ecdsa-with-SHA256` — the `.include ca.cnf` trap is closed (L14) |
 
 Machine-readable form for an automated assessor:
 

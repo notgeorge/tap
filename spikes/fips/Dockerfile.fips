@@ -42,6 +42,11 @@ RUN printf '%s\n' \
   'openssl_conf = openssl_init' \
   '' \
   '.include /etc/ssl/fipsmodule.cnf' \
+  '# Restore the stock openssl.cnf include we displace by pointing OPENSSL_CONF here.' \
+  '# ca.cnf only defines [ca]/[CA_default]/[req] for the `openssl ca`/`openssl req`' \
+  '# subcommands (cert issuance) — TLS trust comes from /etc/ssl/cert.pem, not this file —' \
+  '# but dropping it is a latent trap: any future `openssl req` fails on a missing section.' \
+  '.include /etc/ssl/ca.cnf' \
   '' \
   '[openssl_init]' \
   'providers = provider_sect' \
