@@ -67,11 +67,33 @@ def _hash_secret(secret: str) -> str:
     return hashlib.sha256(secret.encode("utf-8")).hexdigest()
 
 
+class UsernameTaken(ValueError):
+    """A pinned ``username`` already resolves to an existing :class:`User`.
+
+    Raised at mint (fail fast) and again at redeem (the mint→redeem window is a real
+    TOCTOU gap — the account can appear in between). A pinned username is **create-only**:
+    it must never silently become an additive mint onto someone else's account, which is
+    why `req-tap-auth-passkey-add-device-1` makes adding a credential an explicit flag.
+    """
+
+
+def _assert_username_free(username: str) -> None:
+    """Fail loud if a pinned username is taken. Never suffix-and-continue: silently
+    landing on `admin-3f2c` would defeat the caller's entire reason for pinning."""
+    if username and User.objects.filter(username=username).exists():
+        raise UsernameTaken(
+            f"username '{username}' already exists — a pinned username is create-only and will not "
+            "silently bind a credential to an existing account. To add a passkey to an existing user, "
+            "use the explicit add-credential path (req-tap-auth-passkey-add-device)."
+        )
+
+
 def _mint_invitation(
     *,
     action: str,
     email: str = "",
     display_name: str = "",
+    username: str = "",
     grants: list[str] | None = None,
     target_user: User | None = None,
     issued_by: User | None = None,
@@ -79,9 +101,15 @@ def _mint_invitation(
 ) -> tuple[Invitation, str]:
     """UNGUARDED mint impl (token hygiene). Genesis/bootstrap calls this directly
     below the capability gate. Returns ``(invitation, raw_secret)`` — the raw secret
-    is returned exactly once and is never persisted (only its hash)."""
+    is returned exactly once and is never persisted (only its hash).
+
+    ``username`` pins the created user's username instead of deriving it from the email
+    (req-tap-auth-passkey-enrollment-8); empty preserves the derived behaviour exactly."""
     if ttl > MAX_TTL:
         raise ValueError(f"invitation TTL {ttl} exceeds the enforced maximum {MAX_TTL}")
+    if username and action != InvitationAction.ENROLL_FIRST:
+        raise ValueError(f"username may only be pinned on an {InvitationAction.ENROLL_FIRST} invitation")
+    _assert_username_free(username)
     secret = secrets.token_urlsafe(_SECRET_BYTES)
     invitation = Invitation.objects.create(
         public_id=secrets.token_hex(_PUBLIC_ID_BYTES),
@@ -89,6 +117,7 @@ def _mint_invitation(
         action=action,
         email=email,
         display_name=display_name,
+        username=username,
         grants=list(grants or []),
         target_user=target_user,
         issued_by=issued_by,
@@ -111,6 +140,7 @@ def mint_invitation(
     action: str,
     email: str = "",
     display_name: str = "",
+    username: str = "",
     grants: list[str] | None = None,
     target_user: User | None = None,
     ttl: timedelta = DEFAULT_TTL,
@@ -126,9 +156,50 @@ def mint_invitation(
         action=action,
         email=email,
         display_name=display_name,
+        username=username,
         grants=grants,
         target_user=target_user,
         issued_by=issued_by,
+        ttl=ttl,
+    )
+
+
+def mint_below_gate_as_bootloader(
+    *,
+    action: str,
+    email: str = "",
+    display_name: str = "",
+    username: str = "",
+    grants: list[str] | None = None,
+    target_user: User | None = None,
+    ttl: timedelta = GENESIS_TTL,
+) -> tuple[Invitation, str]:
+    """Mint an invitation BELOW the capability gate, attributed to ``tap_bootloader``.
+
+    The shared genesis-class mint used by `enroll_admin` and `bootstrap_dev_passkey`: on a
+    fresh instance no capability-holding human exists to authorize a mint, so bootstrap sits
+    beneath authz (exactly like ``sync.ensure_initial_admin``). ``issued_by`` names the
+    bootloader for a truthful audit trail — **attribution, not authority**: the bootloader
+    does not and must not hold ``auth.manage_users``.
+
+    Factored out so the two callers cannot drift on who gets credited for a below-the-gate
+    mint. Raises :class:`MissingActor` (as a plain error) if auth sync has not run — an
+    unattributable invitation is refused, never minted anonymously.
+    """
+    # Imported lazily: tap_auth.actors reads the DB, and invitations.py is imported at
+    # module scope by views/commands that must not touch the DB at import time.
+    from tap_auth.actors import BOOTLOADER, get_builtin_actor
+
+    bootloader = get_builtin_actor(BOOTLOADER)
+    assert isinstance(bootloader, User)
+    return _mint_invitation(
+        action=action,
+        email=email,
+        display_name=display_name,
+        username=username,
+        grants=grants,
+        target_user=target_user,
+        issued_by=bootloader,
         ttl=ttl,
     )
 
@@ -154,9 +225,19 @@ def _create_enrolled_user(invitation: Invitation, user_handle: bytes) -> User:
     ``user_handle`` is the exact handle the registration ceremony used as ``user.id``;
     it is persisted onto the new user's :class:`WebAuthnUserHandle` so the stored
     handle matches the ``userHandle`` future assertions return (webauthn-10). It must
-    NOT be regenerated here — a fresh random handle would never match the credential."""
+    NOT be regenerated here — a fresh random handle would never match the credential.
+
+    A pinned :attr:`Invitation.username` is used verbatim; it is re-checked for freeness
+    here because mint and redeem are separated in time and the account can appear in
+    between. Inside the redeem transaction, so raising rolls the consume back and leaves
+    the invitation pending rather than burning it (req-tap-auth-passkey-enrollment-8)."""
+    if invitation.username:
+        _assert_username_free(invitation.username)
+        username = invitation.username
+    else:
+        username = _unique_username(invitation.email)
     user = User(
-        username=_unique_username(invitation.email),
+        username=username,
         email=invitation.email,
         user_kind=UserKind.HUMAN,
     )
@@ -244,7 +325,15 @@ def redeem_invitation(
             # Guaranteed non-null by the add_credential check constraint + clean().
             assert user is not None
         else:
-            user = _create_enrolled_user(invitation, user_handle)
+            # A pinned username taken since mint (TOCTOU) is a real failure, but it must
+            # not escape as a bare ValueError: every caller of this function handles the
+            # single generic InvitationError. Roll back (invitation stays pending), log
+            # the specific reason, return the generic one.
+            try:
+                user = _create_enrolled_user(invitation, user_handle)
+            except UsernameTaken as exc:
+                logger.warning("[aba2] invitation redeem hit a taken pinned username public_id=%s: %s", public_id, exc)
+                raise InvitationError(GENERIC_FAILURE) from exc
 
         # Bind the passkey INSIDE the transaction: a verification failure raises and
         # rolls back the consume, leaving the invitation redeemable. Convert the

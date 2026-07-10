@@ -6,13 +6,19 @@ PUBLIC credential record. Committing that record to the operator's 0600 secrets 
 every freshly-spawned session bind the same passkey with no re-registration
 (``enroll_admin --import-dev-passkey``).
 
-The record is written to STDOUT, not to a file — the secrets mount is read-only in the
-container, and the operator (not this process) owns where it lands. The record carries ONLY
-public material (never the private key); its confidentiality is low-stakes, its INTEGRITY is
-what matters (a self-digest is stamped, and the file's 0600 operator-owned home is the named
-load-bearing mitigation). Redirect stdout to the record path:
+Prefer `manage.py bootstrap_dev_passkey`, which drives register → wait → emit as one guided
+step and never leaves the operator holding a half-finished flow. This command remains the
+low-level "emit the record for an already-registered passkey" primitive it always was.
 
-    manage.py export_dev_passkey > ~/tap-secrets/dev-passkey/admin.dev-passkey.json
+The record is written to STDOUT, not to a file — the secrets mount is read-only in the
+container, and the operator (not this process) owns where it lands (req-…-dev-bootstrap-12).
+The record carries ONLY public material (never the private key); its confidentiality is
+low-stakes, its INTEGRITY is what matters (a self-digest is stamped, and the file's 0600
+operator-owned home is the named load-bearing mitigation). Redirect stdout to the record
+path, writing atomically so a failed run cannot leave a truncated record behind:
+
+    manage.py export_dev_passkey > admin.dev-passkey.json.tmp \
+      && mv admin.dev-passkey.json.tmp ~/tap-secrets/dev-passkey/admin.dev-passkey.json
 """
 
 from __future__ import annotations
@@ -22,8 +28,7 @@ from typing import Any
 
 from django.core.management.base import BaseCommand, CommandError
 
-from tap_auth.models import User, WebAuthnCredential
-from tap_auth.passkey.dev_record import DEV_ADMIN_USERNAME, build_dev_record
+from tap_auth.passkey.dev_record import DEV_ADMIN_USERNAME, DevRecordError, build_record_for_user
 
 
 class Command(BaseCommand):
@@ -34,7 +39,10 @@ class Command(BaseCommand):
             "--username",
             default=DEV_ADMIN_USERNAME,
             metavar="NAME",
-            help=f"The user whose passkey to export (default: {DEV_ADMIN_USERNAME}).",
+            help=(
+                f"The user whose passkey to export (default: {DEV_ADMIN_USERNAME} — the account "
+                "`--import-dev-passkey` replays onto, so the default round-trips)."
+            ),
         )
         parser.add_argument(
             "--credential-id",
@@ -46,47 +54,11 @@ class Command(BaseCommand):
     def handle(self, *args: Any, **options: Any) -> None:
         username = options["username"]
         try:
-            user = User.objects.get(username=username)
-        except User.DoesNotExist as exc:
-            raise CommandError(
-                f"no user '{username}' — register a passkey against a running session first, " "then export it."
-            ) from exc
-
-        handle = getattr(user, "webauthn_handle", None)
-        if handle is None:
-            raise CommandError(
-                f"user '{username}' has no WebAuthn user handle — has this account ever registered a passkey?"
-            )
-
-        credential = self._select_credential(user, options["credential_id"])
-        record = build_dev_record(user_handle_hex=handle.handle, credential=credential)
+            record = build_record_for_user(username, credential_id=options["credential_id"])
+        except DevRecordError as exc:
+            raise CommandError(str(exc)) from exc
 
         # The record IS the machine payload — write ONLY the JSON to stdout so a redirect
-        # captures a clean file. Human context goes to stderr.
-        self.stderr.write(
-            self.style.SUCCESS(
-                f"Exporting passkey {credential.redacted_credential_id} for '{username}'. "
-                "Redirect stdout into your 0600 secrets dir."
-            )
-        )
+        # captures a clean file. Human context goes to stderr (req-…-dev-bootstrap-11).
+        self.stderr.write(self.style.SUCCESS(f"Exporting passkey record for '{username}'."))
         self.stdout.write(json.dumps(record, indent=2, sort_keys=True))
-
-    def _select_credential(self, user: User, credential_id: str) -> WebAuthnCredential:
-        """The credential to export: the named one, or (when unspecified) the user's only
-        credential. Refuse to guess when a user has several and none is named — export is a
-        deliberate act, and silently picking one could replay the wrong key."""
-        credentials = WebAuthnCredential.objects.filter(user=user)
-        if credential_id:
-            try:
-                return credentials.get(credential_id=credential_id)
-            except WebAuthnCredential.DoesNotExist as exc:
-                raise CommandError(f"user '{user.username}' has no credential '{credential_id}'.") from exc
-
-        found = list(credentials.order_by("-created")[:2])
-        if not found:
-            raise CommandError(f"user '{user.username}' has no registered passkey to export.")
-        if len(found) > 1:
-            raise CommandError(
-                f"user '{user.username}' has multiple passkeys — pass --credential-id to choose which to export."
-            )
-        return found[0]

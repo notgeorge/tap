@@ -38,6 +38,7 @@ from tap_auth.errors import AuthzError
 from tap_auth.invitations import (
     GENESIS_TTL,
     InvitationError,
+    UsernameTaken,
     _mint_invitation,
     mint_invitation,
     redeem_invitation,
@@ -482,3 +483,87 @@ def test_native_login_rejects_open_redirect_next():
     )
     assert verify_resp.status_code == 200
     assert verify_resp.json()["redirect"] == "/"
+
+
+# --------------------------------------------------------------------------- #
+# Pinned username at mint (enrollment-8)                                       #
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.spec("req-tap-auth-passkey-enrollment-8")
+@pytest.mark.django_db
+def test_pinned_username_is_used_verbatim_not_derived_from_email():
+    invitation, secret = _mint_invitation(
+        action=InvitationAction.ENROLL_FIRST,
+        email="op@example.com",
+        username="admin",
+        grants=["tap_admin"],
+        ttl=GENESIS_TTL,
+    )
+    user = _enroll(_make_authenticator(uv=True), invitation, secret)
+    assert user.username == "admin"  # not "op@example.com"
+    assert user.email == "op@example.com"  # email still recorded, just not as the name
+
+
+@pytest.mark.spec("req-tap-auth-passkey-enrollment-8")
+@pytest.mark.django_db
+def test_omitting_username_preserves_email_derived_behaviour():
+    invitation, secret = _mint_admin(email="derived@example.com")
+    user = _enroll(_make_authenticator(uv=True), invitation, secret)
+    assert user.username == "derived@example.com"
+
+
+@pytest.mark.spec("req-tap-auth-passkey-enrollment-8")
+@pytest.mark.django_db
+def test_pinning_an_existing_username_fails_loud_at_mint():
+    """Create-only. A pinned name that resolves to an existing user must NOT silently
+    become an additive mint onto that account (the add-device path is explicit)."""
+    User.objects.create(username="admin", user_kind=UserKind.HUMAN)
+    with pytest.raises(UsernameTaken):
+        _mint_invitation(
+            action=InvitationAction.ENROLL_FIRST,
+            email="op@example.com",
+            username="admin",
+            grants=["tap_admin"],
+            ttl=GENESIS_TTL,
+        )
+    assert not Invitation.objects.exists()  # nothing minted
+
+
+@pytest.mark.spec("req-tap-auth-passkey-enrollment-8")
+@pytest.mark.django_db
+def test_username_taken_between_mint_and_redeem_is_refused_and_leaves_invitation_pending():
+    """The TOCTOU window is real: mint validates, then the account appears, then redeem
+    runs. Redeem MUST re-check, refuse generically, and roll the consume back so the
+    invitation survives (a failed ceremony never burns the token)."""
+    invitation, secret = _mint_invitation(
+        action=InvitationAction.ENROLL_FIRST,
+        email="op@example.com",
+        username="admin",
+        grants=["tap_admin"],
+        ttl=GENESIS_TTL,
+    )
+    squatter = User.objects.create(username="admin", user_kind=UserKind.HUMAN)  # appears after mint
+
+    with pytest.raises(InvitationError):
+        _enroll(_make_authenticator(uv=True), invitation, secret)
+
+    invitation.refresh_from_db()
+    assert invitation.status == InvitationStatus.PENDING  # rolled back, still redeemable
+    assert not WebAuthnCredential.objects.filter(user=squatter).exists()  # nothing bound to them
+    assert User.objects.filter(username="admin").count() == 1
+
+
+@pytest.mark.spec("req-tap-auth-passkey-enrollment-8")
+@pytest.mark.django_db
+def test_username_cannot_be_pinned_on_an_add_credential_invitation():
+    """Pinning a name only means anything when creating; on add_credential the target is
+    already bound by internal id, so accepting a username would be a confusing no-op."""
+    existing = User.objects.create(username="someone", user_kind=UserKind.HUMAN)
+    with pytest.raises(ValueError):
+        _mint_invitation(
+            action=InvitationAction.ADD_CREDENTIAL,
+            username="admin",
+            target_user=existing,
+            ttl=GENESIS_TTL,
+        )

@@ -34,7 +34,7 @@ from django.urls import reverse
 from tap_auth.actors import BOOTLOADER, get_builtin_actor
 from tap_auth.boot import read_profile_kind
 from tap_auth.errors import MissingActor
-from tap_auth.invitations import GENESIS_TTL, _mint_invitation
+from tap_auth.invitations import GENESIS_TTL, UsernameTaken, _mint_invitation
 from tap_auth.models import InvitationAction, User, UserKind
 from tap_auth.passkey.dev_record import (
     DevImportNotAllowed,
@@ -65,6 +65,16 @@ class Command(BaseCommand):
             default="",
             metavar="NAME",
             help="Optional display name for the passkey / account.",
+        )
+        parser.add_argument(
+            "--username",
+            default="",
+            metavar="NAME",
+            help=(
+                "Pin the created user's username instead of deriving it from --email. Create-only: "
+                "an existing username fails loud (never a silent additive mint). Used by the dev "
+                "bootstrap so register-once and replay agree on one account."
+            ),
         )
         parser.add_argument(
             "--base-url",
@@ -128,14 +138,18 @@ class Command(BaseCommand):
 
         self._warn_if_admins_exist()
 
-        invitation, secret = _mint_invitation(
-            action=InvitationAction.ENROLL_FIRST,
-            email=options["email"],
-            display_name=options["display_name"],
-            grants=["tap_admin"],
-            issued_by=bootloader,
-            ttl=GENESIS_TTL,
-        )
+        try:
+            invitation, secret = _mint_invitation(
+                action=InvitationAction.ENROLL_FIRST,
+                email=options["email"],
+                display_name=options["display_name"],
+                username=options["username"],
+                grants=["tap_admin"],
+                issued_by=bootloader,
+                ttl=GENESIS_TTL,
+            )
+        except UsernameTaken as exc:
+            raise CommandError(str(exc)) from exc
 
         path = reverse("passkey_enroll", args=[invitation.public_id])
         base_url = (options["base_url"] or self._default_base_url()).rstrip("/")
@@ -166,6 +180,9 @@ class Command(BaseCommand):
         credential with no ceremony, so both guards are load-bearing."""
         profile_id = options["profile"] or os.environ.get("TAP_BOOT_PROFILE", "")
         profile_kind = read_profile_kind(profile_id)
+        # Checked here so a wrong profile never even READS the record (and the operator gets
+        # the refusal before any file I/O). `import_dev_admin` re-asserts it internally and
+        # is the load-bearing gate (req-…-dev-bootstrap-15); this one is the early-out.
         try:
             assert_dev_import_allowed(profile_kind)
         except DevImportNotAllowed as exc:
@@ -174,7 +191,9 @@ class Command(BaseCommand):
         record_path = self._resolve_record_path(options["dev_passkey_record"])
         try:
             record = load_dev_record(record_path)
-            user = import_dev_admin(record)
+            user = import_dev_admin(record, profile_id=profile_id)
+        except DevImportNotAllowed as exc:  # pragma: no cover — the early-out above fires first
+            raise CommandError(str(exc)) from exc
         except DevRecordError as exc:
             raise CommandError(f"dev passkey import failed: {exc}") from exc
 
