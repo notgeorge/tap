@@ -99,7 +99,7 @@ cheap-edge doctrine; the rest are the larger deploy-half build, rightly deferred
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
 | req-cicd-base-image-sourcing | [Source Base Images Off Anonymous Docker Hub](#source-base-images-off-anonymous-docker-hub) | Implemented | Container base images resolve from AWS's credential-free public ECR mirror, not docker.io — removes the anonymous-pull `429` single point of failure on the promote gate. First cheap edge landed. |
-| req-cicd-base-image-lifecycle | [Self-Host Base-Image Currency + Minimization](#self-host-base-image-currency--minimization) | Proposed | **Wolfi is the standard base** (`-3`, decided 2026-07-09; spike: OS-CVEs 311→0), carrying exactly TAP's runtime binaries, plus a self-hosted auto-patch loop + CVE gate instead of a managed hardened catalog. **FIPS is on by default** (`-6`), via the self-built OpenSSL 3.0 #4282 provider (`-5`, spike-proven end-to-end 2026-07-09), selected by `ARG TAP_FIPS=1` and asserted fail-closed at boot. Alternatives (DHI, UBI-micro) are **parked, not eliminated**. Survey doc: [doc-hardened-base-image-landscape](../docs/misc/doc-hardened-base-image-landscape.md). |
+| req-cicd-base-image-lifecycle | [Self-Host Base-Image Currency + Minimization](#self-host-base-image-currency--minimization) | Proposed | **Wolfi is the standard base** (`-3`, decided 2026-07-09; spike: OS-CVEs 311→0), carrying exactly TAP's runtime binaries, plus a self-hosted auto-patch loop + CVE gate instead of a managed hardened catalog. **FIPS is on by default** (`-6`), via the self-built OpenSSL 3.0 #4282 provider (`-5`, spike-proven end-to-end 2026-07-09), selected by `ARG TAP_FIPS=1` and asserted fail-closed at boot. Alternatives (DHI, UBI-micro) are **parked, not eliminated**. Docs: [doc-hardened-base-image-landscape](../docs/misc/doc-hardened-base-image-landscape.md) (landscape) · [doc-fips-assessment-record](../docs/misc/doc-fips-assessment-record.md) (FIPS decisions, lessons, verification suite). |
 | req-cicd-branch-protection | [Enforce The Gate Server-Side](#enforce-the-gate-server-side) | Proposed | Protect `main` at the forge with a bypass for the promote identity; the gate stops being bypassable. Closes the biggest hole. |
 | req-cicd-security-scanning | [Shift-Left Security Scanning](#shift-left-security-scanning) | Proposed | SAST + dependency audit + secret scan + container scan as a standing CI layer. The table-stakes layer TAP conspicuously lacks. |
 | req-cicd-dep-automation | [Automate Dependency Updates](#automate-dependency-updates) | Proposed | Dependabot/Renovate on `uv.lock` — pinned deps rot without it. |
@@ -154,6 +154,9 @@ avoiding a per-image subscription — even the hard FIPS requirement (`-5`) is m
 **self-building the free OpenSSL 3.0 #4282 provider**, not by buying a validated image. The
 full landscape survey, the decision criteria, the re-evaluation triggers, and the FIPS
 recipe live in the doc: [doc-hardened-base-image-landscape](../docs/misc/doc-hardened-base-image-landscape.md).
+The **FIPS decision record, lessons learned, assessment methodology, and a re-runnable
+verification suite** — written as a handoff artifact for a future AI or human assessor —
+live in [doc-fips-assessment-record](../docs/misc/doc-fips-assessment-record.md).
 
 **Grounding evidence (spike, 2026-07-09).** A real build of `cgr.dev/chainguard/wolfi-base`
 + `apk add python-3.14 git bash postgresql-client curl` + the copied `uv` binary: Python
