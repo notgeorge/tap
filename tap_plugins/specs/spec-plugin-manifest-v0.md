@@ -153,6 +153,7 @@ Required:
 Optional:
 
 - `description`: string
+- `requires_tap`: string — a PEP 440 version specifier naming the range of TAP core (`tap`) versions this plugin supports (e.g. `">=0.1,<0.2"`). The compatibility floor; see `req-plugin-extdev-compat-floor` in `spec-plugin-external-development.md`. Absent means no declared floor (allowed in v0). A malformed specifier is rejected at parse time. The pre-boot compatibility gate refuses a plugin whose declared range excludes the running core — reject-at-boot, not run-then-crash.
 
 Optional sections:
 
@@ -171,6 +172,7 @@ The top-level fields mean:
 - `slug`: the canonical TAP plugin slug
 - `name`: the human-readable plugin name
 - `description`: optional short human-readable description
+- `requires_tap`: optional PEP 440 core-version compatibility range
 
 In v0, `manifest_version` should be `"0"`.
 
@@ -182,6 +184,7 @@ plugin_version = "0.1.0"
 slug = "lotr"
 name = "Lord of the Rings"
 description = "Middle-earth example plugin."
+requires_tap = ">=0.1,<0.2"
 ```
 
 #### Acceptance Criteria
@@ -193,9 +196,10 @@ description = "Middle-earth example plugin."
 | req-plugin-manifest-v0-top-3 | Optional Sections | Implemented | `models`, `edges`, `editors`, `searches`, and `grift` sections may be omitted when empty. | |
 | req-plugin-manifest-v0-top-4 | Unknown Top-Level Keys Rejected | Implemented | Unknown top-level keys are invalid. | |
 | req-plugin-manifest-v0-top-5 | Manifest Version Fixed | Implemented | v0 manifests use `manifest_version = "0"`. | |
+| req-plugin-manifest-v0-top-6 | Optional Compatibility Floor | Implemented | `requires_tap`, when present, is a PEP 440 core-version specifier; malformed values are rejected at parse time. Enforcement is `req-plugin-extdev-compat-floor`. | |
 
 #### Future
-Later versions may add compatibility ranges, authorship, licensing, dependencies, or capability flags.
+`requires_tap` (top-6) realizes the compatibility-range note below. Later versions may still add authorship, licensing, and capability flags. The grid-plugin *protocol* version (`req-plugin-extdev-protocol`) is the deferred coarse wire-contract companion to `requires_tap`.
 
 ### Edge Mappings
 ----

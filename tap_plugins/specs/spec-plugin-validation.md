@@ -29,6 +29,7 @@ The validator is a TAP feature, not a third-party lint layer. It should live ins
 | req-plugin-validate-runs | [Runs Level](#runs-level) | Implemented | Service-layer smoke tests with rollback transaction |
 | req-plugin-validate-identity | [Identity Coherence](#identity-coherence) | Implemented | Structure check: package-mode identity chain agrees on disk |
 | req-plugin-validate-deps | [Declared Dependencies](#declared-dependencies) | Implemented | Structure check: cross-plugin imports are declared in depends_on |
+| req-plugin-validate-compat | [Compatibility Floor](#compatibility-floor) | Implemented | Structure check: `requires_tap` is declared and satisfied by the harness core |
 | req-plugin-validate-cli | [Standalone CLI](#standalone-cli) | Implemented | Module-based CLI for structure level; loads/runs via management command |
 | req-plugin-validate-mgmt | [Management Command](#management-command) | Implemented | Django management command supporting all levels |
 | req-plugin-validate-output | [Validation Output](#validation-output) | Implemented | Human output and structured JSON output |
@@ -56,6 +57,7 @@ The implemented validation scope for v0 is structural validation only. This incl
 - path and convention checks
 - package-mode identity coherence (slug / namespace / distribution / entry-point agree) — req-plugin-validate-identity
 - declared-dependency coverage (every cross-plugin import is declared in `depends_on`) — req-plugin-validate-deps
+- compatibility-floor coverage (`requires_tap` is declared and satisfied by the harness core) — req-plugin-validate-compat
 - declared class-path validation where supported by existing TAP manifest validation logic
 - warnings for undeclared convention files where TAP already emits them
 
@@ -273,6 +275,48 @@ This check, the per-commit `PluginDependencyConsistencyGuard` (`tap_plugins/guar
 | req-plugin-validate-deps-2 | Declared Import Passes | Implemented | An imported plugin declared in `depends_on` passes. | |
 | req-plugin-validate-deps-3 | Data Dependency Allowed | Implemented | A declared-but-unimported dependency (data/vocabulary) is informational, not a failure. | |
 | req-plugin-validate-deps-4 | Reuses Scanner | Implemented | The check reuses `tap.plugin_deps` rather than re-implementing import scanning. | |
+
+### Compatibility Floor
+----
+RID: `req-plugin-validate-compat`
+Status: `Implemented`
+
+A structure-level check verifies the plugin's `requires_tap` compatibility floor
+against the core running in the developer's harness.
+
+#### Implementation
+
+`req-plugin-extdev-compat-floor` (the VS Code `engines.vscode` model) has a plugin
+declare `requires_tap` — a PEP 440 range of core (`tap`) versions it supports — and
+the pre-boot compatibility gate (`_requires_tap_gate` in `tap/preboot.py`) refuse a
+mismatch at standup. This check surfaces the same thing at author time, in the
+developer's own cloned-core harness, before release.
+
+The `requires-tap` check (structure level, no Django) resolves the harness core
+version via `tap.core_version.core_tap_version()` (installed metadata, falling back
+to `<repo>/pyproject.toml`) and:
+
+- **absent** `requires_tap` → informational note recommending the developer declare a
+  floor. Non-fatal, and deliberately **not** a warning: `requires_tap` is optional in v0
+  (`req-plugin-extdev-compat-floor-4`) and `--strict` (the reusable-CI conformance gate)
+  promotes warnings to failures, so a warning here would make the floor de-facto required;
+- **declared and satisfied** by the harness core → passes (informational);
+- **declared but not satisfied** by the harness core → fails — the plugin would be
+  refused at boot against this core.
+
+The specifier is validated at manifest parse (`req-plugin-manifest-v0-top-6`), so a
+malformed value fails the upstream `manifest-parse` check; here the value is either
+absent or well-formed. The check reuses `tap.core_version` — the same helper the
+pre-boot gate uses — so author-time and boot-time agree by construction.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-plugin-validate-compat-1 | Absent Informational | Implemented | A plugin with no `requires_tap` gets an informational note recommending a declared floor. | Non-fatal even under `--strict` — optional in v0. |
+| req-plugin-validate-compat-2 | Satisfied Passes | Implemented | A `requires_tap` satisfied by the harness core passes. | |
+| req-plugin-validate-compat-3 | Unsatisfied Fails | Implemented | A `requires_tap` the harness core does not satisfy fails the check. | Mirrors the pre-boot refusal. |
+| req-plugin-validate-compat-4 | Shared Resolver | Implemented | The check reuses `tap.core_version` rather than re-deriving version logic. | Agrees with the boot gate. |
 
 ### Standalone CLI
 ----

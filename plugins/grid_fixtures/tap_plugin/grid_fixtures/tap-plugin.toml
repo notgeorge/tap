@@ -3,6 +3,10 @@ plugin_version = "0.1.0"
 slug = "grid_fixtures"
 name = "Grid Fixtures"
 description = "Neutral core-test node + edge vocabulary — query-pattern nodes (pg_*) plus edge-constraint archetype nodes and typed/constrained edges the core suites import."
+# Compatibility floor (req-plugin-extdev-compat-floor): the range of TAP core versions
+# this plugin supports. Open-floor while core iterates fast pre-1.0; the pre-boot gate
+# refuses this plugin against a core below the floor. First TAP-owned dogfood declaration.
+requires_tap = ">=0.1"
 
 [models]
 # Query-pattern nodes (unconstrained, full scalar surface) — Gryphon executor testing.

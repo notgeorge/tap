@@ -149,6 +149,58 @@ deployment profile references sibling editable paths that all become git sources
 6. Retire the `editable` local-source path once no profile uses it (or keep it as the
    dev/monorepo-checkout convenience — decide at the end, demand-driven).
 
+## Addendum (2026-07-09): the unified eviction wave — `aws_secrets_source` + the two repoless substrate plugins
+
+Since this doc was written, the fanout (steps 4–5) reshaped into **one coordinated wave**
+owned by session/plugins, bundled with the migration squash (task #16) — one fresh-DB event,
+not several. Three additions:
+
+**Two new substrate plugins with no repos yet.** `compliance_core` and `identity_core` (both
+extracted 2026-07-08) are `*_core` substrate leaves that several evicted plugins now depend on
+(`samsite`, `fedramp_20x_ksi`, `github_core`, `sigstore_core`). Neither has a
+`github.com/notgeorge/tap-plugin-*` repo. Until they do, their **reverse-dependency closure
+forces most of the set to stay `editable`** — which is why `boot/samsite.boot.json` is
+currently all-editable (interim, landed `1d5b9b7c`), and why a git-sourced boot of that profile
+fails resolving `tap-plugin-compliance-core` off the index. **Cut these two repos first in the
+wave** (clean substrate leaves — `identity_core` has no `root = "../.."` override to strip;
+verify `compliance_core`), tag `v0.1.0`; then the dependents re-release at `v0.2.0` git tags and
+the profile flips back to git.
+
+**`aws_secrets_source` — the bootstrap secret-source provider — evicts differently.** It is
+**not a grid plugin**: flat `aws_secrets_source/` package (not `tap_plugin.<slug>`), `boto3`-only,
+registers one `tap.secret_sources` entry point, no `BaseModel`/migrations/collectors, and **no
+`boot/*.json` entry**. Already extraction-ready as a distribution (no `root = "../.."` override,
+self-contained hatch build). Its eviction is a **build-time bake**, not a boot-time git source,
+because it sits *below* the PAT resolution it enables — it must be importable before boot can
+resolve `github-plugins-ro`:
+
+1. **Cut a private repo** `notgeorge/tap-plugin-aws-secrets-source`; push the tree, tag `v0.1.0`.
+   Nothing to strip.
+2. **Extend the read-only `github-plugins-ro` PAT scope** to include that repo (`Contents:
+   Read-only`). **Not** the write-capable CodeConnections "AWS Connector" App — that App's
+   `Administration:write`/`hooks:write` is runner+webhook plumbing for the *workflow-hosting*
+   repo only; the plugin repo hosts no workflow.
+3. **Install it at build time from its repo, not the monorepo path.** In the CI image build:
+   `ambient IAM → aws secretsmanager get-secret-value --secret-id tap-ci/github-plugins-ro`
+   (aws-cli, **not** the provider seam → no bootstrap recursion) `→ git clone` `→ uv pip install`
+   into the base image. Then **drop** the `TAP_SECRET_SOURCE_DISTS=/app/plugins/aws_secrets_source`
+   monorepo pointer (`.github/workflows/product-lines.yml`) and the entrypoint's monorepo-path
+   install (`docker/entrypoint.sh`).
+4. **Runtime unchanged:** the baked provider resolves the same PAT via the seam to git-install the
+   other private plugins at boot.
+
+Release-tracking gotcha: absent from every `boot/*.json`, so there's no boot `rev` to bump — its
+version pin lives entirely in the Dockerfile/build step. Pin explicitly (`@v0.1.0`) and track it
+there, or it silently drifts stale.
+
+**Ownership split for this wave.** The github-actions session lands its `aws_secrets_source` CI
+wiring on the **monorepo path** (correct pre-eviction) and merges to `main`; session/plugins then
+pulls that down and executes the git-from-own-repo flip **here, as part of this wave** — the
+provider is not made eviction-ready upstream, only here, so the flip happens once alongside the
+rest. Migration squash (#16) rides the same wave: core-app migrations squash to one `0001_initial`
+in the monorepo, plugin migrations squash in-repo and re-release with the wheels;
+`aws_secrets_source` has no migrations, so it sits out the squash.
+
 ## Explicitly out of scope here
 
 - The `index` durable path (`req-plugin-arch-sources-3`) and offline `wheelhouse`

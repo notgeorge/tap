@@ -228,6 +228,58 @@ def test_conformance_gate_manifest_slug_mismatch(monkeypatch: pytest.MonkeyPatch
         preboot._conformance_gate(_conformance_entries(), discovered)
 
 
+# --- Compatibility-floor gate (req-plugin-extdev-compat-floor) ----------------
+
+
+def _compat_entries() -> list[dict[str, object]]:
+    return [{"slug": "genericom", "source": {"type": "path", "path": "p"}}]
+
+
+def test_requires_tap_gate_satisfied(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(preboot, "_installed_distribution", lambda name: object())
+    monkeypatch.setattr(preboot, "_manifest_path_for", lambda entry, dist: "unused")
+    monkeypatch.setattr(preboot, "_read_manifest_requires_tap", lambda path: ">=0.1,<0.2")
+    monkeypatch.setattr("tap.core_version.core_tap_version", lambda: "0.1.0")
+    preboot._requires_tap_gate(_compat_entries())  # no raise
+
+
+def test_requires_tap_gate_violated_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(preboot, "_installed_distribution", lambda name: object())
+    monkeypatch.setattr(preboot, "_manifest_path_for", lambda entry, dist: "unused")
+    monkeypatch.setattr(preboot, "_read_manifest_requires_tap", lambda path: ">=0.5")
+    monkeypatch.setattr("tap.core_version.core_tap_version", lambda: "0.1.0")
+    with pytest.raises(preboot.PrebootError, match="requires TAP >=0.5 but the running core is 0.1.0"):
+        preboot._requires_tap_gate(_compat_entries())
+
+
+def test_requires_tap_gate_absent_is_allowed_and_lazy(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(preboot, "_installed_distribution", lambda name: object())
+    monkeypatch.setattr(preboot, "_manifest_path_for", lambda entry, dist: "unused")
+    monkeypatch.setattr(preboot, "_read_manifest_requires_tap", lambda path: None)
+
+    # A floor-less profile must never even resolve the core version — prove laziness.
+    def _boom() -> str:
+        raise AssertionError("core_tap_version must not be called when no plugin declares a floor")
+
+    monkeypatch.setattr("tap.core_version.core_tap_version", _boom)
+    preboot._requires_tap_gate(_compat_entries())  # no raise, no core-version resolution
+
+
+def test_requires_tap_gate_unresolvable_core_with_floor_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    from tap.core_version import CoreVersionError
+
+    monkeypatch.setattr(preboot, "_installed_distribution", lambda name: object())
+    monkeypatch.setattr(preboot, "_manifest_path_for", lambda entry, dist: "unused")
+    monkeypatch.setattr(preboot, "_read_manifest_requires_tap", lambda path: ">=0.1")
+
+    def _unresolvable() -> str:
+        raise CoreVersionError("no version")
+
+    monkeypatch.setattr("tap.core_version.core_tap_version", _unresolvable)
+    with pytest.raises(preboot.PrebootError, match="running core version cannot be determined"):
+        preboot._requires_tap_gate(_compat_entries())
+
+
 # --- Install reconciliation guard (req-boot-install-section-5) ----------------
 
 

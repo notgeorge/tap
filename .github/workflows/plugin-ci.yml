@@ -1,0 +1,203 @@
+# Reusable per-plugin CI (req-plugin-extdev-repo-ci, spec-plugin-external-development.md).
+#
+# The CI an EXTERNAL plugin repository runs against a KNOWN-GOOD core on free generic
+# runners. A plugin repo's own workflow is a thin caller:
+#
+#   jobs:
+#     tap:
+#       uses: notgeorge/tap/.github/workflows/plugin-ci.yml@v1
+#       with:
+#         plugin_slug: my_plugin
+#         harness_ref: v0.2.0          # pin the core harness — reproducible, known-good
+#         boot_profile: ci/my.boot.json  # optional: boot + run the plugin's tests
+#       secrets:
+#         harness_pat:    ${{ secrets.TAP_CORE_RO_PAT }}      # read core (private)
+#         plugins_ro_pat: ${{ secrets.TAP_PLUGINS_RO_PAT }}   # git-install private siblings
+#
+# Reciprocal of all-plugins.yml: that lane owns FULL-SET truth from the monorepo; this
+# lane owns ONE external plugin against a pinned core. It never runs the heavy gryphon
+# corpus — that is the internal CodeBuild integration path, never external.
+#
+# Two jobs:
+#   conformance   — always. `validate_plugin --strict` (structure level, Django-free) against
+#                   the pinned harness. Fast, no image, no DB. THE admission gate.
+#   boot-and-test — opt-in (a `boot_profile` was passed). Boots the caller's profile in a real
+#                   compose stack and runs the plugin's in-package tests (loads/runs coverage).
+#
+# STATUS: In Development — the conformance job is the solid core; boot-and-test is the
+# dial-in surface being hardened ahead of the Aug-1 external-developer opening.
+
+name: tap-plugin-ci
+
+on:
+  workflow_call:
+    inputs:
+      plugin_slug:
+        description: "The plugin slug (== manifest slug == tap_plugin.<slug> namespace)."
+        required: true
+        type: string
+      harness_repo:
+        description: "The core TAP repo used as the dev harness."
+        required: false
+        type: string
+        default: notgeorge/tap
+      harness_ref:
+        description: "Git ref (tag/branch/sha) of core to pin as the harness — reproducible, known-good."
+        required: false
+        type: string
+        default: main
+      plugin_subdir:
+        description: "Path to the plugin ROOT within the caller repo (holds pyproject.toml + tap_plugin/<slug>/)."
+        required: false
+        type: string
+        default: "."
+      boot_profile:
+        description: "Optional path (within the caller repo) to a *.boot.json to stage + boot. Empty = conformance only."
+        required: false
+        type: string
+        default: ""
+    secrets:
+      harness_pat:
+        description: "Token with read access to the (private) core repo. Defaults to the caller's GITHUB_TOKEN."
+        required: false
+      plugins_ro_pat:
+        description: "Read-only GitHub PAT for git-installing private sibling plugins during boot."
+        required: false
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Conformance — the always-on admission gate. Django-free structure validation
+  # against the pinned harness, on a bare runner (no image, no DB). Fast.
+  # ---------------------------------------------------------------------------
+  conformance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout core harness (${{ inputs.harness_repo }}@${{ inputs.harness_ref }})
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ inputs.harness_repo }}
+          ref: ${{ inputs.harness_ref }}
+          token: ${{ secrets.harness_pat || github.token }}
+          path: _harness
+
+      - name: Checkout plugin (this repo)
+        uses: actions/checkout@v5
+        with:
+          path: plugin
+
+      - uses: astral-sh/setup-uv@v5
+
+      # Structure-level validation needs only pure-python core modules
+      # (tap_plugins.manifest / tap.core_version / tap.plugin_deps / tap.jsonfiles),
+      # so run it with core on PYTHONPATH + just jsonschema + packaging — no full
+      # core `uv sync`, no Django. The pinned harness IS the version requires_tap
+      # is checked against, so this also enforces the compatibility floor.
+      - name: Validate plugin (structure, strict)
+        env:
+          PYTHONPATH: ${{ github.workspace }}/_harness
+        run: |
+          uv run --no-project --with jsonschema --with packaging \
+            python -m tap_plugins.validate_plugin \
+            "${{ github.workspace }}/plugin/${{ inputs.plugin_subdir }}" --strict
+
+  # ---------------------------------------------------------------------------
+  # Boot + test — opt-in. Boots the caller's profile in a real stack and runs the
+  # plugin's shipped in-package tests (loads/runs conformance). Mirrors the
+  # all-plugins.yml boot idiom (COMPOSE_FILE overlay, health gate, TAP-ABORT).
+  # ---------------------------------------------------------------------------
+  boot-and-test:
+    if: ${{ inputs.boot_profile != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
+    steps:
+      - name: Checkout core harness (${{ inputs.harness_repo }}@${{ inputs.harness_ref }})
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ inputs.harness_repo }}
+          ref: ${{ inputs.harness_ref }}
+          token: ${{ secrets.harness_pat || github.token }}
+
+      # The plugin is checked out INTO the harness tree so the image build context
+      # (the core dir) carries it; the caller's boot profile installs it editable
+      # from this path (source { type = "editable", path = "_external/<slug>" }).
+      - name: Checkout plugin into the harness tree
+        uses: actions/checkout@v5
+        with:
+          path: _external/${{ inputs.plugin_slug }}
+
+      - name: Stage the boot profile
+        run: |
+          src="_external/${{ inputs.plugin_slug }}/${{ inputs.boot_profile }}"
+          [ -f "$src" ] || { echo "::error::boot_profile not found in the plugin repo: ${{ inputs.boot_profile }}"; exit 1; }
+          mkdir -p boot
+          cp "$src" "boot/_ext_ci.boot.json"
+
+      - name: Prepare secrets root
+        run: |
+          rm -f tap_secrets
+          mkdir -p tap_secrets/tap_plugins
+
+      # If the profile git-installs private sibling plugins, wire the read-only PAT
+      # inline (github_pat kind, data.token) — the free-runner path, distinct from the
+      # internal CodeBuild AWS-Secrets-Manager routing.
+      - name: Wire read-only plugins PAT
+        if: ${{ secrets.plugins_ro_pat != '' }}
+        env:
+          PLUGINS_RO_PAT: ${{ secrets.plugins_ro_pat }}
+        run: |
+          cat > tap_secrets/tap_plugins/github-plugins-ro.secret.json <<JSON
+          {
+            "scope": "tap_plugins.source",
+            "key": "github-plugins-ro",
+            "kind": "github_pat",
+            "description": "Read-only GitHub PAT for git-installing private sibling plugins in per-repo CI.",
+            "data": { "token": "${PLUGINS_RO_PAT}" },
+            "metadata": {}
+          }
+          JSON
+
+      - uses: docker/setup-buildx-action@v3
+      - name: Build web image (GHA layer cache)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: tap-web:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Boot the plugin profile
+        env:
+          TAP_BOOT_PROFILE: _ext_ci
+          TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE: "false"
+        run: |
+          docker compose --env-file .env up -d
+          ok=0
+          for i in $(seq 1 90); do
+            if docker compose --env-file .env logs web 2>/dev/null | grep -q 'TAP-ABORT:'; then
+              echo "::error::boot aborted (TAP-ABORT sentinel in web log)"
+              docker compose --env-file .env logs web; exit 1
+            fi
+            if docker compose --env-file .env exec -T web sh -c 'cd /app && uv run python manage.py health' >/dev/null 2>&1; then
+              echo "web healthy after ~$((i * 10))s"; ok=1; break
+            fi
+            sleep 10
+          done
+          if [ "$ok" != 1 ]; then
+            echo "::error::web did not become healthy within the timeout"
+            docker compose --env-file .env logs web | tail -150; exit 1
+          fi
+
+      # The plugin ships its tests inside the package (tap_plugin/<slug>/tests/), so
+      # collect them by import path — travels with the plugin, no path knowledge needed.
+      - name: Run the plugin's in-package tests
+        run: |
+          docker compose --env-file .env exec -T web sh -c \
+            'cd /app && uv run pytest -p no:cacheprovider --pyargs tap_plugin.${{ inputs.plugin_slug }}'
+
+      - name: Dump web logs on failure
+        if: failure()
+        run: docker compose --env-file .env logs web | tail -200
