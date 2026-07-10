@@ -78,7 +78,7 @@ find out which bar they mean before designing anything.** The answer changes the
 | D3 | **Build `fips.so` ourselves** in a builder stage, per the #4282 security policy's build instructions. | The build recipe is part of what is validated. | — |
 | D4 | Run the **frozen 3.0.9 `fips.so` against the base's modern libcrypto.** | OpenSSL guarantees a certified `fips.so` is binary-compatible with **any later** libcrypto. Verified: Wolfi's OpenSSL **3.6.3** `fipsinstall`ed and self-tested our 3.0.9 module. **Therefore OpenSSL 3.0's Sept-2026 LTS-EOL is irrelevant** — base libs stay patched; only the validated module is frozen. | OpenSSL revokes the compatibility guarantee. |
 | D5 | Activate via **`openssl fipsinstall` in-image** + an `openssl.cnf` + `ENV OPENSSL_CONF`. | `fipsinstall` runs self-tests and writes the module's integrity **MAC**. It must run in the final image; if `fips.so`'s bytes change without re-running it, the provider refuses to load. | — |
-| D6 | **Strict provider set: `fips` + `base` only. No `default` provider.** | Loading `default` would silently re-supply every non-approved algorithm. **The `default` provider is built into `libcrypto`, not a file** — so the boundary is the *config*, not the modules directory (L13). Verified: TLS 1.3 still negotiates and `openssl req` still signs P-256 with the strict set. | Never, for convenience. Only if an unavoidable non-security consumer cannot use `usedforsecurity=False`. |
+| D6 | **Strict provider set: `fips` + `base` only. No `default` provider.** | Loading `default` would silently re-supply every non-approved algorithm. **The `default` provider is built into `libcrypto`, not a file** — so the boundary is the *config*, not the modules directory (L13). `base` adds **no crypto primitives** (encoders/decoders only): dropping it blocks no MD5 and breaks OpenSSL key-file I/O, so `fips`+`base` is correct rather than `fips` alone (L15). Verified: TLS 1.3 still negotiates and `openssl req` still signs P-256 with the strict set. | Never, for convenience. Only if an unavoidable non-security consumer cannot use `usedforsecurity=False`. |
 | D7 | Build **`cryptography` `--no-binary`** against the system OpenSSL — **in both FIPS and non-FIPS modes.** | Its wheel *statically bundles its own OpenSSL* and would bypass the system FIPS provider entirely. Building it the same way in both modes means only *provider activation* differs; otherwise non-FIPS passes on a bundled wheel and FIPS breaks at the far end of the pipeline. | — |
 | D8 | Set **`CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1`**. | Otherwise `cryptography` loads OpenSSL's legacy provider, silently re-enabling MD5/DES. | — |
 | D9 | **No Python rebuild.** | Wolfi's `python-3.14` dynamically links the *system* libcrypto, so `hashlib`/`ssl`/`hmac` inherit the activated provider for free. Verified. | The base ships a statically-linked or vendored-OpenSSL Python. |
@@ -284,6 +284,28 @@ loads the built-in default provider — no file needed.
   or write the file it points at, can silently disable FIPS. Treat both as protected assets.
 - This is exactly why the fail-closed boot assertion (D15) must *execute crypto and observe a
   refusal*, rather than inspect files or parse config.
+
+### L15 — `base` supplies **no cryptographic algorithms**; it is not a hole in the boundary
+
+A natural follow-on to L13: *"if `default` is what serves MD5, and `base` is also active, wouldn't
+dropping `base` tighten the boundary?"* **No.** Measured on our image, `fips`-only vs `fips`+`base`:
+
+| | `fips` + `base` (shipped) | `fips` only |
+| --- | --- | --- |
+| `md5(usedforsecurity=False)` | works | **still works** (built-in `default`, separate libctx — L8) |
+| `md5()` for security use | refused | refused |
+| `sha256` | works (fips) | works (fips) |
+| OpenSSL encoders available | **232** | **1** |
+| `openssl` write/read a PEM key, `openssl req` | OK | **fails** (`unable to write elliptic curve parameters`) |
+
+`base` provides **encoders, decoders and serializers** (PEM/DER key + certificate handling) and
+**zero crypto primitives**. Removing it therefore removes no algorithm from reach, blocks no MD5,
+and breaks OpenSSL key-file I/O. Keeping it is correct, and is the direct justification for D6's
+`fips` + `base` set rather than `fips` alone.
+
+Note also (measured, and contrary to the obvious guess): **`cryptography` does not need `base`** — it
+serializes PEM in its own Rust ASN.1 code and never calls OpenSSL's encoders. Only the OpenSSL CLI
+path depends on it.
 
 ### L14 — Overriding `OPENSSL_CONF` displaces the stock config, includes and all
 
