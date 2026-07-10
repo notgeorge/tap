@@ -32,8 +32,8 @@ boot profiles, not a new package manager.
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-dev-workspace-model | [The Workspace Model](#the-workspace-model) | Proposed | Harness (core clone) + editable dev plugins + rest git-pinned, booted as one mixed profile. |
-| req-dev-workspace-spawn | [Spawning A Workspace](#spawning-a-workspace) | Proposed | `spawn-session --dev-plugins <slugs>` clones/links the named plugins editable and pins the rest. |
+| req-dev-workspace-model | [The Workspace Model](#the-workspace-model) | Implemented | Harness (core clone) + editable dev plugins + rest git-pinned, booted as one mixed profile. Proven 2026-07-09: a real `--dev-plugins compliance_core` spawn booted healthy. |
+| req-dev-workspace-spawn | [Spawning A Workspace](#spawning-a-workspace) | Implemented | `spawn-session --dev-plugins <slugs>` resolves each slug against the base profile, clones it editable, pins the rest. `tap/dev_workspace.py` + spawn wiring. |
 | req-dev-workspace-loop | [The Inner Loop](#the-inner-loop) | Proposed | edit → relevance-gated test → `validate_plugin` → release, all against the running workspace. |
 | req-dev-workspace-release | [Scripted Plugin Release](#scripted-plugin-release) | Proposed | `release-plugin` tags the repo and bumps consuming boot profiles, substrate-first. |
 | req-dev-workspace-coupled | [Coupled Cross-Plugin Changes](#coupled-cross-plugin-changes) | Proposed | Two coupled plugins checked out editable together; released in dependency order. |
@@ -43,7 +43,13 @@ boot profiles, not a new package manager.
 ### The Workspace Model
 ----
 RID: `req-dev-workspace-model`
-Status: `Proposed`
+Status: `Implemented`
+
+#### Status Details
+Proven 2026-07-09: `spawn-session wsdev samsite --dev-plugins compliance_core` booted healthy —
+`compliance_core` installed editable from `_dev-plugins/compliance_core` (`direct_url.json`
+`editable: true`) while `fedramp_20x_ksi` stayed git-pinned at `v0.2.0`, and both the conformance
+gate (12 plugins) and the compatibility gate fired at standup.
 
 A **plugin workspace** is the unit of plugin development. It is composed of:
 
@@ -77,7 +83,13 @@ not add a source type, it composes the two.
 ### Spawning A Workspace
 ----
 RID: `req-dev-workspace-spawn`
-Status: `Proposed`
+Status: `Implemented`
+
+#### Status Details
+Implemented as `tap/dev_workspace.py` (pure stdlib, host-runnable venv-free, reusing
+`tap.boot_pointer`'s credential + `GIT_ASKPASS` helpers) + `spawn-session.sh --dev-plugins`
+wiring (mirrors `--from`). Unit-tested (`tap/tests/test_dev_workspace.py`) and proven by a real
+spawn (see `req-dev-workspace-model` Status Details).
 
 `spawn-session.sh` gains a `--dev-plugins <slug[,slug...]>` option that stands up a workspace
 in one command, extending the existing spawn lifecycle (`req-dev-multisession-spawn-script`).

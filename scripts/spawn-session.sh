@@ -88,6 +88,7 @@ trap on_failure EXIT
 LAUNCH_TARGET=""
 BOOT_PROFILE=""
 BOOT_FILE=""
+DEV_PLUGINS=""
 FROM_POINTER=""
 FROM_CREDENTIAL=""
 while [[ $# -gt 0 ]]; do
@@ -139,12 +140,23 @@ source secret for a private repo: a bare name (resolved under
 TAP_SECRETS_ROOT / ~/tap-secrets) or a full path to a *.secret.json. Mutually
 exclusive with --boot / --boot-file / the positional boot-profile.
 
+\`--dev-plugins <slug[,slug...]>\` stands up a PLUGIN WORKSPACE
+(spec-dev-plugin-workspace.md) over a named base profile: each slug is resolved
+against that profile's git install entry (its url/rev/credential), cloned editable
+into \`_dev-plugins/<slug>/\` in the worktree, and its source flipped git->editable;
+every other plugin stays git-pinned. Requires a base profile (positional/--boot);
+the slug must already be a plugin in that profile. Use it to develop one or more
+plugins live against the rest of a real profile. For a COUPLED change, name both:
+\`--dev-plugins compliance_core,fedramp_20x_ksi\`.
+
 Examples:
   $0                              # interactive, plain boot, no auto-launch
   $0 fix-arrangements             # named, plain boot
   $0 fix-arrangements cli         # named + attach Claude, plain boot
   $0 samsite-boot cli samsite     # named + Claude + fire the samsite collectors
   $0 samsite-boot samsite         # named + fire the samsite collectors (no editor)
+  $0 compliance-dev cli samsite --dev-plugins compliance_core
+                                  # workspace: compliance_core editable over the samsite profile
   $0 demo cli --boot samsite      # same, explicit-flag form
   $0 aws-standalone --boot-file plugins/aws_core/standalone.boot.json
                                   # boot a plugin's own profile from its directory
@@ -197,6 +209,16 @@ EOF
       FROM_CREDENTIAL="${1#--credential=}"
       shift
       ;;
+    --dev-plugins)
+      shift
+      [[ $# -gt 0 ]] || fail "--dev-plugins requires a comma-separated list of plugin slugs."
+      DEV_PLUGINS="$1"
+      shift
+      ;;
+    --dev-plugins=*)
+      DEV_PLUGINS="${1#--dev-plugins=}"
+      shift
+      ;;
     -*) fail "Unknown flag: $1" ;;
     cli|codex|vscode)
       [[ -z "$LAUNCH_TARGET" ]] || fail "Multiple launch targets given: '$LAUNCH_TARGET' and '$1'."
@@ -244,6 +266,16 @@ if [[ -n "$FROM_POINTER" ]]; then
   [[ -z "$BOOT_FILE" ]] || fail "--from and --boot-file are mutually exclusive."
 fi
 [[ -z "$FROM_CREDENTIAL" || -n "$FROM_POINTER" ]] || fail "--credential requires --from."
+
+# --dev-plugins: the plugin workspace (spec-dev-plugin-workspace.md). It OVERRIDES a subset of a
+# NAMED base profile's plugins to editable, so it needs a base profile (positional/--boot) and is
+# exclusive with --boot-file/--from (which name their own self-contained record). The derivation +
+# authed clone is deferred to Step 2 (once the worktree exists), mirroring --from.
+if [[ -n "$DEV_PLUGINS" ]]; then
+  [[ -n "$BOOT_PROFILE" ]] || fail "--dev-plugins requires a base boot profile (positional or --boot) to override."
+  [[ -z "$BOOT_FILE" ]] || fail "--dev-plugins and --boot-file are mutually exclusive."
+  [[ -z "$FROM_POINTER" ]] || fail "--dev-plugins and --from are mutually exclusive."
+fi
 
 cd "$REPO"
 
@@ -496,6 +528,21 @@ if [[ -n "$FROM_POINTER" ]]; then
   fi
   BOOT_PROFILE="$(basename "$STAGED_RECORD" .boot.json)"
   info "Staged --from -> boot/$BOOT_PROFILE.boot.json; booting profile '$BOOT_PROFILE'."
+fi
+
+# --dev-plugins: derive a mixed editable+git workspace profile from the named base profile.
+# tap.dev_workspace (pure stdlib, host-runnable venv-free like tap.boot_pointer) resolves each
+# named slug against the base profile's git install entry (the url/rev/credential authority),
+# clones it editable into $WORKTREE/_dev-plugins/<slug>, flips that entry git->editable, and writes
+# boot/<base>__dev.boot.json. We then boot that derived profile. See spec-dev-plugin-workspace.md.
+if [[ -n "$DEV_PLUGINS" ]]; then
+  info "Deriving dev workspace: editable [$DEV_PLUGINS] over base profile '$BOOT_PROFILE'"
+  if ! STAGED_DEV="$(cd "$REPO" && python3 -m tap.dev_workspace \
+      --base-profile "$BOOT_PROFILE" --dev-plugins "$DEV_PLUGINS" --worktree "$WORKTREE")"; then
+    fail "--dev-plugins: workspace derivation failed (see error above)."
+  fi
+  BOOT_PROFILE="$(basename "$STAGED_DEV" .boot.json)"
+  info "Staged dev workspace -> boot/$BOOT_PROFILE.boot.json; booting profile '$BOOT_PROFILE'."
 fi
 
 # ============================================================================

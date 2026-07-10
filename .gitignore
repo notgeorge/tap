@@ -103,3 +103,6 @@ htmlcov/
 tmp-build/
 wheelhouse/
 .test_durations
+
+# Nested editable plugin checkouts for `spawn --dev-plugins` (spec-dev-plugin-workspace.md).
+_dev-plugins/
