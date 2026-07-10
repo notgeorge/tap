@@ -39,7 +39,7 @@ If you are an **AI assistant** asked to validate, extend, or productionize TAP's
 4. Run §6 (the verification suite) to establish ground truth on the current image. **Do not trust
    this document's measurements over a fresh run** — they were true on 2026-07-09 against specific
    image digests, and base images move.
-5. Consult §7 (open risks) for what is genuinely unresolved. Do not report those as closed.
+5. Consult §7 for the risk register. §7.1 is **accepted and owned** (not a blocker); §7.2–7.5 are genuinely open — do not report those as closed.
 
 If you are a **human**: §1, §2, §4, and §7 are the substance. §3 is the recipe, §6 is how to check it.
 
@@ -74,7 +74,7 @@ find out which bar they mean before designing anything.** The answer changes the
 | # | Decision | Rationale | Reverses if… |
 | --- | --- | --- | --- |
 | D1 | **FIPS is a hard requirement**, targeted ~2026-09; not demand-gated. | Frontlined by George, 2026-07-09. | — |
-| D2 | Use the **free upstream OpenSSL 3.0 #4282** provider. No vendor/Chainguard module. | #4282 is sufficient and costs $0. Vendor modules buy nothing we need. | A validated module is required for an OE we cannot vendor-affirm (§7.1). |
+| D2 | Use the **free upstream OpenSSL 3.0 #4282** provider. No vendor/Chainguard module. | #4282 is sufficient and costs $0. Vendor modules buy nothing we need. | A 3PAO requires a module whose CMVP certificate covers a *tested* OE → §7.1 ladder rung 1 (buy the same-family validated image). **Risk accepted + owned; not blocking.** |
 | D3 | **Build `fips.so` ourselves** in a builder stage, per the #4282 security policy's build instructions. | The build recipe is part of what is validated. | — |
 | D4 | Run the **frozen 3.0.9 `fips.so` against the base's modern libcrypto.** | OpenSSL guarantees a certified `fips.so` is binary-compatible with **any later** libcrypto. Verified: Wolfi's OpenSSL **3.6.3** `fipsinstall`ed and self-tested our 3.0.9 module. **Therefore OpenSSL 3.0's Sept-2026 LTS-EOL is irrelevant** — base libs stay patched; only the validated module is frozen. | OpenSSL revokes the compatibility guarantee. |
 | D5 | Activate via **`openssl fipsinstall` in-image** + an `openssl.cnf` + `ENV OPENSSL_CONF`. | `fipsinstall` runs self-tests and writes the module's integrity **MAC**. It must run in the final image; if `fips.so`'s bytes change without re-running it, the provider refuses to load. | — |
@@ -83,7 +83,7 @@ find out which bar they mean before designing anything.** The answer changes the
 | D8 | Set **`CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1`**. | Otherwise `cryptography` loads OpenSSL's legacy provider, silently re-enabling MD5/DES. | — |
 | D9 | **No Python rebuild.** | Wolfi's `python-3.14` dynamically links the *system* libcrypto, so `hashlib`/`ssl`/`hmac` inherit the activated provider for free. Verified. | The base ships a statically-linked or vendored-OpenSSL Python. |
 | D10 | **Postgres gets the identical recipe** on a minimal `wolfi-base` + `apk postgresql-16`. | Postgres links the system OpenSSL for TLS + `pgcrypto`. One provider artifact, one recipe, both containers. | — |
-| D11 | **Wolfi is the standard base**; in-image FIPS chosen over RHEL's host-derived FIPS. | We ship a self-hosted product onto **customer-controlled hosts**. An in-image FIPS container is FIPS anywhere. A RHEL container **cannot enable FIPS by itself** (§4.10). | The compliance authority rejects vendor-affirmed OE (§7.1) → move to UBI + FIPS-mode hosts. |
+| D11 | **Wolfi is the standard base**; in-image FIPS chosen over RHEL's host-derived FIPS. | We ship a self-hosted product onto **customer-controlled hosts**. An in-image FIPS container is FIPS anywhere. A RHEL container **cannot enable FIPS by itself** (L10). Staying in the Wolfi family also makes the OE fallback a *base-image swap, not a rewrite* (§7.1). | Compliance rejects vendor-affirmed OE → escalate the §7.1 ladder (Chainguard validated-FIPS image first; UBI + FIPS-mode hosts last). |
 | D12 | **`ARG TAP_FIPS`, default `1`.** FIPS-on is the published artifact. | Secure by default. | — |
 | D13 | `TAP_FIPS=0` is an **explicitly-requested escape hatch, never a silent fallback.** CI builds and gates both variants so the non-FIPS lane cannot rot. | — | — |
 | D14 | The image **declares its mode machine-legibly**: OCI label `org.tap.fips=true\|false` + `ENV TAP_FIPS_MODE`. | CI, the boot record, `/healthz`, and an AI operator can read posture **without executing crypto** (`specs/spec-ai-integration.md`). | — |
@@ -349,20 +349,38 @@ Machine-readable form for an automated assessor:
 
 ## 7. Open risks — do NOT report these as closed
 
-### 7.1 Operational Environment (OE) vendor-affirmed portability ⚠️ the one that matters
+### 7.1 Operational Environment (OE) vendor-affirmed portability — **ACCEPTED RISK, OWNED**
 
-**Status: unresolved. Non-technical. Highest leverage.**
+**Status: accepted, 2026-07-09. Owner: George.** Non-technical. Does **not** block productionization.
 
 #4282's security policy lists the platforms on which the module was **tested**. Wolfi is not among
 them. We therefore rely on **FIPS 140-3 vendor-affirmed portability** (same CPU architecture, same
-libc; the vendor — us — affirms correct operation). This is common and widely accepted, **but the
-3PAO / compliance authority has final say.**
+libc; the vendor — us — affirms correct operation). This is common and widely accepted, but a
+3PAO / compliance authority has final say.
 
-**Action:** confirm acceptance *before* productionizing. If rejected, the landing spot is the
-already-proven `ubi-micro` + `dnf --installroot` path (`spikes/distroless/Dockerfile.ubi-micro`),
-accepting RHEL's **host-derived** FIPS — which means the deployment host must run `fips=1`.
+**The risk is owned deliberately, on domain expertise** (the owner contributed to getting FIPS +
+STIG sorted for the Wolfi/Chainguard line originally), and it is **cheap to be wrong about**, because
+the fallback is a **base-image swap, not a rewrite.** That is the payoff of having stayed in the
+Wolfi family: the escalation ladder never leaves the architecture.
 
-This single answer determines the base image. It is worth asking early and explicitly.
+**Escalation ladder, cheapest first — if a 3PAO rejects vendor-affirmed OE:**
+
+1. **Swap to Chainguard's validated FIPS image** (same Wolfi family, glibc, same `apk` binaries).
+   Their CMVP-validated module replaces our self-built `fips.so`; the `fipsinstall` + `openssl.cnf`
+   steps (§3 steps 1–3) largely fall away. **Everything else in this document still holds** — in
+   particular `--no-binary cryptography` (D7/L9) and the fail-closed boot assertion (D15) remain
+   mandatory. Cost: a commercial licence (possibly discounted). **Switching cost: near-zero.**
+2. **Evaluate DHI's free `3.14-fips` variant** (`dhi.io`, Apache-2.0, $0). **UNVERIFIED** — we could
+   not pull it (HTTP 401, login required) and never confirmed its Python version, FIPS activation
+   model (in-image vs host-derived, §4/L10), or `-dev` build story. Verify before relying on it.
+   Its authenticated pull also conflicts with `req-cicd-base-image-sourcing`'s anonymous-pull property.
+3. **UBI + host-derived FIPS** — the already-proven `ubi-micro` + `dnf --installroot` path
+   (`spikes/distroless/Dockerfile.ubi-micro`). RHEL 9 *is* a CMVP-**tested** OE, so this resolves the
+   OE question outright — at the cost that the **deployment host must run `fips=1`**, which we cannot
+   guarantee on customer-controlled infrastructure (§4/L10). Last resort, not first.
+
+**Why this is no longer the blocking question:** every rung of the ladder terminates in a working,
+already-demonstrated build. Proceed with the self-built #4282 provider (D2) as the default.
 
 ### 7.2 `usedforsecurity=False` is a reachable non-validated path
 
