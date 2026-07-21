@@ -10,7 +10,7 @@
         "source": {
           "type": "git",
           "url": "https://github.com/notgeorge/tap-plugin-grid-fixtures",
-          "rev": "v0.1.0",
+          "rev": "v0.1.1",
           "credential": "github-plugins-ro"
         },
         "note": "Package-mode (tap_plugin.grid_fixtures). Install-only: the neutral grid_fixtures__* node/edge vocabulary the core test suites build fixtures from. No GRIFT seed, no cross-plugin deps. The only thing above the core baseline in this tier."

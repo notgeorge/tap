@@ -120,7 +120,7 @@
         "source": {
           "type": "git",
           "url": "https://github.com/notgeorge/tap-plugin-grid-fixtures",
-          "rev": "v0.1.0",
+          "rev": "v0.1.1",
           "credential": "github-plugins-ro"
         },
         "note": "Package-mode (tap_plugin.grid_fixtures). Install-only: the neutral grid_fixtures__* node/edge vocabulary the core suites build fixtures from. No GRIFT seed, no cross-plugin deps. (gryphon_playground, which depends_on it, is NOT installed in this customer-demo profile \u2014 the Gryphon test corpus stands up via its own in-package boot records selected by a bootstrap pointer.)"
