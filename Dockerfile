@@ -1,10 +1,19 @@
 # TAP Development Dockerfile
-# Base image: Official Python 3.14 slim variant, sourced via AWS's credential-free public
-# ECR mirror of Docker Official Images rather than docker.io. Anonymous docker.io pulls
-# share GitHub Actions' runner-pool IPs and routinely hit Docker Hub's per-IP rate limit
-# (HTTP 429) — a nondeterministic single point of failure on the promote gate's image
-# build. The public.ecr.aws mirror has no such limit (req-cicd-base-image-sourcing).
-FROM public.ecr.aws/docker/library/python:3.14-slim
+#
+# Base image: a curated-minimal Wolfi base (cgr.dev/chainguard/wolfi-base) carrying exactly
+# TAP's runtime binaries, per req-cicd-base-image-lifecycle-3 (Wolfi is the standard base,
+# decided 2026-07-09; spike measured OS-CVEs 311→0 vs the outgoing python:3.14-slim). Wolfi
+# is glibc-based, so manylinux Python wheels install without a source build. It is chosen on
+# Python-3.14 currency, in-image host-independent FIPS (req-cicd-base-image-lifecycle-5/-6),
+# and a zero-CVE floor — NOT on shipping a runtime package manager (TAP's deps + plugins are
+# Python-package installs baked/synced by uv, not OS-package installs; see the assessment
+# record docs/misc/doc-fips-assessment-record.md L11 and distroless disproof spikes/distroless/).
+#
+# This stages the cutover: this revision swaps the base to Wolfi with FIPS OFF (TAP_FIPS=0),
+# validating the base swap in isolation. FIPS-on (the fips.so builder stage + provider config +
+# fail-closed boot assertion) lands in a subsequent commit so a boot break is attributable to
+# the apk swap vs the provider config, not both at once (req-cicd-base-image-lifecycle-6).
+FROM cgr.dev/chainguard/wolfi-base
 
 # ============================================================================
 # Environment Variables
@@ -30,21 +39,31 @@ ENV UV_LINK_MODE=copy
 # All subsequent commands run from this directory
 WORKDIR /app
 
-# Install system-level dependencies
-# - postgresql-client: pg_isready/psql for Django, AND pg_dump/pg_restore for the
-#   pre-boot pre-migrate snapshot (tap/preboot.py, req-boot-snapshot)
-# - git: required by the pre-boot stage to install package-mode plugins from a git
-#   source (`<dist> @ git+https://…@<rev>`, req-boot-install-section). uv shells out to
-#   the git binary for VCS installs; without it a git-source plugin install fails.
-# - curl: used by the tailwindcss binary install below; also handy for shell
-#   debugging from inside the container
-# - --no-install-recommends: skip optional packages to keep image small
-# - rm -rf /var/lib/apt/lists/*: clean up apt cache to reduce image size
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    postgresql-client \
+# Install system-level runtime binaries. These are named, itemized attack-surface
+# line-items (req-cicd-base-image-lifecycle-3), present because the runtime-plugin-install
+# architecture requires them, and kept current by the auto-patch loop (-1).
+# - python-3.14: the interpreter (Wolfi ships /usr/bin/python -> python3 -> python3.14).
+# - git: uv shells out to it to install package-mode plugins from a git source
+#   (`<dist> @ git+https://…@<rev>`, req-boot-install-section). Wolfi's git porcelain in
+#   /usr/libexec/git-core are shell scripts that need sed/grep — both present via busybox
+#   on wolfi-base (verified), so no extra apk is required (assessment record L3).
+# - bash: the entrypoint (docker/entrypoint.sh) is a bash script.
+# - postgresql-client: pg_isready/psql for Django, AND pg_dump/pg_restore for the pre-boot
+#   pre-migrate snapshot (tap/preboot.py, req-boot-snapshot). Wolfi ships 18.x; a newer
+#   pg_dump dumps the older PG16 server fine.
+# - curl: used by docker/install-tailwindcss.sh; also handy for in-container debugging.
+# - tzdata: the IANA timezone database (/usr/share/zoneinfo). Debian's python:3.14-slim
+#   shipped this implicitly; Wolfi's minimal base does not, and without it Python's
+#   `zoneinfo` cannot resolve settings.TIME_ZONE ("UTC") — Django's createcachetable /
+#   timezone machinery aborts boot with ZoneInfoNotFoundError. It is OS timezone data, not
+#   the PyPI `tzdata` shim, so it serves every in-image consumer, not just Python.
+RUN apk add --no-cache \
+    python-3.14 \
     git \
+    bash \
+    postgresql-client \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    tzdata
 
 # ============================================================================
 # UV Package Manager
@@ -52,7 +71,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy UV binary from the official UV container image
 # UV is a fast Python package manager written in Rust (replaces pip)
-# This is the recommended way to install UV in Docker
+# This is the recommended way to install UV in Docker — no package manager needed.
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # ============================================================================
