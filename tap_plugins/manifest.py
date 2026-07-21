@@ -140,7 +140,7 @@ class FipsDeclaration:
 
     A FACTUAL declaration that the crypto-BOM conformance scan VERIFIES — not a permission. A plugin
     cannot excuse itself from a deployment's FIPS posture; only the operator waives (the boot profile's
-    ``fips_waivers``). This is the "declare" half of declare-vs-decide (``req-cicd-crypto-bom``):
+    ``fips_waivers``). This is the "declare" half of declare-vs-decide (``req-fips-crypto-bom``):
 
     - ``status = "compatible"`` — the plugin claims it uses only FIPS-validated crypto (the system
       OpenSSL #4282 provider). If the conformance scan finds a non-validated provider the plugin

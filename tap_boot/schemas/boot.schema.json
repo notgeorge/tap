@@ -225,7 +225,7 @@
       }
     },
     "fips_waivers": {
-      "description": "Operator-controlled FIPS exceptions (req-cicd-crypto-bom). When the image is in FIPS mode (TAP_FIPS_MODE=1), the boot-time crypto-BOM gate refuses to serve if any crypto provider in the assembled environment (core + every installed plugin) is non-validated — a Go binary, a Rust crate on ring/aws-lc-rs, a libsodium/pynacl wheel, a JVM — because those ignore OPENSSL_CONF and silently run non-FIPS crypto. This is the deployment's escape valve: the OPERATOR (never the plugin author — a plugin cannot excuse itself from the system's FIPS posture) may accept a specific non-validated provider here, WITH a mandatory justification. Each waiver is surfaced (auditable), so every FIPS exception is explicit, not silent. Omit when there are none (the safe default: a leak fails the boot).",
+      "description": "Operator-controlled FIPS exceptions (req-fips-crypto-bom-waivers). When the image is in FIPS mode (TAP_FIPS_MODE=1), the boot-time crypto-BOM gate refuses to serve if any crypto provider in the assembled environment (core + every installed plugin) is non-validated — a Go binary, a Rust crate on ring/aws-lc-rs, a libsodium/pynacl wheel, a JVM — because those ignore OPENSSL_CONF and silently run non-FIPS crypto. This is the deployment's escape valve: the OPERATOR (never the plugin author — a plugin cannot excuse itself from the system's FIPS posture) may accept a specific non-validated provider here, WITH a mandatory justification. Each waiver is surfaced (auditable), so every FIPS exception is explicit, not silent. Omit when there are none (the safe default: a leak fails the boot).",
       "type": "array",
       "items": {
         "type": "object",

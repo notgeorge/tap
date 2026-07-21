@@ -49,7 +49,7 @@ if ! uv run python -m tap.fips; then
 fi
 
 # ---------------------------------------------------------------------------
-# System FIPS-provider gate (req-cicd-crypto-bom) — global validation, fail-closed.
+# System FIPS-provider gate (req-fips-crypto-bom-system-gate) — global validation, fail-closed.
 # ---------------------------------------------------------------------------
 # tap.fips proves the OpenSSL-backed Python layer is enforced, but it is blind to a plugin (or dep)
 # that carries its OWN crypto — a Go binary, a Rust crate on ring/aws-lc-rs, a libsodium/pynacl wheel,

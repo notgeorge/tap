@@ -1,7 +1,9 @@
 ---
-spec: ../../specs/spec-cicd-hardening.md
+spec: ../../specs/spec-fips.md
 audience: [llm, developer, assessor]
 covers:
+  - ../../specs/spec-fips.md
+  - req-fips-crypto-bom
   - ../../specs/spec-cicd-hardening.md
   - req-cicd-base-image-lifecycle-5
   - req-cicd-base-image-lifecycle-6
@@ -25,8 +27,14 @@ provides: |
 
 # TAP FIPS Assessment Record
 
-**Status:** recipe **spike-proven end-to-end** (2026-07-09); productionization targeted ~2026-09.
-**Requirements:** `req-cicd-base-image-lifecycle-5` (the recipe), `-6` (the build flag, default ON).
+**Authoritative spec:** [spec-fips.md](../../specs/spec-fips.md) — the FIPS center of gravity (the
+behavioral contract + the FIPS Requirement Map). **This doc is the detailed, measurement-backed
+decision record** the spec references: read the spec for *what* TAP guarantees, read this for *why*,
+*how it was proven*, and *how to re-verify it*.
+
+**Status:** recipe spike-proven (2026-07-09); **web + DB productionized 2026-07-21** (`TAP_FIPS=1` default).
+**Requirements:** `req-fips-crypto-bom` family (spec-fips.md); `req-cicd-base-image-lifecycle-5` (the recipe),
+`-6` (the build flag, default ON) in spec-cicd-hardening.md.
 **Executable evidence:** `spikes/fips/` and `spikes/distroless/`.
 
 ## 0. How to use this document

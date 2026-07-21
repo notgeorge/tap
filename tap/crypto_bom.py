@@ -1,4 +1,4 @@
-"""Crypto Bill-of-Materials scanner (req-cicd-crypto-bom) — the build-time FIPS-provider gate.
+"""Crypto Bill-of-Materials scanner (req-fips-crypto-bom) — the build-time FIPS-provider gate.
 
 Enumerates every cryptographic *provider* actually present in an environment (core's venv + image
 binaries, or a single plugin's closure) and classifies each against the curated registry in
@@ -165,7 +165,7 @@ def _classify_artifact(path: Path, providers: set[str]) -> list[Finding]:
     for provider in sorted(providers):
         if provider == "openssl-system":
             findings.append(
-                Finding(artifact, provider, Boundary.VALIDATED, "links system OpenSSL", "req-cicd-crypto-bom")
+                Finding(artifact, provider, Boundary.VALIDATED, "links system OpenSSL", "req-fips-crypto-bom")
             )
             continue
         disp = _disposition_for(artifact, provider)
@@ -203,7 +203,7 @@ def _libcrypto_findings(roots: Iterable[Path]) -> list[Finding]:
                         Boundary.MUST_FIX,
                         "a bundled libcrypto/libssl outside the system dir — build the dependency against "
                         "the system OpenSSL instead (L17)",
-                        "req-cicd-crypto-bom",
+                        "req-fips-crypto-bom",
                     )
                 )
     return findings
@@ -238,7 +238,7 @@ def _jvm_findings(roots: Iterable[Path], dist_names: Iterable[str]) -> list[Find
     """Fail-closed tripwire: a JVM/Java runtime, executable, artifact, or bridge distribution has
     arrived. Java crypto uses JCA providers (BouncyCastle → BC-FIPS), not OpenSSL, and is invisible to
     the ELF fingerprinter (jars/classes are not ELF), so its arrival must fail the gate loudly rather
-    than ship a silent non-FIPS JVM (req-cicd-crypto-bom residual (a))."""
+    than ship a silent non-FIPS JVM (req-fips-crypto-bom residual (a))."""
 
     def _tripwire(artifact: str, what: str) -> Finding:
         return Finding(
@@ -248,7 +248,7 @@ def _jvm_findings(roots: Iterable[Path], dist_names: Iterable[str]) -> list[Find
             f"a JVM/Java {what} arrived — the crypto-BOM does not yet reason about JVM crypto (JCA "
             "providers / BouncyCastle vs BC-FIPS). Now is the time to build the Java crypto layer, or "
             "remove it.",
-            "req-cicd-crypto-bom",
+            "req-fips-crypto-bom",
         )
 
     findings: list[Finding] = []
@@ -366,7 +366,7 @@ def scan_plugin(plugin_root: Path, dist_names: Iterable[str] = ()) -> Report:
     """Scan a SINGLE plugin's shipped artifacts (native files + jars under its root) and declared
     distributions — the per-plugin conformance surface. A plugin is usually pure Python, so this
     catches the cases that matter: a plugin bundling a native `.so`/binary with non-validated crypto,
-    a JVM artifact, or a declared dependency known to carry non-FIPS crypto (`req-cicd-crypto-bom`)."""
+    a JVM artifact, or a declared dependency known to carry non-FIPS crypto (`req-fips-crypto-bom`)."""
     root = Path(plugin_root)
     return scan(native_roots=(root,), dist_names=dist_names, libcrypto_roots=(root,), jvm_roots=(root,))
 
@@ -390,7 +390,7 @@ def _profile_waivers(profile_id: str) -> list[Waiver]:
 
 
 def system_fips_gate(profile_id: str) -> tuple[int, Report]:
-    """The boot-time GLOBAL FIPS validation (req-cicd-crypto-bom): when the system is in FIPS mode,
+    """The boot-time GLOBAL FIPS validation (req-fips-crypto-bom): when the system is in FIPS mode,
     every crypto provider in the assembled environment — core AND every installed plugin — must be
     validated, unless an OPERATOR waiver (with a reason) excuses it. Returns (exit_code, report).
 

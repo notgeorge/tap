@@ -1,4 +1,4 @@
-"""Tests for the crypto Bill-of-Materials gate (req-cicd-crypto-bom).
+"""Tests for the crypto Bill-of-Materials gate (req-fips-crypto-bom).
 
 Two layers:
   * unit tests for the fingerprinter + classifier over synthetic inputs (run anywhere);
@@ -100,7 +100,7 @@ def test_crypto_bom_gate_no_leaks() -> None:
 
     Under `test_all` the venv is the full plugin union, so this catches a plugin that leaks a
     non-FIPS provider — making core FIPS-capable is worthless if a plugin ships `pynacl` or a Go
-    collector (req-cicd-crypto-bom)."""
+    collector (req-fips-crypto-bom)."""
     report = core_report()
 
     # Anti-fail-open (doc L2/L12): prove the scan actually read binaries and saw the known providers,

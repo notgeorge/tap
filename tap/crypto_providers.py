@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 #: The requirement this gate realizes (spec-cicd-hardening.md).
-CRYPTO_BOM_RID = "req-cicd-crypto-bom"
+CRYPTO_BOM_RID = "req-fips-crypto-bom"
 
 
 class Boundary(StrEnum):
@@ -229,7 +229,7 @@ KNOWN_NONFIPS_DISTRIBUTIONS: frozenset[str] = frozenset(
 # BC-FIPS), entirely invisible to the ELF fingerprinter (jars/classes are not ELF). So the moment a
 # JVM appears in the image or a plugin's closure, the gate fails-closed with a "now build the Java
 # crypto layer" finding, rather than shipping a JVM that silently does non-FIPS crypto. These are the
-# arrival signals (req-cicd-crypto-bom residual (a)).
+# arrival signals (req-fips-crypto-bom residual (a)).
 JVM_RUNTIME_FILES: frozenset[str] = frozenset({"libjvm.so"})
 JVM_EXECUTABLES: frozenset[str] = frozenset({"java", "javac", "jar", "jarsigner", "jshell", "keytool"})
 JVM_ARTIFACT_SUFFIXES: tuple[str, ...] = (".jar", ".class")

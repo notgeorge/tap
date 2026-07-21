@@ -285,7 +285,7 @@ def _declared_dependency_names(plugin_root: Path) -> list[str]:
 
 
 def _check_crypto_providers(plugin_root: Path, manifest: Any, result: ValidationResult) -> None:
-    """Per-plugin crypto Bill-of-Materials + declaration check (req-cicd-crypto-bom): does this plugin
+    """Per-plugin crypto Bill-of-Materials + declaration check (req-fips-crypto-bom): does this plugin
     ship or pull a NON-FIPS-validated crypto provider, and does its declared `[fips]` posture match?
 
     A plugin runs in the same image/process as core, so a plugin leaking non-validated crypto defeats
