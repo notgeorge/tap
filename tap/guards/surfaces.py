@@ -198,6 +198,13 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
         enforced_by="`tap.fips` (`python -m tap.fips`): executes crypto and asserts a non-approved primitive is refused when TAP_FIPS_MODE=1 — proves the declared mode is enforced, never inspects files (D13/D15); TAP-ABORT on mismatch",
     ),
     DeclaredSurface(
+        surface="Crypto Bill-of-Materials (every provider, not just OpenSSL)",
+        rid="req-cicd-crypto-bom",
+        cadence="Per-commit (`pytest`)",
+        status="CI-guarded (fail-closed)",
+        enforced_by="`tap.crypto_bom` (via `tap/tests/test_crypto_bom.py`): fingerprints every ELF artifact for crypto-provider signatures (Go/Rust `ring`/`aws-lc`/`libsodium`/bundled-OpenSSL/…) and fails on any provider not dispositioned VALIDATED/out-of-boundary/unreached in `tap.crypto_providers` — catches the silent non-OpenSSL leak `tap.fips` cannot see (L17); scans the `test_all` plugin union",
+    ),
+    DeclaredSurface(
         surface="Migration completeness (`makemigrations --check`)",
         rid="req-dev-validation-smoke-gate",
         cadence="Pre-push (`cold_boot_gate` step `schema:makemigrations`)",
