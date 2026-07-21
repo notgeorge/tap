@@ -49,7 +49,7 @@ Plugins may be developed as standalone git repositories and integrated into TAP 
 | req-plugin-arch-dev-deps | [Developer Mode Dependencies](#developer-mode-dependencies) | Partially Implemented | Per-plugin PEP 735 `[dependency-groups]` `dev` group so an evicted plugin is standalone-testable; dev deps never enter a deployed instance. **Cheap edge landed 2026-07-02:** the `new-plugin` scaffold now seeds a `dev` group so new plugins are born self-contained. **Backfill** (add a `dev` group to the ~11 existing plugins) stays demand-gated on eviction — part of the full-eviction plan. Design note: `doc-plugin-dependency-scoping-backlog` |
 | req-plugin-arch-slim-install | [Install-Footprint Slimming](#install-footprint-slimming) | Backlog | Ship only what a deployment uses, across three layers: Python extras (Layer A), Docker image variants for system binaries (Layer B), and the already-built plugin-granularity install section (Layer C). Demand-gated on a deployment that needs a smaller footprint. Not critical path (design note: `doc-plugin-dependency-scoping-backlog`) |
 | req-plugin-arch-isolation | [Plugin Type Ownership & DB Isolation](#plugin-type-ownership--db-isolation) | Proposed | Plugin-refactor pickup: owner-namespaced types + hard-included per-plugin DB guards |
-| req-plugin-arch-hooks | [Plugin Hook System](#plugin-hook-system) | Backlog | Future Simon Willison DJP/pluggy-style hook surface for plugin injection points throughout TAP |
+| req-plugin-arch-hooks | [Plugin Hook System](#plugin-hook-system) | Backlog | Future Simon Willison DJP/pluggy-style hook surface for plugin injection points throughout TAP. The FIPS crypto-BOM (`req-fips-crypto-bom`) is the reference first candidate (boot-gate + conformance-check seams); trigger is a *second* cross-cutting consumer, not FIPS alone |
 | req-plugin-arch-nongoals | [v0 Non-Goals](#v0-non-goals) | Proposed | Explicitly deferred concerns |
 
 ### Plugin Scope
@@ -1241,6 +1241,36 @@ This is **not** part of the installable-plugin MVP. It is a named backlog target
 so the current packaging/refactor work does not accidentally foreclose it, and so
 future demand signals can graduate it into a dedicated spec rather than another
 round of ad hoc registries.
+
+#### Candidate first adopter — the FIPS crypto-BOM (discussed 2026-07-21)
+
+The FIPS crypto Bill-of-Materials ([spec-fips.md](../../specs/spec-fips.md),
+`req-fips-crypto-bom`) is the concrete first candidate for this hook surface, and a
+useful forcing function for what the seams should be. It is a self-contained scanner
+(~700 lines, near-pure-stdlib) that today **hardcodes into three core lifecycle points**:
+a fail-closed **boot gate** (run from `docker/entrypoint.sh` after pre-boot), a
+**per-plugin conformance check** (`validate_plugin`), and a **CI gate** (a pytest over
+the installed union). Those three are exactly the kind of extension points a hook layer
+would formalize — a `boot_gate` hook and a `conformance_check` hook — most naturally as
+entry-point registries in TAP's existing grain (the `tap.plugins` / `tap.secret_sources`
+entry-point pattern) rather than a full `pluggy` dependency.
+
+Two honest boundaries from that discussion, so this candidate is not oversold:
+
+- **The hook system would make the crypto-BOM *scanner* pluggable, not the whole FIPS
+  story.** FIPS is three layers: the build recipe (Dockerfile FIPS stages, `ARG TAP_FIPS`,
+  the entrypoint boot order) is *irreducibly core* — a plugin cannot change the base image
+  or the OpenSSL provider — while only the scanner + policy layer is plugin-shaped. So even
+  under hooks, FIPS stays a hybrid (recipe in core, scanner as a plugin); it is not a
+  fully self-contained plugin, and extracting the scanner alone today would be a split-brain
+  against an irreducibly-core recipe.
+- **FIPS alone is not the trigger to build the hook layer.** It already works in core and is
+  already flag-optional (`TAP_FIPS=0`). The honest trigger is a *second* cross-cutting concern
+  wanting the same seam (a compliance scanner, a policy engine, an audit hook); FIPS is the
+  reference/proof-of-shape, not the justification. The cheap edge that keeps the door open at
+  near-zero cost — if desired before the hook layer is built — is to make the boot-gate and
+  conformance-check seams entry-point registries now, turning the eventual extraction into a
+  lift rather than a rewrite.
 
 #### Prior Art
 
