@@ -12,6 +12,10 @@ requires_tap = ">=0.1"
 # scan verifies. grid_fixtures is pure-Python test vocabulary with no crypto, so it claims
 # compatibility with a FIPS deployment; conformance FAILS this declaration if a scan ever finds a
 # non-validated provider it ships or pulls. The first TAP-owned dogfood declaration.
+# EVICTION CARRY-FORWARD: this [fips] table is the dogfood example for the FIPS work landed on
+# session/passkey. When grid_fixtures is extracted to its own repo, KEEP this table (it rides along
+# automatically if extraction happens after the FIPS branch is on main; if grid_fixtures is evicted
+# first, re-add these two lines to the extracted repo). Do not drop it as part of the delete.
 [fips]
 status = "compatible"
 
