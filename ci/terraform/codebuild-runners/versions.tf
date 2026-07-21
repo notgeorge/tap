@@ -8,20 +8,43 @@
 # Bedrock / aws_core capability (the reason to be in AWS, not a speed lever).
 
 terraform {
-  required_version = ">= 1.6"
+  # >= 1.10 for the S3 backend's NATIVE locking (use_lockfile) — no DynamoDB table.
+  required_version = ">= 1.10"
   required_providers {
     aws = {
       source  = "hashicorp/aws"
       version = "~> 5.60"
     }
   }
-  # Recommended: an S3 backend in the aws_core account. Left local by default so a
-  # first apply works without pre-provisioning state infra. Uncomment + fill in.
-  # backend "s3" {
-  #   bucket = "tap-ci-tfstate"
-  #   key    = "codebuild-runners/terraform.tfstate"
-  #   region = "us-east-1"
-  # }
+
+  # State lives in S3, NOT on a developer's disk. This is not a preference — a local
+  # state file is session-bound, and this module's state was already lost once when the
+  # worktree that held it was despawned, leaving the CI infra live-but-unmanaged. The
+  # recovery was a full `terraform import` of all 16 resources.
+  #
+  # The bucket is deliberately NOT managed by this module (chicken-and-egg: the backend
+  # must exist before `init`). It is bootstrap infra, created out-of-band and tagged
+  # ManagedBy=manual-bootstrap. To recreate it:
+  #
+  #   aws s3api create-bucket --bucket tap-ci-tfstate --region us-east-1
+  #   aws s3api put-public-access-block --bucket tap-ci-tfstate \
+  #     --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+  #   aws s3api put-bucket-versioning --bucket tap-ci-tfstate --versioning-configuration Status=Enabled
+  #   aws s3api put-bucket-encryption --bucket tap-ci-tfstate --server-side-encryption-configuration \
+  #     '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"},"BucketKeyEnabled":true}]}'
+  #   # + a bucket policy denying aws:SecureTransport=false (see README).
+  #
+  # Versioning is the recovery path for a corrupted/truncated state write; encryption
+  # matters because state holds resource metadata (ARNs, policy documents). No SECRET
+  # VALUE is in state by design — see secrets.tf on why there is no secret_version
+  # resource.
+  backend "s3" {
+    bucket       = "tap-ci-tfstate"
+    key          = "codebuild-runners/terraform.tfstate"
+    region       = "us-east-1"
+    encrypt      = true
+    use_lockfile = true
+  }
 }
 
 provider "aws" {
