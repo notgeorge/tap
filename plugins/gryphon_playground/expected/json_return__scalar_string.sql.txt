@@ -1,7 +1,0 @@
--- statement 1 · stage: type-scan
-SELECT ("grid_fixtures__node"."tags" -> %s) AS "_ts_col_0"
-FROM "grid_fixtures__node"
-INNER JOIN "tap_entity" ON ("grid_fixtures__node"."entity_id" = "tap_entity"."id")
-WHERE "tap_entity"."deleted_at" IS NULL
-ORDER BY "tap_entity"."name" ASC
--- params: ['team']

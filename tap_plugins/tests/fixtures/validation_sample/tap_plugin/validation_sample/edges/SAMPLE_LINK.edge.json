@@ -1,0 +1,6 @@
+{
+  "slug": "SAMPLE_LINK__validation_sample",
+  "name": "Sample Link",
+  "description": "Generic wildcard-endpoint fixture edge (no source/target constraints), so validate_plugin's runs level exercises node creation without needing multiple node types.",
+  "default_dimensions": {"tap.fixture": "validation_sample"}
+}

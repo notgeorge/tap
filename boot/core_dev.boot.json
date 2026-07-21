@@ -1,13 +1,18 @@
 {
   "version": 1,
   "profile_kind": "dev_local",
-  "description": "Core dev/test tier — the minimal baseline (core.boot.json) plus grid_fixtures, and nothing else. grid_fixtures is the neutral grid_fixtures__* node/edge vocabulary the CORE test suites (tap_grid, tap_web, tap_auth, tap_api, tap_cares, ...) build their fixtures from; installing just it is enough to run the core tier without dragging in any domain plugin. Sibling of the gryphon profile, which adds gryphon_playground on top of the same core+grid_fixtures floor for the Gryphon suites. Reaches out to nothing; grid_fixtures carries no GRIFT seed so population is empty. NOT for running plugin tests — each plugin's suite needs that plugin installed, via its own per-plugin profile. Named `core_dev` (not `dev_core`) so it sorts/reads right next to `core`: the base concept leads, the qualifier trails.",
+  "description": "Core dev/test tier \u2014 the minimal baseline (core.boot.json) plus grid_fixtures, and nothing else. grid_fixtures is the neutral grid_fixtures__* node/edge vocabulary the CORE test suites (tap_grid, tap_web, tap_auth, tap_api, tap_cares, ...) build their fixtures from; installing just it is enough to run the core tier without dragging in any domain plugin. Sibling of the gryphon profile, which adds gryphon_playground on top of the same core+grid_fixtures floor for the Gryphon suites. Reaches out to nothing; grid_fixtures carries no GRIFT seed so population is empty. NOT for running plugin tests \u2014 each plugin's suite needs that plugin installed, via its own per-plugin profile. Named `core_dev` (not `dev_core`) so it sorts/reads right next to `core`: the base concept leads, the qualifier trails.",
   "install": {
     "plugins": [
       {
         "slug": "grid_fixtures",
         "enabled": true,
-        "source": { "type": "editable", "path": "plugins/grid_fixtures" },
+        "source": {
+          "type": "git",
+          "url": "https://github.com/notgeorge/tap-plugin-grid-fixtures",
+          "rev": "v0.1.0",
+          "credential": "github-plugins-ro"
+        },
         "note": "Package-mode (tap_plugin.grid_fixtures). Install-only: the neutral grid_fixtures__* node/edge vocabulary the core test suites build fixtures from. No GRIFT seed, no cross-plugin deps. The only thing above the core baseline in this tier."
       }
     ]

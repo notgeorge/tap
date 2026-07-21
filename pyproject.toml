@@ -196,7 +196,13 @@ allow_subclassing_any = true
 # errors and running them is the real signal; un-excluding just the tests would
 # reintroduce the "found twice" double-walk. Plugin package code is still analyzed
 # via its `tap_plugin.<slug>` install identity.
-exclude = '(^|/)plugins/[^/]+/tap_plugin/'
+# `_dev-plugins/` holds editable dev-plugin checkouts for `spawn --dev-plugins`
+# (spec-dev-plugin-workspace.md) — a developer's own git clones, analyzed via their
+# install identity like any plugin, never as core source. `tap_plugins/tests/fixtures/
+# <name>/tap_plugin/` is the in-tree validate_plugin fixture plugin — same story: it is
+# installed under its `tap_plugin.<slug>` identity, so exclude the source walk to avoid
+# the "found twice under different module names" double-walk.
+exclude = '(^|/)(plugins/[^/]+/tap_plugin/|_dev-plugins/|tap_plugins/tests/fixtures/[^/]+/tap_plugin/)'
 
 [[tool.mypy.overrides]]
 module = ["*.tests.*", "conftest"]

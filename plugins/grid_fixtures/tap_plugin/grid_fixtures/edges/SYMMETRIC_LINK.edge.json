@@ -1,5 +1,0 @@
-{
-  "slug": "SYMMETRIC_LINK__grid_fixtures",
-  "name": "Symmetric Link",
-  "description": "Symmetric self-referential fixture edge (tests self-edges present both outbound and inbound on one type)."
-}

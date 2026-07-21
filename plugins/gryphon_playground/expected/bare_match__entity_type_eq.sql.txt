@@ -1,6 +1,0 @@
--- statement 1 · stage: bare-type-scan
-SELECT "tap_entity"."id", "tap_entity"."entity_type", "tap_entity"."name", "tap_entity"."dimensions", "tap_entity"."originating_grid_id", "tap_entity"."version", "tap_entity"."deleted_at", "tap_entity"."created_at", "tap_entity"."updated_at"
-FROM "tap_entity"
-WHERE ("tap_entity"."entity_type" IN (<entity-type-registry>) AND "tap_entity"."entity_type" = %s)
-ORDER BY "tap_entity"."created_at" DESC
--- params: ['<entity-type-registry>', 'grid_fixtures__node']

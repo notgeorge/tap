@@ -22,11 +22,22 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from typing import Any
+
+from django.db import InternalError, transaction
 
 logger = logging.getLogger(__name__)
 
 SEARCH_ROLE_NAME = "tap_gryphon_ro"
+
+# `tap_gryphon_ro` lives in PostgreSQL's CLUSTER-GLOBAL role catalog (pg_authid), shared by every
+# database in the server. Concurrent reconcilers of the same role tuple — parallel xdist test
+# workers (each on its own test database but ONE shared cluster) or concurrent app-instance boots
+# (hot-swap / blue-green against a shared cluster) — collide as "tuple concurrently updated". The
+# conflict is benign and self-clearing, so provisioning retries (see req-grid-db-role-concurrency.sec).
+_ROLE_PROVISION_MAX_ATTEMPTS = 5
+_CONCURRENT_UPDATE_MARKER = "tuple concurrently updated"
 
 # Spine tables the executor always reads, independent of the registry: the Entity spine, the
 # EntityType catalog, the Edge table, and the Dimension table.
@@ -101,27 +112,49 @@ def provision_search_role(
     grant_tables = [_validate_identifier(t) for t in grant_tables]
     pw = _quote_literal(password)
 
-    with connection.cursor() as cur:
-        # 1. Ensure the role exists with LOGIN + password (idempotent).
-        cur.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", [SEARCH_ROLE_NAME])
-        if cur.fetchone() is None:
-            cur.execute(f'CREATE ROLE "{role}" LOGIN PASSWORD {pw}')
-        else:
-            cur.execute(f'ALTER ROLE "{role}" LOGIN PASSWORD {pw}')
+    def _reconcile() -> None:
+        # `transaction.atomic` opens a SAVEPOINT when the caller is already in a transaction
+        # (e.g. a test), so a retry after a concurrent-update rollback does not poison the
+        # caller's surrounding transaction; in autocommit (boot) it is a plain atomic reconcile.
+        with transaction.atomic(using=connection.alias), connection.cursor() as cur:
+            # 1. Ensure the role exists with LOGIN + password (idempotent).
+            cur.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", [SEARCH_ROLE_NAME])
+            if cur.fetchone() is None:
+                cur.execute(f'CREATE ROLE "{role}" LOGIN PASSWORD {pw}')
+            else:
+                cur.execute(f'ALTER ROLE "{role}" LOGIN PASSWORD {pw}')
 
-        # 2. Reset table privileges, then grant SELECT on exactly the allowlist. REVOKE ALL
-        #    first so a table dropped from the registry loses access on the next reconcile.
-        cur.execute(f'REVOKE ALL ON ALL TABLES IN SCHEMA public FROM "{role}"')
-        cur.execute(f'GRANT CONNECT ON DATABASE "{db}" TO "{role}"')
-        cur.execute(f'GRANT USAGE ON SCHEMA public TO "{role}"')
-        for table in grant_tables:
-            cur.execute(f'GRANT SELECT ON "{table}" TO "{role}"')
+            # 2. Reset table privileges, then grant SELECT on exactly the allowlist. REVOKE ALL
+            #    first so a table dropped from the registry loses access on the next reconcile.
+            cur.execute(f'REVOKE ALL ON ALL TABLES IN SCHEMA public FROM "{role}"')
+            cur.execute(f'GRANT CONNECT ON DATABASE "{db}" TO "{role}"')
+            cur.execute(f'GRANT USAGE ON SCHEMA public TO "{role}"')
+            for table in grant_tables:
+                cur.execute(f'GRANT SELECT ON "{table}" TO "{role}"')
 
-        # 3. Pin the resource-bound GUCs on the role (req-grid-search-readonly-role.sec-6).
-        for guc_name, guc_value in gucs.items():
-            gname = _validate_identifier(guc_name)
-            gval = _validate_guc_value(str(guc_value))
-            cur.execute(f'ALTER ROLE "{role}" SET {gname} = {_quote_literal(gval)}')
+            # 3. Pin the resource-bound GUCs on the role (req-grid-search-readonly-role.sec-6).
+            for guc_name, guc_value in gucs.items():
+                gname = _validate_identifier(guc_name)
+                gval = _validate_guc_value(str(guc_value))
+                cur.execute(f'ALTER ROLE "{role}" SET {gname} = {_quote_literal(gval)}')
+
+    # Retry on the benign cluster-global concurrency conflict (req-grid-db-role-concurrency.sec).
+    # An advisory lock cannot serialize this: advisory locks are per-DATABASE, but the contended
+    # role is cluster-global — so retry is the correct tool.
+    for attempt in range(1, _ROLE_PROVISION_MAX_ATTEMPTS + 1):
+        try:
+            _reconcile()
+            break
+        except InternalError as exc:
+            if _CONCURRENT_UPDATE_MARKER not in str(exc) or attempt == _ROLE_PROVISION_MAX_ATTEMPTS:
+                raise
+            logger.warning(
+                "[8db6] search-role provisioning hit a concurrent cluster-global role update "
+                "(attempt %d/%d) — retrying (req-grid-db-role-concurrency.sec)",
+                attempt,
+                _ROLE_PROVISION_MAX_ATTEMPTS,
+            )
+            time.sleep(0.02 * attempt)
 
     logger.info(
         "[5ac3] provisioned search role %s with SELECT on %d tables",

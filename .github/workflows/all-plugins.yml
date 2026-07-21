@@ -1,4 +1,4 @@
-# All-plugins validation lane (v1, sharded).
+# All-plugins validation lane (v2 git-sourced, sharded).
 #
 # The blocking authority for the FULL plugin set that a focused local stack can no
 # longer run once plugins leave the monorepo. Reciprocal of the local promote gate:
@@ -59,8 +59,10 @@ on:
         description: "Refresh the balance file: run the full lane UNSHARDED with --store-durations and upload .test_durations (download + commit it)."
         type: boolean
         default: false
-  pull_request:
-    branches: [main]
+  # DISPATCH-ONLY since the eviction (2026-07-21): the primary all-plugins gate is the CodeBuild
+  # `product-lines.yml` test_all lane (credential-wired via AWS Secrets Manager). This free-runner
+  # GH lane is the on-demand FALLBACK — it needs the `GITHUB_PLUGINS_RO_PAT` repo secret to clone
+  # the (now git-sourced) private plugin repos, so it is not auto-run on every PR.
 
 concurrency:
   group: all-plugins-${{ github.ref }}
@@ -91,14 +93,20 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # `test_all` fires no collectors and the secret loader no-ops on an empty
-      # secrets root (only required_for_boot=true secrets block), so an empty dir is
-      # enough to boot. Replace the host symlink (tap_secrets -> ~/tap-secrets, a
-      # broken link on a runner) with an empty dir the compose bind-mount can use.
-      - name: Provide empty secrets root
+      # Post-eviction (v2): `test_all` git-installs every plugin from its own private repo, so the
+      # pre-boot installer needs the read-only `github-plugins-ro` PAT. Write it into the secrets
+      # root (replacing the host symlink, a broken link on a runner) from the repo secret.
+      - name: Provide the github-plugins-ro PAT (git-sourced test_all clones private repos)
+        env:
+          PAT: ${{ secrets.GITHUB_PLUGINS_RO_PAT }}
         run: |
           rm -f tap_secrets
-          mkdir -p tap_secrets
+          mkdir -p tap_secrets/tap_plugins
+          if [ -z "$PAT" ]; then
+            echo "::error::GITHUB_PLUGINS_RO_PAT repo secret not configured — the git-sourced test_all lane cannot clone the private plugin repos. Configure it, or use the CodeBuild product-lines test_all lane (the primary gate)."
+            exit 1
+          fi
+          printf '{"scope":"tap_plugins.source","data":{"token":"%s"}}' "$PAT" > tap_secrets/tap_plugins/github-plugins-ro.secret.json
 
       # Build the web image with a GitHub Actions layer cache so unchanged layers
       # (base image, uv deps, apt) don't rebuild every run. Each shard runs on its own
@@ -192,10 +200,17 @@ jobs:
       COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
     steps:
       - uses: actions/checkout@v5
-      - name: Provide empty secrets root
+      - name: Provide the github-plugins-ro PAT (git-sourced test_all clones private repos)
+        env:
+          PAT: ${{ secrets.GITHUB_PLUGINS_RO_PAT }}
         run: |
           rm -f tap_secrets
-          mkdir -p tap_secrets
+          mkdir -p tap_secrets/tap_plugins
+          if [ -z "$PAT" ]; then
+            echo "::error::GITHUB_PLUGINS_RO_PAT repo secret not configured — the git-sourced test_all lane cannot clone the private plugin repos. Configure it, or use the CodeBuild product-lines test_all lane (the primary gate)."
+            exit 1
+          fi
+          printf '{"scope":"tap_plugins.source","data":{"token":"%s"}}' "$PAT" > tap_secrets/tap_plugins/github-plugins-ro.secret.json
       - uses: docker/setup-buildx-action@v3
       - name: Build web image (GHA layer cache)
         uses: docker/build-push-action@v6

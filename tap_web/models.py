@@ -139,7 +139,7 @@ class Panel(BaseModel):
     description = models.TextField(blank=True, default="")
     view = models.CharField(
         max_length=500,
-        help_text="Template path rendered by the generic panel view. Example: tap_plugins/lotr/templates/character_list.html",
+        help_text="Template path rendered by the generic panel view. Example: tap_plugin/<slug>/templates/<entity>_list.html",
     )
     editor_view = models.CharField(
         max_length=500,

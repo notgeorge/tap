@@ -20,8 +20,8 @@
 locals {
   plugin_pull_enabled = var.plugin_pull_secret_name != ""
 
-  # Only lines flagged needs_plugin_pull get to READ the value at runtime (least-privilege:
-  # test_all is in-tree and never git-installs, so it gets no grant).
+  # Only lines flagged needs_plugin_pull get to READ the value at runtime (least-privilege).
+  # Post-eviction both test_all and samsite git-install private plugins, so both are flagged.
   plugin_pull_lines = {
     for name, cfg in var.product_lines : name => cfg
     if local.plugin_pull_enabled && cfg.needs_plugin_pull

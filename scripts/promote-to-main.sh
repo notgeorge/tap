@@ -225,13 +225,21 @@ else
     _ci_cleanup() { git push origin --delete "$CI_REF" >/dev/null 2>&1 || true; }
     trap _ci_cleanup EXIT
     info "Dispatching $CI_WORKFLOW on $CI_REF ($TIP) ..."
+    # Snapshot the time just before dispatch. A re-promote of the SAME commit (e.g. after a
+    # transient gate red) leaves STALE runs with the identical headSha; since workflow_dispatch
+    # returns no run id, a naive "newest run for this SHA" polled right after dispatch can grab
+    # one of those stale runs (the fresh one hasn't registered yet) and then abort on its old
+    # conclusion. Match only a run CREATED after this dispatch. 30s back-buffer absorbs
+    # GitHub/local clock skew (macOS `date -v`; GNU `date -d` fallback).
+    _ci_since="$(date -u -v-30S +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d '30 seconds ago' +%Y-%m-%dT%H:%M:%SZ)"
     # Empty-array expansion under `set -u` on bash 3.2 (macOS) needs the +alt-value guard.
     gh workflow run "$CI_WORKFLOW" --ref "$CI_REF" "${CI_DISPATCH_ARGS[@]+"${CI_DISPATCH_ARGS[@]}"}" >/dev/null 2>&1 || fail "Failed to dispatch $CI_WORKFLOW on $CI_REF (does the token carry the 'workflow' scope?)."
-    # workflow_dispatch does not return a run id — poll for the run on our exact SHA.
+    # workflow_dispatch does not return a run id — poll for OUR run (exact SHA, created after
+    # the dispatch snapshot), newest-wins if somehow more than one.
     RUN_ID=""
     for _ in $(seq 1 40); do
-      RUN_ID="$(gh run list --workflow "$CI_WORKFLOW" --branch "$CI_REF" --json databaseId,headSha \
-                  -q "[.[] | select(.headSha==\"$TIP\")][0].databaseId" 2>/dev/null || true)"
+      RUN_ID="$(gh run list --workflow "$CI_WORKFLOW" --branch "$CI_REF" --json databaseId,headSha,createdAt \
+                  -q "[.[] | select(.headSha==\"$TIP\" and .createdAt >= \"$_ci_since\")] | sort_by(.createdAt) | last | .databaseId" 2>/dev/null || true)"
       [[ -n "$RUN_ID" && "$RUN_ID" != "null" ]] && break
       sleep 5
     done

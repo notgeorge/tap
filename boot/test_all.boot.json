@@ -1,98 +1,185 @@
 {
   "version": 1,
   "profile_kind": "dev_local",
-  "description": "Test-everything union (formerly `base`) — the permanent superset the FULL test lane and the cold-boot gate boot against, so a single pytest run exercises EVERY plugin's tests for full coverage. (Tests now live inside each package and collect install-aware — an uninstalled plugin's tests are skipped, not hard-errored, so absence degrades coverage rather than breaking the run; req-dev-validation-collection-complete-4. This union is the FULL-coverage set the all-plugins CI lane owns, req-dev-validation-all-plugins-lane.) NOT a deployment default — a plain spawn boots `core_dev` (core + grid_fixtures); `core` is the product baseline; every other profile is `core` + an explicit plugin set. Installs the package-mode plugin set, seeds the seedable plugins' GRIFT (INSTALLED_APPS order), fires no collectors. Deliberate exception: lotr is installed but NOT seeded — it is the test-fixture/demo vocabulary (core suites build fixtures from grid_fixtures, not lotr), so its Middle-earth GRIFT belongs in a demo profile. The `install` section MUST cover every plugin the population seeds (pre-boot's coherence guard aborts otherwise) PLUS install-only plugins: samsite's import-time deps (roscale, sigstore_core), the test-fixture vocabularies (lotr, grid_fixtures), and the gryphon_playground corpus — none of which carry a grift seed. Add a profile with fire-collector steps (e.g. samsite) to pull the live world in. See req-boot-minimal-baseline (spec-tap-boot-v0.md) + req-dev-validation-suite-tiers.",
+  "description": "Test-everything union (formerly `base`) \u2014 the permanent superset the FULL test lane and the cold-boot gate boot against, so a single pytest run exercises EVERY plugin's tests for full coverage. (Tests now live inside each package and collect install-aware \u2014 an uninstalled plugin's tests are skipped, not hard-errored, so absence degrades coverage rather than breaking the run; req-dev-validation-collection-complete-4. This union is the FULL-coverage set the all-plugins CI lane owns, req-dev-validation-all-plugins-lane.) NOT a deployment default \u2014 a plain spawn boots `core_dev` (core + grid_fixtures); `core` is the product baseline; every other profile is `core` + an explicit plugin set. Installs the package-mode plugin set, seeds the seedable plugins' GRIFT (INSTALLED_APPS order), fires no collectors. Deliberate exception: lotr is installed but NOT seeded \u2014 it is the test-fixture/demo vocabulary (core suites build fixtures from grid_fixtures, not lotr), so its Middle-earth GRIFT belongs in a demo profile. The `install` section MUST cover every plugin the population seeds (pre-boot's coherence guard aborts otherwise) PLUS install-only plugins: samsite's import-time deps (roscale, sigstore_core), the test-fixture vocabularies (lotr, grid_fixtures), and the gryphon_playground corpus \u2014 none of which carry a grift seed. Add a profile with fire-collector steps (e.g. samsite) to pull the live world in. See req-boot-minimal-baseline (spec-tap-boot-v0.md) + req-dev-validation-suite-tiers.",
   "install": {
     "plugins": [
       {
         "slug": "administrivia",
         "enabled": true,
-        "source": { "type": "editable", "path": "plugins/administrivia" },
+        "source": {
+          "type": "git",
+          "url": "https://github.com/notgeorge/tap-plugin-administrivia",
+          "rev": "v0.1.0",
+          "credential": "github-plugins-ro"
+        },
         "note": "Package-mode (tap_plugin.administrivia). TAP admin pages + grid landing + cares administrivia; seeded in population."
-      },
-      {
-        "slug": "lotr",
-        "enabled": true,
-        "source": { "type": "editable", "path": "plugins/lotr" },
-        "note": "Package-mode (tap_plugin.lotr). Install-only in base: the demo/test-fixture vocabulary for lotr's OWN suites (plugins/lotr/tests) + tap_web/tap_grid feature tests that still use lotr as a concrete plugin example. NO LONGER seeded in base population (its Middle-earth GRIFT is demo clutter — core suites now build fixtures from grid_fixtures, not lotr). Must stay installed (editable) so the entry-point discovery fallback keeps tap_plugin.lotr importable in the test suite. Add a seed-plugin lotr population step to a demo profile to populate Middle-earth."
       },
       {
         "slug": "computing_core",
         "enabled": true,
-        "source": { "type": "editable", "path": "plugins/computing_core" },
+        "source": {
+          "type": "git",
+          "url": "https://github.com/notgeorge/tap-plugin-computing-core",
+          "rev": "v0.2.0",
+          "credential": "github-plugins-ro"
+        },
         "note": "Package-mode (tap_plugin.computing_core). Vendor-neutral computing-primitive dimension; seeded in population."
       },
       {
         "slug": "roscale",
         "enabled": true,
-        "source": { "type": "editable", "path": "plugins/roscale" },
-        "note": "Package-mode (tap_plugin.roscale). Install-only: registers the OSCAL workbench panel types samsite's compliance pages consume; no grift seed, so it is not a population step, but samsite imports it at ready() — it must be installed."
+        "source": {
+          "type": "git",
+          "url": "https://github.com/notgeorge/tap-plugin-roscale",
+          "rev": "v0.2.0",
+          "credential": "github-plugins-ro"
+        },
+        "note": "Package-mode (tap_plugin.roscale). Install-only: registers the OSCAL workbench panel types samsite's compliance pages consume; no grift seed, so it is not a population step, but samsite imports it at ready() \u2014 it must be installed."
       },
       {
         "slug": "identity_core",
         "enabled": true,
-        "source": { "type": "editable", "path": "plugins/identity_core" },
-        "note": "Package-mode (tap_plugin.identity_core). Install-only substrate: cross-cutting federated-identity vocabulary (the oidc_issuer convergence node) + issuer identity primitives. github_core imports its issuer helper; aws_core/sigstore_core/samsite reference identity_core__oidc_issuer as an edge endpoint — listed before them so its type registers first. Owns no collector and no edges; no GRIFT population seed."
+        "source": {
+          "type": "git",
+          "url": "https://github.com/notgeorge/tap-plugin-identity-core",
+          "rev": "v0.1.0",
+          "credential": "github-plugins-ro"
+        },
+        "note": "Package-mode (tap_plugin.identity_core). Install-only substrate: cross-cutting federated-identity vocabulary (the oidc_issuer convergence node) + issuer identity primitives. github_core imports its issuer helper; aws_core/sigstore_core/samsite reference identity_core__oidc_issuer as an edge endpoint \u2014 listed before them so its type registers first. Owns no collector and no edges; no GRIFT population seed."
       },
       {
         "slug": "aws_core",
         "enabled": true,
-        "source": { "type": "editable", "path": "plugins/aws_core" },
+        "source": {
+          "type": "git",
+          "url": "https://github.com/notgeorge/tap-plugin-aws-core",
+          "rev": "v0.2.0",
+          "credential": "github-plugins-ro"
+        },
         "note": "Package-mode (tap_plugin.aws_core). Tier-0 boto3 dep (uv resolves at install). AWS dimension + region reference data; seeded in population (its collector is NOT fired in base)."
       },
       {
         "slug": "sigstore_core",
         "enabled": true,
-        "source": { "type": "editable", "path": "plugins/sigstore_core" },
-        "note": "Package-mode (tap_plugin.sigstore_core). Tier-0 sigstore dep. Install-only library plugin: samsite's compliance_collector imports its verify/decompose helpers + models at ready(); no grift seed of its own — must be installed."
+        "source": {
+          "type": "git",
+          "url": "https://github.com/notgeorge/tap-plugin-sigstore-core",
+          "rev": "v0.2.0",
+          "credential": "github-plugins-ro"
+        },
+        "note": "Package-mode (tap_plugin.sigstore_core). Tier-0 sigstore dep. Install-only library plugin: samsite's compliance_collector imports its verify/decompose helpers + models at ready(); no grift seed of its own \u2014 must be installed."
       },
       {
         "slug": "github_core",
         "enabled": true,
-        "source": { "type": "editable", "path": "plugins/github_core" },
+        "source": {
+          "type": "git",
+          "url": "https://github.com/notgeorge/tap-plugin-github-core",
+          "rev": "v0.2.0",
+          "credential": "github-plugins-ro"
+        },
         "note": "Package-mode (tap_plugin.github_core). Tier-0 PyYAML dep (uv resolves at install). GitHub repo landing page; seeded in population."
       },
       {
         "slug": "compliance_core",
         "enabled": true,
-        "source": { "type": "editable", "path": "plugins/compliance_core" },
-        "note": "Package-mode (tap_plugin.compliance_core). Install-only substrate: regime-agnostic compliance vocabulary (compliance_artifact + compliance_context in Phase A). fedramp_20x_ksi + samsite depend_on it — listed before them so its types register first. No GRIFT population seed of its own."
+        "source": {
+          "type": "git",
+          "url": "https://github.com/notgeorge/tap-plugin-compliance-core",
+          "rev": "v0.1.0",
+          "credential": "github-plugins-ro"
+        },
+        "note": "Package-mode (tap_plugin.compliance_core). Install-only substrate: regime-agnostic compliance vocabulary (compliance_artifact + compliance_context in Phase A). fedramp_20x_ksi + samsite depend_on it \u2014 listed before them so its types register first. No GRIFT population seed of its own."
       },
       {
         "slug": "fedramp_20x_ksi",
         "enabled": true,
-        "source": { "type": "editable", "path": "plugins/fedramp_20x_ksi" },
+        "source": {
+          "type": "git",
+          "url": "https://github.com/notgeorge/tap-plugin-fedramp-20x-ksi",
+          "rev": "v0.2.0",
+          "credential": "github-plugins-ro"
+        },
         "note": "Package-mode (tap_plugin.fedramp_20x_ksi). FedRAMP 20x KSI dimension + catalog/compliance pages; seeded in population (catalog collector NOT fired in base)."
       },
       {
         "slug": "samsite",
         "enabled": true,
-        "source": { "type": "editable", "path": "plugins/samsite" },
-        "note": "Package-mode (tap_plugin.samsite). The demo integration surface; seeded in population. DEPENDS ON roscale/sigstore_core/github_core (import time) + aws_core nodes — listed last so its cross-plugin deps install first. Its collectors are NOT fired in base (base reaches out to nothing)."
+        "source": {
+          "type": "git",
+          "url": "https://github.com/notgeorge/tap-plugin-samsite",
+          "rev": "v0.1.0",
+          "credential": "github-plugins-ro"
+        },
+        "note": "Package-mode (tap_plugin.samsite). The demo integration surface; seeded in population. DEPENDS ON roscale/sigstore_core/github_core (import time) + aws_core nodes \u2014 listed last so its cross-plugin deps install first. Its collectors are NOT fired in base (base reaches out to nothing)."
       },
       {
         "slug": "grid_fixtures",
         "enabled": true,
-        "source": { "type": "editable", "path": "plugins/grid_fixtures" },
-        "note": "Package-mode (tap_plugin.grid_fixtures). Install-only: the neutral grid_fixtures__* node/edge vocabulary the core suites + the Gryphon playground build fixtures from (the load-bearing test-fixture role lotr also fills). No GRIFT population seed, so not a population step — just installed + reconciled. No cross-plugin deps. Listed before gryphon_playground, which depends_on it."
+        "source": {
+          "type": "git",
+          "url": "https://github.com/notgeorge/tap-plugin-grid-fixtures",
+          "rev": "v0.1.0",
+          "credential": "github-plugins-ro"
+        },
+        "note": "Package-mode (tap_plugin.grid_fixtures). Install-only: the neutral grid_fixtures__* node/edge vocabulary the core suites + the Gryphon playground build fixtures from (the load-bearing test-fixture role lotr also fills). No GRIFT population seed, so not a population step \u2014 just installed + reconciled. No cross-plugin deps. Listed before gryphon_playground, which depends_on it."
       },
       {
         "slug": "gryphon_playground",
         "enabled": true,
-        "source": { "type": "editable", "path": "plugins/gryphon_playground" },
-        "note": "Package-mode (tap_plugin.gryphon_playground). Install-only: the Gridkin scenario corpus + harness that exercise the Gryphon query language. Owns NO node/edge types of its own — its corpus references the grid_fixtures__* vocabulary by string, so it depends_on grid_fixtures (installed before it). Carries NO GRIFT population seed, so it is not a population step — just installed + reconciled."
+        "source": {
+          "type": "git",
+          "url": "https://github.com/notgeorge/tap-plugin-gryphon-playground",
+          "rev": "v0.1.0",
+          "credential": "github-plugins-ro"
+        },
+        "note": "Package-mode (tap_plugin.gryphon_playground). Install-only: the Gridkin scenario corpus + harness that exercise the Gryphon query language. Owns NO node/edge types of its own \u2014 its corpus references the grid_fixtures__* vocabulary by string, so it depends_on grid_fixtures (installed before it). Carries NO GRIFT population seed, so it is not a population step \u2014 just installed + reconciled."
+      },
+      {
+        "slug": "validation_sample",
+        "enabled": true,
+        "source": {
+          "type": "editable",
+          "path": "tap_plugins/tests/fixtures/validation_sample"
+        },
+        "note": "In-tree validate_plugin test fixture (tap_plugin.validation_sample). Install-only permanent target for the tap_plugins validate_plugin suite; no GRIFT seed, no cross-plugin deps."
       }
     ]
   },
   "population": {
     "on_failure": "abort",
     "steps": [
-      {"type": "seed-plugin", "plugin": "administrivia", "enabled": true},
-      {"type": "seed-plugin", "plugin": "computing_core", "enabled": true},
-      {"type": "seed-plugin", "plugin": "aws_core", "enabled": true},
-      {"type": "seed-plugin", "plugin": "github_core", "enabled": true},
-      {"type": "seed-plugin", "plugin": "samsite", "enabled": true},
-      {"type": "seed-plugin", "plugin": "fedramp_20x_ksi", "enabled": true}
+      {
+        "type": "seed-plugin",
+        "plugin": "administrivia",
+        "enabled": true
+      },
+      {
+        "type": "seed-plugin",
+        "plugin": "computing_core",
+        "enabled": true
+      },
+      {
+        "type": "seed-plugin",
+        "plugin": "aws_core",
+        "enabled": true
+      },
+      {
+        "type": "seed-plugin",
+        "plugin": "github_core",
+        "enabled": true
+      },
+      {
+        "type": "seed-plugin",
+        "plugin": "samsite",
+        "enabled": true
+      },
+      {
+        "type": "seed-plugin",
+        "plugin": "fedramp_20x_ksi",
+        "enabled": true
+      }
     ]
   }
 }

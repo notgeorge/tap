@@ -1,7 +1,0 @@
-{
-  "slug": "LOCATED_IN__lotr",
-  "name": "Located In",
-  "description": "Entity is located in a place.",
-  "sources": ["lotr__character"],
-  "targets": ["lotr__location"]
-}

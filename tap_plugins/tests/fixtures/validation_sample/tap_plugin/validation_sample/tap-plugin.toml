@@ -1,0 +1,11 @@
+manifest_version = "0"
+plugin_version = "0.0.1"
+slug = "validation_sample"
+name = "Validation Sample"
+description = "Minimal self-contained fixture plugin — the permanent target of the validate_plugin test suite (one model, one edge, one collector)."
+
+[models]
+validation_sample__sample_node = "tap_plugin.validation_sample.models.sample_node.SampleNode"
+
+[edges]
+SAMPLE_LINK__validation_sample = "edges/SAMPLE_LINK.edge.json"
