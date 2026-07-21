@@ -143,11 +143,23 @@ jobs:
       # If the profile git-installs private sibling plugins, wire the read-only PAT
       # inline (github_pat kind, data.token) — the free-runner path, distinct from the
       # internal CodeBuild AWS-Secrets-Manager routing.
+      #
+      # The skip is decided in SHELL, not in a step-level `if:`. The `secrets` context
+      # is NOT available to `if:` (allowed there: github/needs/env/inputs/steps/...), and
+      # referencing it is a workflow-PARSE error — "Unrecognized named-value: 'secrets'".
+      # That is fatal to the whole FILE, not just this step: GitHub then cannot compile
+      # the workflow at all, so it registers it by path instead of `name:` and emits a
+      # jobless failed run on every push. This workflow had never once compiled because
+      # of exactly that. Read the secret into `env` (where `secrets` IS legal) and test
+      # the env var instead.
       - name: Wire read-only plugins PAT
-        if: ${{ secrets.plugins_ro_pat != '' }}
         env:
           PLUGINS_RO_PAT: ${{ secrets.plugins_ro_pat }}
         run: |
+          if [ -z "$PLUGINS_RO_PAT" ]; then
+            echo "No plugins_ro_pat supplied — skipping (the profile must not git-install private siblings)."
+            exit 0
+          fi
           cat > tap_secrets/tap_plugins/github-plugins-ro.secret.json <<JSON
           {
             "scope": "tap_plugins.source",
