@@ -255,13 +255,18 @@ def import_dev_admin(
         user.save(update_fields=["password"])
     # Pin the handle to the record's — all of the dev admin's credentials share it, and it
     # must equal the discoverable credential's userHandle for the assertion to resolve.
-    WebAuthnUserHandle.objects.update_or_create(user=user, defaults={"handle": record["user_handle"]})
+    WebAuthnUserHandle.objects.update_or_create(
+        # TAP-CRED-BIND: dev-profile-gate — assert_dev_import_allowed ran at function top.
+        user=user,
+        defaults={"handle": record["user_handle"]},
+    )
     device_type = (
         WebAuthnCredentialDeviceType.MULTI_DEVICE
         if cred["device_type"] == "multi_device"
         else WebAuthnCredentialDeviceType.SINGLE_DEVICE
     )
     credential_obj, _ = WebAuthnCredential.objects.update_or_create(
+        # TAP-CRED-BIND: dev-profile-gate — zero-PoP replay, gated by assert_dev_import_allowed (top).
         credential_id=cred["credential_id"],
         defaults={
             "user": user,

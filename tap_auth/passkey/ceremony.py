@@ -127,6 +127,7 @@ def bind_credential(
         else WebAuthnCredentialDeviceType.SINGLE_DEVICE
     )
     cred = WebAuthnCredential.objects.create(
+        # TAP-CRED-BIND: pop-ceremony — verify_registration_response (UV enforced) ran above.
         user=user,
         credential_id=bytes_to_base64url(verified.credential_id),
         public_key=bytes_to_base64url(verified.credential_public_key),
@@ -201,6 +202,7 @@ def authenticate(credential: dict[str, Any], expected_challenge: bytes) -> User:
         raise PasskeyCeremonyError("assertion verification failed") from exc
 
     WebAuthnCredential.objects.filter(pk=cred.pk).update(
+        # TAP-CRED-BIND: assertion-counter — sign_count/last_used only, after verified assertion; no rebind.
         sign_count=verified.new_sign_count,
         last_used=timezone.now(),
     )

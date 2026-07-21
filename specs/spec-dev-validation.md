@@ -80,6 +80,7 @@ block. Rich per-surface rationale lives in each owning spec and in each guard's
 | Canary tier | `req-dev-validation-canary-tier` | Pre-push + per-commit | Gate-guarded *(target)* — Named, deferred until implemented | blast-radius subset (target); not yet built |
 | Cold-boot system cycle | `req-dev-validation-smoke-gate` | Pre-push (`scripts/gate`, wired into `promote-to-main.sh`) | Gate-guarded | `tap_boot/management/commands/cold_boot_gate.py` |
 | Collection completeness | `req-dev-validation-collection-complete` | Per-commit (`pytest`) | CI-guarded | `tap.guards.collection_addopts`, `tap.guards.collection_completeness` (via `tap/tests/test_guards.py`) |
+| Credential-bind provenance | `req-tap-auth-credential-bind-provenance` | Per-commit (`pytest`) | CI-guarded | `tap_auth.guards.credential_bind` (via `tap/tests/test_guards.py`) |
 | Dev passkey import stays shell-only | `req-tap-auth-passkey-dev-bootstrap` | Per-commit (`pytest`) | CI-guarded | `tap_auth.guards.dev_passkey_import` (via `tap/tests/test_guards.py`) |
 | Direct-write coverage | `req-tap-auth-policy-9` | Per-commit (`pytest`) | CI-guarded | `tap.guards.direct_write` (via `tap/tests/test_guards.py`) |
 | Direct-write exemption freshness | `req-tap-auth-policy-9-unused-exemption` | Per-commit (`pytest`) | CI-guarded | `tap.guards.direct_write` (via `tap/tests/test_guards.py`) |

@@ -243,7 +243,11 @@ def _create_enrolled_user(invitation: Invitation, user_handle: bytes) -> User:
     )
     user.set_unusable_password()
     user.save()
-    WebAuthnUserHandle.objects.create(user=user, handle=user_handle.hex())
+    WebAuthnUserHandle.objects.create(
+        # TAP-CRED-BIND: pre-registration-handle — handle only (no key), minted at user genesis.
+        user=user,
+        handle=user_handle.hex(),
+    )
     return user
 
 

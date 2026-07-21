@@ -90,6 +90,7 @@ def enroll_options(request: HttpRequest, public_id: str) -> HttpResponse:
         # it here persists it before the ceremony; an abandoned ceremony leaves a
         # handle with no credential, which is harmless and reused on the next attempt.
         handle_row, _ = WebAuthnUserHandle.objects.get_or_create(
+            # TAP-CRED-BIND: pre-registration-handle — handle only (no key), minted before the ceremony.
             user=invitation.target_user,
             defaults={"handle": secrets.token_bytes(_HANDLE_BYTES).hex()},
         )
