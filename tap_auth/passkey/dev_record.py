@@ -13,7 +13,9 @@ challenge-response at import):
 * :func:`assert_dev_import_allowed` — the **allowlist** gate. Import is permitted ONLY
   under an explicitly ``dev_local``-classified boot profile; missing/unknown/customer/
   deploy all refuse (fail closed). Never keyed off ``DEBUG``; ``TAP_TEST_MODE`` is not an
-  enabler here (req-tap-auth-passkey-dev-bootstrap-4).
+  enabler here (req-tap-auth-passkey-dev-bootstrap-4). It runs **inside**
+  :func:`import_dev_admin`, not in front of it (req-…-dev-bootstrap-15), so the guarantee
+  is structural rather than a rule callers are asked to remember.
 * :func:`load_dev_record` integrity check — schema validation (shape) PLUS a canonical
   self-digest (corruption detection). The load-bearing anti-tamper mitigation is the file
   living 0600 in an operator-owned dir; the same-uid residual is NAMED, not defended here
@@ -26,6 +28,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +37,7 @@ from django.utils import timezone
 
 from tap.boot_records import canonical_digest_bytes
 from tap.jsonfiles import JsonFileError, load_json_file
+from tap_auth.boot import read_profile_kind
 from tap_auth.models import User, UserKind, WebAuthnCredential, WebAuthnCredentialDeviceType, WebAuthnUserHandle
 from tap_auth.roles import is_login_grantable
 
@@ -127,6 +131,47 @@ def build_dev_record(*, user_handle_hex: str, credential: WebAuthnCredential) ->
     return record
 
 
+class DevRecordUnavailable(DevRecordError):
+    """The dev admin has no exportable passkey (no user, no handle, no/ambiguous credential)."""
+
+
+def build_record_for_user(username: str = DEV_ADMIN_USERNAME, *, credential_id: str = "") -> dict[str, Any]:
+    """Build the PUBLIC dev record for ``username``'s passkey. Shared by
+    `export_dev_passkey` and `bootstrap_dev_passkey` so the two cannot drift on which
+    credential they select. Refuses to guess when a user has several and none is named —
+    export is a deliberate act, and silently picking one could replay the wrong key."""
+    try:
+        user = User.objects.get(username=username)
+    except User.DoesNotExist as exc:
+        raise DevRecordUnavailable(
+            f"no user '{username}' — register a passkey against a running session first, then export it."
+        ) from exc
+
+    handle = WebAuthnUserHandle.objects.filter(user=user).first()
+    if handle is None:
+        raise DevRecordUnavailable(
+            f"user '{username}' has no WebAuthn user handle — has this account ever registered a passkey?"
+        )
+
+    credentials = WebAuthnCredential.objects.filter(user=user)
+    if credential_id:
+        try:
+            credential = credentials.get(credential_id=credential_id)
+        except WebAuthnCredential.DoesNotExist as exc:
+            raise DevRecordUnavailable(f"user '{username}' has no credential '{credential_id}'.") from exc
+    else:
+        found = list(credentials.order_by("-created")[:2])
+        if not found:
+            raise DevRecordUnavailable(f"user '{username}' has no registered passkey to export.")
+        if len(found) > 1:
+            raise DevRecordUnavailable(
+                f"user '{username}' has multiple passkeys — pass --credential-id to choose which to export."
+            )
+        credential = found[0]
+
+    return build_dev_record(user_handle_hex=handle.handle, credential=credential)
+
+
 def load_dev_record(path: str | Path) -> dict[str, Any]:
     """Read + schema-validate + integrity-verify a dev passkey record. Fail-closed.
 
@@ -160,7 +205,22 @@ def load_dev_record(path: str | Path) -> dict[str, Any]:
 # --------------------------------------------------------------------------- #
 
 
-def import_dev_admin(record: dict[str, Any], *, username: str = DEV_ADMIN_USERNAME) -> User:
+def resolve_profile_kind(profile_id: str | None = None) -> str | None:
+    """Classify the ACTIVE boot profile, falling back to ``TAP_BOOT_PROFILE``.
+
+    ``None`` (unclassified) whenever the id is empty/absent or the profile does not
+    declare a ``profile_kind`` — which :func:`assert_dev_import_allowed` refuses. Fail
+    closed at every step: an unset env var yields ``""`` yields ``None`` yields refused."""
+    resolved = profile_id if profile_id is not None else os.environ.get("TAP_BOOT_PROFILE", "")
+    return read_profile_kind(resolved)
+
+
+def import_dev_admin(
+    record: dict[str, Any],
+    *,
+    profile_id: str | None = None,
+    username: str = DEV_ADMIN_USERNAME,
+) -> User:
     """Bind the record's passkey onto the dev admin (idempotent), granting ``tap_admin``.
 
     Below the capability gate (root-of-trust bootstrap, like genesis): binds the credential
@@ -168,14 +228,20 @@ def import_dev_admin(record: dict[str, Any], *, username: str = DEV_ADMIN_USERNA
     registration proof-of-possession. Get-or-creates the ``admin`` user, pins its
     WebAuthnUserHandle to the record's handle so future assertions resolve, and
     update-or-creates the credential (re-spawn just refreshes it). Grants ``tap_admin``
-    fail-loud (a missing group would be a powerless admin). Callers MUST have already run
-    :func:`assert_dev_import_allowed`."""
+    fail-loud (a missing group would be a powerless admin).
+
+    **The allowlist gate runs HERE, first, unconditionally** (req-…-dev-bootstrap-15). It
+    used to live only at the `enroll_admin` call site, with a docstring instructing callers
+    to invoke it — an instruction four test call sites already ignored. Since this function
+    creates an admin and binds a credential with *zero proof-of-possession*, the most
+    consequential rule in the passkey spec cannot rest on caller discipline: no caller,
+    present or future, can now reach the bind without passing the gate. `profile_id`
+    overrides the ambient ``TAP_BOOT_PROFILE`` (spawn passes its resolved profile); it can
+    only ever select which profile is *classified*, never whether the gate runs."""
+    assert_dev_import_allowed(resolve_profile_kind(profile_id))
     cred = record["credential"]
 
     user, created = User.objects.get_or_create(
-        # TAP-WRITE-COV: below-the-capability-gate root-of-trust bootstrap (genesis-class,
-        # like sync.ensure_initial_admin) — auth bootstrap is the sanctioned direct-ORM
-        # exception; no capability-holding caller exists when the dev admin is first minted.
         username=username,
         defaults={"email": "", "user_kind": UserKind.HUMAN},
     )
@@ -189,13 +255,18 @@ def import_dev_admin(record: dict[str, Any], *, username: str = DEV_ADMIN_USERNA
         user.save(update_fields=["password"])
     # Pin the handle to the record's — all of the dev admin's credentials share it, and it
     # must equal the discoverable credential's userHandle for the assertion to resolve.
-    WebAuthnUserHandle.objects.update_or_create(user=user, defaults={"handle": record["user_handle"]})
+    WebAuthnUserHandle.objects.update_or_create(
+        # TAP-CRED-BIND: dev-profile-gate — assert_dev_import_allowed ran at function top.
+        user=user,
+        defaults={"handle": record["user_handle"]},
+    )
     device_type = (
         WebAuthnCredentialDeviceType.MULTI_DEVICE
         if cred["device_type"] == "multi_device"
         else WebAuthnCredentialDeviceType.SINGLE_DEVICE
     )
     credential_obj, _ = WebAuthnCredential.objects.update_or_create(
+        # TAP-CRED-BIND: dev-profile-gate — zero-PoP replay, gated by assert_dev_import_allowed (top).
         credential_id=cred["credential_id"],
         defaults={
             "user": user,

@@ -802,37 +802,75 @@ fi
 info "Instance booted via manage.py boot. Credentials saved to $WORKTREE/.dev-credentials (gitignored)."
 
 # ============================================================================
-# Step 6.4: Dev passkey replay — register once, replay forever (conditional)
+# Step 6.4: Dev passkey — register once, replay forever (req-tap-auth-passkey-dev-bootstrap)
 #
-# The turnkey passkey login for multi-session dev (req-tap-auth-passkey-dev-bootstrap):
-# a developer registers a `localhost` passkey ONCE, exports the PUBLIC record
-# (`manage.py export_dev_passkey`) into the shared secrets dir, and every future
-# spawn binds that same passkey onto `admin` here — one-gesture passkey login with
-# no re-registration, exercising the real passkey path instead of the password bridge.
+# All the logic lives in `manage.py bootstrap_dev_passkey` (req-…-dev-bootstrap-9); this
+# step is a CALLER, not a second implementation. It asks the command for the state, then
+# does the two things only the host can do:
 #
-# Conditional + fail-open by design:
-#   * No record yet (the common first-run case) → skip, print how to enable it.
-#     The password bridge from Step 6 still logs the developer in.
-#   * Record present but the profile is not `dev_local` → the command REFUSES
-#     (fail closed, req-…-dev-bootstrap-4); we surface it and fall back to the
-#     password bridge rather than aborting the spawn.
-# The bind runs AFTER boot so sync_auth has provisioned the `tap_admin` group.
+#   * decide whether a human is present. `docker compose exec -T` strips the TTY, so an
+#     isatty() check inside the container would answer for the wrong process. We test
+#     `[[ -t 0 ]]` here and only then pass --wait (req-…-dev-bootstrap-13) — CI, gate-lean,
+#     and throwaway stacks never block on a browser that isn't there.
+#   * place the record. /run/tap-secrets is mounted read-only into the container on purpose
+#     (that mount is an integrity control for a file whose integrity is load-bearing), so
+#     the command EMITS and we write. Atomically: temp file + mv + chmod 600, never a bare
+#     `>` redirect, which truncates its target before the command runs and leaves a
+#     zero-byte record behind (req-…-dev-bootstrap-12).
+#
+# Fail-open by design: any refusal or failure here falls back to the Step 6 password bridge
+# rather than aborting the spawn. Runs AFTER boot so sync_auth has provisioned tap_admin.
 # ============================================================================
 DEV_PASSKEY_RECORD_HOST="$WORKTREE/tap_secrets/dev-passkey/admin.dev-passkey.json"
-if [[ -f "$DEV_PASSKEY_RECORD_HOST" ]]; then
-  bold "Step 6.4: Binding dev passkey (register-once replay)"
-  if scripts/dc exec -T web uv run python manage.py enroll_admin \
-      --import-dev-passkey --profile "$BOOT_PROFILE_EFFECTIVE"; then
-    info "Dev passkey bound to admin. Log in at http://localhost:$WEB_PORT/ with your passkey (no password needed)."
-  else
-    info "Dev passkey import was refused or failed (profile '$BOOT_PROFILE_EFFECTIVE' may not be 'dev_local', \
-or the record is invalid) — continuing with the password bridge. See the output above."
-  fi
-else
-  info "No dev passkey record at $DEV_PASSKEY_RECORD_HOST — skipping passkey replay (password bridge only)."
-  info "  To enable one-gesture passkey login on every future spawn: register a passkey in this session, then"
-  info "  scripts/dc exec web uv run python manage.py export_dev_passkey > \"$DEV_PASSKEY_RECORD_HOST\""
-fi
+bold "Step 6.4: Dev passkey"
+
+# --json is side-effect-free and always exits 0; stdout carries only the state object.
+PASSKEY_STATE_JSON="$(scripts/dc exec -T web uv run python manage.py bootstrap_dev_passkey \
+  --json --profile "$BOOT_PROFILE_EFFECTIVE" 2>/dev/null || echo '{}')"
+PASSKEY_STATE="$(printf '%s' "$PASSKEY_STATE_JSON" | python3 -c \
+  'import json,sys; print(json.load(sys.stdin).get("state","unknown"))' 2>/dev/null || echo unknown)"
+
+case "$PASSKEY_STATE" in
+  ready)
+    if scripts/dc exec -T web uv run python manage.py bootstrap_dev_passkey \
+        --import --profile "$BOOT_PROFILE_EFFECTIVE"; then
+      info "Dev passkey bound to admin. Log in at http://localhost:$WEB_PORT/ with your passkey."
+    else
+      info "Dev passkey import failed — continuing with the password bridge. See the output above."
+    fi
+    ;;
+  needs_registration)
+    if [[ -t 0 ]]; then
+      info "No dev passkey yet. Registering one now — this is a ONE-TIME step; every future"
+      info "spawn will bind it automatically with no re-registration."
+      mkdir -p "$(dirname "$DEV_PASSKEY_RECORD_HOST")"
+      RECORD_TMP="$(mktemp "${DEV_PASSKEY_RECORD_HOST}.XXXXXX")"
+      # stdout -> the temp record; the secret-bearing enrollment link stays on stderr.
+      if scripts/dc exec -T web uv run python manage.py bootstrap_dev_passkey \
+          --register --wait --emit-record --profile "$BOOT_PROFILE_EFFECTIVE" \
+          --base-url "http://localhost:$WEB_PORT" > "$RECORD_TMP"; then
+        chmod 600 "$RECORD_TMP"
+        mv -f "$RECORD_TMP" "$DEV_PASSKEY_RECORD_HOST"   # atomic: never a partial record
+        info "Dev passkey saved to $DEV_PASSKEY_RECORD_HOST (0600). Future spawns are zero-touch."
+      else
+        rm -f "$RECORD_TMP"
+        info "Passkey registration did not complete — continuing with the password bridge."
+        info "  Re-run any time: scripts/dc exec web uv run python manage.py bootstrap_dev_passkey --register --wait"
+      fi
+    else
+      info "No dev passkey record at $DEV_PASSKEY_RECORD_HOST — skipping (password bridge only)."
+      info "  To enable one-gesture passkey login on every future spawn, run this from a terminal:"
+      info "  scripts/spawn-session.sh … (interactive), or register manually:"
+      info "  scripts/dc exec web uv run python manage.py bootstrap_dev_passkey --register --wait"
+    fi
+    ;;
+  not_dev)
+    info "Profile '$BOOT_PROFILE_EFFECTIVE' is not 'dev_local' — dev passkey onboarding refused (fail closed)."
+    ;;
+  *)
+    info "Could not resolve dev passkey state — continuing with the password bridge."
+    ;;
+esac
 
 # ============================================================================
 # Step 6.5: Functional health gate (manage.py health)

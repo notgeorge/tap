@@ -1,0 +1,44 @@
+# Guard manifest — the committed floor of guards that MUST exist
+# (req-dev-validation-meta-integrity-3, the in-repo loud layer).
+#
+# The guard-integrity guard asserts this set is a SUBSET of the discovered guards:
+# removing or renaming a guard fails the build until its slug is removed from here —
+# and this file is machinery (owned in .github/CODEOWNERS), so that removal is a
+# reviewed act. It is a FLOOR, not a mirror: adding a guard does not require editing
+# this file (that is the self-safe, coverage-adding direction). The Map (test_spec_map_in_sync)
+# already makes a guard removal loud; this is the independent second record, so a guard
+# cannot be dropped even if the Map meta-test is the thing being tampered with.
+#
+# Scope is the UNCONDITIONAL core floor — guards discovered in EVERY boot profile,
+# independent of which plugins are installed. A guard tied to a plugin (or one that moved
+# into a plugin during eviction — gryphon-coverage-floor, plugin-dependency-consistency,
+# plugin-type-ownership left core with the plugin eviction) is install-conditional: it is
+# absent in a lean/core-only or plugin-subset profile, so it CANNOT be an unconditional
+# floor member. Such guards are floored by their own plugin's validation instead
+# (plugin-agnostic validation, spec-plugin-validation-distribution.md) — so evicting a
+# plugin, or booting a profile without it, never breaks this manifest. The floor stays a
+# SUBSET of the discovered set in every profile (incl. the full test_all union).
+#
+# Blank lines and #-comments are ignored (parsed by tap.ratchet.read_baseline_set).
+
+authz-coverage
+collection-addopts-registered
+collection-completeness
+credential-bind-provenance
+dev-passkey-import-encapsulation
+direct-write-coverage
+direct-write-unused-exemption
+family-b-public-surface
+guard-integrity
+json-file-naming
+log-site-baseline
+log-site-format
+log-site-within-file-uniqueness
+mypy-static-typing
+per-profile-boot-resolution
+record-site-uniqueness
+recurring-uniqueness
+schedule-grift-targets
+secret-leak
+service-boundary-coverage
+service-boundary-import-encapsulation

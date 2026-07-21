@@ -43,6 +43,13 @@ from .virtual_authenticator import VirtualAuthenticator
 
 User = get_user_model()
 
+# A shipped profile classified `dev_local` — the one classification that permits import.
+# Passed EXPLICITLY at every import call site: the gate now lives inside `import_dev_admin`
+# (req-…-dev-bootstrap-15), so a test that omitted it would be leaning on whatever
+# `TAP_BOOT_PROFILE` happens to hold, and would silently stop exercising the gate if that
+# ambient value ever changed.
+_DEV_PROFILE = "core_dev"
+
 
 # --------------------------------------------------------------------------- #
 # Helpers                                                                      #
@@ -142,7 +149,7 @@ def test_one_passkey_replays_into_a_fresh_session_as_admin():
     _free_credential_and_handle(session_a_user)
     assert not WebAuthnCredential.objects.exists()
 
-    imported = import_dev_admin(record)
+    imported = import_dev_admin(record, profile_id=_DEV_PROFILE)
     # (2) an admin that authenticates with a passkey, not a password bridge.
     assert imported.groups.filter(name="tap_admin").exists()
     assert not imported.has_usable_password()
@@ -163,8 +170,8 @@ def test_import_is_idempotent_across_repeated_spawns():
     record = _record_for(user)
     _free_credential_and_handle(user)
 
-    first = import_dev_admin(record)
-    second = import_dev_admin(record)
+    first = import_dev_admin(record, profile_id=_DEV_PROFILE)
+    second = import_dev_admin(record, profile_id=_DEV_PROFILE)
     assert first.pk == second.pk
     assert User.objects.filter(username="admin").count() == 1
     assert WebAuthnCredential.objects.filter(user=second).count() == 1
@@ -183,6 +190,43 @@ def test_allowlist_permits_only_explicit_dev_local():
     for refused in (None, "", "customer", "deploy", "dev", "DEV_LOCAL", "local", "prod"):
         with pytest.raises(DevImportNotAllowed):
             assert_dev_import_allowed(refused)
+
+
+@pytest.mark.spec("req-tap-auth-passkey-dev-bootstrap-15")
+@pytest.mark.django_db
+def test_direct_import_call_is_gated_without_any_caller_cooperation():
+    """The gate is structural, not a caller convention (dev-bootstrap-15).
+
+    This calls `import_dev_admin` the way a careless future caller would — directly, with a
+    valid record, having never touched `assert_dev_import_allowed`. Under a deployable
+    (unclassified) profile it MUST refuse, and MUST NOT have written a user or credential.
+    Before the gate moved inside, this call bound an admin credential with zero
+    proof-of-possession."""
+    user = _register_admin(_make_authenticator(uv=True), email="sessiona@example.com")
+    record = _record_for(user)
+    _free_credential_and_handle(user)
+
+    with pytest.raises(DevImportNotAllowed):
+        import_dev_admin(record, profile_id="core")  # a real, deployable, unclassified profile
+
+    assert not User.objects.filter(username="admin").exists()
+    assert not WebAuthnCredential.objects.exists()
+
+
+@pytest.mark.spec("req-tap-auth-passkey-dev-bootstrap-15")
+@pytest.mark.django_db
+def test_import_refuses_when_no_profile_is_resolvable(monkeypatch):
+    """An absent `TAP_BOOT_PROFILE` classifies as `None` — unclassified — and refuses.
+    Fail closed on ambiguity, never fail open on absence."""
+    user = _register_admin(_make_authenticator(uv=True), email="sessiona@example.com")
+    record = _record_for(user)
+    _free_credential_and_handle(user)
+    monkeypatch.delenv("TAP_BOOT_PROFILE", raising=False)
+
+    with pytest.raises(DevImportNotAllowed):
+        import_dev_admin(record)  # no profile_id, no env var → unclassified → refused
+
+    assert not WebAuthnCredential.objects.exists()
 
 
 @pytest.mark.spec("req-tap-auth-passkey-dev-bootstrap-4")
@@ -288,6 +332,6 @@ def test_tampered_record_never_binds_a_credential(tmp_path):
 
     # The integrity failure raises at load, before import_dev_admin writes anything.
     with pytest.raises(DevRecordError):
-        import_dev_admin(load_dev_record(path))
+        import_dev_admin(load_dev_record(path), profile_id=_DEV_PROFILE)
     assert not User.objects.filter(username="admin").exists()
     assert not WebAuthnUserHandle.objects.filter(handle="ff" * 8).exists()

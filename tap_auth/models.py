@@ -574,6 +574,19 @@ class Invitation(models.Model):
         default="",
         help_text="Intended display name for an enroll_first invite. Cosmetic.",
     )
+    username = models.CharField(
+        max_length=150,
+        blank=True,
+        default="",
+        help_text=(
+            "Pinned username for an enroll_first redemption (req-tap-auth-passkey-enrollment-8). Empty (the "
+            "default) derives it from the email via _unique_username. Set when a caller must land the user on an "
+            "agreed-upon name — canonically the dev bootstrap's fixed `admin` (req-tap-auth-passkey-dev-bootstrap-14). "
+            "Create-only: a name that already resolves to a User fails loud at mint AND at redeem, never silently "
+            "becoming an additive mint. Confers no authority — username is a mutable display label, never an identity "
+            "anchor and never an authorization key (the durable internal User id is the sole consequential selector)."
+        ),
+    )
     grants = models.JSONField(
         default=list,
         blank=True,

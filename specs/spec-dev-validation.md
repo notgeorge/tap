@@ -35,6 +35,7 @@ The discipline running through every requirement here is honest coverage account
 | req-dev-validation-suite-tiers | [Suite Tiering & Performance](#suite-tiering--performance) | Partially Implemented | xdist full + `--fast` lanes built (`scripts/test`); relevance-gated Gryphon-corpus selection built (coarse affected lane for the one dominant-cost corpus); profiled `slow` designations + full test-impact analysis + per-profile fast lane still to build (coupled to the streamlined boot profiles) |
 | req-dev-validation-all-plugins-lane | [All-Plugins CI Lane](#all-plugins-ci-lane) | Proposed | Server-side lane that boots the full plugin union and runs the whole suite — the blocking all-plugins authority a focused local stack structurally cannot be once plugins leave the monorepo. Local validates what's installed here; this lane owns all-plugins truth. The boot record IS the known-good-set (BOM) it verifies. |
 | req-dev-validation-product-line-lanes | [Per-Product-Line CI Lanes](#per-product-line-ci-lanes) | Implemented | Validate each product line (a plugin-pack + boot profile) on its own AWS CodeBuild GitHub Actions runner, in parallel across lines — parallelism along the product axis, not arbitrary shards. In-account IAM gives each lane native Bedrock / `aws_core` capability. The active CI direction; supersedes free-runner sharding. Infra applied (account 180731181784); `test_all` + `samsite` lanes proven green (2026-07-08); `test_all` union lane wired as the promote gate. The `samsite` git-install path is exercised end-to-end (PAT resolved from Secrets Manager via the secret-source seam); flipping `samsite.boot.json` fully back to git-source pends compliance_core/identity_core eviction + v0.2.0 re-release. |
+| req-dev-validation-meta-integrity | [Guard-System Meta-Integrity](#guard-system-meta-integrity) | Partially Implemented | The gates must resist being disabled by a code push (who guards the guards). The enforcement *machinery* — harness, scanner engines, ratchet core, the runner + honesty meta-tests, CI/gate config, and the allowlists/vocabularies embedded in guards — is **review-always**; only a ratchet baseline *shrinking* and *coverage-adding* changes are self-safe directions. The real trust anchor is **out-of-band** (branch protection + required check + `CODEOWNERS`), because no in-repo check can protect itself; the in-repo layer makes tampering loud, the platform layer makes it blocked. Built: the in-repo loud layer (`-3`, guard-integrity guard) and the `CODEOWNERS` file; pending: the branch-protection settings (`-2`) that make `CODEOWNERS` bite. |
 
 Leaf surfaces referenced by the Map are owned elsewhere: spawn-env smoke in [spec-dev-multisession-smoketest.md](spec-dev-multisession-smoketest.md), teardown in [spec-dev-multisession-teardown.md](spec-dev-multisession-teardown.md), the log-site scanner in [spec-tap-logging.md](spec-tap-logging.md), and the async-delivery tiers in [spec-tap-cares-task-backend.md](../tap_cares/specs/spec-tap-cares-task-backend.md) (`req-tap-cares-task-backend-backlog-2`). This spec does not re-specify them.
 
@@ -80,10 +81,14 @@ block. Rich per-surface rationale lives in each owning spec and in each guard's
 | Canary tier | `req-dev-validation-canary-tier` | Pre-push + per-commit | Gate-guarded *(target)* — Named, deferred until implemented | blast-radius subset (target); not yet built |
 | Cold-boot system cycle | `req-dev-validation-smoke-gate` | Pre-push (`scripts/gate`, wired into `promote-to-main.sh`) | Gate-guarded | `tap_boot/management/commands/cold_boot_gate.py` |
 | Collection completeness | `req-dev-validation-collection-complete` | Per-commit (`pytest`) | CI-guarded | `tap.guards.collection_addopts`, `tap.guards.collection_completeness` (via `tap/tests/test_guards.py`) |
+| Credential-bind provenance | `req-tap-auth-credential-bind-provenance` | Per-commit (`pytest`) | CI-guarded | `tap_auth.guards.credential_bind` (via `tap/tests/test_guards.py`) |
 | Crypto Bill-of-Materials (every provider, not just OpenSSL) | `req-fips-crypto-bom-ci` | Per-commit (`pytest`) | CI-guarded (fail-closed) | `tap.crypto_bom` (via `tap/tests/test_crypto_bom.py`): fingerprints every ELF artifact for crypto-provider signatures (Go/Rust `ring`/`aws-lc`/`libsodium`/bundled-OpenSSL/…) and fails on any provider not dispositioned VALIDATED/out-of-boundary/unreached in `tap.crypto_providers` — catches the silent non-OpenSSL leak `tap.fips` cannot see (L17); scans the `test_all` plugin union |
+| Dev passkey import stays shell-only | `req-tap-auth-passkey-dev-bootstrap` | Per-commit (`pytest`) | CI-guarded | `tap_auth.guards.dev_passkey_import` (via `tap/tests/test_guards.py`) |
 | Direct-write coverage | `req-tap-auth-policy-9` | Per-commit (`pytest`) | CI-guarded | `tap.guards.direct_write` (via `tap/tests/test_guards.py`) |
+| Direct-write exemption freshness | `req-tap-auth-policy-9-unused-exemption` | Per-commit (`pytest`) | CI-guarded | `tap.guards.direct_write` (via `tap/tests/test_guards.py`) |
 | Family-B public surface (pre-boot/boot) | `req-service-boundary-family-b-surface` | Per-commit (`pytest`) | CI-guarded | `tap.guards.public_surface` (via `tap/tests/test_guards.py`) |
 | FIPS mode enforcement (declared vs actual) | `req-cicd-base-image-lifecycle-6` | Per-boot (`docker/entrypoint.sh`) | Boot-gated (fail-closed) | `tap.fips` (`python -m tap.fips`): executes crypto and asserts a non-approved primitive is refused when TAP_FIPS_MODE=1 — proves the declared mode is enforced, never inspects files (D13/D15); TAP-ABORT on mismatch |
+| Guard-system integrity | `req-dev-validation-meta-integrity-3` | Per-commit (`pytest`) | CI-guarded | `tap.guards.guard_integrity` (via `tap/tests/test_guards.py`) |
 | JSON-file naming | `req-tap-json-naming` | Per-commit (`pytest`) | CI-guarded | `tap.guards.json_naming` (via `tap/tests/test_guards.py`) |
 | Lean-boot core independence (import-leakage class) | `req-dev-validation-lean-boot` | Pre-push (`scripts/gate-lean`, wired into `promote-to-main.sh`) | Gate-guarded | `scripts/gate-lean` (isolated `tap_leanboot` stack, core-only venv; catches core→plugin-dep imports the full-venv cold-boot gate cannot) |
 | Log-site tokens | `req-tap-logging-site-id-scanner` | Per-commit (`pytest`) | CI-guarded | `tap.guards.log_site_baseline`, `tap.guards.log_site_format`, `tap.guards.log_site_uniqueness` (via `tap/tests/test_guards.py`) |
@@ -206,7 +211,7 @@ Status: `Implemented`
 
 Known-broken state is enumerated in a committed manifest, never held in human memory. The gate exits non-zero on any failure **not** listed, and also on any listed entry that no longer fails (stale entries are removed so the manifest ratchets toward zero). Each entry carries a one-line reason and owning context. The manifest is seeded at landing with whatever is genuinely known-broken at that moment — possibly empty.
 
-This requirement also **names, once, the house convention** the repository has independently reached for repeatedly: a *bounded, reviewed, in-repo manifest that ratchets down* is TAP's canonical mechanism for honest coverage accounting. Its instances are the log-site-ID baseline (`spec-tap-logging.md`), the authz-coverage baseline (`spec-tap-auth-v0.md` `req-tap-auth-policy-9`), the direct-write-coverage baseline (`tap/tests/_direct_write_baseline.txt`), the Gryphon executor branch-coverage floor (`tap_grid/gryphon/coverage-baseline.json`, `req-gridkin-executor-branch-coverage`), this known-broken manifest, canary-set membership ([Canary Test Tier](#canary-test-tier)), and honest `CI-unguarded` spec-status labeling (`spec-tap-cares-task-backend.md`). New honesty mechanisms SHOULD follow this pattern rather than invent a parallel one — and, per [Reusable Ratchet Harness](#reusable-ratchet-harness), should increasingly share its *implementation*, not just its shape.
+This requirement also **names, once, the house convention** the repository has independently reached for repeatedly: a *bounded, reviewed, in-repo manifest that ratchets down* is TAP's canonical mechanism for honest coverage accounting. Its instances are the log-site-ID baseline (`spec-tap-logging.md`), the authz-coverage baseline (`spec-tap-auth-v0.md` `req-tap-auth-policy-9`), the direct-write-coverage baseline (`tap/guards/baselines/direct_write.txt`), the Gryphon executor branch-coverage floor (`tap_grid/gryphon/coverage-baseline.json`, `req-gridkin-executor-branch-coverage`), this known-broken manifest, canary-set membership ([Canary Test Tier](#canary-test-tier)), and honest `CI-unguarded` spec-status labeling (`spec-tap-cares-task-backend.md`). New honesty mechanisms SHOULD follow this pattern rather than invent a parallel one — and, per [Reusable Ratchet Harness](#reusable-ratchet-harness), should increasingly share its *implementation*, not just its shape.
 
 #### Acceptance Criteria
 
@@ -536,6 +541,117 @@ webhook + IAM role) and `.github/workflows/product-lines.yml` (the per-line matr
 | req-dev-validation-product-line-lanes-4 | In-account capability, least-privilege per line | Implemented | Each lane's IAM role is per-line (grants can diverge) and grants only what that line tests need — native Bedrock and/or scoped `aws_core` STS, plus a per-line `GetSecretValue` grant on the plugin-pull secret for lines that git-install private plugins (`needs_plugin_pull`). The AWS-native reason to run CI here. | `ci/terraform/codebuild-runners/iam.tf`, `secrets.tf`; reuse the External-ID discipline from `plugins/aws_core/.../handoff/cross-account-role.yaml`. |
 | req-dev-validation-product-line-lanes-5 | IaC in-repo, state out | Implemented | The provisioning is Terraform tracked in-repo; state + real tfvars (ARNs/account ids) are gitignored, never committed. The plugin-pull secret is a shell only (no `secret_version`) so no secret material lands in tfstate. | `ci/terraform/codebuild-runners/.gitignore`, `terraform.tfvars.example`, `secrets.tf`. |
 | req-dev-validation-product-line-lanes-6 | Promote-gate + Map row when live | Implemented | The `test_all` union lane is wired as the promote gate (`promote-to-main.sh` Step 2.6 dispatches `line=test_all`, option B, reciprocal of `req-dev-multisession-ci-gate`), superseding the free-runner `all-plugins.yml` — which is retained as the fallback via `TAP_PROMOTE_CI_WORKFLOW=all-plugins.yml`. Map row added via `DECLARED_SURFACES` ("Per-product-line CI lanes (CodeBuild)"). | The gate bootstrap-skips the one promote that first lands `product-lines.yml` on `origin/main`, by construction (same detection as the original all-plugins gate). |
+
+### Guard-System Meta-Integrity
+----
+RID: `req-dev-validation-meta-integrity`
+Status: `Proposed`
+
+The Map, the guards, and the ratchets are worth exactly what it costs to disable them. This requirement protects the validation system from being weakened — accidentally or intentionally — by the ordinary act of changing code. *Who guards the guards* is the whole subject, and its answer is layered: the in-repo mechanisms make tampering **loud**; only an out-of-band platform control makes it **blocked**.
+
+**Threat model.** A gate can be neutralized many ways, easiest-to-catch to hardest: neuter a `check()` (make it `pass`); broaden an allowlist or loosen a pattern; delete a guard module (discovery drops it); land a real violation and its baseline line in one commit; or — the softest, highest-leverage target — **stop running the suite at all** by editing the runner (`tap/tests/test_guards.py`), the CI workflow, the gate scripts, or the pytest config. That last class dominates: it touches no guard, it removes them from the critical path, and it collapses every in-repo self-check at once (all of which fire only if the suite runs). A subtler variant disables the honesty meta-tests first, then everything downstream goes quiet.
+
+**What already self-defends — but only while the suite runs.** Deleting a guard trips `test_spec_map_in_sync` (the generated Map no longer equals the committed block). A fabricated baseline line trips the ratchet's stale-entry tooth (`tap.ratchet.ratchet_ceiling` fails on `baseline − current`). A guard pointing at a non-existent requirement trips `test_guard_rid_resolves`. These make casual tampering loud — but none survive an edit to the runner or CI config, and none catch the violation-and-baseline-in-one-commit move (its added line is not stale).
+
+**The seam (`-1`).** The enforcement *machinery* is separated from the *policy data* it consumes, and the two are governed by the **direction** a change moves, not merely by file type:
+
+- **Machinery — review-always.** The harness and bases (`tap/guards/**` except `tap/guards/baselines/**`), the scanner engines (`tap/source_scan.py`, `tap/direct_write_coverage.py`, `tap/authz_coverage.py`, and every per-app / per-plugin `**/guards/**`), the ratchet core (`tap/ratchet.py`), the Map generator and declared-surface list (`tap/guards/report.py`, `tap/guards/surfaces.py`), the runner and the honesty meta-tests (`tap/tests/test_guards.py`), the CI/gate configuration (`.github/workflows/**`, `ci/terraform/**`, `scripts/gate*`, `scripts/promote*`), and the test configuration (`pyproject.toml`). **The allowlists and provenance vocabularies embedded inside guard modules are machinery too** — broadening one is a weakening move, so it correctly sits on the review-always side.
+- **Self-safe directions — open.** Only two changes are safe *by construction*: a ratchet **baseline shrinking** (growth-by-fabrication is already forbidden by the stale tooth; genuine shrink is the goal), and a change that **adds coverage** (a new guard, a new declared surface, a new Map row). Everything that *removes* or *loosens* is a weakening move on the review-always side. The intuition that "the lists and maps grow and shift" holds for coverage-adding growth; it does **not** extend to growing an allowlist or an exemption set — that is loosening, and reviewed.
+
+**Out-of-band anchor (`-2`).** No in-repo check can ultimately protect itself: the same push that weakens a guard can weaken its self-check. The regress terminates only at controls that live in the **platform's settings**, which a code push cannot edit:
+- **Branch protection on `main`** — PRs only (no direct push), the guard/gate status check (the CodeBuild `test_all` lane) required and non-bypassable, branch up-to-date.
+- **Required status check** — because the required-check contract lives in repo settings, a workflow edit that drops the guard lane cannot self-authorize.
+- **`CODEOWNERS`** over the machinery paths above, with **George as sole code-owner**, so any PR touching the machinery needs his explicit approval. Solo today, this still converts a casual, automated, or AI-actor change to the machinery into a deliberate, reviewed human act — the point under the [AI-integration posture](spec-ai-integration.md): an assistant that can *edit* a guard must not be able to *disable* one without a human in the loop.
+
+**In-repo loud layer (`-3`).** Defense-in-depth that fails fast rather than quietly: a **guard-integrity guard** asserting the discovered guard set is a superset of a committed manifest (removing a guard fails until the manifest — machinery — is edited, which `CODEOWNERS` then gates) and that no `check()` is a trivial `pass`/`return True`. The existing honesty meta-tests are the rest of this layer. It is recursive by design: the harness and the meta-tests are themselves machinery, so weakening *them* is a machinery edit — loud in-repo, gated out-of-band.
+
+**Named limits (`-4`, honest risk).** Stated, not implied:
+- A repo **admin can bypass branch protection**. Trust ultimately reduces to the admin set; these controls make disabling a gate a deliberate, logged, reviewed act, not an impossible one. For the pre-customer / solo phase that is the right calibration.
+- The **violation-and-baseline-in-one-commit** hole is not closeable by the ratchet alone; it lives on the reviewed side of the seam.
+- The **self-protection regress** is real: any in-repo layer can be edited by whoever can merge; only the out-of-band anchor (`-2`) actually blocks, and only as far as the admin set is trusted.
+
+| RID | Name | Status | Description | Failure it prevents |
+| --- | --- | :---: | --- | --- |
+| req-dev-validation-meta-integrity-1 | Machinery / data seam | Proposed | Enforcement machinery is review-always; only baseline-shrink and coverage-add are self-safe directions; embedded allowlists/vocabularies are machinery. | A weakening change (neutered `check()`, broadened allowlist, dropped guard) merging as if it were routine policy data. |
+| req-dev-validation-meta-integrity-2 | Out-of-band anchor | Proposed | Branch protection + a required, non-bypassable guard status check + `CODEOWNERS` (sole owner: George) over the machinery paths. The trust anchor lives in platform settings a push cannot edit. `.github/CODEOWNERS` is authored (machinery paths → `@notgeorge`, baselines carved out as data); the branch-protection + required-check + require-code-owner-review **settings** are the remaining step (applied in the repo admin UI, not in-repo). | Disabling the gates by editing the runner/CI config, or merging a machinery change with no human approval. |
+| req-dev-validation-meta-integrity-3 | In-repo loud layer | Implemented | The guard-integrity guard (`tap/guards/guard_integrity.py`): asserts the discovered guard set ⊇ the committed floor `tap/guards/guard_manifest.txt`, and that no discovered guard's `check()` is a no-op (`pass`/`return`/`...`/`assert True`) — the neutering the Map-sync meta-test cannot see. Recursively covers the harness (it floors itself). Proof: `tap/tests/test_guard_integrity.py`. Hard lint, no baseline. | A silent guard deletion or a gutted `check()` passing CI unnoticed. |
+| req-dev-validation-meta-integrity-4 | Named limits | Proposed | Admin bypass, the violation-and-baseline-in-one-commit hole, and the self-protection regress are named, not implied. | A false sense that the gates are tamper-proof rather than tamper-evident-plus-gated. |
+
+**Home and graduation.** This requirement lives here, in the guard system's own spec, because today it *is* validation-of-the-validators — protecting the guard system this spec owns — and it is right-sized (four sub-reqs). Its out-of-band anchor (`-2`) is the same server-side settings surface as [spec-cicd-hardening.md](spec-cicd-hardening.md) `req-cicd-branch-protection`, which now also carries the require-code-owner-review dimension this contract adds; the CI/pipeline deferred backlog is canonical there. Meta-integrity **graduates to its own spec** (a `spec-repo-integrity.md`, absorbing this family as its internal-tamper-resistance section) when it stops being "protect the guards" and becomes "protect the repository's integrity" — i.e. when commit signing / attestation, supply-chain provenance (`req-cicd-supply-chain-provenance`), or branch-protection-as-code (committed GitHub rulesets) enter scope. That trigger is a concrete event, not a vague size threshold; naming it here defers the ceremony without losing the thread.
+
+## Prior Art
+
+The guard/ratchet harness was built bespoke and reached its shape by convergent
+evolution — it had never been put through the repository's own [prior-art-search
+discipline](../CLAUDE.md) *after* the fixes went in. This section records the external
+processes it matches, so a future guard models on a proven pattern rather than
+reinvents. Three surveys (2026-07-21) ground four design axes; the callsite-identity
+model's SARIF lineage is recorded separately in `spec-tap-callsite-identity.md`'s own
+Prior Art section.
+
+### Ratcheting baselines — freeze the debt, block the new
+
+The [house convention](#known-broken-manifest) — a bounded, reviewed, in-repo manifest
+that ratchets toward zero — is the established migration-linting pattern: PHPStan and
+Psalm baseline files, RuboCop's `.rubocop_todo.yml`, ESLint `--max-warnings`,
+TypeScript strict-mode migration, and the `betterer` tool all freeze an audited debt
+set and fail only *new* violations. TAP's `CeilingRatchet` (keyed on a drift-proof
+occurrence_key, never a line number) is this pattern shared across every bespoke
+ratchet via [Reusable Ratchet Harness](#reusable-ratchet-harness).
+
+### Resolution-dependent lint rules — resolve names, don't match strings
+
+A rule whose correctness depends on *which* class a name refers to must not match by
+bare class name (`req-tap-auth-policy-9-name-resolution`: `tap_auth.User` was flagged
+only because the graph-managed `computing_core.User` shares the string — a false
+positive whose only "coverage" of the line was the collision itself). The industry
+answer is a **per-file import binder**: pyflakes' `ImportationFrom` binds a local name
+to its source module by *parsing, not importing*; Ruff and Semgrep build exactly this
+file-local binder and **deliberately stop there** — cross-module type inference
+(Pylint/astroid's inference engine, CodeQL's global dataflow) is disproportionately
+expensive and unnecessary when the origin is stated in the file's own `import` line.
+TAP's `tap.source_scan.build_import_bindings` models pyflakes' binding, and — per the
+security-posture fail-closed doctrine — keeps the conservative bare-name match wherever
+resolution is ambiguous (star/relative import, local shadow), so a genuine graph write
+is never dropped by a resolution gap.
+
+### Interprocedural preconditions — make the property local, don't build a checker
+
+"Caller must invoke X before Y" is an interprocedural dataflow property the harness's
+local, structural guards cannot express (the 2026-07 finding: a zero-proof-of-possession
+dev-import gate lived only in a docstring and was ignored at four call sites). The
+endorsed fix is to *change the property's shape*, not buy a bigger analysis engine:
+relocating the precondition into the callee makes gating **true-by-construction** and
+locally checkable — a textbook instance of **"parse, don't validate"** (Alexis King)
+and **"make illegal states unrepresentable"** (Minsky), with the **modular-Hoare**
+rationale (the callee asserts its own precondition; a caller-side obligation the harness
+cannot see becomes a callee-local invariant it can). The closest prior-art exemplar for
+the problem *shape* ("Y is only safe if X happened upstream") is the Checker Framework's
+**"Must Call"** checker and its **RLC#** port: even those dedicated engines avoid
+whole-program dataflow and instead **re-localize** the property to method-boundary
+annotations. The strictly-stronger ideal is a **capability/typestate token**
+(hold-a-proof-to-call), which a dynamically-typed codebase cannot cheaply carry — so the
+runtime gate-in-callee is the right substitute, backstopped by a cheap structural
+*containment* guard (the dangerous symbol is importable only inside an approved
+surface). Semgrep's documented inability to express statement sequencing confirms this
+is an ordinary limitation, not a TAP-specific gap.
+
+### Suppression escape hatches — scope them, and let stale ones rot loudly
+
+An inline exemption (`# TAP-WRITE-COV: <reason>`) can be silenced by a **true but
+orthogonal** reason (the annotation that explained why there was no `authorize()` while
+the real risk was an unmentioned precondition). Two established defenses apply.
+**Unused-suppression detection** — mypy `warn_unused_ignores`, Pylint
+`useless-suppression`, ESLint `reportUnusedDisableDirectives` all fail a suppression
+that no longer suppresses anything; TAP's `DirectWriteExemptionGuard`
+(`req-tap-auth-policy-9-unused-exemption`) is this, tokenize-precise so a marker inside
+a string literal is never mistaken for a live comment. **Obligation-scoped suppression**
+— mypy's `# type: ignore[code]` requires naming the specific error, so an ignore for
+code A cannot mask a later, different code B on the same line; a `# TAP-WRITE-COV[obligation]`
+scoping plus a structured classification enum (the Coverity/SARIF `justification`
+tradition) is the proposed next step, **deferred, not yet built**. No mainstream linter
+enforces a *positive* "what makes this safe" argument — that is adapted from safety-case
+engineering, not off-the-shelf tooling.
 
 ## Out Of Scope (v0)
 

@@ -237,10 +237,18 @@ second contributor bypasses 100% of it. Add a forge **branch protection rule / r
 `main`: no direct pushes, require the product-lines CI status check to pass, require linear
 history. This turns the gate from *"the way we do it"* into *"the only way it can be done."*
 
+This is also the **blocking half** of the guard meta-integrity contract
+([spec-dev-validation.md](spec-dev-validation.md) `req-dev-validation-meta-integrity-2`): the
+in-repo `.github/CODEOWNERS` fence over the guard/validation machinery is authored but *inert*
+until this ruleset requires code-owner review. One settings action lands both — protect `main`
+*and* require code-owner review over the machinery paths — so it is captured here as the single
+canonical branch-protection to-do.
+
 | RID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-cicd-branch-protection-1 | Protect main | Proposed | Ruleset on `main`: block direct pushes, require the CI check, require linear history / signed commits (optional). | Server-enforced floor for *everyone and everything* else. |
 | req-cicd-branch-protection-2 | Bypass for the promote identity | Proposed | The promote does a direct atomic push, which "require PR" would block. Grant a ruleset **bypass** to the promote/bot identity so the hand-rolled flow survives while the floor holds for all else. | Keeps the client-side flow; adds the server-side backstop. The alternative — adopt a PR/merge-queue flow — is the [Goal 6](#goals) decision, tracked but not forced here. |
+| req-cicd-branch-protection-3 | Require code-owner review over machinery | Proposed | The ruleset also **requires review from Code Owners**, so a PR touching the guard/validation machinery (the `.github/CODEOWNERS` paths — harness, scanner engines, ratchet core, runner + meta-tests, CI/gate config) needs the code-owner's approval. This is the blocking half of `req-dev-validation-meta-integrity-2`; without it, CODEOWNERS is authored but does nothing. Confirm the code-owner handle resolves — GitHub silently ignores an unresolvable owner. | Makes disabling a gate a deliberate, reviewed act rather than a silent code push. |
 
 ### Shift-Left Security Scanning
 

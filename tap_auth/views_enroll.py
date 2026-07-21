@@ -84,7 +84,16 @@ def enroll_options(request: HttpRequest, public_id: str) -> HttpResponse:
     if invitation.action == InvitationAction.ADD_CREDENTIAL:
         # Additive enrollment for an existing user: reuse their handle so all of a
         # user's credentials share one handle, and exclude already-registered ones.
-        handle_row = WebAuthnUserHandle.objects.get(user=invitation.target_user)
+        # get_or_create, not get: a user who has NEVER registered a passkey has no
+        # handle yet — the password-era account adding its first credential (the dev
+        # `admin`, and every account that password retirement will migrate). Minting
+        # it here persists it before the ceremony; an abandoned ceremony leaves a
+        # handle with no credential, which is harmless and reused on the next attempt.
+        handle_row, _ = WebAuthnUserHandle.objects.get_or_create(
+            # TAP-CRED-BIND: pre-registration-handle — handle only (no key), minted before the ceremony.
+            user=invitation.target_user,
+            defaults={"handle": secrets.token_bytes(_HANDLE_BYTES).hex()},
+        )
         user_handle = bytes.fromhex(handle_row.handle)
         exclude_ids = list(
             WebAuthnCredential.objects.filter(user=invitation.target_user).values_list("credential_id", flat=True)
