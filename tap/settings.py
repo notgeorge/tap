@@ -163,14 +163,10 @@ INSTALLED_APPS = [
     # Administrivia plugin — migrated to package-mode 2026-07-01
     # (tap_plugin.administrivia); loads via TAP_PLUGINS_APPS from the profile
     # `install` section.
-    # LOTR plugin — migrated to package-mode 2026-07-01 (tap_plugin.lotr).
-    # Install-only, kept as test-fixture/nostalgia vocabulary and for its own
-    # self-testing; it is being retired from any load-bearing role — the core
-    # tap_grid/tap_api constraint/edge/validation suites now use the neutral
-    # grid_fixtures plugin instead. Loads via TAP_PLUGINS_APPS from a profile
-    # `install` section + the test-settings entry-point discovery-fallback;
-    # its Middle-earth *seed data* remains instance clutter decoupled from the
-    # app registration.
+    # LOTR plugin — RETIRED 2026-07-21 as part of the full plugin eviction. Its
+    # load-bearing role was already migrated to the neutral grid_fixtures plugin
+    # (the core tap_grid/tap_api constraint/edge/validation suites use it); the
+    # monorepo copy is deleted and its repo deprecated. Nothing here loads it.
     # Computing Core plugin — migrated to package-mode 2026-07-01
     # (tap_plugin.computing_core); loads via TAP_PLUGINS_APPS.
     # AWS Core plugin — migrated to package-mode 2026-07-01 (tap_plugin.aws_core);
