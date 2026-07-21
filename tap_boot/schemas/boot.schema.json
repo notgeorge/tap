@@ -223,6 +223,37 @@
           }
         }
       }
+    },
+    "fips_waivers": {
+      "description": "Operator-controlled FIPS exceptions (req-cicd-crypto-bom). When the image is in FIPS mode (TAP_FIPS_MODE=1), the boot-time crypto-BOM gate refuses to serve if any crypto provider in the assembled environment (core + every installed plugin) is non-validated — a Go binary, a Rust crate on ring/aws-lc-rs, a libsodium/pynacl wheel, a JVM — because those ignore OPENSSL_CONF and silently run non-FIPS crypto. This is the deployment's escape valve: the OPERATOR (never the plugin author — a plugin cannot excuse itself from the system's FIPS posture) may accept a specific non-validated provider here, WITH a mandatory justification. Each waiver is surfaced (auditable), so every FIPS exception is explicit, not silent. Omit when there are none (the safe default: a leak fails the boot).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["reason"],
+        "properties": {
+          "plugin": {
+            "description": "The plugin slug (or an fnmatch glob over the offending artifact's path / `dist:<name>`) whose non-validated crypto provider is being excused. A slug matches any artifact under that plugin. Provide this or `artifact`.",
+            "type": "string",
+            "minLength": 1
+          },
+          "artifact": {
+            "description": "Alias for `plugin`: an explicit fnmatch glob over the finding's artifact when a slug is not the right granularity (e.g. a specific `.so` path). Provide this or `plugin`.",
+            "type": "string",
+            "minLength": 1
+          },
+          "provider": {
+            "description": "The specific non-validated provider to excuse (e.g. `libsodium`, `rust-ring`, `go-crypto`, `jvm-detected`), or omit / `*` to excuse any provider on the matched artifact. Narrow it to the provider you actually reviewed.",
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "description": "MANDATORY justification for accepting this non-FIPS crypto in a FIPS deployment — the whole point of the waiver. A blank reason is rejected (you cannot waive silently). State why it is acceptable (e.g. the provider is only reached for a non-security use, or the deployment's compliance authority has accepted it).",
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
     }
   }
 }

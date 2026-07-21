@@ -22,10 +22,14 @@ so an empty scan (wrong root, unreadable files) fails loudly instead of reportin
 
 from __future__ import annotations
 
+import argparse
 import fnmatch
 import importlib.metadata as importlib_metadata
+import json
+import os
+import sys
 from collections.abc import Iterable, Iterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from tap.crypto_providers import (
@@ -38,6 +42,7 @@ from tap.crypto_providers import (
     SIGNATURES,
     Boundary,
     Disposition,
+    Waiver,
 )
 
 ELF_MAGIC = b"\x7fELF"
@@ -55,17 +60,26 @@ _SYSTEM_LIB_DIRS = frozenset({"/usr/lib"})
 
 @dataclass(frozen=True)
 class Finding:
-    """One (artifact, provider) pair and its resolved disposition. `boundary is None` = unclassified."""
+    """One (artifact, provider) pair and its resolved disposition. `boundary is None` = unclassified.
+
+    `waived` records an OPERATOR waiver (with `waiver_reason`) that excuses an otherwise-failing
+    finding in a FIPS deployment. A waived finding is not a failure, but it is still *recorded* — the
+    exception is visible with its justification, never silently dropped."""
 
     artifact: str
     provider: str
     boundary: Boundary | None
     detail: str
     rid: str | None
+    waived: bool = False
+    waiver_reason: str | None = None
 
     @property
     def is_failure(self) -> bool:
-        # Unclassified (no disposition) or an in-boundary non-validated provider fails the gate.
+        # Unclassified (no disposition) or an in-boundary non-validated provider fails the gate —
+        # unless an operator has waived it (with a reason).
+        if self.waived:
+            return False
         return self.boundary is None or self.boundary is Boundary.MUST_FIX
 
 
@@ -297,13 +311,146 @@ def core_report() -> Report:
     )
 
 
+class WaiverError(ValueError):
+    """A malformed operator waiver (e.g. a missing/blank reason)."""
+
+
+def load_waivers(raw: Iterable[object]) -> list[Waiver]:
+    """Parse operator `fips_waivers` (from the boot profile) into Waivers, fail-closed.
+
+    Each entry must be `{plugin|artifact, provider?, reason}` with a NON-EMPTY reason — you cannot
+    waive a FIPS requirement silently. A blank reason or a non-dict entry is a hard error, not a
+    tolerated skip (an ignored waiver would fail-open into an unexplained exception)."""
+    waivers: list[Waiver] = []
+    for i, entry in enumerate(raw):
+        if not isinstance(entry, dict):
+            raise WaiverError(f"fips_waivers[{i}] must be an object, got {type(entry).__name__}")
+        artifact = entry.get("artifact") or entry.get("plugin")
+        reason = entry.get("reason")
+        if not isinstance(artifact, str) or not artifact:
+            raise WaiverError(f"fips_waivers[{i}] needs a non-empty 'plugin' or 'artifact' glob")
+        if not isinstance(reason, str) or not reason.strip():
+            raise WaiverError(
+                f"fips_waivers[{i}] ('{artifact}') needs a non-empty 'reason' — a FIPS waiver must be justified"
+            )
+        provider = entry.get("provider", "*")
+        if not isinstance(provider, str):
+            raise WaiverError(f"fips_waivers[{i}] 'provider' must be a string")
+        waivers.append(Waiver(artifact=artifact, provider=provider, reason=reason.strip()))
+    return waivers
+
+
+def _waiver_matches(waiver: Waiver, finding: Finding) -> bool:
+    if waiver.provider not in (finding.provider, "*"):
+        return False
+    # Match the artifact path OR a plugin-slug fragment of it (a plugin owns files under .../<slug>/…).
+    return fnmatch.fnmatch(finding.artifact, waiver.artifact) or f"/{waiver.artifact}/" in f"/{finding.artifact}/"
+
+
+def apply_waivers(report: Report, waivers: Iterable[Waiver]) -> Report:
+    """Return a new Report with every failing finding an operator waiver matches marked waived (with
+    its reason). Waived findings stop being failures but remain recorded — the exception stays visible."""
+    waivers = list(waivers)
+    new_findings: list[Finding] = []
+    for f in report.findings:
+        if f.is_failure:
+            match = next((w for w in waivers if _waiver_matches(w, f)), None)
+            if match is not None:
+                new_findings.append(replace(f, waived=True, waiver_reason=match.reason))
+                continue
+        new_findings.append(f)
+    return Report(findings=new_findings, scanned_files=report.scanned_files, unreadable=list(report.unreadable))
+
+
+def scan_plugin(plugin_root: Path, dist_names: Iterable[str] = ()) -> Report:
+    """Scan a SINGLE plugin's shipped artifacts (native files + jars under its root) and declared
+    distributions — the per-plugin conformance surface. A plugin is usually pure Python, so this
+    catches the cases that matter: a plugin bundling a native `.so`/binary with non-validated crypto,
+    a JVM artifact, or a declared dependency known to carry non-FIPS crypto (`req-cicd-crypto-bom`)."""
+    root = Path(plugin_root)
+    return scan(native_roots=(root,), dist_names=dist_names, libcrypto_roots=(root,), jvm_roots=(root,))
+
+
+def _fips_mode_on() -> bool:
+    """Whether the running image declares FIPS mode (`TAP_FIPS_MODE=1`; see tap.fips)."""
+    return os.environ.get("TAP_FIPS_MODE", "0").strip() == "1"
+
+
+def _profile_waivers(profile_id: str) -> list[Waiver]:
+    """Read `fips_waivers` from `boot/<profile_id>.boot.json` (settings-free, like tap.preboot).
+
+    Missing profile / missing section → no waivers (an absent profile is not an error here; the boot
+    pipeline validates the profile elsewhere). A malformed `fips_waivers` IS an error (fail-closed)."""
+    path = Path(__file__).resolve().parent.parent / "boot" / f"{profile_id}.boot.json"
+    if not path.is_file():
+        return []
+    with path.open("rb") as fh:
+        profile = json.load(fh)
+    return load_waivers(profile.get("fips_waivers", []) or [])
+
+
+def system_fips_gate(profile_id: str) -> tuple[int, Report]:
+    """The boot-time GLOBAL FIPS validation (req-cicd-crypto-bom): when the system is in FIPS mode,
+    every crypto provider in the assembled environment — core AND every installed plugin — must be
+    validated, unless an OPERATOR waiver (with a reason) excuses it. Returns (exit_code, report).
+
+    When FIPS mode is off this is a no-op (exit 0, empty report): a non-FIPS deployment may use
+    non-FIPS crypto, and we skip the scan cost on every non-FIPS boot."""
+    if not _fips_mode_on():
+        return 0, Report()
+    report = apply_waivers(core_report(), _profile_waivers(profile_id))
+    return (1 if report.failures else 0), report
+
+
 def format_report(report: Report) -> str:
-    """Human/AI-legible one-line-per-finding rendering, worst-first."""
+    """Human/AI-legible one-line-per-finding rendering, worst-first. Waived findings show their reason."""
     order = {None: 0, Boundary.MUST_FIX: 1, Boundary.UNREACHED: 2, Boundary.OUT_OF_BOUNDARY: 3, Boundary.VALIDATED: 4}
     lines = [f"crypto-BOM: {report.scanned_files} ELF artifacts scanned, {len(report.findings)} finding(s)"]
     for f in sorted(report.findings, key=lambda f: order.get(f.boundary, 0)):
+        if f.waived:
+            lines.append(f"  [WAIVED] {f.provider} @ {f.artifact} — operator waiver: {f.waiver_reason}")
+            continue
         label = f.boundary.value if f.boundary else "UNCLASSIFIED"
         lines.append(f"  [{label}] {f.provider} @ {f.artifact} — {f.detail}")
     if report.unreadable:
         lines.append(f"  ({len(report.unreadable)} unreadable file(s) skipped)")
     return "\n".join(lines)
+
+
+def main(argv: list[str] | None = None) -> int:
+    """CLI. `--gate --profile <id>` runs the boot-time global FIPS validation (fail-closed with a
+    TAP-ABORT on an unwaived leak); with no args it prints the core report (report-only)."""
+    parser = argparse.ArgumentParser(description="TAP crypto Bill-of-Materials scanner / FIPS-provider gate.")
+    parser.add_argument("--gate", action="store_true", help="enforce the system FIPS-provider gate (fail-closed)")
+    parser.add_argument(
+        "--profile", default=os.environ.get("TAP_BOOT_PROFILE") or "core_dev", help="boot profile id (for fips_waivers)"
+    )
+    args = parser.parse_args(argv)
+
+    if not args.gate:
+        print(format_report(core_report()))
+        return 0
+
+    try:
+        code, report = system_fips_gate(args.profile)
+    except WaiverError as exc:
+        print(f"TAP-ABORT: crypto-bom: malformed fips_waivers in profile '{args.profile}': {exc}", file=sys.stderr)
+        return 1
+    if code != 0:
+        print(format_report(report), file=sys.stderr)
+        leaks = ", ".join(f"{f.provider}@{f.artifact}" for f in report.failures)
+        print(
+            f"TAP-ABORT: crypto-bom: FIPS mode is on but {len(report.failures)} crypto provider(s) are "
+            f"non-validated and un-waived: {leaks}. Fix the plugin, or add a justified operator waiver "
+            f"to boot/{args.profile}.boot.json 'fips_waivers'.",
+            file=sys.stderr,
+        )
+        return 1
+    waived = [f for f in report.findings if f.waived]
+    suffix = f" ({len(waived)} operator-waived)" if waived else ""
+    print(f"==> crypto-BOM FIPS gate OK: all crypto providers validated or waived{suffix}.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

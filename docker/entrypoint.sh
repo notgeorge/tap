@@ -49,6 +49,22 @@ if ! uv run python -m tap.fips; then
 fi
 
 # ---------------------------------------------------------------------------
+# System FIPS-provider gate (req-cicd-crypto-bom) — global validation, fail-closed.
+# ---------------------------------------------------------------------------
+# tap.fips proves the OpenSSL-backed Python layer is enforced, but it is blind to a plugin (or dep)
+# that carries its OWN crypto — a Go binary, a Rust crate on ring/aws-lc-rs, a libsodium/pynacl wheel,
+# a JVM — which ignores OPENSSL_CONF and would silently run non-FIPS crypto. When TAP_FIPS_MODE=1 this
+# scans the WHOLE assembled environment (core + every installed plugin) and refuses to serve if any
+# crypto provider is non-validated, UNLESS the operator has excused it with a justified `fips_waivers`
+# entry in the boot profile (a plugin cannot excuse itself — only the deployer, with a reason). No-op
+# when FIPS is off. Runs after uv sync so every plugin's closure is installed.
+echo "==> System FIPS-provider gate (crypto-BOM: core + all plugins)..."
+if ! uv run python -m tap.crypto_bom --gate --profile "${TAP_BOOT_PROFILE:-core_dev}"; then
+    emit_abort crypto-bom "system FIPS-provider gate failed: a non-validated, un-waived crypto provider is present (see above); refusing to serve"
+    exit 1
+fi
+
+# ---------------------------------------------------------------------------
 # Bootstrap-tier secret-source providers (req-plugin-depres-bootstrap, Decision B).
 # ---------------------------------------------------------------------------
 # A plugin's git-install credential can be routed to an external store (e.g. AWS Secrets

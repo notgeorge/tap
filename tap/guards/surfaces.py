@@ -205,6 +205,20 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
         enforced_by="`tap.crypto_bom` (via `tap/tests/test_crypto_bom.py`): fingerprints every ELF artifact for crypto-provider signatures (Go/Rust `ring`/`aws-lc`/`libsodium`/bundled-OpenSSL/…) and fails on any provider not dispositioned VALIDATED/out-of-boundary/unreached in `tap.crypto_providers` — catches the silent non-OpenSSL leak `tap.fips` cannot see (L17); scans the `test_all` plugin union",
     ),
     DeclaredSurface(
+        surface="System FIPS-provider gate (core + all plugins, global)",
+        rid="req-cicd-crypto-bom",
+        cadence="Per-boot (`docker/entrypoint.sh`, when `TAP_FIPS_MODE=1`)",
+        status="Boot-gated (fail-closed)",
+        enforced_by="`python -m tap.crypto_bom --gate`: under FIPS mode, scans the assembled environment (core + every installed plugin) and TAP-ABORTs on any non-validated provider unless an OPERATOR `fips_waivers` entry (boot profile, mandatory reason) excuses it — a plugin cannot excuse itself (declare-vs-decide)",
+    ),
+    DeclaredSurface(
+        surface="Per-plugin crypto posture (conformance)",
+        rid="req-cicd-crypto-bom",
+        cadence="Per-plugin (`validate_plugin`; `--strict` in conformance CI)",
+        status="Conformance-guarded (warn; strict→fail)",
+        enforced_by="`tap_plugins.validate` `crypto-providers` check → `tap.crypto_bom.scan_plugin`: reports a plugin's shipped/declared crypto providers so a leak is visible at authoring time",
+    ),
+    DeclaredSurface(
         surface="Migration completeness (`makemigrations --check`)",
         rid="req-dev-validation-smoke-gate",
         cadence="Pre-push (`cold_boot_gate` step `schema:makemigrations`)",

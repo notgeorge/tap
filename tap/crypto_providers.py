@@ -119,6 +119,28 @@ class Disposition:
     rid: str
 
 
+@dataclass(frozen=True)
+class Waiver:
+    """An OPERATOR (deployment-side) decision to accept a specific non-validated crypto provider in a
+    FIPS-mode system, WITH a mandatory justification.
+
+    Authority — the load-bearing design decision: a plugin AUTHOR cannot waive a system security
+    property. Letting a plugin mark *itself* FIPS-exempt would let a careless or hostile plugin
+    silently opt out of the deployment's FIPS posture — the exact leak the crypto-BOM closes. So a
+    waiver is DEPLOYMENT-scoped: it lives in the boot profile's `fips_waivers` (operator-controlled),
+    names the plugin/artifact + provider being excused, and REQUIRES a `reason`. Every FIPS exception
+    is therefore explicit and auditable, never silent (spec-security-posture: name the risks left open).
+    The plugin author's role is only to *declare* posture (factual), which the conformance scan verifies.
+    """
+
+    #: fnmatch glob over a finding's artifact (an absolute path, or `dist:<name>`, or a plugin slug).
+    artifact: str
+    #: The provider being excused, or "*" for any provider on the matched artifact.
+    provider: str
+    #: Mandatory human justification — an empty reason is rejected at load (you cannot waive silently).
+    reason: str
+
+
 # The dispositions. A finding with no matching disposition is UNKNOWN → the gate fails (fail-closed).
 DISPOSITIONS: tuple[Disposition, ...] = (
     # Any artifact that routes through the system OpenSSL / system libpq is validated by standing rule

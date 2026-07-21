@@ -255,7 +255,67 @@ def _run_structure_checks(plugin_root: Path, result: ValidationResult) -> Any:
         _check_identity_coherence(plugin_root, package_root, manifest, result)
         _check_declared_dependencies(package_root, manifest, result)
         _check_requires_tap(manifest, result)
+        _check_crypto_providers(plugin_root, result)
     return manifest
+
+
+def _declared_dependency_names(plugin_root: Path) -> list[str]:
+    """Best-effort read of the plugin's declared third-party distributions from its pyproject.toml
+    `[project].dependencies` — the crypto-risk surface (a plugin is usually pure Python; its RISK is
+    what it pulls in). Version specifiers are stripped to the bare distribution name."""
+    import re
+    import tomllib
+
+    pyproject = plugin_root / "pyproject.toml"
+    if not pyproject.is_file():
+        return []
+    try:
+        with pyproject.open("rb") as fh:
+            data = tomllib.load(fh)
+    except OSError, tomllib.TOMLDecodeError:
+        return []
+    deps = data.get("project", {}).get("dependencies", []) or []
+    names: list[str] = []
+    for spec in deps:
+        if isinstance(spec, str):
+            name = re.split(r"[<>=!~ \[;]", spec.strip(), maxsplit=1)[0]
+            if name:
+                names.append(name)
+    return names
+
+
+def _check_crypto_providers(plugin_root: Path, result: ValidationResult) -> None:
+    """Per-plugin crypto Bill-of-Materials (req-cicd-crypto-bom): does this plugin ship or pull a
+    NON-FIPS-validated crypto provider? A plugin runs in the same image/process as core, so a plugin
+    leaking non-validated crypto defeats a FIPS-capable core. This REPORTS the plugin's posture (a
+    warning, not a hard fail: a plugin may legitimately use non-FIPS crypto in a non-FIPS deployment).
+    Whether that is *acceptable* is the OPERATOR's decision, enforced at boot by the system FIPS gate,
+    which requires a justified `fips_waivers` entry for any non-validated provider under TAP_FIPS_MODE=1
+    — a plugin cannot excuse itself. Under `--strict` (conformance CI) the warning becomes a failure."""
+    from tap import crypto_bom
+    from tap.crypto_providers import Boundary
+
+    check = CheckResult(id="crypto-providers", name="Crypto providers are FIPS-validated")
+    report = crypto_bom.scan_plugin(plugin_root, dist_names=_declared_dependency_names(plugin_root))
+
+    if not report.findings:
+        check.info("No crypto providers detected (pure-Python; no bundled native crypto or crypto-bearing deps).")
+    for finding in report.findings:
+        if finding.is_failure:
+            check.warn(
+                f"non-validated crypto provider '{finding.provider}' ({finding.artifact}): {finding.detail}. "
+                "A FIPS-mode deployment must build this against the system OpenSSL / swap to an "
+                "ecosystem-validated module, or the operator must add a justified 'fips_waivers' entry.",
+                path=finding.artifact,
+            )
+        elif finding.boundary is Boundary.VALIDATED:
+            check.info(f"validated: {finding.provider} ({finding.artifact})")
+        else:
+            check.info(
+                f"{finding.boundary.value if finding.boundary else 'noted'}: {finding.provider} ({finding.artifact})"
+            )
+
+    result.checks.append(check)
 
 
 def _check_plugin_root(plugin_root: Path, result: ValidationResult) -> None:
