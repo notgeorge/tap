@@ -25,8 +25,15 @@ dependencies = [
     # Similar to FastAPI but designed for Django
     "django-ninja>=1.5",
     # Database
-    # psycopg3 is the modern PostgreSQL adapter (psycopg2 is legacy)
-    "psycopg[binary]>=3.2",
+    # psycopg3 is the modern PostgreSQL adapter (psycopg2 is legacy).
+    # The `[c]` extra builds psycopg's C speedups against the SYSTEM libpq (which links the
+    # system OpenSSL carrying our FIPS provider), NOT the `[binary]` wheel's PRIVATE bundled
+    # libpq+OpenSSL. This is the psycopg analog of cryptography --no-binary (D7/L9): OPENSSL_CONF
+    # is process-global, so under TAP_FIPS=1 the bundled OpenSSL is forced to load a FIPS config
+    # it cannot satisfy (no matching fips.so/MAC) and SCRAM auth hard-fails with "could not
+    # generate nonce" at boot. Linking the system libpq routes SCRAM's RNG through the validated
+    # FIPS DRBG instead. Needs pg_config + libpq headers (postgresql-dev) at build (see Dockerfile).
+    "psycopg[c]>=3.2",
     # Configuration
     # Parses DATABASE_URL environment variable into Django's DATABASES dict
     "dj-database-url>=2.2",
@@ -117,6 +124,18 @@ dev = [
 # explicit-members model in the package-mode migration (74b71fdc). See
 # tap_plugins/specs/spec-plugin-architecture.md req-plugin-arch-python-deps.
 
+[tool.uv]
+# Build `cryptography` from source (its sdist) against the SYSTEM OpenSSL rather than
+# installing the PyPI wheel. The wheel statically bundles its OWN OpenSSL, which ignores
+# the image's system FIPS provider config entirely — so webauthn/PyJWT would silently do
+# non-FIPS crypto no matter how the container is configured (doc-fips-assessment-record.md
+# L9/D7, req-cicd-base-image-lifecycle-5/-6). This applies in BOTH FIPS and non-FIPS builds
+# on purpose: the dependency closure and the system-OpenSSL linkage are then identical and
+# ONLY provider activation differs between modes — otherwise the non-FIPS lane passes on a
+# bundled-OpenSSL wheel and FIPS breaks at the far end of the pipeline. The source build
+# needs a Rust + C toolchain and OpenSSL headers, carried by the image (see Dockerfile).
+no-binary-package = ["cryptography"]
+
 [tool.uv.workspace]
 members = []
 
@@ -177,7 +196,13 @@ allow_subclassing_any = true
 # errors and running them is the real signal; un-excluding just the tests would
 # reintroduce the "found twice" double-walk. Plugin package code is still analyzed
 # via its `tap_plugin.<slug>` install identity.
-exclude = '(^|/)plugins/[^/]+/tap_plugin/'
+# `_dev-plugins/` holds editable dev-plugin checkouts for `spawn --dev-plugins`
+# (spec-dev-plugin-workspace.md) — a developer's own git clones, analyzed via their
+# install identity like any plugin, never as core source. `tap_plugins/tests/fixtures/
+# <name>/tap_plugin/` is the in-tree validate_plugin fixture plugin — same story: it is
+# installed under its `tap_plugin.<slug>` identity, so exclude the source walk to avoid
+# the "found twice under different module names" double-walk.
+exclude = '(^|/)(plugins/[^/]+/tap_plugin/|_dev-plugins/|tap_plugins/tests/fixtures/[^/]+/tap_plugin/)'
 
 [[tool.mypy.overrides]]
 module = ["*.tests.*", "conftest"]

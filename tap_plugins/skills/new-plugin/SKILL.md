@@ -246,7 +246,7 @@ The core files every plugin needs (note the packaging vs runtime-package split):
 - `plugins/<slug>/.gitignore` — bytecode/cache ignores (contents below)
 - `plugins/<slug>/tap_plugin/<slug>/__init__.py` — the runtime package marker, docstring only
 - `plugins/<slug>/tap_plugin/<slug>/apps.py` — single `TapPluginConfig` subclass, body `pass`, no explicit `name`/`label`/`verbose_name`
-- `plugins/<slug>/tap_plugin/<slug>/tap-plugin.toml` — manifest per `spec-plugin-manifest-v0.md` (class paths use `tap_plugin.<slug>.…`)
+- `plugins/<slug>/tap_plugin/<slug>/tap-plugin.toml` — manifest per `spec-plugin-manifest-v0.md` (class paths use `tap_plugin.<slug>.…`). Include a **`[fips]` crypto-posture declaration** (`spec-fips.md`, `req-plugin-manifest-v0-fips`): a pure-Python plugin with no crypto deps declares `[fips]\nstatus = "compatible"` (grid_fixtures is the dogfood example) — conformance verifies it against a scan. If the plugin pulls a non-FIPS crypto provider (see the Dependencies FIPS check), declare `status = "uses-nonvalidated"` with a `reason` instead. Absent `[fips]` is undeclared, not assumed compatible.
 - `plugins/<slug>/tap_plugin/<slug>/migrations/__init__.py` — empty
 - `plugins/<slug>/README.md` — plugin-local developer and AI-agent orientation notes
 - `plugins/<slug>/docs/` — setup guides, runbooks, inventories, deeper design notes
@@ -293,6 +293,10 @@ Two anti-patterns that have bitten this codebase — do not repeat them:
 ### Declaring dependencies (three tiers, `req-plugin-arch-dependencies`)
 
 - **Tier 0 — package/library deps (incl. plugin→plugin code) → `pyproject.toml` `dependencies`.** e.g. `dependencies = ["tap-plugin-aws-core>=0.1"]` or a third-party lib. uv resolves the closure + version diamonds, fail-closed. Use version specifiers, not git-URLs, so deps stay index-resolvable.
+  - **FIPS crypto check — do this BEFORE adding any dependency (`spec-fips.md`, standing filter).** TAP runs FIPS-on by default (`TAP_FIPS=1`), and the crypto-BOM gate fails-closed on any crypto provider that is not FIPS-validated. A plugin runs in the same image/process as core, so a dependency that carries its OWN crypto defeats a FIPS-capable core. Ask what crypto the library uses:
+    - **Bundled-OpenSSL wheels** (the `[binary]`/manylinux kind — e.g. `psycopg[binary]`) statically bundle their own OpenSSL, which ignores the system FIPS provider and **breaks under FIPS**. Prefer the source/`[c]` extra that links the SYSTEM libpq/OpenSSL (this is why core uses `cryptography` `--no-binary` and `psycopg[c]`).
+    - **Non-OpenSSL crypto** — a Rust crate on `ring`/`aws-lc-rs`, a `libsodium`/`pynacl` wheel, a bundled Go binary, or anything pulling a JVM (BouncyCastle) — is NOT the validated module and runs SILENTLY non-FIPS. Avoid it, or swap to an ecosystem-validated equivalent.
+    - If a non-validated provider is genuinely unavoidable, you MUST declare it: set the manifest `[fips]` table to `status = "uses-nonvalidated"` with a `reason` (see Step 4). Conformance verifies the declaration against a scan of your plugin's shipped artifacts + declared deps; a FIPS deployment then requires a justified operator `fips_waivers` entry to run your plugin. A plugin can never silently opt itself out. When in doubt, run `manage.py validate_plugin plugins/<slug> --level structure` and read the `crypto-providers` check.
 - **Tier 1 — load/registration order → manifest `depends_on`.** If your plugin *imports* another plugin (`from tap_plugin.<other> import …`), declare that edge:
   ```toml
   depends_on = [

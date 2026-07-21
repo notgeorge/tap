@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
-  <title>Sigstore CA</title>
-  <!-- Sigstore chevron mark: split green/red, the visual identity of the project. -->
-  <g>
-    <polygon points="28,4 12,20 28,20" fill="#65A35E"/>
-    <polygon points="28,20 12,20 28,36" fill="#DB6F65"/>
-  </g>
-</svg>

@@ -1,0 +1,121 @@
+# SPIKE: prove the self-built OpenSSL 3.0.9 FIPS provider (#4282) activates on Wolfi's modern
+# system OpenSSL and that Python (stdlib + cryptography --no-binary) routes crypto through it.
+#
+#   --target ossl-builder : build the validated 3.0.9 fips.so (retires "can we build it on Wolfi")
+#   --target fips-runtime : activate it on Wolfi's OpenSSL + prove Python picks it up
+
+# ---- Builder: compile the validated OpenSSL 3.0.9 FIPS provider ----
+FROM cgr.dev/chainguard/wolfi-base AS ossl-builder
+RUN apk add --no-cache build-base perl linux-headers curl
+WORKDIR /build
+RUN curl -fsSL https://github.com/openssl/openssl/releases/download/openssl-3.0.9/openssl-3.0.9.tar.gz -o o.tgz \
+ && tar xf o.tgz
+WORKDIR /build/openssl-3.0.9
+# enable-fips builds the FIPS provider (fips.so); install_fips installs it + runs fipsinstall.
+RUN ./Configure enable-fips && make -j"$(nproc)" && make install_fips
+RUN echo "=== built artifacts ===" \
+ && find / \( -name 'fips.so' -o -name 'fipsmodule.cnf' \) 2>/dev/null
+
+# ---- Runtime: activate our 3.0.9 fips.so on Wolfi's MODERN system OpenSSL ----
+FROM cgr.dev/chainguard/wolfi-base AS fips-runtime
+RUN apk add --no-cache python-3.14 openssl bash
+
+# Wolfi's system OpenSSL version + its module dir (the binary-compat target).
+RUN echo "=== Wolfi system OpenSSL ===" && openssl version \
+ && echo "modulesdir:" && openssl version -m
+
+# Drop our validated 3.0.9 provider into Wolfi's ossl-modules dir.
+COPY --from=ossl-builder /usr/local/lib/ossl-modules/fips.so /usr/lib/ossl-modules/fips.so
+
+# fipsinstall with WOLFI's openssl against OUR 3.0.9 fips.so — this both proves binary-compat
+# (Wolfi's modern libcrypto loads + self-tests the 3.0.9 module) and writes the integrity MAC.
+RUN openssl fipsinstall -out /etc/ssl/fipsmodule.cnf -module /usr/lib/ossl-modules/fips.so \
+ && echo "=== fipsinstall OK (self-tests passed, MAC written) ==="
+
+# openssl.cnf that activates fips + base providers and forces fips=yes globally.
+# ORDER IS LOad-BEARING: openssl_conf must be in the default (pre-section) block. The
+# .include pulls in fipsmodule.cnf, which STARTS with [fips_sect] — so it must come AFTER
+# openssl_conf, else openssl_conf is swallowed into [fips_sect] and silently ignored
+# (config "parses" fine but no providers activate → default-provider fallback).
+RUN printf '%s\n' \
+  'config_diagnostics = 1' \
+  'openssl_conf = openssl_init' \
+  '' \
+  '.include /etc/ssl/fipsmodule.cnf' \
+  '# Restore the stock openssl.cnf include we displace by pointing OPENSSL_CONF here.' \
+  '# ca.cnf only defines [ca]/[CA_default]/[req] for the `openssl ca`/`openssl req`' \
+  '# subcommands (cert issuance) — TLS trust comes from /etc/ssl/cert.pem, not this file —' \
+  '# but dropping it is a latent trap: any future `openssl req` fails on a missing section.' \
+  '.include /etc/ssl/ca.cnf' \
+  '' \
+  '[openssl_init]' \
+  'providers = provider_sect' \
+  'alg_section = algorithm_sect' \
+  '' \
+  '[provider_sect]' \
+  'fips = fips_sect' \
+  'base = base_sect' \
+  '' \
+  '[base_sect]' \
+  'activate = 1' \
+  '' \
+  '[algorithm_sect]' \
+  'default_properties = fips=yes' \
+  > /etc/ssl/openssl-fips.cnf
+ENV OPENSSL_CONF=/etc/ssl/openssl-fips.cnf
+
+# PROOF 1 (openssl CLI): fips provider active; sha256 works; md5 (non-approved) is refused.
+RUN echo "=== providers (expect fips active) ===" && openssl list -providers \
+ && echo "=== sha256 (approved, expect ok) ===" && echo x | openssl dgst -sha256 \
+ && echo "=== md5 (non-approved, expect FAILURE) ===" \
+ && (echo x | openssl dgst -md5 && echo "UNEXPECTED: md5 succeeded" || echo "EXPECTED: md5 refused in FIPS mode")
+
+# PROOF 2 (Python stdlib, NO rebuild). Written to a script to avoid Dockerfile multi-line parsing.
+# Uses _hashlib directly (the OpenSSL-backed module) so md5 hits OpenSSL, not Python's builtin
+# _md5 fallback — that's what actually proves FIPS enforcement reaches Python's crypto.
+RUN printf '%s\n' \
+  'import ssl, hashlib, _hashlib' \
+  'print("python links OpenSSL:", ssl.OPENSSL_VERSION)' \
+  'print("sha256 approved ok:", hashlib.sha256(b"x").hexdigest()[:16])' \
+  'try:' \
+  '    _hashlib.new("md5", b"x")' \
+  '    print("UNEXPECTED: _hashlib md5 worked (FIPS NOT enforced in Python)")' \
+  'except ValueError as e:' \
+  '    print("EXPECTED: python OpenSSL md5 blocked under FIPS ->", str(e)[:60])' \
+  > /tmp/fipstest.py \
+ && echo "=== PROOF 2: Python stdlib ===" && python /tmp/fipstest.py
+
+# ---- crypto-runtime: the TAP-specific proof — `cryptography` (webauthn's engine) built
+#      --no-binary against system OpenSSL routes P-256 ECDSA + SHA-256 through the FIPS
+#      provider, and a non-approved primitive (MD5) is refused. This is THE integration point:
+#      the pip wheel statically bundles its own OpenSSL and would bypass FIPS entirely. ----
+FROM fips-runtime AS crypto-runtime
+# Build toolchain for cryptography's Rust + C extension against the system OpenSSL headers.
+RUN apk add --no-cache py3.14-pip build-base rust openssl-dev pkgconf python-3.14-dev
+# CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1 keeps the legacy provider unloaded — the FIPS-correct posture
+# (loading legacy would silently re-enable MD5/DES and defeat the point).
+ENV CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1
+# --no-binary cryptography forces a source build that dynamically links the system libcrypto
+# (the FIPS-configured one) instead of the wheel's vendored static OpenSSL.
+RUN pip install --break-system-packages --no-binary cryptography cryptography
+
+RUN printf '%s\n' \
+  'from cryptography.hazmat.backends.openssl.backend import backend' \
+  'from cryptography.hazmat.primitives import hashes' \
+  'from cryptography.hazmat.primitives.asymmetric import ec' \
+  'from cryptography.exceptions import InternalError, UnsupportedAlgorithm' \
+  'print("cryptography links OpenSSL:", backend.openssl_version_text())' \
+  '# P-256 ECDSA sign+verify — exactly what webauthn does to verify a passkey assertion.' \
+  'k = ec.generate_private_key(ec.SECP256R1())' \
+  'sig = k.sign(b"assertion", ec.ECDSA(hashes.SHA256()))' \
+  'k.public_key().verify(sig, b"assertion", ec.ECDSA(hashes.SHA256()))' \
+  'print("EXPECTED: P-256 ECDSA sign+verify OK (approved, routed through FIPS)")' \
+  'h = hashes.Hash(hashes.SHA256()); h.update(b"x")' \
+  'print("EXPECTED: SHA-256 ok ->", h.finalize().hex()[:16])' \
+  'try:' \
+  '    hashes.Hash(hashes.MD5()).update(b"x")' \
+  '    print("UNEXPECTED: cryptography MD5 worked (FIPS NOT enforced)")' \
+  'except Exception as e:' \
+  '    print("EXPECTED: cryptography MD5 blocked under FIPS ->", type(e).__name__)' \
+  > /tmp/cryptotest.py \
+ && echo "=== PROOF 3: cryptography (webauthn engine) ===" && python /tmp/cryptotest.py

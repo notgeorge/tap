@@ -4,11 +4,6 @@
 # A NEW error bumps a count -> ratchet fails. Regenerate ONLY for a reviewed change:
 #   manage.py guards --sync-mypy
 conftest.py:no-untyped-call:1
-plugins/gryphon_playground/gridkin/model_oracle.py:misc:2
-plugins/gryphon_playground/gridkin/model_oracle.py:no-any-return:1
-plugins/gryphon_playground/gridkin/model_oracle.py:type-arg:3
-plugins/gryphon_playground/gridkin/runner.py:arg-type:2
-plugins/gryphon_playground/gridkin/runner.py:union-attr:8
 tap/guards/mypy.py:attr-defined:2
 tap/jsonfiles.py:assignment:1
 tap/jsonfiles.py:index:1

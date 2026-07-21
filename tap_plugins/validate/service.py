@@ -254,7 +254,93 @@ def _run_structure_checks(plugin_root: Path, result: ValidationResult) -> Any:
         _check_tests_dir(package_root, result)
         _check_identity_coherence(plugin_root, package_root, manifest, result)
         _check_declared_dependencies(package_root, manifest, result)
+        _check_requires_tap(manifest, result)
+        _check_crypto_providers(plugin_root, manifest, result)
     return manifest
+
+
+def _declared_dependency_names(plugin_root: Path) -> list[str]:
+    """Best-effort read of the plugin's declared third-party distributions from its pyproject.toml
+    `[project].dependencies` — the crypto-risk surface (a plugin is usually pure Python; its RISK is
+    what it pulls in). Version specifiers are stripped to the bare distribution name."""
+    import re
+    import tomllib
+
+    pyproject = plugin_root / "pyproject.toml"
+    if not pyproject.is_file():
+        return []
+    try:
+        with pyproject.open("rb") as fh:
+            data = tomllib.load(fh)
+    except OSError, tomllib.TOMLDecodeError:
+        return []
+    deps = data.get("project", {}).get("dependencies", []) or []
+    names: list[str] = []
+    for spec in deps:
+        if isinstance(spec, str):
+            name = re.split(r"[<>=!~ \[;]", spec.strip(), maxsplit=1)[0]
+            if name:
+                names.append(name)
+    return names
+
+
+def _check_crypto_providers(plugin_root: Path, manifest: Any, result: ValidationResult) -> None:
+    """Per-plugin crypto Bill-of-Materials + declaration check (req-fips-crypto-bom): does this plugin
+    ship or pull a NON-FIPS-validated crypto provider, and does its declared `[fips]` posture match?
+
+    A plugin runs in the same image/process as core, so a plugin leaking non-validated crypto defeats
+    a FIPS-capable core. This is the "declare" half of declare-vs-decide: the author DECLARES posture
+    in `[fips]`, and this VERIFIES it against the scan (the author cannot excuse the plugin — only the
+    operator waives, via the boot profile's `fips_waivers`, enforced by the boot-time system gate):
+
+    - declared `compatible` but the scan finds non-validated crypto → FAIL (the declaration is false);
+    - declared `uses-nonvalidated` (+ a reason) → PASS (honest); a FIPS deployment still needs a waiver;
+    - UNDECLARED but the scan finds non-validated crypto → WARN (declare it); `--strict` → fail.
+    """
+    from tap import crypto_bom
+
+    check = CheckResult(id="crypto-providers", name="Crypto providers are FIPS-validated")
+    report = crypto_bom.scan_plugin(plugin_root, dist_names=_declared_dependency_names(plugin_root))
+    declaration = getattr(manifest, "fips", None)
+    status = declaration.status if declaration is not None else None
+    declared_reason = declaration.reason if declaration is not None else None
+    nonvalidated = [f for f in report.findings if f.is_failure]
+
+    # Informational: every non-failing finding (validated / out-of-boundary / unreached).
+    for finding in report.findings:
+        if not finding.is_failure:
+            label = finding.boundary.value if finding.boundary else "noted"
+            check.info(f"{label}: {finding.provider} ({finding.artifact})")
+
+    if nonvalidated:
+        providers = sorted({f.provider for f in nonvalidated})
+        if status == "compatible":
+            check.fail(
+                f"[fips] status='compatible' is FALSE — this plugin ships/pulls non-validated crypto provider(s) "
+                f"{providers}. Build them against the system OpenSSL / swap to an ecosystem-validated module, or "
+                f"change the declaration to status='uses-nonvalidated' with a reason."
+            )
+        elif status == "uses-nonvalidated":
+            check.info(
+                f"[fips] status='uses-nonvalidated' (reason: {declared_reason}) — acknowledged non-validated "
+                f"provider(s) {providers}. Honest; a FIPS-mode deployment still needs a justified 'fips_waivers' entry."
+            )
+        else:
+            for finding in nonvalidated:
+                check.warn(
+                    f"undeclared non-validated crypto provider '{finding.provider}' ({finding.artifact}): "
+                    f"{finding.detail}. Declare it in a [fips] table (status='uses-nonvalidated' + reason) or make "
+                    f"it FIPS-validated; a FIPS-mode deployment refuses it without an operator waiver.",
+                    path=finding.artifact,
+                )
+    elif status == "compatible":
+        check.info("[fips] status='compatible' — verified: no non-validated crypto provider detected.")
+    elif status == "uses-nonvalidated":
+        check.info("[fips] status='uses-nonvalidated' declared, but no non-validated provider detected (conservative).")
+    elif not report.findings:
+        check.info("No crypto providers detected (pure-Python; no bundled native crypto or crypto-bearing deps).")
+
+    result.checks.append(check)
 
 
 def _check_plugin_root(plugin_root: Path, result: ValidationResult) -> None:
@@ -550,6 +636,55 @@ def _check_declared_dependencies(package_root: Path, manifest: Any, result: Vali
         check.info(f"declared (data/vocabulary dependency, not imported): {dep}")
     if not observed and not declared:
         check.info("No cross-plugin dependencies")
+
+    result.checks.append(check)
+
+
+def _check_requires_tap(manifest: Any, result: ValidationResult) -> None:
+    """Verify the plugin's ``requires_tap`` compatibility floor against this harness core.
+
+    ``req-plugin-extdev-compat-floor`` (the VS Code ``engines.vscode`` model): a plugin
+    declares the range of core (``tap``) versions it supports; the pre-boot gate refuses
+    a mismatch at standup. This author-time check surfaces the same thing in the
+    developer's own cloned-core harness — a declared floor the harness core does *not*
+    satisfy is a failure, so the developer sees the mismatch before release rather than
+    at their users' boot. An absent floor is informational only: ``requires_tap`` is
+    optional in v0 (``req-plugin-extdev-compat-floor-4``), so absence must NOT fail — not
+    even under ``--strict`` (a warning would, and strict is the reusable-CI conformance
+    gate). It tightens to a warning/failure in a later version once every TAP-owned plugin
+    declares one. The specifier itself is already validated at manifest parse (a malformed
+    value fails the manifest-parse check upstream), so here it is either None or well-formed.
+    """
+    from tap.core_version import CoreVersionError, core_satisfies_requires_tap, core_tap_version
+
+    check = CheckResult(id="requires-tap", name="Compatibility floor (requires_tap) is declared and satisfied")
+
+    requires_tap = getattr(manifest, "requires_tap", None)
+    if requires_tap is None:
+        check.info(
+            "no requires_tap declared (optional in v0) — recommend declaring the range of TAP core "
+            'versions this plugin supports (e.g. requires_tap = ">=0.1,<0.2") so an incompatible core '
+            "is refused at boot"
+        )
+        result.checks.append(check)
+        return
+
+    try:
+        core_version = core_tap_version()
+    except CoreVersionError as exc:
+        check.info(
+            f"requires_tap = {requires_tap!r}; harness core version could not be resolved ({exc}) — not verified here"
+        )
+        result.checks.append(check)
+        return
+
+    if core_satisfies_requires_tap(requires_tap, core_version=core_version):
+        check.info(f"requires_tap = {requires_tap!r}; satisfied by harness core {core_version}")
+    else:
+        check.fail(
+            f"requires_tap = {requires_tap!r} is NOT satisfied by this harness core {core_version} — "
+            f"the plugin would be refused at boot against this core"
+        )
 
     result.checks.append(check)
 

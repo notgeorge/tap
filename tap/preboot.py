@@ -401,6 +401,23 @@ def _manifest_slug(entry: dict[str, Any], dist: importlib.metadata.Distribution)
     return _read_manifest_slug(_manifest_path_for(entry, dist))
 
 
+def _read_manifest_requires_tap(manifest_path: Path) -> str | None:
+    """Read the optional ``requires_tap`` field from a ``tap-plugin.toml``, or None.
+
+    Raw ``tomllib`` read (no full manifest load / edge-schema import) — the same
+    import-free discipline as ``_read_manifest_slug``, because the just-installed
+    package is not importable in the install process.
+    """
+    import tomllib
+
+    if not manifest_path.is_file():
+        return None
+    with open(manifest_path, "rb") as fh:
+        loaded: dict[str, Any] = tomllib.load(fh)
+    value = loaded.get("requires_tap")
+    return value if isinstance(value, str) and value else None
+
+
 def _conformance_gate(entries: list[dict[str, Any]], discovered: dict[str, str]) -> None:
     """Fail closed unless every plugin's four identities agree (`req-plugin-arch-identity-5`).
 
@@ -439,6 +456,63 @@ def _conformance_gate(entries: list[dict[str, Any]], discovered: dict[str, str])
             )
 
     logger.info("[be29] pre-boot conformance gate passed: %d plugin(s) identity-verified", len(entries))
+
+
+# =============================================================================
+# Compatibility-floor gate (req-plugin-extdev-compat-floor): requires_tap
+# =============================================================================
+
+
+def _requires_tap_gate(entries: list[dict[str, Any]]) -> None:
+    """Fail closed unless the running core satisfies every plugin's ``requires_tap``.
+
+    A plugin's manifest may declare ``requires_tap`` — a PEP 440 range of core (``tap``)
+    versions it supports. This gate reads each shipped manifest (import-free) and refuses
+    to proceed when the running core version falls outside a declared range — the VS Code
+    ``engines.vscode`` model: reject at boot with a legible message, never load-then-crash
+    deep in operation. Plugins that declare no floor are skipped (allowed in v0). The core
+    version is resolved lazily and only when a plugin actually declares a floor, so a
+    profile of floor-less plugins never depends on it. See ``spec-plugin-external-development.md``.
+    """
+    from tap.core_version import CoreVersionError, core_satisfies_requires_tap, core_tap_version
+
+    checked = 0
+    core_version: str | None = None
+    for entry in entries:
+        slug = entry["slug"]
+        dist = _installed_distribution(dist_name_for_slug(slug))
+        if dist is None:
+            # The conformance gate (run first) already fails closed on a missing
+            # distribution; nothing to add here.
+            continue
+        requires_tap = _read_manifest_requires_tap(_manifest_path_for(entry, dist))
+        if requires_tap is None:
+            continue
+
+        if core_version is None:
+            try:
+                core_version = core_tap_version()
+            except CoreVersionError as exc:
+                raise PrebootError(
+                    f"compatibility gate: plugin '{slug}' declares requires_tap={requires_tap!r} but the "
+                    f"running core version cannot be determined ({exc})."
+                ) from exc
+
+        try:
+            satisfied = core_satisfies_requires_tap(requires_tap, core_version=core_version)
+        except ValueError as exc:
+            # A malformed specifier is normally caught at manifest parse; a bad
+            # value that reached an installed manifest is still fatal here.
+            raise PrebootError(f"compatibility gate: plugin '{slug}': {exc}") from exc
+
+        if not satisfied:
+            raise PrebootError(
+                f"compatibility gate: plugin '{slug}' requires TAP {requires_tap} but the running core is "
+                f"{core_version} — not loading. Update the plugin's requires_tap, or run a core version in range."
+            )
+        checked += 1
+
+    logger.info("[c96b] pre-boot compatibility gate passed: %d plugin(s) with a requires_tap floor satisfied", checked)
 
 
 # =============================================================================
@@ -665,6 +739,7 @@ def run_preboot(profile_id: str) -> list[str]:
     discovered = discover_entry_points()
     app_configs = _resolve_tap_plugins(entries, discovered)
     _conformance_gate(entries, discovered)
+    _requires_tap_gate(entries)
     _reconciliation_guard(entries, discovered)
     _dependency_consistency_guard(entries)
     install_slugs = {e["slug"] for e in entries}

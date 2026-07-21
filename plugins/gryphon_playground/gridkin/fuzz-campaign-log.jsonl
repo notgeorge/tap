@@ -1,1 +1,0 @@
-{"utc": "2026-07-02T05:12:33Z", "commit": "1a2b29bb", "base_seed": 1000000, "seed_end": 1000039, "n_graphs": 40, "queries_per_graph": 25, "n_queries": 1000, "totals": {"agree": 1000, "diverge": 0, "rejected": 0, "crashed": 0, "unmodeled": 0}, "asserted_fraction": 1.0, "distinct_defects": 0, "defects": []}

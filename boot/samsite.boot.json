@@ -8,19 +8,12 @@
         "slug": "administrivia",
         "enabled": true,
         "source": {
-          "type": "editable",
-          "path": "plugins/administrivia"
+          "type": "git",
+          "url": "https://github.com/notgeorge/tap-plugin-administrivia",
+          "rev": "v0.1.0",
+          "credential": "github-plugins-ro"
         },
         "note": "Package-mode (tap_plugin.administrivia). TAP admin pages + grid landing + cares administrivia; seeded in population."
-      },
-      {
-        "slug": "lotr",
-        "enabled": true,
-        "source": {
-          "type": "editable",
-          "path": "plugins/lotr"
-        },
-        "note": "Package-mode (tap_plugin.lotr). Install-only: the demo/test-fixture vocabulary lotr's own suites + tap_web/tap_grid feature tests use as a concrete plugin example; installed so any env that boots samsite keeps tap_plugin.lotr importable. NOT seeded \u2014 Middle-earth data has no place in this customer-demo profile."
       },
       {
         "slug": "computing_core",
@@ -114,8 +107,10 @@
         "slug": "samsite",
         "enabled": true,
         "source": {
-          "type": "editable",
-          "path": "plugins/samsite"
+          "type": "git",
+          "url": "https://github.com/notgeorge/tap-plugin-samsite",
+          "rev": "v0.1.0",
+          "credential": "github-plugins-ro"
         },
         "note": "Package-mode (tap_plugin.samsite). The demo integration surface; seeded in population. DEPENDS ON compliance_core/github_core/identity_core/roscale/sigstore_core at import time + aws_core nodes at runtime \u2014 listed last so its cross-plugin deps install first. Its collectors ARE fired in this profile (pull the live world in)."
       },
@@ -123,8 +118,10 @@
         "slug": "grid_fixtures",
         "enabled": true,
         "source": {
-          "type": "editable",
-          "path": "plugins/grid_fixtures"
+          "type": "git",
+          "url": "https://github.com/notgeorge/tap-plugin-grid-fixtures",
+          "rev": "v0.1.1",
+          "credential": "github-plugins-ro"
         },
         "note": "Package-mode (tap_plugin.grid_fixtures). Install-only: the neutral grid_fixtures__* node/edge vocabulary the core suites build fixtures from. No GRIFT seed, no cross-plugin deps. (gryphon_playground, which depends_on it, is NOT installed in this customer-demo profile \u2014 the Gryphon test corpus stands up via its own in-package boot records selected by a bootstrap pointer.)"
       }

@@ -85,6 +85,38 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
         ),
     ),
     DeclaredSurface(
+        surface="Plugin compatibility floor (requires_tap)",
+        rid="req-plugin-extdev-compat-floor",
+        cadence="Pre-boot (`python -m tap.preboot`) + author-time (`validate_plugin`)",
+        status="CI-guarded",
+        enforced_by=(
+            "`tap.preboot._requires_tap_gate` (reject-at-boot) + the `requires-tap` "
+            "`validate_plugin` check; unit-guarded by `tap/tests/test_core_version.py` and "
+            "`tap/tests/test_preboot.py`, exercised end-to-end by the cold-boot gate (grid_fixtures declares a floor)"
+        ),
+    ),
+    DeclaredSurface(
+        surface="Per-plugin repo CI (reusable workflow)",
+        rid="req-plugin-extdev-repo-ci",
+        cadence="Per-PR in external plugin repos (`workflow_call`)",
+        status="In development — conformance job is the solid core; boot-and-test is the dial-in surface for Aug-1",
+        enforced_by=(
+            "`.github/workflows/plugin-ci.yml` — `validate_plugin --strict` against a pinned "
+            "core harness on free runners, plus an opt-in boot-and-test job"
+        ),
+    ),
+    DeclaredSurface(
+        surface="Scripted plugin release pre-release guard (release-plugin)",
+        rid="req-dev-workspace-release",
+        cadence="Operator-invoked at plugin release time (`scripts/release-plugin.sh`)",
+        status="Built 2026-07-09 — refuses a red release; pure pin-bump core unit-guarded",
+        enforced_by=(
+            "`scripts/release-plugin.sh` runs `validate_plugin --strict` + the plugin suite "
+            "in-container before tagging (refuse-on-red), then bumps consuming boot profiles via "
+            "`tap.plugin_release`; the bump core is unit-guarded by `tap/tests/test_plugin_release.py`"
+        ),
+    ),
+    DeclaredSurface(
         surface="Per-product-line CI lanes (CodeBuild)",
         rid="req-dev-validation-product-line-lanes",
         cadence="Pre-push (promote-triggered `test_all` union) + CI (every line on PR)",
@@ -102,48 +134,12 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
         status="Partially guarded — CI-guarded units + per-spawn exec gate; full live cold-boot run Named, deferred",
         enforced_by="`tap_health/tests/` + `spawn-session.sh` health gate; folds into the cold-boot cycle",
     ),
-    DeclaredSurface(
-        surface="Gryphon executor-stage coverage",
-        rid="req-gridkin-stage-coverage",
-        cadence="Per-commit (`pytest`)",
-        status="CI-guarded",
-        enforced_by="`plugins/gryphon_playground/tap_plugin/gryphon_playground/tests/test_gridkin_internals.py::TestStageCoverage`",
-    ),
-    DeclaredSurface(
-        surface="Gryphon executor branch coverage (ratchet comparison)",
-        rid="req-gridkin-executor-branch-coverage",
-        cadence="On-demand script (~10–15 min instrumented run)",
-        status="Manual (CI-unguarded by design)",
-        enforced_by="`scripts/gryphon-coverage-ratchet` (shared `tap.ratchet.ratchet_floor`); floor well-formedness is the CI guard",
-    ),
-    DeclaredSurface(
-        surface="Gryphon metamorphic TLP",
-        rid="req-gridkin-metamorphic-tlp",
-        cadence="Per-commit (`pytest`)",
-        status="CI-guarded",
-        enforced_by="`plugins/gryphon_playground/tap_plugin/gryphon_playground/tests/test_gryphon_metamorphic.py`",
-    ),
-    DeclaredSurface(
-        surface="Gryphon differential property fuzzer",
-        rid="req-gridkin-property-fuzz",
-        cadence="Per-commit (`pytest`, committed 12×15; env-tunable soak)",
-        status="CI-guarded",
-        enforced_by="`plugins/gryphon_playground/tap_plugin/gryphon_playground/tests/test_gryphon_fuzz.py`",
-    ),
-    DeclaredSurface(
-        surface="Gryphon fuzz-campaign ledger",
-        rid="req-gridkin-fuzz-campaign",
-        cadence="On-demand script, loopable for hours",
-        status="Manual (CI-unguarded by design) — trend instrument, not a gate",
-        enforced_by="`scripts/gryphon-fuzz-campaign`; ledger `gridkin/fuzz-campaign-log.jsonl`",
-    ),
-    DeclaredSurface(
-        surface="Gryphon findings ledger (bug locality)",
-        rid="req-gridkin-findings-ledger",
-        cadence="Fix-time append + on-demand report",
-        status="Split — CI-guarded for well-formedness/vocabulary; Manual for the hotspot analysis",
-        enforced_by="`plugins/gryphon_playground/tap_plugin/gryphon_playground/tests/test_gryphon_findings_ledger.py`; ledger `gridkin/gryphon-findings.jsonl`",
-    ),
+    # NOTE: the Gryphon corpus validation surfaces (executor-stage/branch coverage, metamorphic
+    # TLP, differential fuzzer, fuzz-campaign + findings ledgers) were RETIRED from core's Map on
+    # eviction (2026-07-21): they are enforced by the `gryphon_playground` plugin's own tests
+    # (now in its own repo), so the plugin owns those surfaces in its own validation story. The
+    # Gryphon *engine* lives in core (tap_grid/gryphon); its corpus-driven coverage is a plugin
+    # concern post-eviction.
     DeclaredSurface(
         surface="Cold-boot system cycle",
         rid="req-dev-validation-smoke-gate",
@@ -157,6 +153,34 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
         cadence="Pre-push (`scripts/gate-lean`, wired into `promote-to-main.sh`)",
         status="Gate-guarded",
         enforced_by="`scripts/gate-lean` (isolated `tap_leanboot` stack, core-only venv; catches core→plugin-dep imports the full-venv cold-boot gate cannot)",
+    ),
+    DeclaredSurface(
+        surface="FIPS mode enforcement (declared vs actual)",
+        rid="req-cicd-base-image-lifecycle-6",
+        cadence="Per-boot (`docker/entrypoint.sh`)",
+        status="Boot-gated (fail-closed)",
+        enforced_by="`tap.fips` (`python -m tap.fips`): executes crypto and asserts a non-approved primitive is refused when TAP_FIPS_MODE=1 — proves the declared mode is enforced, never inspects files (D13/D15); TAP-ABORT on mismatch",
+    ),
+    DeclaredSurface(
+        surface="Crypto Bill-of-Materials (every provider, not just OpenSSL)",
+        rid="req-fips-crypto-bom-ci",
+        cadence="Per-commit (`pytest`)",
+        status="CI-guarded (fail-closed)",
+        enforced_by="`tap.crypto_bom` (via `tap/tests/test_crypto_bom.py`): fingerprints every ELF artifact for crypto-provider signatures (Go/Rust `ring`/`aws-lc`/`libsodium`/bundled-OpenSSL/…) and fails on any provider not dispositioned VALIDATED/out-of-boundary/unreached in `tap.crypto_providers` — catches the silent non-OpenSSL leak `tap.fips` cannot see (L17); scans the `test_all` plugin union",
+    ),
+    DeclaredSurface(
+        surface="System FIPS-provider gate (core + all plugins, global)",
+        rid="req-fips-crypto-bom-system-gate",
+        cadence="Per-boot (`docker/entrypoint.sh`, when `TAP_FIPS_MODE=1`)",
+        status="Boot-gated (fail-closed)",
+        enforced_by="`python -m tap.crypto_bom --gate`: under FIPS mode, scans the assembled environment (core + every installed plugin) and TAP-ABORTs on any non-validated provider unless an OPERATOR `fips_waivers` entry (boot profile, mandatory reason) excuses it — a plugin cannot excuse itself (declare-vs-decide)",
+    ),
+    DeclaredSurface(
+        surface="Per-plugin crypto posture (conformance)",
+        rid="req-fips-crypto-bom-conformance",
+        cadence="Per-plugin (`validate_plugin`; `--strict` in conformance CI)",
+        status="Conformance-guarded (warn; strict→fail)",
+        enforced_by="`tap_plugins.validate` `crypto-providers` check → `tap.crypto_bom.scan_plugin`: reports a plugin's shipped/declared crypto providers so a leak is visible at authoring time",
     ),
     DeclaredSurface(
         surface="Migration completeness (`makemigrations --check`)",

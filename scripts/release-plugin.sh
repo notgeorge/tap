@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+# scripts/release-plugin.sh — release ONE evicted plugin in one command.
+#
+# Implements req-dev-workspace-release (specs/spec-dev-plugin-workspace.md): the
+# plugin-repo analogue of promote-to-main.sh (which is monorepo-only). Closes the
+# hand-typed-release drift gap (plugin-release-gap-no-promote-equivalent) where an
+# evicted plugin's release was a hand-typed push + tag + boot-rev bump that silently
+# drifted if the tag step was skipped.
+#
+# Given a plugin checked out editable in a workspace (spawn --dev-plugins), it:
+#   1. Pre-release guard — refuse to release red (req-dev-workspace-release-2):
+#      a. conformance: `validate_plugin --strict` (the same gate the reusable CI runs);
+#      b. the plugin's own tests: `pytest --pyargs tap_plugin.<slug>` (needs the harness up).
+#   2. Immutable tag (req-dev-workspace-release-4): push the plugin repo's commits and
+#      create the immutable `v<version>` tag. Refuses if the tag already exists.
+#   3. Substrate-first pin bump (req-dev-workspace-release-1/-3): advance every consuming
+#      boot profile's pinned rev for this slug to `v<version>` (tap.plugin_release). Run
+#      release on the substrate BEFORE its consumers so dependency order holds.
+#
+# Usage:
+#   scripts/release-plugin.sh <slug> <version>
+#   scripts/release-plugin.sh <slug> <version> --dry-run       # report; no push/tag/write
+#   scripts/release-plugin.sh <slug> <version> --repo-dir DIR  # plugin checkout (default: _dev-plugins/<slug>)
+#   scripts/release-plugin.sh <slug> <version> --skip-tests    # conformance only (e.g. tests already green in CI)
+#   scripts/release-plugin.sh <slug> <version> --boot-dir DIR  # profiles to bump (default: boot)
+#
+set -euo pipefail
+
+bold() { printf "\n\033[1m==> %s\033[0m\n" "$1"; }
+info() { printf "    %s\n" "$1"; }
+warn() { printf "\033[33m    %s\033[0m\n" "$1"; }
+fail() { printf "\033[31m    ERROR: %s\033[0m\n" "$1" >&2; exit 1; }
+
+SLUG=""
+VERSION=""
+REPO_DIR=""
+BOOT_DIR="boot"
+DRY_RUN=0
+SKIP_TESTS=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -n|--dry-run) DRY_RUN=1; shift ;;
+    --skip-tests) SKIP_TESTS=1; shift ;;
+    --repo-dir)   REPO_DIR="${2:?--repo-dir needs a path}"; shift 2 ;;
+    --repo-dir=*) REPO_DIR="${1#*=}"; shift ;;
+    --boot-dir)   BOOT_DIR="${2:?--boot-dir needs a path}"; shift 2 ;;
+    --boot-dir=*) BOOT_DIR="${1#*=}"; shift ;;
+    -h|--help)
+      sed -n '/^# Usage:/,/^# *$/p' "$0" | sed 's/^# //; s/^#//'
+      exit 0
+      ;;
+    -*) fail "Unknown flag: $1" ;;
+    *)
+      if [[ -z "$SLUG" ]]; then SLUG="$1"
+      elif [[ -z "$VERSION" ]]; then VERSION="$1"
+      else fail "Unexpected arg: $1"; fi
+      shift
+      ;;
+  esac
+done
+
+[[ -n "$SLUG" ]]    || fail "Missing <slug>. Usage: release-plugin.sh <slug> <version>"
+[[ -n "$VERSION" ]] || fail "Missing <version>. Usage: release-plugin.sh <slug> <version>"
+
+# Mirror real side-effecting ops vs a "would: ..." line under --dry-run.
+dry() {
+  if [[ "$DRY_RUN" -eq 1 ]]; then info "[dry-run] would: $*"; else "$@"; fi
+}
+
+REPO="$(git rev-parse --show-toplevel 2>/dev/null)" || fail "Not inside a git worktree."
+cd "$REPO"
+
+# Normalize + validate the version to its canonical vX.Y.Z tag before doing anything.
+TAG="$(python3 - "$VERSION" <<'PY'
+import sys
+from tap.plugin_release import normalize_tag, PluginReleaseError
+try:
+    print(normalize_tag(sys.argv[1]))
+except PluginReleaseError as exc:
+    print(f"error: {exc}", file=sys.stderr); sys.exit(1)
+PY
+)" || fail "Invalid version '$VERSION' (expected vMAJOR.MINOR.PATCH)."
+
+[[ -n "$REPO_DIR" ]] || REPO_DIR="_dev-plugins/$SLUG"
+[[ -d "$REPO_DIR/.git" ]] || fail "Plugin checkout not found at '$REPO_DIR' (a git repo). \
+Check it out editable first: spawn --dev-plugins $SLUG, or pass --repo-dir."
+
+# The plugin checkout must live under the harness worktree, so the running `web` container sees
+# it at /app/<rel> (the worktree is bind-mounted to /app — that is exactly where a --dev-plugins
+# editable install already resolves from). Conformance + tests run IN the container, against the
+# plugin's real install environment, not a venv-free host guess.
+REPO_DIR_ABS="$(cd "$REPO_DIR" && pwd)"
+case "$REPO_DIR_ABS/" in
+  "$REPO"/*) REL_REPO_DIR="${REPO_DIR_ABS#"$REPO"/}" ;;
+  *) fail "Plugin checkout '$REPO_DIR' is outside the harness worktree ($REPO). \
+The workspace expects it under _dev-plugins/<slug> so the container can see it." ;;
+esac
+CONTAINER_DIR="/app/$REL_REPO_DIR"
+
+bold "Releasing $SLUG $TAG  (repo: $REL_REPO_DIR)"
+[[ "$DRY_RUN" -eq 1 ]] && warn "DRY RUN — no push, tag, or profile write will happen."
+
+# ---------------------------------------------------------------------------
+# Step 1a: conformance gate (req-dev-workspace-release-2). The exact
+# `validate_plugin --strict` the reusable per-repo CI runs — here in-container.
+# ---------------------------------------------------------------------------
+bold "Conformance gate: validate_plugin --strict"
+scripts/dc exec -T web uv run python -m tap_plugins.validate_plugin "$CONTAINER_DIR" --strict \
+  || fail "Conformance gate failed for $SLUG — refusing to release. Fix the manifest/layout first."
+info "conformance: pass"
+
+# ---------------------------------------------------------------------------
+# Step 1b: the plugin's own tests (req-dev-workspace-release-2). Runs against the
+# live harness (needs the stack up). Skippable when a green CI already vouched.
+# ---------------------------------------------------------------------------
+if [[ "$SKIP_TESTS" -eq 1 ]]; then
+  warn "Skipping the plugin test suite (--skip-tests). Ensure CI is green before you rely on this release."
+else
+  bold "Plugin tests: pytest --pyargs tap_plugin.$SLUG"
+  scripts/dc exec -T web uv run pytest --pyargs "tap_plugin.$SLUG" \
+    || fail "Plugin tests failed for $SLUG — refusing to release. (Is the harness up? scripts/dc up -d)"
+  info "tests: pass"
+fi
+
+# ---------------------------------------------------------------------------
+# Step 2: immutable tag + push (req-dev-workspace-release-4). The one outward,
+# irreversible step. Refuse to move an existing tag — a release is immutable.
+# ---------------------------------------------------------------------------
+bold "Tag + push $TAG"
+if git -C "$REPO_DIR" rev-parse -q --verify "refs/tags/$TAG" >/dev/null 2>&1; then
+  fail "Tag $TAG already exists locally in $REPO_DIR. A release is immutable — bump the version."
+fi
+if git -C "$REPO_DIR" ls-remote --exit-code --tags origin "$TAG" >/dev/null 2>&1; then
+  fail "Tag $TAG already exists on origin. A release is immutable — bump the version."
+fi
+if ! git -C "$REPO_DIR" diff --quiet || ! git -C "$REPO_DIR" diff --cached --quiet; then
+  fail "Plugin checkout $REPO_DIR has uncommitted changes. Commit them before releasing."
+fi
+CURRENT_BRANCH="$(git -C "$REPO_DIR" rev-parse --abbrev-ref HEAD)"
+dry git -C "$REPO_DIR" push origin "$CURRENT_BRANCH"
+dry git -C "$REPO_DIR" tag -a "$TAG" -m "Release $SLUG $TAG"
+dry git -C "$REPO_DIR" push origin "$TAG"
+info "tagged $TAG @ $(git -C "$REPO_DIR" rev-parse --short HEAD) on $CURRENT_BRANCH"
+
+# ---------------------------------------------------------------------------
+# Step 3: bump every consuming boot profile's pin (req-dev-workspace-release-1/-3).
+# Substrate-first: release the substrate before its consumers so this bump lands
+# the fresh substrate pin in the consumers' profiles before THEY release.
+# ---------------------------------------------------------------------------
+bold "Bump consuming boot profiles in $BOOT_DIR/"
+if [[ "$DRY_RUN" -eq 1 ]]; then
+  python3 -m tap.plugin_release --slug "$SLUG" --version "$TAG" --boot-dir "$BOOT_DIR" --dry-run
+else
+  python3 -m tap.plugin_release --slug "$SLUG" --version "$TAG" --boot-dir "$BOOT_DIR"
+fi
+
+bold "Done: $SLUG $TAG"
+info "Next: commit the boot-profile bump(s) in this harness, then release any consumers (substrate-first)."

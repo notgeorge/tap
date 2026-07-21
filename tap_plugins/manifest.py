@@ -25,6 +25,7 @@ _ALLOWED_TOP_KEYS = {
     "slug",
     "name",
     "description",
+    "requires_tap",
     "depends_on",
     "models",
     "edges",
@@ -32,9 +33,12 @@ _ALLOWED_TOP_KEYS = {
     "searches",
     "grift",
     "boot",
+    "fips",
 }
 _DEPENDS_ON_KEYS = {"slug", "min_version", "optional", "note"}
 _BOOT_RECORD_KEYS = {"name", "description", "sha256"}
+_FIPS_KEYS = {"status", "reason", "providers"}
+_FIPS_STATUSES = {"compatible", "uses-nonvalidated"}
 _REQUIRED_TOP_KEYS = {"manifest_version", "plugin_version", "slug", "name"}
 
 _EDGE_SCHEMA_PATH = Path(__file__).resolve().parent.parent / "tap_grid" / "schemas" / "edge-definition.schema.json"
@@ -131,6 +135,32 @@ class BootRecordEntry:
 
 
 @dataclass
+class FipsDeclaration:
+    """The plugin author's declared FIPS crypto posture (the ``[fips]`` table).
+
+    A FACTUAL declaration that the crypto-BOM conformance scan VERIFIES — not a permission. A plugin
+    cannot excuse itself from a deployment's FIPS posture; only the operator waives (the boot profile's
+    ``fips_waivers``). This is the "declare" half of declare-vs-decide (``req-fips-crypto-bom``):
+
+    - ``status = "compatible"`` — the plugin claims it uses only FIPS-validated crypto (the system
+      OpenSSL #4282 provider). If the conformance scan finds a non-validated provider the plugin
+      ships/pulls, conformance FAILS: the declaration is false.
+    - ``status = "uses-nonvalidated"`` — the honest acknowledgement that the plugin uses non-FIPS
+      crypto. Requires a ``reason`` (the author's justification, mandatory — mirrors the operator
+      waiver's required reason). Conformance PASSES (it is honest), but a FIPS-mode system still needs
+      an operator waiver to run it. ``providers`` optionally names the specific non-validated providers
+      the author acknowledges (e.g. ``["libsodium"]``), for precision + legibility.
+
+    Absent ``[fips]`` = undeclared: the scan still runs, and a detected non-validated provider is a
+    conformance *warning* (declare it), never assumed compatible. See ``req-plugin-manifest-v0-fips``.
+    """
+
+    status: str
+    reason: str | None
+    providers: list[str]
+
+
+@dataclass
 class PluginManifest:
     """Parsed and validated contents of a tap-plugin.toml file."""
 
@@ -139,6 +169,7 @@ class PluginManifest:
     slug: str
     name: str
     description: str
+    requires_tap: str | None
     depends_on: list[DependencyEntry]
     models: list[ModelEntry]
     edges: list[EdgeEntry]
@@ -146,6 +177,7 @@ class PluginManifest:
     searches: list[SearchEntry]
     grift: list[GriftEntry]
     boot_records: list[BootRecordEntry]
+    fips: FipsDeclaration | None
     plugin_root: Path
 
 
@@ -173,6 +205,7 @@ def load_manifest(plugin_root: Path) -> PluginManifest:
 
     _validate_top_level(raw, manifest_path)
 
+    requires_tap = _parse_requires_tap(raw.get("requires_tap"), manifest_path)
     depends_on = _parse_depends_on(raw.get("depends_on", []), raw["slug"], manifest_path)
     models = _parse_models(raw.get("models", {}), manifest_path)
     edges = _parse_edges(raw.get("edges", {}), manifest_path, plugin_root)
@@ -180,6 +213,7 @@ def load_manifest(plugin_root: Path) -> PluginManifest:
     searches = _parse_searches(raw.get("searches", {}), manifest_path)
     grift = _parse_grift(raw.get("grift", {}), manifest_path)
     boot_records = _parse_boot_records(raw.get("boot", {}), manifest_path)
+    fips = _parse_fips(raw.get("fips"), manifest_path)
 
     manifest = PluginManifest(
         manifest_version=raw["manifest_version"],
@@ -187,6 +221,7 @@ def load_manifest(plugin_root: Path) -> PluginManifest:
         slug=raw["slug"],
         name=raw["name"],
         description=raw.get("description", ""),
+        requires_tap=requires_tap,
         depends_on=depends_on,
         models=models,
         edges=edges,
@@ -194,6 +229,7 @@ def load_manifest(plugin_root: Path) -> PluginManifest:
         searches=searches,
         grift=grift,
         boot_records=boot_records,
+        fips=fips,
         plugin_root=plugin_root,
     )
 
@@ -206,6 +242,29 @@ def load_manifest(plugin_root: Path) -> PluginManifest:
 # ---------------------------------------------------------------------------
 # Section parsers
 # ---------------------------------------------------------------------------
+
+
+def _parse_requires_tap(raw_value: Any, manifest_path: Path) -> str | None:
+    """Parse the optional top-level ``requires_tap`` compatibility floor.
+
+    A PEP 440 version specifier string (e.g. ``">=0.1,<0.2"``) naming the range of
+    core (``tap``) versions this plugin supports. Absent → None (no declared floor,
+    allowed in v0). A malformed specifier is a hard manifest error — the shared
+    validator in ``tap.core_version`` is the single specifier-parsing implementation,
+    reused by the pre-boot compatibility gate. See ``req-plugin-extdev-compat-floor``.
+    """
+    if raw_value is None:
+        return None
+    if not isinstance(raw_value, str) or not raw_value:
+        raise PluginManifestError(f"'requires_tap' must be a non-empty string in {manifest_path}")
+
+    from tap.core_version import parse_requires_tap
+
+    try:
+        parse_requires_tap(raw_value, source=str(manifest_path))
+    except ValueError as exc:
+        raise PluginManifestError(str(exc)) from exc
+    return raw_value
 
 
 def _parse_depends_on(raw_deps: Any, own_slug: str, manifest_path: Path) -> list[DependencyEntry]:
@@ -428,6 +487,47 @@ def _parse_boot_records(raw_boot: Any, manifest_path: Path) -> list[BootRecordEn
         entries.append(BootRecordEntry(name=name, description=description, sha256=sha256))
 
     return entries
+
+
+def _parse_fips(raw_value: Any, manifest_path: Path) -> FipsDeclaration | None:
+    """Parse the optional ``[fips]`` table — the author's declared crypto posture (req-plugin-manifest-v0-fips).
+
+    ``status`` is required and must be ``compatible`` or ``uses-nonvalidated``. A ``reason`` is
+    MANDATORY (non-empty) when ``status = "uses-nonvalidated"`` — an author acknowledging non-FIPS
+    crypto must justify it, the same discipline the operator waiver requires. ``providers`` is an
+    optional list of the specific non-validated provider names acknowledged.
+    """
+    if raw_value is None:
+        return None
+    if not isinstance(raw_value, dict):
+        raise PluginManifestError(f"'fips' must be a table in {manifest_path}")
+
+    unknown = set(raw_value) - _FIPS_KEYS
+    if unknown:
+        raise PluginManifestError(f"fips table has unknown keys {sorted(unknown)} in {manifest_path}")
+
+    status = raw_value.get("status")
+    if status not in _FIPS_STATUSES:
+        raise PluginManifestError(f"fips.status must be one of {sorted(_FIPS_STATUSES)} in {manifest_path}")
+
+    reason = raw_value.get("reason")
+    if reason is not None and not isinstance(reason, str):
+        raise PluginManifestError(f"fips.reason must be a string in {manifest_path}")
+    if status == "uses-nonvalidated" and (not isinstance(reason, str) or not reason.strip()):
+        raise PluginManifestError(
+            f"fips.reason is required (non-empty) when status='uses-nonvalidated' in {manifest_path} — "
+            "a plugin acknowledging non-FIPS crypto must justify it"
+        )
+
+    providers = raw_value.get("providers", [])
+    if not isinstance(providers, list) or not all(isinstance(p, str) and p for p in providers):
+        raise PluginManifestError(f"fips.providers must be a list of non-empty strings in {manifest_path}")
+
+    return FipsDeclaration(
+        status=status,
+        reason=reason.strip() if isinstance(reason, str) and reason.strip() else None,
+        providers=list(providers),
+    )
 
 
 # ---------------------------------------------------------------------------

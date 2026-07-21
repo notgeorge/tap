@@ -1,6 +1,0 @@
--- statement 1 · stage: type-scan
-SELECT "grid_fixtures__node"."entity_id" AS "_ts_col_0", "grid_fixtures__node"."kind" AS "_ts_col_1", "grid_fixtures__node"."severity_score" AS "_ts_col_2"
-FROM "grid_fixtures__node"
-INNER JOIN "tap_entity" ON ("grid_fixtures__node"."entity_id" = "tap_entity"."id")
-WHERE "tap_entity"."deleted_at" IS NULL
-ORDER BY "grid_fixtures__node"."kind" ASC, "grid_fixtures__node"."severity_score" DESC, "grid_fixtures__node"."entity_id" ASC

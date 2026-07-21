@@ -1,9 +1,0 @@
-{
-  "slug": "SIGNED_BY_IDENTITY__sigstore_core",
-  "name": "Signed By Identity",
-  "description": "The Fulcio cert for this Rekor entry asserts this identity as the signer. The target side is unconstrained (wildcard): the signer identity may be any identity node type (a CI workflow, a raw email identity, a GitLab workflow, etc.) — the edge deliberately does not bind to a single platform's node type. Caller-supplied: the decompose helper emits this edge only when the caller passes a resolved identity entity id, performing no cross-plugin graph reads of its own.",
-  "sources": ["sigstore_core__rekor_log_entry"],
-  "default_dimensions": {
-    "sigstore.platform": "public-good"
-  }
-}

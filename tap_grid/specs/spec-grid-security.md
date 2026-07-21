@@ -25,6 +25,7 @@ The first requirement in this specification addresses third-party vendored compo
 | req-grid-icon-upload-svg.sec | [Uploaded Svg Icon Security](#uploaded-svg-icon-security) | Backlog | Future security contract for user-uploaded SVG icons |
 | req-grid-flip-write-batch.sec | [Domain Writes Must Use Batch Context](#domain-writes-must-use-batch-context) | Backlog | All domain object mutations must occur within an active batch context for auditability |
 | req-grid-db-permission-flaw.sec | [Database Permission Errors Emit A Flaw](#database-permission-errors-emit-a-flaw) | Implemented | Any PostgreSQL permission-denied (SQLSTATE 42501) on any Django connection emits a `security` Flaw at a single connection-layer chokepoint; generalizes the read-only write-block guard and forward-proofs least-privilege DB roles |
+| req-grid-db-role-concurrency.sec | [Cluster-Global Role Provisioning Is Concurrency-Safe](#cluster-global-role-provisioning-is-concurrency-safe) | Implemented | Provisioners of cluster-global PostgreSQL objects (roles/databases/tablespaces) reconcile in a savepoint and retry on `tuple concurrently updated` — parallel test workers and concurrent instance boots on a shared cluster collide otherwise; advisory locks (per-database) can't serialize it |
 
 ---
 
@@ -315,6 +316,58 @@ TAP places one broad guard now.
 #### Future
 Database-side audit (`pgaudit` / PG logging) to cover access that bypasses the Django
 connection layer entirely; correlate DB-side `42501` with the app-side Flaw.
+
+---
+
+### Cluster-Global Role Provisioning Is Concurrency-Safe
+----
+RID: `req-grid-db-role-concurrency.sec`
+Status: `Implemented`
+
+As TAP grows subdivided, purpose-specific least-privilege database roles (the read-only search
+role `tap_gryphon_ro` today; per-surface or per-tenant roles anticipated), their provisioning
+must account for a PostgreSQL fact that is easy to forget: **roles are CLUSTER-GLOBAL.** A
+PostgreSQL "cluster" is one server instance hosting many databases; roles, tablespaces, and
+databases live in shared catalogs (`pg_authid`, …) common to every database in that server —
+unlike tables/schemas, which are per-database.
+
+Any code that `CREATE`/`ALTER`/`GRANT`/`REVOKE`s a cluster-global object — **especially in a
+boot or reconciliation path that runs once per instance/worker** — can therefore be executed
+**concurrently against the same catalog tuple** by:
+
+- **parallel test workers** — pytest-xdist gives each worker its own *database* but they share
+  one *cluster*, so N workers each running boot all reconcile the same role; and
+- **concurrent application-instance boots** against a shared cluster — hot-swapping a web
+  container, blue/green, or any multi-instance-shared-database topology.
+
+PostgreSQL rejects two transactions updating the same catalog tuple at once with
+`tuple concurrently updated` (a benign, self-clearing `InternalError`). Provisioners of
+cluster-global objects **must be concurrency-safe**: reconcile inside a savepoint
+(`transaction.atomic`, so a retry cannot poison the caller's surrounding transaction) and
+**retry** on that error with a small bounded backoff. A PostgreSQL **advisory lock is not a
+substitute** — advisory locks are scoped *per database*, so they cannot serialize a
+cluster-global mutation across the different databases the concurrent callers connect to;
+retry is the correct tool. `tap_grid/search_role.py::provision_search_role` is the reference
+implementation.
+
+Named risk deliberately left open (`req-sec-honest-risk`): the retry is **bounded** (a small
+attempt cap); pathological *sustained* contention would exhaust it and re-raise the original
+error — fail-loud by design, never a silent give-up.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-db-role-concurrency.sec-1 | Cluster-Global Provisioners Retry | Implemented | Every provisioner that mutates a cluster-global object (role/database/tablespace) retries on `tuple concurrently updated`. | `provision_search_role` is the reference. |
+| req-grid-db-role-concurrency.sec-2 | Savepoint Isolates The Caller | Implemented | Provisioning reconciles inside `transaction.atomic`, so a retry rolls back only its own work — not the caller's surrounding transaction (e.g. a test). | |
+| req-grid-db-role-concurrency.sec-3 | Retry, Not Advisory Locks | Implemented | Serialization uses bounded retry, NOT a per-database advisory lock (which cannot serialize a cluster-global mutation across databases). | The load-bearing gotcha. |
+| req-grid-db-role-concurrency.sec-4 | New Cluster-Global Roles Follow The Pattern | Proposed | Any newly added cluster-global DB-role/object provisioner adopts the savepoint+retry pattern (or names the exception per `req-sec-honest-risk`). Consider extracting a shared helper once a second site exists. | Forward-proofs subdivided per-purpose roles. |
+| req-grid-db-role-concurrency.sec-5 | Bounded And Fail-Loud | Implemented | The retry is bounded; exhaustion re-raises the original error rather than silently giving up. | |
+
+#### Future
+Extract the savepoint+retry into a reusable helper (context manager / decorator) when a second
+cluster-global provisioner is built — today `provision_search_role` is the sole site, so the
+pattern lives inline with a comment pointing here (YAGNI until the second caller).
 
 ---
 

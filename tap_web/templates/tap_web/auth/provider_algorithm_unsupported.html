@@ -1,0 +1,37 @@
+{% load static %}
+<!DOCTYPE html>
+{% comment %}
+Provider-algorithm-unsupported page (req-tap-auth-google-oidc-fips-algorithm): under
+TAP_FIPS=1, an OIDC login against an identity provider that signs its id_token with a
+non-approved algorithm (JWS ES256K, or an RSA key below 2048 bits) fails inside allauth's
+jwtkit.fetch_key -> algorithm.from_jwk() with cryptography.InternalError / ValueError. That
+exception is neither a PyJWTError nor an allauth error type, so uncaught it is a raw 500 with
+no hint that FIPS is the cause. Rendered instead with HTTP 502 (the upstream IdP returned
+something this FIPS-mode instance cannot process — not transient, so no Retry-After). The
+specific cause + remediation come from tap.crypto_errors.explain_crypto_error via the
+crypto_error_detail context var. Self-contained, styled with the shared auth.css. See
+docs/misc/doc-fips-assessment-record.md sec 5.3.
+{% endcomment %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign-in provider uses an unsupported algorithm — {{ product_name|default:"TAP" }}</title>
+    <link rel="icon" type="image/x-icon" href="{% static 'tap_web/favicon.ico' %}">
+    <link rel="stylesheet" href="{% static 'tap_web/css/auth.css' %}">
+</head>
+<body class="tap-auth-body">
+    <header class="tap-auth-header">
+        <span class="tap-auth-wordmark">{{ product_name|default:"TAP" }}</span>
+        {% if session_label %}<span class="tap-auth-session-tag">[ {{ session_label }} ]</span>{% endif %}
+    </header>
+    <main class="tap-auth-main">
+        <div class="tap-auth-card tap-auth-card--wide">
+            <h1 class="tap-auth-title">This sign-in couldn't be completed in FIPS mode</h1>
+            <p class="tap-auth-sub">The identity provider signed its token with a cryptographic algorithm this FIPS-mode deployment cannot verify. This is a configuration mismatch between the identity provider and this instance, not a temporary error — retrying will not help.</p>
+            {% if crypto_error_detail %}<p class="tap-auth-sub">{{ crypto_error_detail }}</p>{% endif %}
+            <a class="tap-auth-link" href="{% url 'account_login' %}">Back to sign in</a>
+        </div>
+    </main>
+</body>
+</html>

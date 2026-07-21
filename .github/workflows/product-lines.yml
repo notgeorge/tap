@@ -37,11 +37,12 @@ jobs:
   # Pick the lane set. On dispatch, run only the selected lane (default test_all); a
   # 'line=all' dispatch and every PR run all lanes. The matrix context is not available
   # in a job-level if, so we compute the matrix here and feed it in via fromJSON.
-  # NOTE: the samsite lane git-installs plugins via the `github-plugins-ro` PAT, which it
-  # resolves from AWS Secrets Manager through the secret-source seam (req-plugin-depres-
-  # sources). needs_plugin_pull=true drives the routing-manifest + provider-preinstall +
-  # ambient-creds steps below. The Secrets Manager secret VALUE must be populated
-  # out-of-band once (Terraform creates only the shell) or the lane fails loud.
+  # NOTE: post-eviction (2026-07-21) BOTH lanes git-install plugins via the `github-plugins-ro`
+  # PAT — `test_all` and `samsite` are now fully git-sourced (the monorepo plugin copies are
+  # deleted). Each resolves the PAT from AWS Secrets Manager through the secret-source seam
+  # (req-plugin-depres-sources). needs_plugin_pull=true drives the routing-manifest +
+  # provider-preinstall + ambient-creds steps below. The Secrets Manager secret VALUE must be
+  # populated out-of-band once (Terraform creates only the shell) or the lane fails loud.
   setup:
     runs-on: ubuntu-latest
     outputs:
@@ -52,7 +53,7 @@ jobs:
           EVENT: ${{ github.event_name }}
           LINE: ${{ github.event.inputs.line }}
         run: |
-          test_all='{"line":"test_all","profile":"test_all"}'
+          test_all='{"line":"test_all","profile":"test_all","needs_plugin_pull":true}'
           samsite='{"line":"samsite","profile":"samsite","needs_plugin_pull":true}'
           if [ "$EVENT" = "workflow_dispatch" ] && [ "$LINE" != "all" ]; then
             case "$LINE" in

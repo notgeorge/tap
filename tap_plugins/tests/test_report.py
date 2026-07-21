@@ -65,11 +65,13 @@ def test_report_has_no_undeclared_imports() -> None:
         assert p["dependencies"]["undeclared_imports"] == [], p["slug"]
 
 
-def test_report_provenance_is_editable_in_monorepo() -> None:
-    # All plugins are editable installs during the monorepo transition.
+def test_report_provenance_is_captured() -> None:
+    # Post-eviction the plugins are git-installed from their own repos (the in-tree
+    # validate_plugin fixture is the lone editable install); the report captures each
+    # plugin's install provenance (source + mode), whatever it is.
     for p in build_report()["plugins"]:
-        assert p["source"] == "editable"
-        assert p["mode"] == "checkout"
+        assert p["source"], p
+        assert p["mode"], p
 
 
 def test_plugins_command_json_smoke() -> None:

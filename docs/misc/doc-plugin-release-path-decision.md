@@ -1,7 +1,7 @@
 ---
-title: Plugin Release Path — Decision Pending (evicted-plugin promote gap)
+title: Plugin Release Path — RESOLVED (evicted-plugin promote gap → release-plugin)
 date: 2026-07-08
-status: decision-pending
+status: resolved
 audience:
   - developer
   - llm
@@ -70,7 +70,31 @@ Do **A now** (script the release, monorepo authoritative), **B later** when dema
 justifies the standalone-CI investment. A is the cheap foundational edge; B is the
 expensive one that can wait.
 
-## Status
+## Resolution (2026-07-09) — `scripts/release-plugin.sh` built under the workspace model
+
+Both options landed, in the order the recommendation set: **A now, B imminent.** The
+scripted release exists as `scripts/release-plugin.sh` + `tap/plugin_release.py`
+(`req-dev-workspace-release`, `specs/spec-dev-plugin-workspace.md`), built and unit-tested
+2026-07-09. It refines option A into the **post-eviction workspace** shape rather than the
+monorepo-mirror shape this doc first imagined:
+
+- It operates on the plugin's **own-repo checkout** (editable at `_dev-plugins/<slug>` in a
+  `spawn --dev-plugins` workspace), **not** a `plugins/<slug>` monorepo subtree mirror — so it
+  is already the option-B end state ("work happens IN the plugin repo") plus a release script,
+  which is why building A did not lock us out of B.
+- Pre-release guard = `validate_plugin --strict` + the plugin's suite, run **in the harness
+  container** against that checkout (refuse-on-red); the immutable-tag guard refuses to move an
+  existing `v<version>` tag (kills the silent-drift footgun this doc named).
+- The consuming boot-profile `rev` bump is the pure, unit-tested `tap.plugin_release` core;
+  **substrate-first** ordering is preserved by bumping every consumer of the released slug on
+  each call.
+
+The manual direct-push path (aws_core v0.1.1 precedent) is superseded by this script for any
+plugin checked out in a workspace. The full monorepo-copy deletion (option B proper) rides the
+coordinated eviction wave (`doc-plugin-eviction-plan.md` Addendum 2026-07-09).
+
+## Status (historical)
 
 Decision pending, not scheduled. Manual direct-push is the current sanctioned path
 (used for aws_core v0.1.1); a scripted release is the wanted future.
+_(Superseded by the Resolution section above, 2026-07-09.)_

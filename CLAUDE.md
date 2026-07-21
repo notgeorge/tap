@@ -40,6 +40,24 @@ AI integration posture (standing filter — build for Player 3)
     reads/summarizes/suggests and must not write core graph state; any future write rides the service
     layer under a named delegated actor, never a bypass.
 
+FIPS posture (standing filter)
+    specs/spec-fips.md is the center of gravity for FIPS — everything TAP does around FIPS 140-3 and
+    cryptographic-provider provenance reads from that one spec (with doc-fips-assessment-record.md as
+    the detailed decision/lessons/verification record). FIPS is default-ON (ARG TAP_FIPS=1). The
+    invariant: every cryptographic PROVIDER that can execute in the deployed artifact is the validated
+    module (system OpenSSL #4282) or that ecosystem's validated equivalent — or is proven unreached, or
+    explicitly named out-of-boundary. OpenSSL is only what Python uses; a Go binary, a Rust crate on
+    ring/aws-lc-rs, a libsodium/pynacl wheel, or a JVM's BouncyCastle each carries its OWN crypto that
+    ignores OPENSSL_CONF and silently runs non-FIPS — so the audit is "account for every crypto
+    provider," not "grep for MD5" (the crypto Bill-of-Materials, req-fips-crypto-bom). When work adds a
+    dependency, a native binary, or a plugin, keep it FIPS-clean (build against system OpenSSL, not a
+    bundled one — cryptography/psycopg are --no-binary/[c]) or account for it: the crypto-BOM gate
+    fails-closed on an unclassified provider, and it must EXECUTE crypto + observe a refusal, never
+    inspect files (the config is the boundary, not the modules dir). Plugins follow declare-vs-decide:
+    the author DECLARES posture in the manifest [fips] table (verified by the scan), the system ENFORCES
+    globally in FIPS mode, and only the OPERATOR waives — per-plugin, in the boot profile, with a
+    mandatory reason — a plugin can never exempt itself.
+
 Technology Stack
     Backend: Django 6+ with Django Ninja for API
     Database: PostgreSQL

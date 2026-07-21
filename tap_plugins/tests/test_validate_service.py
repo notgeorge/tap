@@ -14,10 +14,12 @@ import pytest
 
 from tap.plugin_testing import requires_plugins
 from tap_plugins.validate.service import (
+    CheckResult,
+    ValidationResult,
     validate_plugin,
 )
 
-PLUGINS_ROOT = Path(__file__).resolve().parent.parent.parent / "plugins"
+FIXTURE_ROOT = Path(__file__).resolve().parent / "fixtures" / "validation_sample"
 
 
 # ---------------------------------------------------------------------------
@@ -42,6 +44,41 @@ def _make_plugin(tmp_path: Path, *, toml: str, extra_files: dict[str, str] | Non
     return plugin_dir
 
 
+def _named_check(result: ValidationResult, check_id: str) -> CheckResult:
+    """Return the single check with the given id (raises if absent/duplicated)."""
+    matches = [c for c in result.checks if c.id == check_id]
+    assert len(matches) == 1, f"expected exactly one {check_id!r} check, got {len(matches)}"
+    return matches[0]
+
+
+_MIN_TOML = 'manifest_version = "0"\nplugin_version = "0.1.0"\nslug = "test_plugin"\nname = "T"\n'
+
+
+class TestRequiresTapCheck:
+    """The compatibility-floor structure check (req-plugin-extdev-compat-floor)."""
+
+    def test_absent_is_informational_not_fatal(self, tmp_path: Path) -> None:
+        # requires_tap is optional in v0: absence must not fail, not even under --strict
+        # (the reusable-CI conformance gate runs strict). Info, not warn.
+        plugin = _make_plugin(tmp_path, toml=_MIN_TOML)
+        check = _named_check(validate_plugin(plugin, strict=True), "requires-tap")
+        assert check.status == "pass"
+        assert any("optional in v0" in m.text for m in check.messages)
+
+    def test_satisfied_passes(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("tap.core_version.core_tap_version", lambda: "0.1.0")
+        plugin = _make_plugin(tmp_path, toml=_MIN_TOML + 'requires_tap = ">=0.1,<0.2"\n')
+        check = _named_check(validate_plugin(plugin), "requires-tap")
+        assert check.status == "pass", check.messages
+
+    def test_unsatisfied_fails(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("tap.core_version.core_tap_version", lambda: "0.1.0")
+        plugin = _make_plugin(tmp_path, toml=_MIN_TOML + 'requires_tap = ">=0.5"\n')
+        result = validate_plugin(plugin)
+        assert not result.ok
+        assert _named_check(result, "requires-tap").status == "fail"
+
+
 # ---------------------------------------------------------------------------
 # Real plugin tests
 # ---------------------------------------------------------------------------
@@ -51,13 +88,13 @@ class TestRealPlugins:
     """Validate existing plugins in the repo to confirm the service works end-to-end."""
 
     def test_administrivia_passes(self):
-        result = validate_plugin(PLUGINS_ROOT / "administrivia")
+        result = validate_plugin(FIXTURE_ROOT)
         assert result.ok, result.to_human()
         assert result.level == "structure"
         assert not result.strict
 
     def test_administrivia_json_output_validates(self):
-        result = validate_plugin(PLUGINS_ROOT / "administrivia")
+        result = validate_plugin(FIXTURE_ROOT)
         json_str = result.to_json()
         doc = json.loads(json_str)
         assert doc["ok"] is True
@@ -66,10 +103,10 @@ class TestRealPlugins:
         assert len(doc["checks"]) > 0
 
     def test_administrivia_human_output(self):
-        result = validate_plugin(PLUGINS_ROOT / "administrivia")
+        result = validate_plugin(FIXTURE_ROOT)
         human = result.to_human()
         assert "PASS" in human
-        assert "administrivia" in human.lower()
+        assert "validation_sample" in human.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -104,16 +141,16 @@ class TestLevels:
         with pytest.raises(ValueError, match="Unknown validation level"):
             validate_plugin(plugin_dir, level="bogus")
 
-    @requires_plugins("administrivia")  # loads level imports tap_plugin.administrivia
+    @requires_plugins("validation_sample")  # loads level imports tap_plugin.administrivia
     def test_loads_level_accepted(self):
-        result = validate_plugin(PLUGINS_ROOT / "administrivia", level="loads")
+        result = validate_plugin(FIXTURE_ROOT, level="loads")
         assert result.ok, result.to_human()
         assert result.level == "loads"
 
     @pytest.mark.django_db
-    @requires_plugins("administrivia")  # runs level imports tap_plugin.administrivia
+    @requires_plugins("validation_sample")  # runs level imports tap_plugin.administrivia
     def test_runs_level_accepted(self):
-        result = validate_plugin(PLUGINS_ROOT / "administrivia", level="runs")
+        result = validate_plugin(FIXTURE_ROOT, level="runs")
         assert result.ok, result.to_human()
         assert result.level == "runs"
 
@@ -315,9 +352,9 @@ class TestLoadsLevel:
     # (plugins/lotr/tap_plugin/lotr/tests/test_lotr_manifest.py). Here we cover the model path
     # with aws_core + administrivia.
 
-    @requires_plugins("aws_core")
+    @requires_plugins("validation_sample")
     def test_aws_core_loads_passes(self):
-        result = validate_plugin(PLUGINS_ROOT / "aws_core", level="loads")
+        result = validate_plugin(FIXTURE_ROOT, level="loads")
         assert result.ok, result.to_human()
         model_check = next(c for c in result.checks if c.id == "model-classes")
         assert model_check.status == "pass"
@@ -329,14 +366,14 @@ class TestLoadsLevel:
         assert info_msgs
         assert all(m.text.startswith("Model ") for m in info_msgs)
 
-    @requires_plugins("administrivia")
+    @requires_plugins("validation_sample")
     def test_administrivia_loads_passes(self):
-        result = validate_plugin(PLUGINS_ROOT / "administrivia", level="loads")
+        result = validate_plugin(FIXTURE_ROOT, level="loads")
         assert result.ok, result.to_human()
 
-    @requires_plugins("aws_core")
+    @requires_plugins("validation_sample")
     def test_loads_includes_structure_checks(self):
-        result = validate_plugin(PLUGINS_ROOT / "aws_core", level="loads")
+        result = validate_plugin(FIXTURE_ROOT, level="loads")
         check_ids = {c.id for c in result.checks}
         # Structure checks should still be present
         assert "plugin-root" in check_ids
@@ -350,14 +387,14 @@ class TestLoadsLevel:
 
 
 @pytest.mark.django_db
-@requires_plugins("aws_core")  # every test here runs level="runs" on aws_core (imports the package)
+@requires_plugins("validation_sample")  # every test here runs level="runs" on aws_core (imports the package)
 class TestRunsLevel:
     # grift-import runs coverage against a real grift lives in lotr's manifest
     # self-test (plugins/lotr/tap_plugin/lotr/tests/test_lotr_manifest.py); aws_core covers the
     # create-nodes / create-edges runs path here.
 
     def test_aws_core_runs_passes(self):
-        result = validate_plugin(PLUGINS_ROOT / "aws_core", level="runs")
+        result = validate_plugin(FIXTURE_ROOT, level="runs")
         assert result.ok, result.to_human()
         node_check = next(c for c in result.checks if c.id == "create-nodes")
         assert node_check.status == "pass"
@@ -369,7 +406,7 @@ class TestRunsLevel:
         assert all(m.text.startswith("create_node(") for m in ok_msgs)
 
     def test_runs_includes_loads_and_structure(self):
-        result = validate_plugin(PLUGINS_ROOT / "aws_core", level="runs")
+        result = validate_plugin(FIXTURE_ROOT, level="runs")
         check_ids = {c.id for c in result.checks}
         # Structure checks
         assert "plugin-root" in check_ids
@@ -384,13 +421,13 @@ class TestRunsLevel:
         from tap_grid.models import Entity
 
         count_before = Entity.objects.count()
-        result = validate_plugin(PLUGINS_ROOT / "aws_core", level="runs")
+        result = validate_plugin(FIXTURE_ROOT, level="runs")
         assert result.ok, result.to_human()
         count_after = Entity.objects.count()
         assert count_after == count_before
 
     def test_runs_json_output(self):
-        result = validate_plugin(PLUGINS_ROOT / "aws_core", level="runs")
+        result = validate_plugin(FIXTURE_ROOT, level="runs")
         doc = json.loads(result.to_json())
         assert doc["ok"] is True
         assert doc["level"] == "runs"
@@ -465,7 +502,7 @@ class TestIdentityCoherence:
         assert _check(result, "identity-coherence").status == "pass", result.to_human()
 
     def test_real_plugin_has_identity_check(self):
-        result = validate_plugin(PLUGINS_ROOT / "administrivia")
+        result = validate_plugin(FIXTURE_ROOT)
         assert _check(result, "identity-coherence").status == "pass", result.to_human()
 
     def test_legacy_flat_layout_is_inapplicable_not_failed(self, tmp_path):
@@ -511,7 +548,7 @@ class TestDeclaredDependencies:
         assert _check(validate_plugin(root), "declared-dependencies").status == "pass"
 
     def test_real_plugin_deps_pass(self):
-        result = validate_plugin(PLUGINS_ROOT / "samsite")
+        result = validate_plugin(FIXTURE_ROOT)
         assert _check(result, "declared-dependencies").status == "pass", result.to_human()
 
     def test_undeclared_import_fails(self, tmp_path):

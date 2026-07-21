@@ -1,0 +1,86 @@
+# SPIKE: does TAP's RUNTIME plugin-install actually need an OS package manager in the
+# runtime image? (Claim under test: NO — it needs python + uv + git + bash, which can be
+# baked at BUILD time by any means. `uv sync` / `uv pip install git+https://…` are
+# Python-package operations, not OS-package operations.)
+#
+# Runtime base is cgr.dev/chainguard/python:latest — a TRUE distroless image:
+# no apk, no apt, not even /bin/sh. We bake the binaries in and then prove:
+#   1. no package manager and no base shell survive into the runtime image
+#   2. `uv sync` installs TAP's real dependency closure
+#   3. `uv pip install git+https://…` (the from-git plugin path) works
+#
+#   docker build -f spikes/distroless/Dockerfile.distroless --target proof -t tap-distroless:proof .
+
+# ---- builder: the -dev sibling (same base, so shared libs align) has apk + git + bash + uv ----
+FROM cgr.dev/chainguard/python:latest-dev AS builder
+USER root
+RUN apk add --no-cache git bash curl postgresql-client
+
+# Install the packages TAP's runtime needs INTO A SEPARATE ROOTFS using the package
+# manager's own install-into-a-root flow: `apk add --root`. This is Wolfi's exact analogue
+# of Red Hat's `dnf --installroot=/mnt/rootfs` and is how you "add packages to a distroless
+# image": resolve + install in a builder, then COPY the rootfs into a runtime that has no
+# package manager at all. It gets the full dependency closure right — hand-rolling this with
+# `ldd` FAILS SILENTLY on Wolfi, which ships no `ldd` binary.
+RUN set -eux; \
+    mkdir -p /rootfs/etc/apk; \
+    cp -a /etc/apk/repositories /rootfs/etc/apk/; \
+    cp -a /etc/apk/keys /rootfs/etc/apk/; \
+    apk add --root /rootfs --initdb --no-cache bash coreutils sed grep git curl postgresql-client; \
+    # uv is a static Rust binary — no package needed, just copy it (as TAP already does today).
+    mkdir -p /rootfs/usr/bin; cp -aL "$(command -v uv)" "$(command -v uvx)" /rootfs/usr/bin/; \
+    # The runtime base has /bin, /sbin, /lib, /lib64 as SYMLINKS into /usr/. apk --root
+    # materializes them as real dirs, and COPY then dies with "cannot copy to non-directory".
+    # Merge them into the real /usr dirs before the COPY.
+    for d in bin sbin; do \
+      if [ -d /rootfs/$d ] && [ ! -L /rootfs/$d ]; then \
+        mkdir -p /rootfs/usr/bin; cp -a /rootfs/$d/. /rootfs/usr/bin/; rm -rf /rootfs/$d; \
+      fi; \
+    done; \
+    for d in lib lib64; do \
+      if [ -d /rootfs/$d ] && [ ! -L /rootfs/$d ]; then \
+        mkdir -p /rootfs/usr/lib; cp -a /rootfs/$d/. /rootfs/usr/lib/; rm -rf /rootfs/$d; \
+      fi; \
+    done; \
+    # Docker's `RUN` needs /bin/sh; the distroless base has none. bash provides it
+    # (/bin -> usr/bin in the base, so /usr/bin/sh resolves as /bin/sh).
+    ln -sf bash /rootfs/usr/bin/sh; \
+    # Do NOT ship apk's own database/keys/cache into the runtime — the whole point is that
+    # the runtime carries no package manager.
+    rm -rf /rootfs/etc/apk /rootfs/usr/lib/apk /rootfs/var/cache/apk; \
+    echo "--- staged rootfs binaries ---"; ls /rootfs/usr/bin | tr '\n' ' '; echo
+
+# ---- runtime: TRUE distroless (no apk, no apt, no /bin/sh) + our baked binaries ----
+FROM cgr.dev/chainguard/python:latest AS runtime
+USER root
+COPY --from=builder /rootfs /
+ENV UV_LINK_MODE=copy PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+WORKDIR /app
+
+# ---- proof ----
+FROM runtime AS proof
+
+# PROOF 1: the runtime image carries NO OS package manager (and the base shipped no shell).
+RUN echo "=== PROOF 1: no OS package manager in runtime ===" \
+ && for pm in apk apt apt-get dnf yum microdnf zypper pacman; do \
+      if command -v "$pm" >/dev/null 2>&1; then echo "UNEXPECTED: $pm present"; exit 1; fi; \
+    done \
+ && echo "EXPECTED: no apk/apt/dnf/yum/microdnf/zypper present" \
+ && echo "--- versions actually baked in ---" \
+ && python --version && git --version && uv --version \
+ && echo "bash ${BASH_VERSION}" && (pg_isready --version || true)
+
+# PROOF 2: `uv sync` installs TAP's REAL dependency closure with no OS package manager.
+COPY pyproject.toml uv.lock ./
+RUN echo "=== PROOF 2: uv sync of TAP's real closure ===" \
+ && uv sync --frozen --no-install-project --python "$(command -v python3.14)" \
+ && /app/.venv/bin/python -c "import django, webauthn; print('django', django.get_version(), '| webauthn ok')" \
+ && echo "EXPECTED: uv sync OK with zero OS package manager"
+
+# PROOF 3: the from-git plugin path (uv shells out to the system git binary over TLS).
+RUN echo "=== PROOF 3: from-git install (the TAP plugin path) ===" \
+ && git ls-remote https://github.com/pallets/click >/dev/null \
+ && echo "  git ls-remote over TLS OK" \
+ && uv pip install --python /app/.venv/bin/python "click @ git+https://github.com/pallets/click@8.1.7" \
+ && /app/.venv/bin/python -c "import click; print('click from git:', click.__version__)" \
+ && echo "EXPECTED: from-git plugin install OK in a package-manager-less runtime"

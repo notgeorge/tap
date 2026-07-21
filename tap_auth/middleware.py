@@ -32,6 +32,7 @@ from django.contrib.auth.middleware import LoginRequiredMiddleware
 from django.http import HttpRequest, HttpResponse, HttpResponseBase, HttpResponseForbidden
 from django.shortcuts import render
 
+from tap.crypto_errors import explain_crypto_error
 from tap_auth.errors import AuthzError
 from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
 
@@ -71,22 +72,52 @@ class CallerContextMiddleware:
           code, and fetches userinfo with `requests`; a network blip there is
           otherwise an uncaught 500 on a load-bearing path.
 
+        - a FIPS/algorithm clash DURING the OAuth login flow — under `TAP_FIPS=1`
+          an IdP signing its `id_token` with a non-approved algorithm (JWS
+          `ES256K`, or RSA < 2048) fails inside allauth's `jwtkit.fetch_key ->
+          algorithm.from_jwk()` with `cryptography.exceptions.InternalError:
+          Unknown OpenSSL error` or `ValueError: Unable to sign/verify with this
+          key`. Neither is a `PyJWTError` nor an allauth error type, so it escapes
+          both allauth's handler and the AuthzError/RequestException branches
+          above → an uncaught 500 with no hint that FIPS is the cause. Rendered
+          instead as a branded 502 (req-tap-auth-google-oidc-fips-algorithm).
+          `tap.crypto_errors.explain_crypto_error` recognizes the signatures;
+          design: docs/misc/doc-fips-assessment-record.md sec 5.3.
+
         Scope is deliberate. `unguarded_operation` is NOT an AuthzError and stays
-        a 500 — an internal defect, not a denial. A `RequestException` from any
-        non-auth view likewise stays a 500 (a real defect): only the login flow,
-        the one place TAP makes outbound IdP calls inside a request, is rescued."""
+        a 500 — an internal defect, not a denial. A `RequestException` (or a
+        crypto error) from any non-auth view likewise stays a 500 (a real
+        defect): only the login flow, the one place TAP makes outbound IdP calls
+        and verifies IdP-signed tokens inside a request, is rescued."""
         if isinstance(exception, AuthzError):
             logger.warning("[a6b7] web authz denied: reason=%s path=%s", exception.reason, request.path)
             return HttpResponseForbidden(f"Forbidden ({exception.reason}). You do not have access to this resource.")
-        if isinstance(exception, requests.RequestException) and request.path.startswith("/auth/"):
-            logger.warning(
-                "[55c6] identity provider unreachable during login: path=%s error=%s",
-                request.path,
-                type(exception).__name__,
-            )
-            response = render(request, "tap_web/auth/provider_unreachable.html", status=503)
-            response["Retry-After"] = "10"
-            return response
+        if request.path.startswith("/auth/"):
+            if isinstance(exception, requests.RequestException):
+                logger.warning(
+                    "[55c6] identity provider unreachable during login: path=%s error=%s",
+                    request.path,
+                    type(exception).__name__,
+                )
+                response = render(request, "tap_web/auth/provider_unreachable.html", status=503)
+                response["Retry-After"] = "10"
+                return response
+            explanation = explain_crypto_error(exception)
+            if explanation is not None:
+                # Not transient (a 503 with Retry-After would invite a pointless retry loop) —
+                # the upstream IdP returned something this FIPS-mode instance cannot process, so 502.
+                logger.warning(
+                    "[1d67] FIPS-mode crypto refusal during login: path=%s error=%s detail=%s",
+                    request.path,
+                    type(exception).__name__,
+                    explanation,
+                )
+                return render(
+                    request,
+                    "tap_web/auth/provider_algorithm_unsupported.html",
+                    {"crypto_error_detail": explanation},
+                    status=502,
+                )
         return None
 
 

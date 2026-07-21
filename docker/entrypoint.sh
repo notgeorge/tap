@@ -31,6 +31,24 @@ echo "==> Syncing Python dependencies (uv sync --all-packages)..."
 uv sync --all-packages
 
 # ---------------------------------------------------------------------------
+# FIPS boot self-check (req-cicd-base-image-lifecycle-6, decision D15) — fail closed.
+# ---------------------------------------------------------------------------
+# The image DECLARES its FIPS posture (org.tap.fips label + TAP_FIPS_MODE env); this PROVES
+# the declared mode is the mode actually enforced by executing crypto and observing a refusal
+# — never by inspecting files, because the FIPS boundary is the OpenSSL config, not the
+# modules directory (doc-fips-assessment-record.md L13). Runs AFTER uv sync so `cryptography`
+# (the webauthn/passkey integration point, built --no-binary against the system OpenSSL) is
+# present. `tap.fips` prints its own `TAP-ABORT: fips: …` on a mismatch; this covers a hard
+# process death. A FIPS-declared image that fails to refuse MD5 is the L1 fail-open trap, and
+# a new bare hashlib.md5()/SELECT md5() in a dependency is a boot-breaking regression under
+# FIPS — both are caught here before any schema mutation.
+echo "==> FIPS self-check (assert declared mode is actually enforced)..."
+if ! uv run python -m tap.fips; then
+    emit_abort fips "FIPS self-check failed: declared mode not enforced (see above); refusing to serve"
+    exit 1
+fi
+
+# ---------------------------------------------------------------------------
 # Bootstrap-tier secret-source providers (req-plugin-depres-bootstrap, Decision B).
 # ---------------------------------------------------------------------------
 # A plugin's git-install credential can be routed to an external store (e.g. AWS Secrets
@@ -71,6 +89,24 @@ if ! TAP_PLUGINS="$(uv run python -m tap.preboot --profile "${TAP_BOOT_PROFILE:-
 fi
 export TAP_PLUGINS
 echo "==> Pre-boot complete. TAP_PLUGINS=[${TAP_PLUGINS:-<none>}]"
+
+# ---------------------------------------------------------------------------
+# System FIPS-provider gate (req-fips-crypto-bom-system-gate) — global validation, fail-closed.
+# ---------------------------------------------------------------------------
+# tap.fips proves the OpenSSL-backed Python layer is enforced, but it is blind to a plugin (or dep)
+# that carries its OWN crypto — a Go binary, a Rust crate on ring/aws-lc-rs, a libsodium/pynacl wheel,
+# a JVM — which ignores OPENSSL_CONF and would silently run non-FIPS crypto. When TAP_FIPS_MODE=1 this
+# scans the WHOLE assembled environment (core + every installed plugin) and refuses to serve if any
+# crypto provider is non-validated, UNLESS the operator has excused it with a justified `fips_waivers`
+# entry in the boot profile (a plugin cannot excuse itself — only the deployer, with a reason). No-op
+# when FIPS is off. MUST run AFTER pre-boot: plugins are git/editable-installed by pre-boot, not by
+# `uv sync`, so scanning before pre-boot would miss every plugin — the exact thing this gate exists to
+# catch (a plugin leaking non-FIPS crypto). Still before migrate/serve, so a leak refuses to serve.
+echo "==> System FIPS-provider gate (crypto-BOM: core + all plugins)..."
+if ! uv run python -m tap.crypto_bom --gate --profile "${TAP_BOOT_PROFILE:-core_dev}"; then
+    emit_abort crypto-bom "system FIPS-provider gate failed: a non-validated, un-waived crypto provider is present (see above); refusing to serve"
+    exit 1
+fi
 
 # Provision the DatabaseCache table (settings.CACHES LOCATION="tap_cache").
 # This is DB-schema provisioning, the same category as migrate — "fresh DB →
