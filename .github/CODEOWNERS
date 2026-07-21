@@ -1,0 +1,45 @@
+# CODEOWNERS — meta-integrity of the guard/validation system.
+# Contract: specs/spec-dev-validation.md § Guard-System Meta-Integrity
+# (req-dev-validation-meta-integrity-2, the out-of-band anchor).
+#
+# The enforcement MACHINERY below is owner-review-always: with "Require review from
+# Code Owners" enabled in branch protection, any PR touching one of these paths needs
+# @notgeorge's explicit approval. The point is that disabling a gate — neutering a
+# check(), dropping a guard, or editing the runner/CI so the suite stops running —
+# becomes a deliberate, reviewed, human act, even from an automated or AI actor.
+#
+# IMPORTANT — this file is a no-op without the platform settings it presumes:
+#   1. Branch protection on `main`: PRs only, "Require review from Code Owners" ON,
+#      the guard/gate status check (CodeBuild `test_all` lane) required + non-bypassable.
+#   2. GitHub SILENTLY IGNORES an owner it cannot resolve (wrong handle / no write
+#      access). @notgeorge is this repo's owner (github.com/notgeorge/tap). If ownership
+#      ever moves, update this file or the protection quietly becomes a no-op.
+# This file owns itself (via /.github/ below), so weakening it is itself a gated change.
+#
+# Policy DATA is deliberately NOT owned here (req-dev-validation-meta-integrity-1): a
+# ratchet baseline *shrinking* and a *coverage-adding* change (a new guard/surface) are
+# the self-safe directions. Only weakening moves want review.
+
+# ---- enforcement machinery: owner review always ----
+/tap/guards/                             @notgeorge
+/tap/source_scan.py                      @notgeorge
+/tap/direct_write_coverage.py            @notgeorge
+/tap/authz_coverage.py                   @notgeorge
+/tap/ratchet.py                          @notgeorge
+/tap/tests/test_guards.py                @notgeorge
+/tap_boot/management/commands/guards.py  @notgeorge
+/pyproject.toml                          @notgeorge
+/.github/                                @notgeorge
+/ci/terraform/                           @notgeorge
+/scripts/gate                            @notgeorge
+/scripts/gate-lean                       @notgeorge
+/scripts/promote-to-main.sh              @notgeorge
+/scripts/promote-all-sessions.sh         @notgeorge
+
+# every guards/ package — core, per-app, and per-plugin
+**/guards/                               @notgeorge
+
+# ---- policy data carved back out (NO owner): ratchet baselines shrink freely; the
+#      ratchet's stale-entry tooth already forbids fabricated growth. Must stay last so
+#      last-match-wins removes ownership for these paths. ----
+**/guards/baselines/
