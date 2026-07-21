@@ -201,6 +201,61 @@ rest. Migration squash (#16) rides the same wave: core-app migrations squash to 
 in the monorepo, plugin migrations squash in-repo and re-release with the wheels;
 `aws_secrets_source` has no migrations, so it sits out the squash.
 
+## Execution Runbook (2026-07-21, DECIDED — run in a FRESH session spawned from main)
+
+Three decisions locked with George 2026-07-21 that **reshape** the 2026-07-09 addendum's "one
+coordinated wave":
+
+1. **Squash DECOUPLED from eviction.** The 2026-07-09 plan folded the migration squash in "to avoid
+   double-release." But measurement shows **11 of 14 plugins are already released with their tests
+   shipped in-package** (`tap_plugin/<slug>/tests/`, e.g. aws_core carries 18 tests in its wheel), so
+   git-sourcing `test_all` covers their tests **without any re-release**. Folding the squash back in
+   is the *only* thing that would force re-releasing everything — so we **defer the squash** to a
+   separate later clean-base pass. Eviction proper needs no re-releases.
+2. **Evict aws_core too** — `session/aws-cloud` is done, so the "don't touch aws_core while it's live"
+   hazard is lifted. No straggler; git-source aws_core at its existing `v0.2.0` and delete its copy.
+3. **Fresh dedicated session** for the wave (clean context; the earlier plan). Spawn from current main.
+
+Concrete state (measured 2026-07-21): stragglers needing action = **samsite** (no repo yet; strip its
+`root = "../.."` at `pyproject.toml:63` on extraction), **administrivia** (repo exists, no tag → first
+release), **lotr** (repo exists, no tag → retire). `lotr` core-debt is **cosmetic**: the only refs are
+a `help_text` example string (`tap_web/models.py:142` + its baked copy in `tap_web/migrations/0001_initial.py`
++ `tap/settings.py:166` comment + a few specs) — swap the example to `grid_fixtures`, no structural
+change. `test_all.boot.json` = all 13 editable (THE blocker); `samsite.boot.json` = 4 editable
+(administrivia, lotr, samsite, grid_fixtures) + 8 git; `all-plugins.yml` = still v1.
+
+### Ordered sequence (each step gates the next; deletion is the point of no return)
+
+1. **Retire lotr** — swap the `help_text` example → `grid_fixtures` in `tap_web/models.py` (generates a
+   trivial help_text migration), fix the `tap/settings.py:166` comment + specs, remove lotr from
+   `test_all.boot.json` + `samsite.boot.json`. Mark the lotr repo deprecated. (Leave the historical
+   `0001_initial.py` help_text as-is — it's frozen migration state.)
+2. **Release the two stragglers** (via `scripts/release-plugin.sh`, built this session):
+   - `administrivia` → `release-plugin administrivia 0.1.0` (repo exists).
+   - `samsite` → `gh repo create notgeorge/tap-plugin-samsite --private`, strip `root = "../.."`, push,
+     then `release-plugin samsite 0.1.0`.
+3. **Flip all boot sources → git** at released tags: `test_all.boot.json` (all 13, incl aws_core v0.2.0,
+   new administrivia/samsite v0.1.0, grid_fixtures v0.1.0), `samsite.boot.json` (the 4 editable),
+   `core_dev.boot.json` (grid_fixtures), and `all-plugins.yml` v1 → v2 (git-sourced test_all).
+4. **VERIFY GREEN — the safety rail before deletion:** boot the git-sourced `test_all` in a scratch
+   instance + full lane green; `all-plugins` CI green. Do NOT proceed to step 5 until both are green.
+5. **Delete monorepo copies (IRREVERSIBLE):** `rm -r plugins/<slug>/` for all 13 evicted; core-only
+   repo. Handle `aws_secrets_source` separately (build-time bake — drop the `TAP_SECRET_SOURCE_DISTS`
+   monorepo pointer in `product-lines.yml` + the entrypoint's monorepo install; it has no boot entry).
+6. **Extend core install-awareness** so core-app tests/mypy/guards that hardcode plugin paths stay
+   green without the monorepo copies (the focused-session promote gap) — else the promote reds.
+7. **Promote** the wave (FULL CI gate — this is code, needs the real lane, not a docs bypass).
+8. **DEFERRED:** migration squash, as a later clean-base pass on the evicted fleet.
+
+### Coordination with the passkey chainguard/FIPS cutover (in parallel, not yet on main)
+- The crypto artifacts this touches (uuid5=SHA-1 ids, SHA-256 boot digests) are **FIPS-invariant**
+  (both approved; FIPS changes what's *allowed*, not approved-algo output) — so eviction under the
+  current `python:3.14-slim` base mints byte-identical ids to what it would under chainguard. No need
+  to wait; no double-mint.
+- **Watch points when both land:** `all-plugins.yml`/`product-lines.yml` and `docker/entrypoint.sh` —
+  the eviction edits sources/triggers there; the cutover edits the base/entrypoint. Expect a
+  resolvable merge, not a surprise. Whichever promotes second merges the first.
+
 ## Explicitly out of scope here
 
 - The `index` durable path (`req-plugin-arch-sources-3`) and offline `wheelhouse`
