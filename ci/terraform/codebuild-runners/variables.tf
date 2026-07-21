@@ -43,12 +43,13 @@ variable "product_lines" {
     profile      = string
     compute_type = optional(string, "BUILD_GENERAL1_LARGE") # 8 vCPU / 15 GB
     # Lines that git-install PRIVATE plugins need the read-only github-plugins-ro PAT
-    # (resolved from Secrets Manager via the source seam). In-tree lines (test_all) do not.
+    # (resolved from Secrets Manager via the source seam). Post-eviction (2026-07-21) BOTH
+    # lanes git-install — the monorepo plugin copies are deleted, so test_all is git-sourced too.
     needs_plugin_pull = optional(bool, false)
   }))
   default = {
-    test_all = { profile = "test_all" }                          # the union superset lane (in-tree)
-    samsite  = { profile = "samsite", needs_plugin_pull = true } # git-installs the fedramp line
+    test_all = { profile = "test_all", needs_plugin_pull = true } # union superset lane, now git-sourced
+    samsite  = { profile = "samsite", needs_plugin_pull = true }  # git-installs the fedramp line
   }
 }
 
