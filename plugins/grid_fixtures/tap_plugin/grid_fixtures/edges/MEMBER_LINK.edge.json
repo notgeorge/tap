@@ -1,5 +1,0 @@
-{
-  "slug": "MEMBER_LINK__grid_fixtures",
-  "name": "Member Link",
-  "description": "Membership edge into a peer-group node (tests a distinct edge type into a self-symmetric node)."
-}

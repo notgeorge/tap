@@ -1,7 +1,0 @@
--- statement 1 · stage: single-hop
-SELECT "tap_edge"."to_entity_id" AS "to_entity_id", "tap_edge"."from_entity_id" AS "from_entity_id", "tap_edge"."entity_id" AS "entity_id"
-FROM "tap_edge"
-INNER JOIN "tap_entity" ON ("tap_edge"."entity_id" = "tap_entity"."id")
-WHERE ("tap_entity"."deleted_at" IS NULL AND "tap_edge"."to_entity_id" = %s)
-ORDER BY "tap_entity"."created_at" DESC
--- params: [UUID('019e4b02-f37b-72df-a3e5-baf99158bb0c')]

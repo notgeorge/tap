@@ -7,18 +7,18 @@ from pathlib import Path
 
 from tap_plugins.validate_plugin.__main__ import main
 
-PLUGINS_ROOT = Path(__file__).resolve().parent.parent.parent / "plugins"
+FIXTURE_ROOT = Path(__file__).resolve().parent / "fixtures" / "validation_sample"
 
 
 class TestCLIBasics:
     def test_administrivia_passes(self, capsys):
-        code = main([str(PLUGINS_ROOT / "administrivia")])
+        code = main([str(FIXTURE_ROOT)])
         assert code == 0
         out = capsys.readouterr().out
         assert "PASS" in out
 
     def test_administrivia_json(self, capsys):
-        code = main([str(PLUGINS_ROOT / "administrivia"), "--json"])
+        code = main([str(FIXTURE_ROOT), "--json"])
         assert code == 0
         doc = json.loads(capsys.readouterr().out)
         assert doc["ok"] is True
@@ -28,7 +28,7 @@ class TestCLIBasics:
         assert code == 1
 
     def test_strict_mode(self, capsys):
-        code = main([str(PLUGINS_ROOT / "administrivia"), "--strict"])
+        code = main([str(FIXTURE_ROOT), "--strict"])
         # administrivia should still pass in strict mode (no undeclared files expected)
         # but even if it doesn't, the test verifies the flag is accepted
         assert code in (0, 1)
@@ -36,18 +36,18 @@ class TestCLIBasics:
 
 class TestCLILevels:
     def test_unknown_level_exits_2(self, capsys):
-        code = main([str(PLUGINS_ROOT / "administrivia"), "--level", "bogus"])
+        code = main([str(FIXTURE_ROOT), "--level", "bogus"])
         assert code == 2
 
     def test_loads_level_exits_2_with_django_message(self, capsys):
-        code = main([str(PLUGINS_ROOT / "administrivia"), "--level", "loads"])
+        code = main([str(FIXTURE_ROOT), "--level", "loads"])
         assert code == 2
         err = capsys.readouterr().err
         assert "requires Django" in err
         assert "manage.py validate_plugin" in err
 
     def test_runs_level_exits_2_with_django_message(self, capsys):
-        code = main([str(PLUGINS_ROOT / "administrivia"), "--level", "runs"])
+        code = main([str(FIXTURE_ROOT), "--level", "runs"])
         assert code == 2
         err = capsys.readouterr().err
         assert "requires Django" in err

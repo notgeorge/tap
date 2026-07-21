@@ -1,1 +1,0 @@
-"""Samsite plugin collectors."""

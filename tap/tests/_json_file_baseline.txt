@@ -10,12 +10,6 @@
 # These are descriptive-but-unprefixed collector manifests / pinned data files
 # that predate the convention. Renaming them (e.g. to `<plugin>.<collector>.manifest.json`)
 # is opportunistic ratchet work tracked in the spec's Future section.
-plugins/aws_core/tap_plugin/aws_core/collectors/boto3_collector/aws_resource_manifest.json
-plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/collectors/pinned/source_schema.json
-plugins/fedramp_20x_ksi/tap_plugin/fedramp_20x_ksi/collectors/safety/denylist.json
-plugins/github_core/tap_plugin/github_core/collectors/github_collector/github_collection_manifest.json
-plugins/github_core/tap_plugin/github_core/collectors/github_collector/github_grid_link_manifest.json
-plugins/samsite/tap_plugin/samsite/collectors/compliance_collector/artifact_manifest.json
 #
 # Gryphon executor branch-coverage ratchet data (added by the gryphon-completeness
 # session, commit 039ac0a2). Shipped non-conforming; hatched here so the gate is
@@ -23,4 +17,3 @@ plugins/samsite/tap_plugin/samsite/collectors/compliance_collector/artifact_mani
 # `gryphon.coverage.json`), which must also update its reader
 # `scripts/gryphon-coverage-ratchet`; remove this line when they do.
 tap_grid/gryphon/coverage-baseline.json
-plugins/aws_core/tap_plugin/aws_core/collectors/boto3_collector/handoff/collector-principal-policy.json

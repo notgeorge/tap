@@ -1,9 +1,0 @@
--- statement 1 · stage: advanced
-SELECT "tap_edge"."from_entity_id" AS "_g_col_0", COUNT("tap_edge"."to_entity_id") AS "_g_agg_0"
-FROM "tap_edge"
-INNER JOIN "tap_entity" ON ("tap_edge"."entity_id" = "tap_entity"."id")
-WHERE ("tap_entity"."deleted_at" IS NULL AND "tap_edge"."edge_type" = %s)
-GROUP BY 1
-ORDER BY 2 DESC, 1 ASC
-LIMIT 1
--- params: ['PG_LINKS__grid_fixtures']

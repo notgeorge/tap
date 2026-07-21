@@ -134,48 +134,12 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
         status="Partially guarded — CI-guarded units + per-spawn exec gate; full live cold-boot run Named, deferred",
         enforced_by="`tap_health/tests/` + `spawn-session.sh` health gate; folds into the cold-boot cycle",
     ),
-    DeclaredSurface(
-        surface="Gryphon executor-stage coverage",
-        rid="req-gridkin-stage-coverage",
-        cadence="Per-commit (`pytest`)",
-        status="CI-guarded",
-        enforced_by="`plugins/gryphon_playground/tap_plugin/gryphon_playground/tests/test_gridkin_internals.py::TestStageCoverage`",
-    ),
-    DeclaredSurface(
-        surface="Gryphon executor branch coverage (ratchet comparison)",
-        rid="req-gridkin-executor-branch-coverage",
-        cadence="On-demand script (~10–15 min instrumented run)",
-        status="Manual (CI-unguarded by design)",
-        enforced_by="`scripts/gryphon-coverage-ratchet` (shared `tap.ratchet.ratchet_floor`); floor well-formedness is the CI guard",
-    ),
-    DeclaredSurface(
-        surface="Gryphon metamorphic TLP",
-        rid="req-gridkin-metamorphic-tlp",
-        cadence="Per-commit (`pytest`)",
-        status="CI-guarded",
-        enforced_by="`plugins/gryphon_playground/tap_plugin/gryphon_playground/tests/test_gryphon_metamorphic.py`",
-    ),
-    DeclaredSurface(
-        surface="Gryphon differential property fuzzer",
-        rid="req-gridkin-property-fuzz",
-        cadence="Per-commit (`pytest`, committed 12×15; env-tunable soak)",
-        status="CI-guarded",
-        enforced_by="`plugins/gryphon_playground/tap_plugin/gryphon_playground/tests/test_gryphon_fuzz.py`",
-    ),
-    DeclaredSurface(
-        surface="Gryphon fuzz-campaign ledger",
-        rid="req-gridkin-fuzz-campaign",
-        cadence="On-demand script, loopable for hours",
-        status="Manual (CI-unguarded by design) — trend instrument, not a gate",
-        enforced_by="`scripts/gryphon-fuzz-campaign`; ledger `gridkin/fuzz-campaign-log.jsonl`",
-    ),
-    DeclaredSurface(
-        surface="Gryphon findings ledger (bug locality)",
-        rid="req-gridkin-findings-ledger",
-        cadence="Fix-time append + on-demand report",
-        status="Split — CI-guarded for well-formedness/vocabulary; Manual for the hotspot analysis",
-        enforced_by="`plugins/gryphon_playground/tap_plugin/gryphon_playground/tests/test_gryphon_findings_ledger.py`; ledger `gridkin/gryphon-findings.jsonl`",
-    ),
+    # NOTE: the Gryphon corpus validation surfaces (executor-stage/branch coverage, metamorphic
+    # TLP, differential fuzzer, fuzz-campaign + findings ledgers) were RETIRED from core's Map on
+    # eviction (2026-07-21): they are enforced by the `gryphon_playground` plugin's own tests
+    # (now in its own repo), so the plugin owns those surfaces in its own validation story. The
+    # Gryphon *engine* lives in core (tap_grid/gryphon); its corpus-driven coverage is a plugin
+    # concern post-eviction.
     DeclaredSurface(
         surface="Cold-boot system cycle",
         rid="req-dev-validation-smoke-gate",

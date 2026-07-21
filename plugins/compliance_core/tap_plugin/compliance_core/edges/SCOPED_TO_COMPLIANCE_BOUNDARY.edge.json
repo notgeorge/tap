@@ -1,9 +1,0 @@
-{
-  "slug": "SCOPED_TO_COMPLIANCE_BOUNDARY__compliance_core",
-  "name": "Scoped To Compliance Boundary",
-  "description": "A system component is in scope for a compliance authorization boundary. The component is the source (wildcard); the boundary is the target. 'Everything inside boundary X' is a fan-in query over edges whose target is X.",
-  "targets": ["compliance_core__compliance_boundary"],
-  "default_dimensions": {
-    "compliance": "boundary"
-  }
-}
