@@ -84,8 +84,16 @@ services:
   # Django Web Application
   # ============================================================================
   web:
-    # Build the image using our Dockerfile in the current directory
-    build: .
+    # Build the image using our Dockerfile in the current directory.
+    # TAP_FIPS selects the FIPS build variant (req-cicd-base-image-lifecycle-6): default 1
+    # (FIPS on — the published artifact). Set TAP_FIPS=0 in the environment to build the
+    # explicit non-FIPS escape hatch, e.g. `TAP_FIPS=0 scripts/dc build web`. The image
+    # declares its mode via the org.tap.fips label + TAP_FIPS_MODE env, and asserts it
+    # fail-closed at boot (tap.fips, wired in docker/entrypoint.sh).
+    build:
+      context: .
+      args:
+        TAP_FIPS: "${TAP_FIPS:-1}"
 
     # Mount the current directory into the container
     # This is a BIND MOUNT - your actual Mac directory mapped into the container.

@@ -31,6 +31,24 @@ echo "==> Syncing Python dependencies (uv sync --all-packages)..."
 uv sync --all-packages
 
 # ---------------------------------------------------------------------------
+# FIPS boot self-check (req-cicd-base-image-lifecycle-6, decision D15) — fail closed.
+# ---------------------------------------------------------------------------
+# The image DECLARES its FIPS posture (org.tap.fips label + TAP_FIPS_MODE env); this PROVES
+# the declared mode is the mode actually enforced by executing crypto and observing a refusal
+# — never by inspecting files, because the FIPS boundary is the OpenSSL config, not the
+# modules directory (doc-fips-assessment-record.md L13). Runs AFTER uv sync so `cryptography`
+# (the webauthn/passkey integration point, built --no-binary against the system OpenSSL) is
+# present. `tap.fips` prints its own `TAP-ABORT: fips: …` on a mismatch; this covers a hard
+# process death. A FIPS-declared image that fails to refuse MD5 is the L1 fail-open trap, and
+# a new bare hashlib.md5()/SELECT md5() in a dependency is a boot-breaking regression under
+# FIPS — both are caught here before any schema mutation.
+echo "==> FIPS self-check (assert declared mode is actually enforced)..."
+if ! uv run python -m tap.fips; then
+    emit_abort fips "FIPS self-check failed: declared mode not enforced (see above); refusing to serve"
+    exit 1
+fi
+
+# ---------------------------------------------------------------------------
 # Bootstrap-tier secret-source providers (req-plugin-depres-bootstrap, Decision B).
 # ---------------------------------------------------------------------------
 # A plugin's git-install credential can be routed to an external store (e.g. AWS Secrets

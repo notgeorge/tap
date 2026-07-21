@@ -191,6 +191,13 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
         enforced_by="`scripts/gate-lean` (isolated `tap_leanboot` stack, core-only venv; catches core→plugin-dep imports the full-venv cold-boot gate cannot)",
     ),
     DeclaredSurface(
+        surface="FIPS mode enforcement (declared vs actual)",
+        rid="req-cicd-base-image-lifecycle-6",
+        cadence="Per-boot (`docker/entrypoint.sh`)",
+        status="Boot-gated (fail-closed)",
+        enforced_by="`tap.fips` (`python -m tap.fips`): executes crypto and asserts a non-approved primitive is refused when TAP_FIPS_MODE=1 — proves the declared mode is enforced, never inspects files (D13/D15); TAP-ABORT on mismatch",
+    ),
+    DeclaredSurface(
         surface="Migration completeness (`makemigrations --check`)",
         rid="req-dev-validation-smoke-gate",
         cadence="Pre-push (`cold_boot_gate` step `schema:makemigrations`)",

@@ -369,7 +369,36 @@ A background build wrapper reported `exit 0` because the last command in the pip
 The build had actually **failed**. Use `set -o pipefail`, capture `$?` immediately after the command
 under test, and print it explicitly. An assessment harness that lies about pass/fail is worse than none.
 
-## 5. TAP's actual crypto surface (audit result, 2026-07-09)
+### L17 — `OPENSSL_CONF` is process-global: a bundled-OpenSSL dependency is a FIPS hard-fail ⚠️
+
+Found at productionization (2026-07-21), not in the spike — because the spike never booted Django
+against a real Postgres, and the §5 audit enumerated *hashing* call sites, not *transitive deps
+that carry their own OpenSSL*.
+
+`OPENSSL_CONF` is read by **every** OpenSSL instance in the process, including one **statically
+bundled inside a wheel**. So the moment we set `ENV OPENSSL_CONF=…fips.cnf`, a dependency shipping
+its own OpenSSL is *also* told to load the FIPS config — but it has no matching `fips.so` and its
+bytes do not match our `fipsmodule.cnf` MAC, so provider activation fails and even basic RNG
+breaks. `psycopg[binary]` (private bundled libpq + OpenSSL) hit exactly this: SCRAM-SHA-256 login
+computes a client nonce via OpenSSL RAND, which failed with
+`psycopg.OperationalError: could not generate nonce` — **the web container could not connect to the
+database at all under FIPS.** Verified: `env -u OPENSSL_CONF` made the same connection succeed;
+`PSYCOPG_IMPL=python` over the *system* libpq succeeded *with* the FIPS config.
+
+**The fix is the same shape as L9/D7** (`cryptography --no-binary`): make the dependency use the
+**system** OpenSSL, not a bundled one. For psycopg that is the **`[c]` extra** (`psycopg[c]`), which
+builds the C speedups against the system libpq (needs `pg_config` + libpq headers — `postgresql-dev`
+on Wolfi). The pure-Python `psycopg` over system libpq also works but is slower on the DB-bound test
+lane.
+
+**Generalize:** the FIPS audit is not "grep for md5". It is *"enumerate every dependency that links or
+bundles OpenSSL and confirm it uses the system library."* A bundled-OpenSSL dep does not silently
+bypass FIPS — thanks to the global `OPENSSL_CONF` it fails **loudly** — but "loudly" means *at boot,
+in a place the hashing audit never looked.* The fail-closed boot self-check (D15) and the DB `connect`
+health probe are the backstops that turn a future regression of this class into an immediate,
+explained boot failure rather than a mystery.
+
+## 5. TAP's actual crypto surface (audit result, 2026-07-09; psycopg addendum 2026-07-21)
 
 | Surface | Finding |
 | --- | --- |
@@ -378,7 +407,8 @@ under test, and print it explicitly. An assessment harness that lies about pass/
 | **Django** | Bare `hashlib.md5()` exists **only** in the legacy `MD5PasswordHasher`, which is **not** in Django's default `PASSWORD_HASHERS`, and TAP does not override them → **unreachable**. |
 | **`faker`** | Bare `md5()`/`sha1()` — **test-only** dependency. |
 | **`cryptography`, `webauthn`, `oauthlib`, `django.template.loaders.cached`** | Bare `sha1()` — approved, all work. |
-| **Verdict** | **No runtime hard-fail surface.** `TAP_FIPS=1` by default is safe. |
+| **`psycopg[binary]`** ⚠️ | **The one real hard-fail found at productionization** (this audit missed it — it looked only at *hashing*, not at *bundled-OpenSSL transitive deps*). `psycopg[binary]` ships a **private bundled libpq + OpenSSL**. `OPENSSL_CONF` is **process-global**, so that bundled OpenSSL is *also* forced to load our FIPS config, cannot satisfy the `fipsmodule.cnf` MAC (it is not our system OpenSSL, and has no matching `fips.so`), and **SCRAM-SHA-256 auth hard-fails at boot** with `psycopg.OperationalError: could not generate nonce` (the SCRAM client nonce is an OpenSSL RAND draw). **Fixed** by switching to **`psycopg[c]`** (builds against the *system* libpq → the system OpenSSL/FIPS provider → the validated DRBG generates the nonce). This is the exact psycopg analog of the `cryptography --no-binary` fix (L9). See **L17**. |
+| **Verdict** | TAP's *hashing* surface has no runtime hard-fail (the original finding stands). But **any dependency that bundles its own OpenSSL is a hard-fail surface under FIPS**, because `OPENSSL_CONF` reaches it too — `psycopg[binary]` was one and is now `psycopg[c]`. `TAP_FIPS=1` by default is safe **with that fix in place**, and the fail-closed boot self-check (`tap.fips`, D15) plus the DB `connect` health probe now catch a regression of this class at boot. |
 
 TAP's algorithms — P-256/ECDSA (passkeys), SHA-256, HMAC, PBKDF2, AES-GCM — are **all
 FIPS-approved**. No crypto redesign is required by FIPS.
@@ -588,6 +618,7 @@ Each is stated as a **falsifiable check with a negative control**. A FIPS claim 
 | `F16` | Postgres: `SELECT md5('x')` under FIPS | **refused** — `could not compute MD5 hash: unsupported` (negative control, server-side) |
 | `F17` | Postgres: `SHOW password_encryption` | `scram-sha-256` — `md5` auth would hard-fail under FIPS |
 | `F18` | Postgres: `initdb --locale=C` sort of `a,B,_b,A,b` | `A B _b a b` — collation parity with the outgoing musl cluster (§5.4) |
+| `F19` | Web: `psycopg.connect(...)` to the DB under FIPS | **succeeds** with `psycopg[c]` (system libpq); the negative control is `psycopg[binary]`, which fails `could not generate nonce` — proving the bundled-OpenSSL trap (L17) and its fix |
 
 Machine-readable form for an automated assessor:
 
@@ -668,16 +699,26 @@ exactly what the fail-closed boot check (D15) is designed to catch, but it shoul
 The MAC pins the exact `fips.so` bytes. It must run **in the final image**, and must re-run if the
 module is rebuilt. Fits the build-stage model; noted so nobody "optimizes" it into a cached layer.
 
-### 7.6 Not yet done
+### 7.6 Productionization status
 
-The recipe is **spike-proven, not productionized.** Still outstanding:
+**Web image: DONE (2026-07-21).** The recipe is folded into the real `Dockerfile` and validated:
 
-- Fold into the real `Dockerfile` + `docker-compose` Postgres image.
-- `[tool.uv] no-binary-package = ["cryptography"]`.
-- `ARG TAP_FIPS` wiring, the `org.tap.fips` label, `TAP_FIPS_MODE` env (D12–D14).
-- The fail-closed boot assertion (D15) + its **Validation Map row** (`req-dev-validation-map`).
-- Full boot + test-lane validation under `TAP_FIPS=1`.
-- CI gating of **both** variants (D13).
+- ✅ Wolfi base + FIPS builder stage in the real `Dockerfile`; `ARG TAP_FIPS` (default 1) selects
+  the variant; `docker-compose.yml` wires the build arg (`TAP_FIPS=0` escape hatch).
+- ✅ `[tool.uv] no-binary-package = ["cryptography"]`; `CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1`.
+- ✅ `org.tap.fips` label + `TAP_FIPS_MODE` env (D12–D14).
+- ✅ Fail-closed boot self-check (`tap.fips`, D15) wired in `docker/entrypoint.sh` + its **Validation
+  Map row** (`req-cicd-base-image-lifecycle-6`) + unit tests.
+- ✅ Full boot + `scripts/test --gryphon` lane green under `TAP_FIPS=1` (2285 passed); F1–F13/F19 re-run.
+- ✅ **`psycopg[binary]` → `psycopg[c]`** (L17 — the one hard-fail found; bundled-OpenSSL SCRAM break).
+- ✅ OIDC crypto-error rescue built (`tap.crypto_errors` + middleware 502, §5.3;
+  `req-tap-auth-google-oidc-fips-algorithm`).
+
+Still outstanding:
+
+- **Postgres image** → minimal Wolfi + FIPS + `initdb --locale=C` + volume recreate (§5.4) — the next
+  cutover stage (this doc's D10; the DB container is still `postgres:16-alpine` at web-image cutover).
+- **CI gating of both variants** (D13) — build + gate `TAP_FIPS=1` and `=0` so the escape hatch cannot rot.
 
 ## 8. The assessment methodology (reusable)
 

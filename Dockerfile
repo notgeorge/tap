@@ -3,129 +3,183 @@
 # Base image: a curated-minimal Wolfi base (cgr.dev/chainguard/wolfi-base) carrying exactly
 # TAP's runtime binaries, per req-cicd-base-image-lifecycle-3 (Wolfi is the standard base,
 # decided 2026-07-09; spike measured OS-CVEs 311→0 vs the outgoing python:3.14-slim). Wolfi
-# is glibc-based, so manylinux Python wheels install without a source build. It is chosen on
-# Python-3.14 currency, in-image host-independent FIPS (req-cicd-base-image-lifecycle-5/-6),
-# and a zero-CVE floor — NOT on shipping a runtime package manager (TAP's deps + plugins are
-# Python-package installs baked/synced by uv, not OS-package installs; see the assessment
-# record docs/misc/doc-fips-assessment-record.md L11 and distroless disproof spikes/distroless/).
+# is glibc-based; it is chosen on Python-3.14 currency, in-image host-independent FIPS
+# (req-cicd-base-image-lifecycle-5/-6), and a zero-CVE floor — NOT on shipping a runtime
+# package manager (TAP's deps + plugins are Python-package installs synced by uv at runtime,
+# not OS-package installs; assessment record docs/misc/doc-fips-assessment-record.md L11).
 #
-# This stages the cutover: this revision swaps the base to Wolfi with FIPS OFF (TAP_FIPS=0),
-# validating the base swap in isolation. FIPS-on (the fips.so builder stage + provider config +
-# fail-closed boot assertion) lands in a subsequent commit so a boot break is attributable to
-# the apk swap vs the provider config, not both at once (req-cicd-base-image-lifecycle-6).
-FROM cgr.dev/chainguard/wolfi-base
+# FIPS: this image runs crypto through the free upstream OpenSSL 3.0.9 FIPS provider
+# (CMVP #4282), self-built in the `ossl-builder` stage and activated in-image. The mode is
+# selected by a single build flag `ARG TAP_FIPS` (DEFAULT 1 — FIPS is the published artifact;
+# `TAP_FIPS=0` is an explicit, never-silent escape hatch). `cryptography` is built --no-binary
+# against the SYSTEM OpenSSL in BOTH modes (its wheel bundles its own OpenSSL — D7/L9), so the
+# dependency closure is identical and only provider activation differs. A fail-closed boot
+# self-check (`tap.fips`, wired in docker/entrypoint.sh) proves the DECLARED mode is the mode
+# actually enforced, by executing crypto and observing a refusal — it never inspects files,
+# because the FIPS boundary is the OpenSSL config, not the modules directory (L13, D15).
+# Full decision record + re-runnable verification suite: doc-fips-assessment-record.md.
+
+# TAP_FIPS is a global build ARG so it can select the final stage below. Default 1 (FIPS on).
+ARG TAP_FIPS=1
 
 # ============================================================================
-# Environment Variables
+# ossl-builder — compile the validated OpenSSL 3.0.9 FIPS provider (fips.so)
 # ============================================================================
+# Only built when the FIPS variant is selected (BuildKit prunes it for TAP_FIPS=0, since
+# nothing COPYs from it in the fips-0 path). We run the frozen validated 3.0.9 module against
+# the base's MODERN libcrypto at runtime — OpenSSL guarantees a certified fips.so is
+# binary-compatible with any LATER libcrypto, so OpenSSL 3.0's LTS-EOL is irrelevant (D4).
+FROM cgr.dev/chainguard/wolfi-base AS ossl-builder
+RUN apk add --no-cache build-base perl linux-headers curl
+WORKDIR /build
+RUN curl -fsSL https://github.com/openssl/openssl/releases/download/openssl-3.0.9/openssl-3.0.9.tar.gz -o o.tgz \
+ && tar xf o.tgz
+WORKDIR /build/openssl-3.0.9
+# enable-fips builds the FIPS provider (fips.so); install_fips installs it.
+RUN ./Configure enable-fips && make -j"$(nproc)" && make install_fips
 
-# Prevents Python from writing .pyc bytecode files to disk
-# In containers these waste space and can cause stale cache issues
+# ============================================================================
+# base — the common runtime (identical for both FIPS modes)
+# ============================================================================
+FROM cgr.dev/chainguard/wolfi-base AS base
+
+# Prevents Python from writing .pyc bytecode files to disk (waste + stale-cache risk).
 ENV PYTHONDONTWRITEBYTECODE=1
-
-# Forces Python stdout/stderr to be unbuffered
-# Without this, logs may not appear immediately in 'docker compose logs'
+# Forces unbuffered stdout/stderr so logs appear immediately in `docker compose logs`.
 ENV PYTHONUNBUFFERED=1
-
-# UV normally uses hardlinks for installed packages to save disk space
-# In Docker, hardlinks between layers cause issues, so we tell UV to copy instead
+# UV hardlinks between layers cause issues in Docker; copy instead.
 ENV UV_LINK_MODE=copy
 
-# ============================================================================
-# System Setup
-# ============================================================================
-
-# Set the working directory inside the container
-# All subsequent commands run from this directory
 WORKDIR /app
 
-# Install system-level runtime binaries. These are named, itemized attack-surface
-# line-items (req-cicd-base-image-lifecycle-3), present because the runtime-plugin-install
-# architecture requires them, and kept current by the auto-patch loop (-1).
-# - python-3.14: the interpreter (Wolfi ships /usr/bin/python -> python3 -> python3.14).
-# - git: uv shells out to it to install package-mode plugins from a git source
-#   (`<dist> @ git+https://…@<rev>`, req-boot-install-section). Wolfi's git porcelain in
-#   /usr/libexec/git-core are shell scripts that need sed/grep — both present via busybox
-#   on wolfi-base (verified), so no extra apk is required (assessment record L3).
-# - bash: the entrypoint (docker/entrypoint.sh) is a bash script.
-# - postgresql-client: pg_isready/psql for Django, AND pg_dump/pg_restore for the pre-boot
-#   pre-migrate snapshot (tap/preboot.py, req-boot-snapshot). Wolfi ships 18.x; a newer
-#   pg_dump dumps the older PG16 server fine.
-# - curl: used by docker/install-tailwindcss.sh; also handy for in-container debugging.
-# - tzdata: the IANA timezone database (/usr/share/zoneinfo). Debian's python:3.14-slim
-#   shipped this implicitly; Wolfi's minimal base does not, and without it Python's
-#   `zoneinfo` cannot resolve settings.TIME_ZONE ("UTC") — Django's createcachetable /
-#   timezone machinery aborts boot with ZoneInfoNotFoundError. It is OS timezone data, not
-#   the PyPI `tzdata` shim, so it serves every in-image consumer, not just Python.
+# System-level runtime binaries — named, itemized attack-surface line-items
+# (req-cicd-base-image-lifecycle-3), kept current by the auto-patch loop (-1).
+#   Runtime:
+#   - python-3.14: the interpreter (Wolfi ships /usr/bin/python -> python3 -> python3.14).
+#   - git: uv shells out to it for git-source package-mode plugin installs (req-boot-install-section).
+#     Wolfi's git porcelain in /usr/libexec/git-core are shell scripts needing sed/grep — both
+#     present via busybox on wolfi-base (verified), so no extra apk (assessment record L3).
+#   - bash: docker/entrypoint.sh is a bash script.
+#   - postgresql-client: pg_isready/psql for Django + pg_dump/pg_restore for the pre-boot
+#     pre-migrate snapshot (tap/preboot.py, req-boot-snapshot). Wolfi ships 18.x; a newer
+#     pg_dump dumps the older PG16 server fine.
+#   - curl: docker/install-tailwindcss.sh; also in-container debugging.
+#   - tzdata: the IANA zoneinfo DB Debian slim shipped implicitly but Wolfi's minimal base
+#     does not; without it Python's zoneinfo cannot resolve settings.TIME_ZONE and boot aborts.
+#   - openssl: the CLI + libs. fipsinstall (build-time, fips-1 stage) needs it; also debugging.
+#   Build toolchain for `cryptography` --no-binary (D7 — applies in BOTH FIPS modes, so it lives
+#   here in base, not in the FIPS stage): the sdist compiles a Rust + C extension against the
+#   system OpenSSL headers at `uv sync` time (dev installs at runtime, not image build).
+#   - build-base: gcc/make/libc headers.
+#   - rust: cargo + rustc for cryptography's Rust extension.
+#   - openssl-dev: system OpenSSL headers cryptography links against.
+#   - pkgconf: pkg-config, used by the build to locate OpenSSL.
+#   - python-3.14-dev: Python.h for the C extension.
+#   - postgresql-dev: pg_config + libpq headers so psycopg's `[c]` extra builds against the
+#     SYSTEM libpq (linking the system OpenSSL / FIPS provider) rather than the `[binary]`
+#     wheel's private bundled libpq+OpenSSL, which fails SCRAM under FIPS (see pyproject.toml).
 RUN apk add --no-cache \
     python-3.14 \
     git \
     bash \
     postgresql-client \
     curl \
-    tzdata
+    tzdata \
+    openssl \
+    build-base \
+    rust \
+    openssl-dev \
+    pkgconf \
+    python-3.14-dev \
+    postgresql-dev
 
-# ============================================================================
-# UV Package Manager
-# ============================================================================
-
-# Copy UV binary from the official UV container image
-# UV is a fast Python package manager written in Rust (replaces pip)
-# This is the recommended way to install UV in Docker — no package manager needed.
+# Copy the UV binary from the official UV image (no package manager needed).
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-# ============================================================================
-# Dependencies
-# ============================================================================
-#
-# Dependency installation runs at container START via docker/entrypoint.sh,
-# NOT at image build. The reasons:
-#
-#   1. The compose bind mount `.:/app` overrides /app at runtime, so any
-#      /app/.venv populated at build time is hidden anyway — pure waste.
-#   2. /root/.cache/uv is a named volume (compose), so a build-time uv sync
-#      can't pre-populate it usefully either.
-#   3. Crucially, baking uv's cache into an image layer means Docker's build
-#      cache can fossilize a corrupted uv state and replay it across every
-#      rebuild. Moving the sync to runtime (with a named-volume cache) keeps
-#      cache state mutable per-session and reset-able by `dc down -v`.
-#
-# We still copy the lock + pyproject so the image carries them, but we don't
-# install. First container start does `uv sync` and populates the worktree's
-# .venv plus the named-volume cache.
-
+# Dependency installation runs at container START via docker/entrypoint.sh, NOT at image
+# build: the compose bind mount `.:/app` overrides /app and /app/.venv + /root/.cache/uv are
+# named volumes, so a build-time `uv sync` is hidden and can fossilize a corrupted uv state
+# into the layer cache. We still carry the lock + pyproject so the image has them.
 COPY pyproject.toml uv.lock* ./
 
-# ============================================================================
-# Application Code
-# ============================================================================
-
-# Copy the rest of the application code into the container
-# This layer changes frequently, so it comes after dependencies
+# Copy the rest of the application code (frequently-changing layer, after deps).
 COPY . .
 
-# Note on tailwindcss:
-# The image does NOT carry the tailwindcss binary. It's installed on demand
-# by the /tailwind-rebuild skill (tap_web/skills/tailwind-rebuild/SKILL.md)
-# into the `tailwind_bin` named volume mounted at /opt/tailwind. The
-# compiled stylesheet at tap_web/static/tap_web/css/tailwind.css is
-# committed to source — production serves the committed artifact; dev
-# regenerates it via the skill before committing template changes that
-# touch utility classes. See tap_web/specs/spec-web-tailwind-pipeline.md.
+# Note on tailwindcss: the image does NOT carry the binary. The /tailwind-rebuild skill
+# installs it on demand into the tailwind_bin volume; the committed
+# tap_web/static/tap_web/css/tailwind.css is served as-is. See spec-web-tailwind-pipeline.md.
 
-# ============================================================================
-# Runtime Configuration
-# ============================================================================
-
-# Document that the container listens on port 8000
-# This is informational - you still need to map the port in docker-compose
 EXPOSE 8000
 
-# Copy the entrypoint script and make it executable
-# The entrypoint handles: migrations, conditional seed data, then server start
+# The entrypoint runs uv sync, the FIPS self-check, pre-boot, migrate, then the server.
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
-
-# Default command to run when the container starts
-# The entrypoint script runs migrations, seeds data (if DEBUG), then starts Django
 CMD ["/entrypoint.sh"]
+
+# ============================================================================
+# fips-0 — non-FIPS variant (explicit escape hatch, TAP_FIPS=0)
+# ============================================================================
+# Stock provider set; no fips.so, no OPENSSL_CONF override. `cryptography` is still built
+# --no-binary (D7) so the closure matches the FIPS build exactly. The image declares its
+# mode machine-legibly so CI, the boot record, /healthz, and an AI operator can read it
+# without executing crypto (D14).
+FROM base AS fips-0
+ENV TAP_FIPS_MODE=0
+LABEL org.tap.fips="false"
+
+# ============================================================================
+# fips-1 — FIPS variant (default, TAP_FIPS=1)
+# ============================================================================
+FROM base AS fips-1
+
+# Drop our validated 3.0.9 provider into the base's ossl-modules dir.
+COPY --from=ossl-builder /usr/local/lib/ossl-modules/fips.so /usr/lib/ossl-modules/fips.so
+
+# fipsinstall runs the module self-tests and writes the integrity MAC (pinning fips.so's
+# exact bytes). It MUST run in the final image (D5); it also proves binary-compat, since the
+# base's modern `openssl` loads + self-tests our frozen 3.0.9 module (D4).
+RUN openssl fipsinstall -out /etc/ssl/fipsmodule.cnf -module /usr/lib/ossl-modules/fips.so
+
+# openssl.cnf activating the strict `fips` + `base` provider set with fips=yes globally.
+# ORDER IS LOAD-BEARING (L1): `openssl_conf` must be in the default (pre-section) block. The
+# `.include` pulls in fipsmodule.cnf, which STARTS with [fips_sect] — so it must come AFTER
+# `openssl_conf`, else openssl_conf is swallowed into [fips_sect] and NO providers activate
+# (the config "parses" fine but silently falls back to the default provider — the fail-open
+# trap). `.include /etc/ssl/ca.cnf` restores the stock openssl.cnf include that pointing
+# OPENSSL_CONF at our file otherwise displaces (else `openssl req` breaks; TLS trust is
+# unaffected — L14). `base` supplies encoders/decoders (no crypto primitives) and is required
+# for OpenSSL key-file I/O; it is not a hole in the boundary (L15).
+RUN printf '%s\n' \
+  'config_diagnostics = 1' \
+  'openssl_conf = openssl_init' \
+  '' \
+  '.include /etc/ssl/fipsmodule.cnf' \
+  '.include /etc/ssl/ca.cnf' \
+  '' \
+  '[openssl_init]' \
+  'providers = provider_sect' \
+  'alg_section = algorithm_sect' \
+  '' \
+  '[provider_sect]' \
+  'fips = fips_sect' \
+  'base = base_sect' \
+  '' \
+  '[base_sect]' \
+  'activate = 1' \
+  '' \
+  '[algorithm_sect]' \
+  'default_properties = fips=yes' \
+  > /etc/ssl/openssl-fips.cnf
+ENV OPENSSL_CONF=/etc/ssl/openssl-fips.cnf
+
+# Keep OpenSSL's legacy provider unloaded, else `cryptography` re-enables MD5/DES (D8).
+ENV CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1
+
+# Declare the mode machine-legibly (D14); the boot self-check asserts it is actually enforced.
+ENV TAP_FIPS_MODE=1
+LABEL org.tap.fips="true"
+
+# ============================================================================
+# final — select the variant by the build flag (default fips-1)
+# ============================================================================
+FROM fips-${TAP_FIPS} AS final

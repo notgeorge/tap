@@ -113,3 +113,38 @@ class TestProviderUnreachableRescue:
         req.user = AnonymousUser()
         resp = mw.process_exception(req, AuthzError("nope", reason="missing_actor"))
         assert resp is not None and resp.status_code == 403
+
+
+class TestFipsAlgorithmRescue:
+    """Under TAP_FIPS=1, an IdP signing its id_token with a non-approved algorithm fails
+    inside allauth's jwtkit with a cryptography error that is neither a PyJWTError nor an
+    allauth error type — an uncaught 500. The middleware rescues it into a branded 502
+    (req-tap-auth-google-oidc-fips-algorithm). Exercised at the middleware seam with the
+    exact error signatures (no FIPS build needed in CI)."""
+
+    def _mw(self) -> CallerContextMiddleware:
+        return CallerContextMiddleware(get_response=lambda request: HttpResponse())
+
+    @pytest.mark.django_db
+    def test_fips_crypto_error_during_login_renders_502(self):
+        req = RequestFactory().get("/auth/oidc/criticalsec-google/login/callback/", SERVER_NAME="localhost")
+        req.user = AnonymousUser()
+        # The RSA-key-too-small signature, as cryptography raises it inside from_jwk().
+        exc = ValueError("Unable to sign/verify with this key")
+        resp = self._mw().process_exception(req, exc)
+        assert resp is not None and resp.status_code == 502
+        assert "Retry-After" not in resp  # not transient — retrying will not help
+        assert b"fips mode" in resp.content.lower()
+
+    def test_crypto_error_off_the_auth_path_is_not_swallowed(self):
+        """Scope guard: a crypto error from any non-`/auth/` view stays a real 500."""
+        req = RequestFactory().get("/viz/graph/")
+        req.user = AnonymousUser()
+        assert self._mw().process_exception(req, ValueError("Unable to sign/verify with this key")) is None
+
+    def test_unrelated_exception_on_auth_path_is_not_swallowed(self):
+        """An /auth/ exception that is NOT a recognizable FIPS crypto refusal stays a 500 —
+        the rescue must not mask unrelated login bugs."""
+        req = RequestFactory().get("/auth/oidc/criticalsec-google/login/")
+        req.user = AnonymousUser()
+        assert self._mw().process_exception(req, ValueError("some unrelated bug")) is None
