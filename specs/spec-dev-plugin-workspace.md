@@ -111,7 +111,21 @@ cases the explicit boot-record `url`/`credential` exist to handle. A `--dev-plug
 fall-back to a guessed URL.
 
 `_dev-plugins/` is gitignored in core so the harness never tracks the nested checkouts, and
-despawn removes the whole worktree (nested checkouts included) — self-contained cleanup.
+despawn removes the whole worktree (nested checkouts included) — self-contained cleanup. The
+derived profile `boot/<base>__dev.boot.json` is gitignored for the same reason: it is generated
+from a committed base and points at `_dev-plugins/` paths that exist in exactly one developer's
+worktree, so committing it would ship an unbootable profile.
+
+**The workspace must not change what the core lane tests.** `_dev-plugins/` is excluded from core
+pytest collection (an `--ignore=` in `addopts` mirrored in the `_IGNORED_DIRS` ledger,
+`req-dev-validation-collection-complete`). Without that, standing up a workspace silently widens
+the core suite to include whichever plugin repos happen to be checked out — so the lane's result
+would depend on developer-local state, and a plugin repo's own conftest (written against its own
+layout) can break the core run outright. Excluding them makes the workspace lane behave exactly
+like a normal session, where those same plugins are git-installed into the already-pruned `.venv`.
+A dev plugin's tests are gated where they belong: its own repo CI, and `release-plugin.sh`'s
+pre-release gate (`pytest --pyargs tap_plugin.<slug>`), which is why that gate requires tests to
+live IN the package.
 
 `--dev-plugins` composes with a base `--profile`/positional profile: the base names the full
 plugin set and pinned revs; `--dev-plugins` overrides the named subset to editable. The default

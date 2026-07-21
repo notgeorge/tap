@@ -201,6 +201,58 @@ rest. Migration squash (#16) rides the same wave: core-app migrations squash to 
 in the monorepo, plugin migrations squash in-repo and re-release with the wheels;
 `aws_secrets_source` has no migrations, so it sits out the squash.
 
+## Addendum (2026-07-21): the migration-squash + re-release wave — DONE
+
+The squash was deliberately **decoupled** from the eviction (the eviction landed without it) and
+run afterwards as its own coordinated fresh-DB event. It is now complete.
+
+**Scope was smaller than "every app".** Only apps with more than one migration needed anything:
+`tap_auth` (9 → 1) and `tap_web` (2 → 1) in core, plus 8 plugins. `tap_grid` / `tap_cares` /
+`tap_viz` / `validation_sample` / `identity_core` were already at a single `0001_initial`, and
+`administrivia` / `roscale` / `samsite` have no migrations at all — so those were left untouched
+and **not re-released**, rather than churned for uniformity. Fleet total 41 → 20 files.
+`gryphon_playground` went 4 → **0**: it has owned no models since the `grid_fixtures` extraction,
+so its migrations created tables and dropped them again.
+
+**Released (next-minor, substrate-first, via `scripts/release-plugin.sh`):** computing_core,
+aws_core, sigstore_core, github_core, fedramp_20x_ksi → `v0.3.0`; compliance_core,
+grid_fixtures → `v0.2.0`; gryphon_playground → `v0.2.0`.
+
+**How the "identical schema" claim was actually verified** (worth reusing): a database built by
+replaying the OLD migrations was diffed against one built from the squashed set. Raw `pg_dump`
+output is NOT identical — but every difference is an auto-generated *identifier name*
+(`aws_account_pkey` → `aws_core__aws_account_pkey`, and owned sequences). That is a fossil of the
+type-ownership sweep: `ALTER TABLE ... RENAME` does not rename owned sequences or constraints, so
+replaying the old migrations leaves pre-rename names behind and the squash normalizes them. The
+load-bearing check is therefore a **structural fingerprint** — every table, column, type,
+nullability and default (sequence names normalized), plus every constraint and index compared BY
+DEFINITION rather than by name — which came out identical (5392 rows each). Nothing in the tree
+references a generated identifier name, so the rename is inert.
+
+**Two plugins failed their own conformance gate**, found by running `release-plugin.sh` against
+them for the first time. Both had been evicted without relocating their tests into the package,
+and neither repo has CI, so nothing reported it:
+
+- `grid_fixtures` — tests sat at repo-root `tests/`; moved into the package.
+- `gryphon_playground` — worse: the entire Gridkin corpus (`gridkin/`, scenarios, fixtures,
+  expected) plus the whole suite still imported `plugins.gryphon_playground.*`, the monorepo path
+  that cannot resolve standalone. The corpus had been **silently dead since eviction** — the repo's
+  own `__init__.py` documented itself as "removed on repo extraction" and that step was missed.
+  Resurrected: corpus moved into the package, imports repaired, and two monorepo-relative path
+  assumptions (core specs for the traceability matrix; the findings-ledger path) re-resolved
+  through the installed `tap_grid` / package instead. Both had been failing SOFT, reporting
+  "nothing found" rather than erroring.
+
+**Lesson for the eviction recipe:** step 4 ("standalone tests") and step 5 ("standalone CI") of the
+per-plugin recipe above were the two most-skipped steps, and skipping them is invisible — an
+evicted plugin still *boots* perfectly while its test suite quietly gates nothing. Any future
+eviction should run `validate_plugin --strict` and `pytest --pyargs tap_plugin.<slug>` as the
+completion check, not the boot.
+
+**Still open:** `gryphon_playground` and `grid_fixtures` have **no repo CI**; the
+`bare_match__field_absent` scenario is now vacuous (it filtered on a field only the retired `lotr`
+carried); and `aws_secrets_source` build-bake eviction remains deferred.
+
 ## Explicitly out of scope here
 
 - The `index` durable path (`req-plugin-arch-sources-3`) and offline `wheelhouse`

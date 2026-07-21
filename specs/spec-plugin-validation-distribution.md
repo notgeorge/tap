@@ -67,7 +67,7 @@ Status: `Partially Implemented`
 
 No file under the central authority may hardcode a specific plugin slug or path. A guard or ratchet that needs to reason about plugins does so generically — iterating the *discovered* plugins (filesystem/entry-point) or the *installed* set (`tap.plugin_testing.installed_plugin_slugs()`), never a literal.
 
-Done: the `plugins/genericom` literal in `tap/guards/_collection_scan.py` `_IGNORED_DIRS` was removed (the set is now empty; genericom itself was deleted). Remaining: no automated guard yet asserts the center stays slug-free — that guard (a scan of `tap/guards/` + `tap/ratchet.py` for plugin-slug literals) is the natural enforcement and is itself a generic, plugin-agnostic check.
+Done: the `plugins/genericom` literal in `tap/guards/_collection_scan.py` `_IGNORED_DIRS` was removed (genericom itself was deleted). The set holds exactly one entry today — `_dev-plugins`, the plugin-workspace checkout root (`spec-dev-plugin-workspace.md`). That entry is **consistent with this requirement**: it names a generic, plugin-agnostic *directory*, not a slug, and it covers whichever plugins a developer happens to have checked out rather than any named one. Remaining: no automated guard yet asserts the center stays slug-free — that guard (a scan of `tap/guards/` + `tap/ratchet.py` for plugin-slug literals) is the natural enforcement and is itself a generic, plugin-agnostic check.
 
 #### Acceptance Criteria
 
