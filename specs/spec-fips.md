@@ -65,6 +65,7 @@ roles, and is the reason a plugin can never exempt itself:
 | req-fips-crypto-bom-system-gate | [Boot-Time System Gate](#boot-time-system-gate) | Implemented | Global validation at boot under `TAP_FIPS_MODE=1`: core + every plugin, TAP-ABORT on an unwaived non-validated provider. `python -m tap.crypto_bom --gate`. |
 | req-fips-crypto-bom-waivers | [Operator Waivers](#operator-waivers) | Implemented | The justified escape valve: boot-profile `fips_waivers`, deployment-controlled, mandatory reason, surfaced. |
 | req-fips-crypto-bom-jvm | [JVM-Arrival Tripwire](#jvm-arrival-tripwire) | Implemented | Java is out of scope, but its arrival (runtime/executable/jar/bridge dist) fails the gate loudly — jars are not ELF, so nothing else catches it. |
+| req-fips-crypto-bom-source | [Source-Level Scan](#source-level-scan) | Implemented | The Python analog of the ELF fingerprinter: AST-scan TAP + plugin source for pure-Python crypto imports, bare weak-digest usage, and WASM-runtime imports — the crypto the native scan cannot see. |
 
 ### Crypto Bill-of-Materials
 ----
@@ -153,6 +154,36 @@ arrival must not be silent: jars/classes/`libjvm.so` are not ELF, so the fingerp
 crypto (JCA providers / BouncyCastle → BC-FIPS). The gate fails-closed the moment a JVM runtime,
 executable, `.jar`/`.class` artifact, or bridge distribution (`jpype`/`pyjnius`/`jep`/`py4j`) appears —
 the loud "now build the Java crypto layer" signal, rather than shipping a silent non-FIPS JVM.
+
+### Source-Level Scan
+----
+RID: `req-fips-crypto-bom-source`
+Status: `Implemented`
+
+The ELF fingerprinter sees *native* crypto and the dist-name check sees *known installed packages*.
+Neither sees crypto that is **pure-Python** (no native extension to fingerprint) or a weak primitive
+*used* in our own source. `tap.crypto_bom.scan_source` closes that gap — the Python analog of the ELF
+signatures, run over TAP core + installed plugin source as part of `core_report` and `scan_plugin`:
+
+1. **Non-validated crypto imports** — an AST walk flags `import ecdsa`/`rsa`/`nacl`/`Crypto`/`jose`/
+   `passlib`/… (pure-Python or non-OpenSSL crypto). `hashlib`/`hmac`/`secrets`/`ssl`/`cryptography`/
+   `psycopg` are *not* flagged — they route through the system OpenSSL. Undispositioned → fails.
+2. **Bare weak-digest usage** — `hashlib.md5(…)` / `hashlib.new("md5", …)` / a bare `md5(…)` for a
+   *security* use (no `usedforsecurity=False`) is a latent bomb (it raises under FIPS only when the
+   path executes); flagged at build time — automating the assessment record's F13. SHA-1 is approved
+   as a hash and is not flagged.
+3. **WASM-runtime tripwire** — WebAssembly crypto cannot execute without a host runtime, and in Python
+   that runtime is a package (`wasmtime`/`wasmer`/`pywasm`). Detecting the runtime (import or installed
+   dist) is the tripwire, exactly like the JVM's `libjvm.so` — the opaque `.wasm` module itself is not
+   parsed (it is frequently stripped; the runtime is the honest, cheap entry-point catch).
+
+AST (not grep) so a string literal like `"md5"` in a data table is never mistaken for a call. Test code
+and `tap.fips` itself are skipped — they legitimately execute MD5 as negative controls. The expanded
+`KNOWN_NONFIPS_DISTRIBUTIONS` denylist (ecdsa, rsa, python-jose, passlib, …) catches the same pure-Python
+crypto at the *installed-package* layer too, so a transitive pull is caught by name even when never
+directly imported. **Residuals (named):** a *novel* crypto module name absent from the registry, and
+crypto inside a third-party dependency's own source (not TAP/plugin source), remain the same
+fail-open-on-the-unknown edge the ELF signatures have.
 
 ## FIPS Requirement Map
 

@@ -23,6 +23,7 @@ so an empty scan (wrong root, unreadable files) fails loudly instead of reportin
 from __future__ import annotations
 
 import argparse
+import ast
 import fnmatch
 import importlib.metadata as importlib_metadata
 import json
@@ -39,7 +40,11 @@ from tap.crypto_providers import (
     JVM_RUNTIME_FILES,
     KNOWN_JVM_DISTRIBUTIONS,
     KNOWN_NONFIPS_DISTRIBUTIONS,
+    KNOWN_WASM_DISTRIBUTIONS,
+    NONVALIDATED_CRYPTO_IMPORTS,
     SIGNATURES,
+    WASM_RUNTIME_IMPORTS,
+    WEAK_DIGEST_CALLS,
     Boundary,
     Disposition,
     Waiver,
@@ -274,11 +279,152 @@ def _jvm_findings(roots: Iterable[Path], dist_names: Iterable[str]) -> list[Find
     return findings
 
 
+# Source files whose crypto references are intentional and must NOT be flagged: test code (which
+# exercises crypto, including MD5 negative controls) and the FIPS self-check itself (`tap/fips.py`
+# deliberately executes MD5 to prove it is refused).
+
+
+def _skip_source_file(path: Path) -> bool:
+    """A test file (basename `test_*.py` or inside a `tests/` package) or the FIPS self-check itself —
+    all of which legitimately reference/execute non-approved crypto. Basename-matched so an arbitrary
+    scratch/tmp directory that merely happens to be named `test_*` is not mistaken for test code."""
+    spath = str(path)
+    return path.name.startswith("test_") or "/tests/" in spath or spath.endswith("/tap/fips.py")
+
+
+def _classify_source_import(artifact: str, module_full: str) -> Finding | None:
+    """Classify one import: a WASM runtime, or a non-validated crypto module → a finding; else None.
+    `hashlib`/`hmac`/`secrets`/`ssl`/`cryptography`/`psycopg` are absent from the registry, so they
+    (correctly) yield no finding — they route through the system OpenSSL."""
+    top = module_full.split(".", 1)[0]
+    if top in WASM_RUNTIME_IMPORTS or module_full in WASM_RUNTIME_IMPORTS:
+        return Finding(
+            artifact,
+            "wasm-runtime",
+            Boundary.MUST_FIX,
+            f"imports a WASM runtime ({module_full}) — WASM crypto can execute here and the crypto-BOM "
+            "does not yet reason about it (jars/.wasm are opaque). Review + classify, or remove.",
+            "req-fips-crypto-bom-source",
+        )
+    note = NONVALIDATED_CRYPTO_IMPORTS.get(module_full) or NONVALIDATED_CRYPTO_IMPORTS.get(top)
+    if note is None:
+        return None
+    disp = _disposition_for(artifact, f"src:{top}")
+    if disp is None:
+        return Finding(
+            artifact,
+            f"src:{top}",
+            None,
+            f"imports non-validated crypto '{module_full}' — {note}. Route it through the system OpenSSL, "
+            "remove it, or (in a plugin) declare [fips] uses-nonvalidated with an operator waiver.",
+            None,
+        )
+    return Finding(artifact, f"src:{top}", disp.boundary, disp.rationale, disp.rid)
+
+
+def _weak_digest_finding(artifact: str, node: ast.Call) -> Finding | None:
+    """Flag a bare non-approved digest for a SECURITY use — `hashlib.md5(...)`, `hashlib.new("md5", ...)`,
+    or a bare `md5(...)` — without `usedforsecurity=False`. MD5-for-security hard-fails under FIPS at
+    runtime, so this is a latent bomb; the scan catches it at build time (automating F13). SHA-1 is
+    FIPS-approved as a hash and is NOT flagged."""
+    func = node.func
+    digest: str | None = None
+    if isinstance(func, ast.Attribute):
+        if func.attr in WEAK_DIGEST_CALLS:
+            digest = func.attr
+        elif (
+            func.attr == "new"
+            and node.args
+            and isinstance(node.args[0], ast.Constant)
+            and node.args[0].value in WEAK_DIGEST_CALLS
+        ):
+            digest = str(node.args[0].value)
+    elif isinstance(func, ast.Name) and func.id in WEAK_DIGEST_CALLS:
+        digest = func.id
+    if digest is None:
+        return None
+    for kw in node.keywords:
+        if kw.arg == "usedforsecurity" and isinstance(kw.value, ast.Constant) and kw.value.value is False:
+            return None  # the auditor-recognized non-security signal — permitted
+    return Finding(
+        f"{artifact}:{node.lineno}",
+        f"weak-digest-{digest}",
+        Boundary.MUST_FIX,
+        f"bare {digest.upper()} for a security use — refused under FIPS at runtime (a latent bomb). Use an "
+        "approved digest, or pass usedforsecurity=False if the use is genuinely non-security.",
+        "req-fips-crypto-bom-source",
+    )
+
+
+def _source_findings(roots: Iterable[Path]) -> list[Finding]:
+    """AST-scan `.py` source under roots for non-validated crypto imports, WASM-runtime imports, and
+    bare weak-digest usage — the Python analog of the ELF fingerprinter (req-fips-crypto-bom-source).
+    AST (not grep) so a string literal like `"md5"` in a data table is not mistaken for a call."""
+    findings: list[Finding] = []
+    seen: set[Path] = set()
+    for root in roots:
+        if not root.exists():
+            continue
+        files = (root,) if root.is_file() else root.rglob("*.py")
+        for path in files:
+            if path.suffix != ".py" or path in seen:
+                continue
+            seen.add(path)
+            if _skip_source_file(path):
+                continue
+            spath = str(path)
+            try:
+                tree = ast.parse(path.read_bytes())
+            except OSError, SyntaxError, ValueError:
+                continue  # unparseable (e.g. a py2 file); the ELF/dist layers still cover its package
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        f = _classify_source_import(f"{spath}:{node.lineno}", alias.name)
+                        if f is not None:
+                            findings.append(f)
+                elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+                    f = _classify_source_import(f"{spath}:{node.lineno}", node.module)
+                    if f is not None:
+                        findings.append(f)
+                elif isinstance(node, ast.Call):
+                    f = _weak_digest_finding(spath, node)
+                    if f is not None:
+                        findings.append(f)
+    return findings
+
+
+def _wasm_dist_findings(dist_names: Iterable[str]) -> list[Finding]:
+    """A WASM-runtime distribution is installed → the same tripwire as an imported runtime."""
+    findings: list[Finding] = []
+    for raw in dist_names:
+        dist = raw.lower().replace("_", "-")
+        if dist in KNOWN_WASM_DISTRIBUTIONS:
+            findings.append(
+                Finding(
+                    f"dist:{dist}",
+                    "wasm-runtime",
+                    Boundary.MUST_FIX,
+                    f"a WASM runtime distribution ({dist}) is installed — WASM crypto can execute here and "
+                    "the crypto-BOM does not yet reason about it. Review + classify.",
+                    "req-fips-crypto-bom-source",
+                )
+            )
+    return findings
+
+
+def _plugin_source_roots() -> tuple[Path, ...]:
+    """The installed plugin namespace packages (`.venv/**/site-packages/tap_plugin/…`) — where a
+    git-sourced plugin's Python source lives, for the source scan."""
+    return tuple((_VENV_ROOT / "lib").glob("python*/site-packages/tap_plugin"))
+
+
 def scan(
     native_roots: Iterable[Path],
     dist_names: Iterable[str] = (),
     libcrypto_roots: Iterable[Path] = (),
     jvm_roots: Iterable[Path] = (),
+    source_roots: Iterable[Path] = (),
 ) -> Report:
     """Scan the given roots and distributions, returning a Report. This is the reusable core — the
     same call scans core's environment or a single plugin's closure, only the roots differ."""
@@ -296,18 +442,23 @@ def scan(
     report.findings.extend(_libcrypto_findings(libcrypto_roots))
     report.findings.extend(_distribution_findings(dist_names))
     report.findings.extend(_jvm_findings(jvm_roots, dist_names))
+    report.findings.extend(_source_findings(source_roots))
+    report.findings.extend(_wasm_dist_findings(dist_names))
     return report
 
 
 def core_report() -> Report:
     """Scan the core web-container environment: the venv's native extensions, the image binaries TAP
-    ships/execs, and the libcrypto search paths. Under `test_all` the venv is the full plugin union."""
+    ships/execs, the libcrypto search paths, and TAP + plugin Python SOURCE (imports / weak digests /
+    WASM runtimes). Under `test_all` the venv is the full plugin union."""
     dist_names = [d.metadata["Name"] for d in importlib_metadata.distributions() if d.metadata["Name"]]
+    core_src = tuple(p for p in Path("/app").glob("tap*") if p.is_dir())
     return scan(
         native_roots=(_VENV_ROOT, *_BINARY_ROOTS),
         dist_names=dist_names,
         libcrypto_roots=_LIBCRYPTO_ROOTS,
         jvm_roots=(_VENV_ROOT, *_BINARY_ROOTS, *_LIBCRYPTO_ROOTS),
+        source_roots=(*core_src, *_plugin_source_roots()),
     )
 
 
@@ -366,9 +517,12 @@ def scan_plugin(plugin_root: Path, dist_names: Iterable[str] = ()) -> Report:
     """Scan a SINGLE plugin's shipped artifacts (native files + jars under its root) and declared
     distributions — the per-plugin conformance surface. A plugin is usually pure Python, so this
     catches the cases that matter: a plugin bundling a native `.so`/binary with non-validated crypto,
-    a JVM artifact, or a declared dependency known to carry non-FIPS crypto (`req-fips-crypto-bom`)."""
+    a JVM artifact, a declared dependency known to carry non-FIPS crypto, or its own Python source
+    importing pure-Python crypto / using a bare weak digest / pulling a WASM runtime (`req-fips-crypto-bom`)."""
     root = Path(plugin_root)
-    return scan(native_roots=(root,), dist_names=dist_names, libcrypto_roots=(root,), jvm_roots=(root,))
+    return scan(
+        native_roots=(root,), dist_names=dist_names, libcrypto_roots=(root,), jvm_roots=(root,), source_roots=(root,)
+    )
 
 
 def _fips_mode_on() -> bool:

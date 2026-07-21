@@ -219,7 +219,55 @@ KNOWN_NONFIPS_DISTRIBUTIONS: frozenset[str] = frozenset(
         "ed25519",  # pure-python / ref10
         "nacl",
         "cryptg",
+        # Pure-Python crypto that the ELF fingerprinter cannot see — no native extension to scan
+        # (req-fips-crypto-bom-source). Caught here by installed-DIST name (direct or transitive).
+        "ecdsa",  # pure-Python ECDSA (python-jose's default backend)
+        "rsa",  # pure-Python RSA
+        "python-jose",  # may use the pure-Python ecdsa/rsa backends
+        "passlib",  # pure-Python password-hashing schemes
+        "argon2-cffi",  # Argon2 — not a FIPS-approved algorithm
+        "blake3",  # BLAKE3 — not FIPS-approved
     }
+)
+
+
+# --- Source-level crypto detection (req-fips-crypto-bom-source) --------------------------------------
+# The ELF fingerprinter sees NATIVE crypto; the dist-name check sees KNOWN installed packages. Neither
+# sees crypto that is PURE-PYTHON and vendored/renamed, nor a weak primitive USED in our own source.
+# These drive the AST source scan (tap.crypto_bom.scan_source): the Python analog of the ELF signatures.
+
+#: Top-level import module names that mean NON-VALIDATED crypto MAY execute. `hashlib`/`hmac`/`secrets`/
+#: `ssl`/`cryptography`/`psycopg` are deliberately absent — they route through the system OpenSSL
+#: (#4282) or are stdlib-OpenSSL-backed, so importing them is fine. Importing one of these is a finding
+#: that must be dispositioned or removed. (Same fail-open-on-a-novel-NAME residual as the ELF signatures.)
+NONVALIDATED_CRYPTO_IMPORTS: dict[str, str] = {
+    "ecdsa": "pure-Python ECDSA — not the validated module",
+    "rsa": "pure-Python RSA — not the validated module",
+    "nacl": "PyNaCl / libsodium — not FIPS",
+    "Crypto": "pycryptodome — its own primitives, not FIPS",
+    "Cryptodome": "pycryptodomex — its own primitives, not FIPS",
+    "jose": "python-jose — may use pure-Python ecdsa/rsa backends, not FIPS",
+    "passlib": "passlib — pure-Python password schemes, not FIPS",
+    "bcrypt": "bcrypt — its own blowfish, not FIPS",
+    "argon2": "argon2 — not a FIPS-approved algorithm",
+    "blake3": "blake3 — not FIPS-approved",
+    "nacl.signing": "PyNaCl signing — not FIPS",
+}
+
+#: A bare non-approved digest used for SECURITY (default `usedforsecurity=True`) is a latent runtime
+#: bomb under FIPS — it raises only when the path executes. The source scan flags it at build time
+#: (automating the assessment record's F13). MD5 is the one that hard-fails; SHA-1 is FIPS-approved as
+#: a hash, so it is NOT flagged. `usedforsecurity=False` (the auditor-recognized non-security signal)
+#: is exempt.
+WEAK_DIGEST_CALLS: frozenset[str] = frozenset({"md5"})
+
+# --- WASM-runtime tripwire (req-fips-crypto-bom-source) ---------------------------------------------
+# WebAssembly crypto cannot execute without a host runtime, and in Python that runtime is a package —
+# which is native + named, so the runtime is the tripwire (like the JVM's libjvm.so), not the opaque
+# `.wasm` module. Detecting the runtime forces the "we don't yet reason about WASM crypto" review.
+WASM_RUNTIME_IMPORTS: frozenset[str] = frozenset({"wasmtime", "wasmer", "wasmer_compiler_cranelift", "pywasm", "wasm3"})
+KNOWN_WASM_DISTRIBUTIONS: frozenset[str] = frozenset(
+    {"wasmtime", "wasmer", "wasmer-compiler-cranelift", "pywasm", "wasm3"}
 )
 
 

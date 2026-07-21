@@ -199,3 +199,77 @@ def test_system_fips_gate_passes_with_operator_waiver(monkeypatch) -> None:
     )
     code, report = crypto_bom.system_fips_gate("core_dev")
     assert code == 0 and report.failures == [] and report.findings[0].waived
+
+
+# ---------------------------------------------------------------------------- source-level scan (req-fips-crypto-bom-source)
+def _pyfile(tmp_path, name: str, body: str):
+    p = tmp_path / name
+    p.write_text(body, encoding="utf-8")
+    return p
+
+
+def test_source_scan_flags_pure_python_crypto_imports(tmp_path) -> None:
+    _pyfile(tmp_path, "a.py", "import ecdsa\nimport rsa\nfrom nacl import signing\nfrom Crypto.Cipher import AES\n")
+    findings = crypto_bom._source_findings([tmp_path])
+    providers = {f.provider for f in findings}
+    assert {"src:ecdsa", "src:rsa", "src:nacl", "src:Crypto"} <= providers
+    assert all(f.is_failure for f in findings)  # undispositioned → failures
+
+
+def test_source_scan_ignores_validated_imports(tmp_path) -> None:
+    _pyfile(
+        tmp_path,
+        "ok.py",
+        "import hashlib\nimport hmac\nimport ssl\nfrom cryptography.hazmat.primitives import hashes\nimport psycopg\n",
+    )
+    assert crypto_bom._source_findings([tmp_path]) == []
+
+
+def test_source_scan_string_literal_is_not_a_call(tmp_path) -> None:
+    # AST precision: "md5"/"ecdsa" as data must NOT be mistaken for a call/import.
+    _pyfile(tmp_path, "data.py", 'WEAK = {"md5"}\nNAMES = ["ecdsa", "rsa"]\n')
+    assert crypto_bom._source_findings([tmp_path]) == []
+
+
+def test_source_scan_flags_wasm_runtime_import(tmp_path) -> None:
+    _pyfile(tmp_path, "w.py", "import wasmtime\n")
+    findings = crypto_bom._source_findings([tmp_path])
+    assert len(findings) == 1 and findings[0].provider == "wasm-runtime" and findings[0].is_failure
+
+
+@pytest.mark.parametrize(
+    ("body", "flagged"),
+    [
+        ("import hashlib\nhashlib.md5(b'x')\n", True),  # bare md5 for security
+        ("import hashlib\nhashlib.md5(b'x', usedforsecurity=False)\n", False),  # exempt
+        ("import hashlib\nhashlib.new('md5', b'x')\n", True),  # via new()
+        ("from hashlib import md5\nmd5(b'x')\n", True),  # bare name
+        ("import hashlib\nhashlib.sha256(b'x')\n", False),  # approved
+        ("import hashlib\nhashlib.sha1(b'x')\n", False),  # SHA-1 approved as a hash
+    ],
+)
+def test_source_scan_weak_digest(tmp_path, body: str, flagged: bool) -> None:
+    _pyfile(tmp_path, "d.py", body)
+    findings = [f for f in crypto_bom._source_findings([tmp_path]) if "digest" in f.provider]
+    assert bool(findings) is flagged
+
+
+def test_source_scan_skips_tests_and_fips_selfcheck(tmp_path) -> None:
+    # The FIPS self-check and test code intentionally execute MD5 — must not be flagged.
+    (tmp_path / "tests").mkdir()
+    _pyfile(tmp_path / "tests", "test_x.py", "import hashlib\nhashlib.md5(b'x')\nimport ecdsa\n")
+    tapdir = tmp_path / "tap"
+    tapdir.mkdir()
+    _pyfile(tapdir, "fips.py", "import _hashlib\n_hashlib.new('md5', b'x')\n")
+    assert crypto_bom._source_findings([tmp_path]) == []
+
+
+def test_wasm_distribution_is_a_tripwire() -> None:
+    findings = crypto_bom._wasm_dist_findings(["Wasmtime", "django"])
+    assert len(findings) == 1 and findings[0].provider == "wasm-runtime" and findings[0].is_failure
+
+
+def test_pure_python_crypto_distributions_flagged_by_name() -> None:
+    for dist in ("ecdsa", "rsa", "python-jose", "passlib"):
+        findings = crypto_bom._distribution_findings([dist])
+        assert len(findings) == 1 and findings[0].is_failure, dist
