@@ -8,6 +8,13 @@ description = "Neutral core-test node + edge vocabulary — query-pattern nodes 
 # refuses this plugin against a core below the floor. First TAP-owned dogfood declaration.
 requires_tap = ">=0.1"
 
+# FIPS crypto posture (req-plugin-manifest-v0-fips): a factual declaration the crypto-BOM conformance
+# scan verifies. grid_fixtures is pure-Python test vocabulary with no crypto, so it claims
+# compatibility with a FIPS deployment; conformance FAILS this declaration if a scan ever finds a
+# non-validated provider it ships or pulls. The first TAP-owned dogfood declaration.
+[fips]
+status = "compatible"
+
 [models]
 # Query-pattern nodes (unconstrained, full scalar surface) — Gryphon executor testing.
 grid_fixtures__node = "tap_plugin.grid_fixtures.models.pg_node.PgNode"

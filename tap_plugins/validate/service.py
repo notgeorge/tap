@@ -255,7 +255,7 @@ def _run_structure_checks(plugin_root: Path, result: ValidationResult) -> Any:
         _check_identity_coherence(plugin_root, package_root, manifest, result)
         _check_declared_dependencies(package_root, manifest, result)
         _check_requires_tap(manifest, result)
-        _check_crypto_providers(plugin_root, result)
+        _check_crypto_providers(plugin_root, manifest, result)
     return manifest
 
 
@@ -284,36 +284,61 @@ def _declared_dependency_names(plugin_root: Path) -> list[str]:
     return names
 
 
-def _check_crypto_providers(plugin_root: Path, result: ValidationResult) -> None:
-    """Per-plugin crypto Bill-of-Materials (req-cicd-crypto-bom): does this plugin ship or pull a
-    NON-FIPS-validated crypto provider? A plugin runs in the same image/process as core, so a plugin
-    leaking non-validated crypto defeats a FIPS-capable core. This REPORTS the plugin's posture (a
-    warning, not a hard fail: a plugin may legitimately use non-FIPS crypto in a non-FIPS deployment).
-    Whether that is *acceptable* is the OPERATOR's decision, enforced at boot by the system FIPS gate,
-    which requires a justified `fips_waivers` entry for any non-validated provider under TAP_FIPS_MODE=1
-    — a plugin cannot excuse itself. Under `--strict` (conformance CI) the warning becomes a failure."""
+def _check_crypto_providers(plugin_root: Path, manifest: Any, result: ValidationResult) -> None:
+    """Per-plugin crypto Bill-of-Materials + declaration check (req-cicd-crypto-bom): does this plugin
+    ship or pull a NON-FIPS-validated crypto provider, and does its declared `[fips]` posture match?
+
+    A plugin runs in the same image/process as core, so a plugin leaking non-validated crypto defeats
+    a FIPS-capable core. This is the "declare" half of declare-vs-decide: the author DECLARES posture
+    in `[fips]`, and this VERIFIES it against the scan (the author cannot excuse the plugin — only the
+    operator waives, via the boot profile's `fips_waivers`, enforced by the boot-time system gate):
+
+    - declared `compatible` but the scan finds non-validated crypto → FAIL (the declaration is false);
+    - declared `uses-nonvalidated` (+ a reason) → PASS (honest); a FIPS deployment still needs a waiver;
+    - UNDECLARED but the scan finds non-validated crypto → WARN (declare it); `--strict` → fail.
+    """
     from tap import crypto_bom
-    from tap.crypto_providers import Boundary
 
     check = CheckResult(id="crypto-providers", name="Crypto providers are FIPS-validated")
     report = crypto_bom.scan_plugin(plugin_root, dist_names=_declared_dependency_names(plugin_root))
+    declaration = getattr(manifest, "fips", None)
+    status = declaration.status if declaration is not None else None
+    declared_reason = declaration.reason if declaration is not None else None
+    nonvalidated = [f for f in report.findings if f.is_failure]
 
-    if not report.findings:
-        check.info("No crypto providers detected (pure-Python; no bundled native crypto or crypto-bearing deps).")
+    # Informational: every non-failing finding (validated / out-of-boundary / unreached).
     for finding in report.findings:
-        if finding.is_failure:
-            check.warn(
-                f"non-validated crypto provider '{finding.provider}' ({finding.artifact}): {finding.detail}. "
-                "A FIPS-mode deployment must build this against the system OpenSSL / swap to an "
-                "ecosystem-validated module, or the operator must add a justified 'fips_waivers' entry.",
-                path=finding.artifact,
+        if not finding.is_failure:
+            label = finding.boundary.value if finding.boundary else "noted"
+            check.info(f"{label}: {finding.provider} ({finding.artifact})")
+
+    if nonvalidated:
+        providers = sorted({f.provider for f in nonvalidated})
+        if status == "compatible":
+            check.fail(
+                f"[fips] status='compatible' is FALSE — this plugin ships/pulls non-validated crypto provider(s) "
+                f"{providers}. Build them against the system OpenSSL / swap to an ecosystem-validated module, or "
+                f"change the declaration to status='uses-nonvalidated' with a reason."
             )
-        elif finding.boundary is Boundary.VALIDATED:
-            check.info(f"validated: {finding.provider} ({finding.artifact})")
-        else:
+        elif status == "uses-nonvalidated":
             check.info(
-                f"{finding.boundary.value if finding.boundary else 'noted'}: {finding.provider} ({finding.artifact})"
+                f"[fips] status='uses-nonvalidated' (reason: {declared_reason}) — acknowledged non-validated "
+                f"provider(s) {providers}. Honest; a FIPS-mode deployment still needs a justified 'fips_waivers' entry."
             )
+        else:
+            for finding in nonvalidated:
+                check.warn(
+                    f"undeclared non-validated crypto provider '{finding.provider}' ({finding.artifact}): "
+                    f"{finding.detail}. Declare it in a [fips] table (status='uses-nonvalidated' + reason) or make "
+                    f"it FIPS-validated; a FIPS-mode deployment refuses it without an operator waiver.",
+                    path=finding.artifact,
+                )
+    elif status == "compatible":
+        check.info("[fips] status='compatible' — verified: no non-validated crypto provider detected.")
+    elif status == "uses-nonvalidated":
+        check.info("[fips] status='uses-nonvalidated' declared, but no non-validated provider detected (conservative).")
+    elif not report.findings:
+        check.info("No crypto providers detected (pure-Python; no bundled native crypto or crypto-bearing deps).")
 
     result.checks.append(check)
 
