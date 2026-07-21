@@ -21,10 +21,10 @@
         "source": {
           "type": "git",
           "url": "https://github.com/notgeorge/tap-plugin-computing-core",
-          "rev": "v0.2.0",
+          "rev": "v0.3.0",
           "credential": "github-plugins-ro"
         },
-        "note": "Package-mode (tap_plugin.computing_core). Vendor-neutral computing-primitive dimension; seeded in population. Git-sourced from its own repo at v0.2.0 via the github-plugins-ro PAT."
+        "note": "Package-mode (tap_plugin.computing_core). Vendor-neutral computing-primitive dimension; seeded in population. Git-sourced from its own repo at v0.3.0 via the github-plugins-ro PAT."
       },
       {
         "slug": "roscale",
@@ -54,10 +54,10 @@
         "source": {
           "type": "git",
           "url": "https://github.com/notgeorge/tap-plugin-aws-core",
-          "rev": "v0.2.0",
+          "rev": "v0.3.0",
           "credential": "github-plugins-ro"
         },
-        "note": "Package-mode (tap_plugin.aws_core). Tier-0 boto3 dep. AWS dimension + region reference data; seeded + fired in population. Git-sourced from its own repo at v0.2.0 via the github-plugins-ro PAT."
+        "note": "Package-mode (tap_plugin.aws_core). Tier-0 boto3 dep. AWS dimension + region reference data; seeded + fired in population. Git-sourced from its own repo at v0.3.0 via the github-plugins-ro PAT."
       },
       {
         "slug": "sigstore_core",
@@ -65,10 +65,10 @@
         "source": {
           "type": "git",
           "url": "https://github.com/notgeorge/tap-plugin-sigstore-core",
-          "rev": "v0.2.0",
+          "rev": "v0.3.0",
           "credential": "github-plugins-ro"
         },
-        "note": "Package-mode (tap_plugin.sigstore_core). Tier-0 sigstore dep. Install-only library: samsite compliance_collector consumes its verify/decompose helpers + models; IDENTITY_VOUCHED_BY targets identity_core__oidc_issuer. Git-sourced from its own repo at v0.2.0 via the github-plugins-ro PAT."
+        "note": "Package-mode (tap_plugin.sigstore_core). Tier-0 sigstore dep. Install-only library: samsite compliance_collector consumes its verify/decompose helpers + models; IDENTITY_VOUCHED_BY targets identity_core__oidc_issuer. Git-sourced from its own repo at v0.3.0 via the github-plugins-ro PAT."
       },
       {
         "slug": "github_core",
@@ -76,10 +76,10 @@
         "source": {
           "type": "git",
           "url": "https://github.com/notgeorge/tap-plugin-github-core",
-          "rev": "v0.2.0",
+          "rev": "v0.3.0",
           "credential": "github-plugins-ro"
         },
-        "note": "Package-mode (tap_plugin.github_core). Tier-0 PyYAML dep. AWS/GitHub Actions plumbing + the github collector; mints the oidc_issuer via identity_core and emits TRUSTS_ISSUER. Git-sourced from its own repo at v0.2.0 via the github-plugins-ro PAT."
+        "note": "Package-mode (tap_plugin.github_core). Tier-0 PyYAML dep. AWS/GitHub Actions plumbing + the github collector; mints the oidc_issuer via identity_core and emits TRUSTS_ISSUER. Git-sourced from its own repo at v0.3.0 via the github-plugins-ro PAT."
       },
       {
         "slug": "compliance_core",
@@ -87,10 +87,10 @@
         "source": {
           "type": "git",
           "url": "https://github.com/notgeorge/tap-plugin-compliance-core",
-          "rev": "v0.1.0",
+          "rev": "v0.2.0",
           "credential": "github-plugins-ro"
         },
-        "note": "Package-mode (tap_plugin.compliance_core). Install-only substrate: regime-agnostic compliance vocabulary (artifact/context/evidence/finding/exception/boundary). samsite's compliance_collector creates compliance_core__compliance_artifact nodes; fedramp_20x_ksi depends on it. No GRIFT population seed. Git-sourced from its own repo at v0.1.0 via the github-plugins-ro PAT."
+        "note": "Package-mode (tap_plugin.compliance_core). Install-only substrate: regime-agnostic compliance vocabulary (artifact/context/evidence/finding/exception/boundary). samsite's compliance_collector creates compliance_core__compliance_artifact nodes; fedramp_20x_ksi depends on it. No GRIFT population seed. Git-sourced from its own repo at v0.2.0 via the github-plugins-ro PAT."
       },
       {
         "slug": "fedramp_20x_ksi",
@@ -98,10 +98,10 @@
         "source": {
           "type": "git",
           "url": "https://github.com/notgeorge/tap-plugin-fedramp-20x-ksi",
-          "rev": "v0.2.0",
+          "rev": "v0.3.0",
           "credential": "github-plugins-ro"
         },
-        "note": "Package-mode (tap_plugin.fedramp_20x_ksi). FedRAMP 20x KSI dimension, catalog seed, compliance/profile pages, schedule; seeded + catalog fired in population. Depends on compliance_core. Git-sourced from its own repo at v0.2.0 via the github-plugins-ro PAT."
+        "note": "Package-mode (tap_plugin.fedramp_20x_ksi). FedRAMP 20x KSI dimension, catalog seed, compliance/profile pages, schedule; seeded + catalog fired in population. Depends on compliance_core. Git-sourced from its own repo at v0.3.0 via the github-plugins-ro PAT."
       },
       {
         "slug": "samsite",
@@ -120,7 +120,7 @@
         "source": {
           "type": "git",
           "url": "https://github.com/notgeorge/tap-plugin-grid-fixtures",
-          "rev": "v0.1.1",
+          "rev": "v0.2.0",
           "credential": "github-plugins-ro"
         },
         "note": "Package-mode (tap_plugin.grid_fixtures). Install-only: the neutral grid_fixtures__* node/edge vocabulary the core suites build fixtures from. No GRIFT seed, no cross-plugin deps. (gryphon_playground, which depends_on it, is NOT installed in this customer-demo profile \u2014 the Gryphon test corpus stands up via its own in-package boot records selected by a bootstrap pointer.)"

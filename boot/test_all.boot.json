@@ -21,7 +21,7 @@
         "source": {
           "type": "git",
           "url": "https://github.com/notgeorge/tap-plugin-computing-core",
-          "rev": "v0.2.0",
+          "rev": "v0.3.0",
           "credential": "github-plugins-ro"
         },
         "note": "Package-mode (tap_plugin.computing_core). Vendor-neutral computing-primitive dimension; seeded in population."
@@ -54,7 +54,7 @@
         "source": {
           "type": "git",
           "url": "https://github.com/notgeorge/tap-plugin-aws-core",
-          "rev": "v0.2.0",
+          "rev": "v0.3.0",
           "credential": "github-plugins-ro"
         },
         "note": "Package-mode (tap_plugin.aws_core). Tier-0 boto3 dep (uv resolves at install). AWS dimension + region reference data; seeded in population (its collector is NOT fired in base)."
@@ -65,7 +65,7 @@
         "source": {
           "type": "git",
           "url": "https://github.com/notgeorge/tap-plugin-sigstore-core",
-          "rev": "v0.2.0",
+          "rev": "v0.3.0",
           "credential": "github-plugins-ro"
         },
         "note": "Package-mode (tap_plugin.sigstore_core). Tier-0 sigstore dep. Install-only library plugin: samsite's compliance_collector imports its verify/decompose helpers + models at ready(); no grift seed of its own \u2014 must be installed."
@@ -76,7 +76,7 @@
         "source": {
           "type": "git",
           "url": "https://github.com/notgeorge/tap-plugin-github-core",
-          "rev": "v0.2.0",
+          "rev": "v0.3.0",
           "credential": "github-plugins-ro"
         },
         "note": "Package-mode (tap_plugin.github_core). Tier-0 PyYAML dep (uv resolves at install). GitHub repo landing page; seeded in population."
@@ -87,7 +87,7 @@
         "source": {
           "type": "git",
           "url": "https://github.com/notgeorge/tap-plugin-compliance-core",
-          "rev": "v0.1.0",
+          "rev": "v0.2.0",
           "credential": "github-plugins-ro"
         },
         "note": "Package-mode (tap_plugin.compliance_core). Install-only substrate: regime-agnostic compliance vocabulary (compliance_artifact + compliance_context in Phase A). fedramp_20x_ksi + samsite depend_on it \u2014 listed before them so its types register first. No GRIFT population seed of its own."
@@ -98,7 +98,7 @@
         "source": {
           "type": "git",
           "url": "https://github.com/notgeorge/tap-plugin-fedramp-20x-ksi",
-          "rev": "v0.2.0",
+          "rev": "v0.3.0",
           "credential": "github-plugins-ro"
         },
         "note": "Package-mode (tap_plugin.fedramp_20x_ksi). FedRAMP 20x KSI dimension + catalog/compliance pages; seeded in population (catalog collector NOT fired in base)."
@@ -120,7 +120,7 @@
         "source": {
           "type": "git",
           "url": "https://github.com/notgeorge/tap-plugin-grid-fixtures",
-          "rev": "v0.1.1",
+          "rev": "v0.2.0",
           "credential": "github-plugins-ro"
         },
         "note": "Package-mode (tap_plugin.grid_fixtures). Install-only: the neutral grid_fixtures__* node/edge vocabulary the core suites + the Gryphon playground build fixtures from (the load-bearing test-fixture role lotr also fills). No GRIFT population seed, so not a population step \u2014 just installed + reconciled. No cross-plugin deps. Listed before gryphon_playground, which depends_on it."
@@ -131,7 +131,7 @@
         "source": {
           "type": "git",
           "url": "https://github.com/notgeorge/tap-plugin-gryphon-playground",
-          "rev": "v0.1.0",
+          "rev": "v0.2.0",
           "credential": "github-plugins-ro"
         },
         "note": "Package-mode (tap_plugin.gryphon_playground). Install-only: the Gridkin scenario corpus + harness that exercise the Gryphon query language. Owns NO node/edge types of its own \u2014 its corpus references the grid_fixtures__* vocabulary by string, so it depends_on grid_fixtures (installed before it). Carries NO GRIFT population seed, so it is not a population step \u2014 just installed + reconciled."
