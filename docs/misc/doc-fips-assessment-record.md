@@ -564,9 +564,23 @@ so the outgoing cluster is **labelled `en_US.utf8` but sorts like `C`**. Measure
 | Wolfi (glibc) `--locale=en_US.utf8` | `en_US.utf8` | `a  A  _b  b  B`  ← **different!** |
 
 **Carrying the locale *label* across would silently change text sort order and text-index ordering.**
-The correct move is `initdb --locale=C`, which reproduces the outgoing cluster's *actual* behaviour and
-is additionally immune to the classic "a glibc upgrade invalidates your text indexes" hazard. Locked in
-as PROOF 3 of the spike, which fails the build on ordering drift.
+The correct move is `initdb --encoding=UTF8 --locale=C`, which reproduces the outgoing cluster's *actual*
+behaviour and is additionally immune to the classic "a glibc upgrade invalidates your text indexes"
+hazard. The `--locale=C` part was locked in as PROOF 3 of the spike (which fails the build on ordering
+drift).
+
+**⚠️ `--encoding=UTF8` is REQUIRED, and the spike missed it (productionization, 2026-07-21).** PROOF 3
+only ran `ORDER BY` over ASCII letters — it never stored a UTF-8 value into a `varchar`. But
+`initdb --locale=C` with **no explicit `--encoding` silently defaults to `SQL_ASCII`** (the C locale
+implies no codeset), and under `SQL_ASCII` `varchar(n)` counts **bytes, not characters**, so any
+multibyte UTF-8 value overflows. The outgoing `postgres:16-alpine` cluster was **UTF8**. Symptom when
+the web image cut over first: ~half the test suite errored with
+`DataError: value too long for type character varying(255)` on UTF-8 fixtures, while migrate (ASCII-only
+at that point) passed — masking it. Fix: pin `--encoding=UTF8` explicitly *with* `--locale=C`, giving
+UTF8 storage (matches the outgoing cluster) and C collation (matches musl's sort). Verified:
+`server_encoding=UTF8`, `datcollate=C`, sort `A B _b a b`, full lane green. **Generalized lesson:** when
+you change a locale to fix *collation*, you have also changed the *default encoding* — pin the encoding
+explicitly, and test with real multibyte data, not just an ASCII `ORDER BY`.
 
 Two consequences for the cutover:
 
@@ -714,11 +728,19 @@ module is rebuilt. Fits the build-stage model; noted so nobody "optimizes" it in
 - ✅ OIDC crypto-error rescue built (`tap.crypto_errors` + middleware 502, §5.3;
   `req-tap-auth-google-oidc-fips-algorithm`).
 
+**Postgres image: DONE (2026-07-21).** `docker/postgres/Dockerfile` — minimal `wolfi-base` +
+`postgresql-16` (16.14) + `postgresql-16-oci-entrypoint` (the canonical docker-library entrypoint) +
+`gosu` + the same FIPS builder/config recipe (D10). `docker-compose.yml` builds it with the `TAP_FIPS`
+arg. Validated: `fipsinstall` self-tests pass; `server_encoding=UTF8`, `datcollate=C` (initdb
+`--encoding=UTF8 --locale=C` — UTF8 is **required**, see §5.4); sort parity `A B _b a b`; `SELECT md5()`
+refused; `password_encryption=scram-sha-256`; `gen_random_uuid()`/`sha256()` OK; the web container
+connects via `psycopg[c]` under **double-FIPS** SCRAM; full lane green. The data volume was recreated
+(`dc down -v`) because `datcollate` is baked at initdb.
+
 Still outstanding:
 
-- **Postgres image** → minimal Wolfi + FIPS + `initdb --locale=C` + volume recreate (§5.4) — the next
-  cutover stage (this doc's D10; the DB container is still `postgres:16-alpine` at web-image cutover).
-- **CI gating of both variants** (D13) — build + gate `TAP_FIPS=1` and `=0` so the escape hatch cannot rot.
+- **CI gating of both variants** (D13) — build + gate `TAP_FIPS=1` and `=0` (web + DB) so the escape
+  hatch cannot rot.
 
 ## 8. The assessment methodology (reusable)
 

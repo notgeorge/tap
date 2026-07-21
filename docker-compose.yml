@@ -6,10 +6,20 @@ services:
   # PostgreSQL Database
   # ============================================================================
   db:
-    # Official PostgreSQL 16 (Alpine variant), via AWS's credential-free public ECR mirror
-    # of Docker Official Images — not docker.io — to avoid Docker Hub's anonymous per-IP
-    # pull rate limit (429) on shared CI runners (req-cicd-base-image-sourcing).
-    image: public.ecr.aws/docker/library/postgres:16-alpine
+    # Minimal Wolfi + PostgreSQL 16.14 + the self-built OpenSSL 3.0.9 FIPS provider
+    # (req-cicd-base-image-lifecycle-3/-5/-6), replacing the outgoing postgres:16-alpine.
+    # A drop-in via postgresql-16-oci-entrypoint (same POSTGRES_* contract) at the exact same
+    # 16.14. TAP_FIPS selects the FIPS variant (default 1; TAP_FIPS=0 escape hatch), mirroring
+    # the web image. See docker/postgres/Dockerfile.
+    # ⚠️ The cluster is initdb'd with --locale=C (baked in the image) to reproduce the outgoing
+    # musl cluster's actual C sort order on glibc Wolfi and dodge glibc-upgrade index
+    # invalidation (doc-fips-assessment-record.md §5.4). datcollate is baked at initdb, so the
+    # data volume MUST be recreated on cutover (dev: `scripts/dc down -v`).
+    build:
+      context: .
+      dockerfile: docker/postgres/Dockerfile
+      args:
+        TAP_FIPS: "${TAP_FIPS:-1}"
 
     # Raise the lock table for parallel test runs. Each pytest-xdist worker's
     # transaction=True flush TRUNCATEs the full table set (~247 tables → one
