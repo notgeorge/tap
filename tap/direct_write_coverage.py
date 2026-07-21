@@ -35,10 +35,19 @@ resort, a line in `tap/guards/baselines/direct_write.txt` (ratchets to zero).
 from __future__ import annotations
 
 import ast
+import io
+import tokenize
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from tap.source_scan import ScopeStackVisitor, iter_parsed_sources, semantic_hash
+from tap.source_scan import (
+    CallSite,
+    ImportBindings,
+    ScopeStackVisitor,
+    build_import_bindings,
+    iter_parsed_sources,
+    semantic_hash,
+)
 
 # Manager writes: `<Model>.objects.<method>(...)`.
 _MANAGER_WRITES: frozenset[str] = frozenset(
@@ -60,6 +69,67 @@ _SANCTIONED_SUFFIXES: tuple[str, ...] = (
 _EXEMPT_TOKEN = "TAP-WRITE-COV"
 
 
+def _under(origin: str, root: str) -> bool:
+    """True if dotted ``origin`` is the app ``root`` itself or lives beneath it."""
+    return origin == root or origin.startswith(root + ".")
+
+
+@dataclass(frozen=True)
+class CollisionResolution:
+    """For a class name borne by BOTH a graph-managed and a non-managed model, the
+    app/package roots (`Model._meta.app_config.name`) that tell the two apart."""
+
+    managed_roots: frozenset[str]
+    nonmanaged_roots: frozenset[str]
+
+
+@dataclass(frozen=True)
+class ManagedModelIndex:
+    """What the scanner needs to answer "does this write target a graph-managed model?".
+
+    ``names`` is the fast candidate set — every graph-managed class name (`BaseModel`
+    subclasses + ``Entity``), enumerated by the caller from the model registry (a
+    purely-syntactic tool cannot know which models are graph-managed). A bare-name
+    match against it *finds* a candidate write.
+
+    ``collisions`` carries the rare name (``User`` today) that a NON-managed model
+    *also* bears, with the app-root prefixes that resolve the ambiguity through the
+    file's imports (`req-tap-auth-policy-9-name-resolution`). Before this, matching by
+    bare name flagged every ``User.objects.*`` write on the *non-managed* `tap_auth`
+    ``User`` as if it were the graph model — a false positive whose only "coverage" of
+    the flagged line was the name collision itself. A name absent from ``collisions``
+    is unambiguous: the bare-name match is correct by construction and no resolution
+    runs (zero behaviour change on the ~99% non-colliding path).
+    """
+
+    names: frozenset[str]
+    collisions: dict[str, CollisionResolution]
+
+    def is_managed(self, name: str, ref: ast.expr, bindings: ImportBindings) -> bool:
+        """Does a write on ``name`` (referenced by node ``ref``) target a graph model?
+
+        Unambiguous name → ``True`` (it named a managed model, by construction). A
+        collision name is resolved through the file's imports: the *only* case that
+        returns ``False`` is an origin that resolves cleanly under a non-managed owner
+        and not under a managed one. An origin under a managed owner, or one that
+        cannot be resolved at all (star/relative import, locally shadowed, dotted via
+        an unimported root), returns ``True`` — the scanner fails *toward* flagging, so
+        a genuine graph write is never dropped by a resolution gap
+        (`req-tap-auth-policy-9-name-resolution`).
+        """
+        res = self.collisions.get(name)
+        if res is None:
+            return True
+        origin = bindings.resolve(ref)
+        if origin is None:
+            return True  # unresolved → fail-closed (keep the conservative bare-name match)
+        if any(_under(origin, r) for r in res.nonmanaged_roots) and not any(
+            _under(origin, r) for r in res.managed_roots
+        ):
+            return False
+        return True
+
+
 @dataclass(frozen=True)
 class DirectWriteSite:
     """One class-level direct-write call site on a TAP-managed model.
@@ -74,6 +144,10 @@ class DirectWriteSite:
 
     path: Path
     lineno: int
+    #: Last physical line of the call — navigation only, and the span the exemption
+    #: comment must sit within. NEVER part of the anchor or discriminator (keys stay
+    #: drift-proof).
+    end_lineno: int
     qualname: str
     model: str
     op: str
@@ -102,37 +176,44 @@ class DirectWriteScanResult:
 
     direct_writes: list[DirectWriteSite] = field(default_factory=list)
     exempt_skipped: list[DirectWriteSite] = field(default_factory=list)
+    #: `# TAP-WRITE-COV` comment sites that suppress no flagged write (stale excuses):
+    #: the write they once covered was rerouted, resolved out of scope, or moved off
+    #: their span. Surfaced so they rot loudly, like mypy `warn_unused_ignores`
+    #: (`req-tap-auth-policy-9-unused-exemption`).
+    unused_exemptions: list[CallSite] = field(default_factory=list)
 
 
-def _model_ref_name(node: ast.expr, names: frozenset[str]) -> str | None:
-    """The model class name if `node` names a TAP-managed model (`Model` / `pkg.Model`)."""
+def _model_ref_node(node: ast.expr, names: frozenset[str]) -> ast.expr | None:
+    """The reference node (`Name` `Model` or `Attribute` `pkg.Model`) if it names a
+    candidate managed model, else ``None``. Returns the *node* — not just its name — so
+    the caller can resolve which same-named class it is through the file's imports."""
     if isinstance(node, ast.Name) and node.id in names:
-        return node.id
+        return node
     if isinstance(node, ast.Attribute) and node.attr in names:
-        return node.attr
+        return node
     return None
 
 
-def _is_model_ref(node: ast.expr, names: frozenset[str]) -> bool:
-    """True if `node` names a TAP-managed model — `Model` or `pkg.Model`."""
-    return _model_ref_name(node, names) is not None
+def _ref_name(node: ast.expr) -> str:
+    """The bare class name a ref node carries — ``Name.id`` or ``Attribute.attr``."""
+    return node.attr if isinstance(node, ast.Attribute) else node.id  # type: ignore[attr-defined]
 
 
-def _model_of_manager(node: ast.expr, names: frozenset[str]) -> str | None:
-    """The model name if `node` is `<Model>.objects` (or `<Model>.all_objects`), else None."""
+def _manager_ref(node: ast.expr, names: frozenset[str]) -> ast.expr | None:
+    """The model ref node if `node` is `<Model>.objects` (or `<Model>.all_objects`)."""
     if isinstance(node, ast.Attribute) and node.attr in ("objects", "all_objects"):
-        return _model_ref_name(node.value, names)
+        return _model_ref_node(node.value, names)
     return None
 
 
-def _model_of_chain(node: ast.expr, names: frozenset[str]) -> str | None:
-    """The model name if the attribute/call chain roots at `<Model>.objects` — e.g.
+def _chain_ref(node: ast.expr, names: frozenset[str]) -> ast.expr | None:
+    """The model ref node if the attribute/call chain roots at `<Model>.objects` — e.g.
     `<Model>.objects.filter(...).exclude(...)`, so a terminal `.delete()`/`.update()`
     on it is a queryset write to that TAP model."""
     while True:
-        model = _model_of_manager(node, names)
-        if model is not None:
-            return model
+        ref = _manager_ref(node, names)
+        if ref is not None:
+            return ref
         if isinstance(node, ast.Call):
             node = node.func
         elif isinstance(node, ast.Attribute):
@@ -141,8 +222,10 @@ def _model_of_chain(node: ast.expr, names: frozenset[str]) -> str | None:
             return None
 
 
-def _direct_write_target(call: ast.Call, names: frozenset[str]) -> tuple[str, str] | None:
-    """`(model, op)` if `call` is a statically-resolvable direct write to a TAP model, else None."""
+def _direct_write_target(call: ast.Call, names: frozenset[str]) -> tuple[ast.expr, str] | None:
+    """`(ref_node, op)` if `call` is a statically-resolvable direct write to a candidate
+    managed model, else ``None``. ``ref_node`` names the model (for import resolution);
+    ``_ref_name(ref_node)`` recovers the bare name for the finding's identity."""
     func = call.func
     if not isinstance(func, ast.Attribute):
         return None
@@ -150,19 +233,19 @@ def _direct_write_target(call: ast.Call, names: frozenset[str]) -> tuple[str, st
 
     # <Model>.objects.create(...) / bulk_create / update / ...
     if method in _MANAGER_WRITES:
-        model = _model_of_manager(func.value, names)
-        if model is not None:
-            return (model, method)
+        ref = _manager_ref(func.value, names)
+        if ref is not None:
+            return (ref, method)
     # <Model>.objects.filter(...)....delete() / .update()
     if method in _TERMINAL_WRITES:
-        model = _model_of_chain(func.value, names)
-        if model is not None:
-            return (model, method)
+        ref = _chain_ref(func.value, names)
+        if ref is not None:
+            return (ref, method)
     # <Model>(...).save(...)
     if method in ("save", "asave") and isinstance(func.value, ast.Call):
-        model = _model_ref_name(func.value.func, names)
-        if model is not None:
-            return (model, method)
+        ref = _model_ref_node(func.value.func, names)
+        if ref is not None:
+            return (ref, method)
     return None
 
 
@@ -170,38 +253,44 @@ class _DirectWriteVisitor(ScopeStackVisitor):
     """Flag class-level direct writes to TAP-managed models, carrying the enclosing
     `qualname` from the shared `ScopeStackVisitor` (`req-tap-callsite-identity-anchor`)."""
 
-    def __init__(self, path: Path, source_lines: list[str], names: frozenset[str]) -> None:
+    def __init__(self, path: Path, source_lines: list[str], index: ManagedModelIndex, bindings: ImportBindings) -> None:
         super().__init__()
         self.path = path
         self.source_lines = source_lines
-        self.names = names
+        self.index = index
+        self.bindings = bindings
         self.result = DirectWriteScanResult()
 
     def visit_Call(self, node: ast.Call) -> None:
-        target = _direct_write_target(node, self.names)
+        target = _direct_write_target(node, self.index.names)
         if target is not None:
-            model, op = target
-            lineno = node.lineno
-            qualname = self.current_qualname()
-            site = DirectWriteSite(
-                self.path,
-                lineno,
-                qualname,
-                model,
-                op,
-                # Positions-stripped structural dump: the drift-proof discriminator
-                # material (`req-tap-callsite-identity-discriminator-4`).
-                ast.dump(node, include_attributes=False),
-            )
-            # Scan the call's full physical span for the exemption token, not just
-            # its start line — black may wrap a chained write across several lines,
-            # landing the trailing `# TAP-WRITE-COV:` comment below `node.lineno`.
-            end = node.end_lineno or lineno
-            span = self.source_lines[lineno - 1 : end]
-            if any(_EXEMPT_TOKEN in line for line in span):
-                self.result.exempt_skipped.append(site)
-            else:
-                self.result.direct_writes.append(site)
+            ref_node, op = target
+            model = _ref_name(ref_node)
+            # Resolve which same-named class this is (only a collision name pays the
+            # cost); a non-managed `User` write resolves away here instead of being
+            # flagged by name collision (`req-tap-auth-policy-9-name-resolution`).
+            if self.index.is_managed(model, ref_node, self.bindings):
+                lineno = node.lineno
+                end = node.end_lineno or lineno
+                site = DirectWriteSite(
+                    self.path,
+                    lineno,
+                    end,
+                    self.current_qualname(),
+                    model,
+                    op,
+                    # Positions-stripped structural dump: the drift-proof discriminator
+                    # material (`req-tap-callsite-identity-discriminator-4`).
+                    ast.dump(node, include_attributes=False),
+                )
+                # Scan the call's full physical span for the exemption token, not just
+                # its start line — black may wrap a chained write across several lines,
+                # landing the trailing `# TAP-WRITE-COV:` comment below `node.lineno`.
+                span = self.source_lines[lineno - 1 : end]
+                if any(_EXEMPT_TOKEN in line for line in span):
+                    self.result.exempt_skipped.append(site)
+                else:
+                    self.result.direct_writes.append(site)
         self.generic_visit(node)
 
 
@@ -217,17 +306,57 @@ def _is_out_of_scope(path: Path) -> bool:
     return "tests" in path.parts or path.name.startswith("test_") or path.name == "conftest.py"
 
 
-def scan_direct_writes(roots: list[Path], tap_model_names: frozenset[str]) -> DirectWriteScanResult:
+def _exempt_comment_lines(source: str) -> set[int]:
+    """Line numbers of ``# …TAP-WRITE-COV…`` **comment** tokens in `source`.
+
+    Tokenize-precise on purpose: the marker inside a *string literal* — this rule's own
+    ``new_hint``, a docstring naming it, the ``_EXEMPT_TOKEN`` assignment — is NOT a live
+    exemption and must never be mistaken for one, or the freshness check would false-fire
+    on prose. That precision is exactly what an inline-comment escape hatch needs to earn
+    an unused-suppression check (`req-tap-auth-policy-9-unused-exemption`). Tolerant of a
+    tokenizer error the same way :func:`~tap.source_scan.parse_file` tolerates a syntax error.
+    """
+    lines: set[int] = set()
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(source).readline):
+            if tok.type == tokenize.COMMENT and _EXEMPT_TOKEN in tok.string:
+                lines.add(tok.start[0])
+    except tokenize.TokenError, IndentationError, SyntaxError, ValueError:
+        pass
+    return lines
+
+
+def scan_direct_writes(roots: list[Path], index: ManagedModelIndex) -> DirectWriteScanResult:
     """Flag class-level direct writes to TAP-managed models across `roots`.
 
-    `tap_model_names` is the set of TAP-managed model class names (BaseModel
-    subclasses + Entity), enumerated by the caller from the model registry. Files
-    that fail to parse are skipped (real syntax errors surface elsewhere).
+    `index` names the graph-managed model classes (enumerated by the caller from the
+    model registry — a purely-syntactic tool cannot know which models are
+    graph-managed) plus the collision-resolution data that tells a same-named
+    non-managed class apart via each file's imports. Files that fail to parse are
+    skipped (real syntax errors surface elsewhere).
+
+    Also reports **unused exemptions**: a `# TAP-WRITE-COV` comment that does not sit
+    on the physical span of any flagged write suppresses nothing (the write it once
+    covered was rerouted, resolved out of scope, or moved) and is surfaced so it rots
+    loudly (`req-tap-auth-policy-9-unused-exemption`).
     """
     result = DirectWriteScanResult()
     for parsed in iter_parsed_sources(roots, skip=_is_out_of_scope):
-        visitor = _DirectWriteVisitor(parsed.path, parsed.lines, tap_model_names)
+        bindings = build_import_bindings(parsed.tree)
+        visitor = _DirectWriteVisitor(parsed.path, parsed.lines, index, bindings)
         visitor.visit(parsed.tree)
         result.direct_writes.extend(visitor.result.direct_writes)
         result.exempt_skipped.extend(visitor.result.exempt_skipped)
+
+        # An exemption comment is "used" iff it lies on the span of a write that was
+        # actually flagged-then-skipped. Any other TAP-WRITE-COV comment is orphaned.
+        exempt_comments = _exempt_comment_lines(parsed.source)
+        if exempt_comments:
+            consumed = {
+                line
+                for site in visitor.result.exempt_skipped
+                for line in exempt_comments
+                if site.lineno <= line <= site.end_lineno
+            }
+            result.unused_exemptions.extend(CallSite(parsed.path, line) for line in sorted(exempt_comments - consumed))
     return result

@@ -82,6 +82,7 @@ block. Rich per-surface rationale lives in each owning spec and in each guard's
 | Collection completeness | `req-dev-validation-collection-complete` | Per-commit (`pytest`) | CI-guarded | `tap.guards.collection_addopts`, `tap.guards.collection_completeness` (via `tap/tests/test_guards.py`) |
 | Dev passkey import stays shell-only | `req-tap-auth-passkey-dev-bootstrap` | Per-commit (`pytest`) | CI-guarded | `tap_auth.guards.dev_passkey_import` (via `tap/tests/test_guards.py`) |
 | Direct-write coverage | `req-tap-auth-policy-9` | Per-commit (`pytest`) | CI-guarded | `tap.guards.direct_write` (via `tap/tests/test_guards.py`) |
+| Direct-write exemption freshness | `req-tap-auth-policy-9-unused-exemption` | Per-commit (`pytest`) | CI-guarded | `tap.guards.direct_write` (via `tap/tests/test_guards.py`) |
 | Family-B public surface (pre-boot/boot) | `req-service-boundary-family-b-surface` | Per-commit (`pytest`) | CI-guarded | `tap.guards.public_surface` (via `tap/tests/test_guards.py`) |
 | Gryphon branch-coverage floor (well-formedness) | `req-gridkin-executor-branch-coverage` | Per-commit (`pytest`) | CI-guarded | `tap_grid.guards.gryphon_coverage_floor` (via `tap/tests/test_guards.py`) |
 | Gryphon differential property fuzzer | `req-gridkin-property-fuzz` | Per-commit (`pytest`, committed 12×15; env-tunable soak) | CI-guarded | `plugins/gryphon_playground/tap_plugin/gryphon_playground/tests/test_gryphon_fuzz.py` |
@@ -209,7 +210,7 @@ Status: `Implemented`
 
 Known-broken state is enumerated in a committed manifest, never held in human memory. The gate exits non-zero on any failure **not** listed, and also on any listed entry that no longer fails (stale entries are removed so the manifest ratchets toward zero). Each entry carries a one-line reason and owning context. The manifest is seeded at landing with whatever is genuinely known-broken at that moment — possibly empty.
 
-This requirement also **names, once, the house convention** the repository has independently reached for repeatedly: a *bounded, reviewed, in-repo manifest that ratchets down* is TAP's canonical mechanism for honest coverage accounting. Its instances are the log-site-ID baseline (`spec-tap-logging.md`), the authz-coverage baseline (`spec-tap-auth-v0.md` `req-tap-auth-policy-9`), the direct-write-coverage baseline (`tap/tests/_direct_write_baseline.txt`), the Gryphon executor branch-coverage floor (`tap_grid/gryphon/coverage-baseline.json`, `req-gridkin-executor-branch-coverage`), this known-broken manifest, canary-set membership ([Canary Test Tier](#canary-test-tier)), and honest `CI-unguarded` spec-status labeling (`spec-tap-cares-task-backend.md`). New honesty mechanisms SHOULD follow this pattern rather than invent a parallel one — and, per [Reusable Ratchet Harness](#reusable-ratchet-harness), should increasingly share its *implementation*, not just its shape.
+This requirement also **names, once, the house convention** the repository has independently reached for repeatedly: a *bounded, reviewed, in-repo manifest that ratchets down* is TAP's canonical mechanism for honest coverage accounting. Its instances are the log-site-ID baseline (`spec-tap-logging.md`), the authz-coverage baseline (`spec-tap-auth-v0.md` `req-tap-auth-policy-9`), the direct-write-coverage baseline (`tap/guards/baselines/direct_write.txt`), the Gryphon executor branch-coverage floor (`tap_grid/gryphon/coverage-baseline.json`, `req-gridkin-executor-branch-coverage`), this known-broken manifest, canary-set membership ([Canary Test Tier](#canary-test-tier)), and honest `CI-unguarded` spec-status labeling (`spec-tap-cares-task-backend.md`). New honesty mechanisms SHOULD follow this pattern rather than invent a parallel one — and, per [Reusable Ratchet Harness](#reusable-ratchet-harness), should increasingly share its *implementation*, not just its shape.
 
 #### Acceptance Criteria
 
@@ -539,6 +540,80 @@ webhook + IAM role) and `.github/workflows/product-lines.yml` (the per-line matr
 | req-dev-validation-product-line-lanes-4 | In-account capability, least-privilege per line | Implemented | Each lane's IAM role is per-line (grants can diverge) and grants only what that line tests need — native Bedrock and/or scoped `aws_core` STS, plus a per-line `GetSecretValue` grant on the plugin-pull secret for lines that git-install private plugins (`needs_plugin_pull`). The AWS-native reason to run CI here. | `ci/terraform/codebuild-runners/iam.tf`, `secrets.tf`; reuse the External-ID discipline from `plugins/aws_core/.../handoff/cross-account-role.yaml`. |
 | req-dev-validation-product-line-lanes-5 | IaC in-repo, state out | Implemented | The provisioning is Terraform tracked in-repo; state + real tfvars (ARNs/account ids) are gitignored, never committed. The plugin-pull secret is a shell only (no `secret_version`) so no secret material lands in tfstate. | `ci/terraform/codebuild-runners/.gitignore`, `terraform.tfvars.example`, `secrets.tf`. |
 | req-dev-validation-product-line-lanes-6 | Promote-gate + Map row when live | Implemented | The `test_all` union lane is wired as the promote gate (`promote-to-main.sh` Step 2.6 dispatches `line=test_all`, option B, reciprocal of `req-dev-multisession-ci-gate`), superseding the free-runner `all-plugins.yml` — which is retained as the fallback via `TAP_PROMOTE_CI_WORKFLOW=all-plugins.yml`. Map row added via `DECLARED_SURFACES` ("Per-product-line CI lanes (CodeBuild)"). | The gate bootstrap-skips the one promote that first lands `product-lines.yml` on `origin/main`, by construction (same detection as the original all-plugins gate). |
+
+## Prior Art
+
+The guard/ratchet harness was built bespoke and reached its shape by convergent
+evolution — it had never been put through the repository's own [prior-art-search
+discipline](../CLAUDE.md) *after* the fixes went in. This section records the external
+processes it matches, so a future guard models on a proven pattern rather than
+reinvents. Three surveys (2026-07-21) ground four design axes; the callsite-identity
+model's SARIF lineage is recorded separately in `spec-tap-callsite-identity.md`'s own
+Prior Art section.
+
+### Ratcheting baselines — freeze the debt, block the new
+
+The [house convention](#known-broken-manifest) — a bounded, reviewed, in-repo manifest
+that ratchets toward zero — is the established migration-linting pattern: PHPStan and
+Psalm baseline files, RuboCop's `.rubocop_todo.yml`, ESLint `--max-warnings`,
+TypeScript strict-mode migration, and the `betterer` tool all freeze an audited debt
+set and fail only *new* violations. TAP's `CeilingRatchet` (keyed on a drift-proof
+occurrence_key, never a line number) is this pattern shared across every bespoke
+ratchet via [Reusable Ratchet Harness](#reusable-ratchet-harness).
+
+### Resolution-dependent lint rules — resolve names, don't match strings
+
+A rule whose correctness depends on *which* class a name refers to must not match by
+bare class name (`req-tap-auth-policy-9-name-resolution`: `tap_auth.User` was flagged
+only because the graph-managed `computing_core.User` shares the string — a false
+positive whose only "coverage" of the line was the collision itself). The industry
+answer is a **per-file import binder**: pyflakes' `ImportationFrom` binds a local name
+to its source module by *parsing, not importing*; Ruff and Semgrep build exactly this
+file-local binder and **deliberately stop there** — cross-module type inference
+(Pylint/astroid's inference engine, CodeQL's global dataflow) is disproportionately
+expensive and unnecessary when the origin is stated in the file's own `import` line.
+TAP's `tap.source_scan.build_import_bindings` models pyflakes' binding, and — per the
+security-posture fail-closed doctrine — keeps the conservative bare-name match wherever
+resolution is ambiguous (star/relative import, local shadow), so a genuine graph write
+is never dropped by a resolution gap.
+
+### Interprocedural preconditions — make the property local, don't build a checker
+
+"Caller must invoke X before Y" is an interprocedural dataflow property the harness's
+local, structural guards cannot express (the 2026-07 finding: a zero-proof-of-possession
+dev-import gate lived only in a docstring and was ignored at four call sites). The
+endorsed fix is to *change the property's shape*, not buy a bigger analysis engine:
+relocating the precondition into the callee makes gating **true-by-construction** and
+locally checkable — a textbook instance of **"parse, don't validate"** (Alexis King)
+and **"make illegal states unrepresentable"** (Minsky), with the **modular-Hoare**
+rationale (the callee asserts its own precondition; a caller-side obligation the harness
+cannot see becomes a callee-local invariant it can). The closest prior-art exemplar for
+the problem *shape* ("Y is only safe if X happened upstream") is the Checker Framework's
+**"Must Call"** checker and its **RLC#** port: even those dedicated engines avoid
+whole-program dataflow and instead **re-localize** the property to method-boundary
+annotations. The strictly-stronger ideal is a **capability/typestate token**
+(hold-a-proof-to-call), which a dynamically-typed codebase cannot cheaply carry — so the
+runtime gate-in-callee is the right substitute, backstopped by a cheap structural
+*containment* guard (the dangerous symbol is importable only inside an approved
+surface). Semgrep's documented inability to express statement sequencing confirms this
+is an ordinary limitation, not a TAP-specific gap.
+
+### Suppression escape hatches — scope them, and let stale ones rot loudly
+
+An inline exemption (`# TAP-WRITE-COV: <reason>`) can be silenced by a **true but
+orthogonal** reason (the annotation that explained why there was no `authorize()` while
+the real risk was an unmentioned precondition). Two established defenses apply.
+**Unused-suppression detection** — mypy `warn_unused_ignores`, Pylint
+`useless-suppression`, ESLint `reportUnusedDisableDirectives` all fail a suppression
+that no longer suppresses anything; TAP's `DirectWriteExemptionGuard`
+(`req-tap-auth-policy-9-unused-exemption`) is this, tokenize-precise so a marker inside
+a string literal is never mistaken for a live comment. **Obligation-scoped suppression**
+— mypy's `# type: ignore[code]` requires naming the specific error, so an ignore for
+code A cannot mask a later, different code B on the same line; a `# TAP-WRITE-COV[obligation]`
+scoping plus a structured classification enum (the Coverity/SARIF `justification`
+tradition) is the proposed next step, **deferred, not yet built**. No mainstream linter
+enforces a *positive* "what makes this safe" argument — that is adapted from safety-case
+engineering, not off-the-shelf tooling.
 
 ## Out Of Scope (v0)
 

@@ -234,6 +234,86 @@ def call_name(node: ast.Call) -> str | None:
     return None
 
 
+@dataclass(frozen=True)
+class ImportBindings:
+    """A file's local-name → dotted-origin map, built from its own ``import`` statements.
+
+    Models pyflakes' per-file ``ImportationFrom`` binding — the recognized cheap
+    disambiguation layer for a syntactic scanner. Ruff and Semgrep build exactly this
+    file-local binder and *deliberately stop short* of cross-module type inference;
+    astroid/CodeQL's global inference is unnecessary when a name's origin is stated in
+    the file's own ``import`` line (`req-tap-auth-policy-9-name-resolution`).
+
+    Two deliberate limits, both in the safe direction for a fail-closed caller:
+
+    - **Parse, never import.** It reads the AST, so it runs pre-boot like the rest of
+      this module and never executes the target code.
+    - **One hop.** It resolves the origin *as this file names it* — ``from a.b import
+      C`` → ``a.b.C`` — not the ultimate definition site, so a re-export is followed no
+      further. A caller that must survive re-exports matches on an app/package
+      *prefix*, not an exact dotted path.
+
+    Names it cannot resolve — star imports, relative imports, names bound by a
+    same-module ``class``/``def``, dynamically constructed names — are simply
+    **absent**; :meth:`resolve` returns ``None`` and the caller owns the fallback.
+    """
+
+    #: local name → dotted origin of the *symbol* (``from a.b import C as D`` → ``{"D": "a.b.C"}``).
+    symbols: dict[str, str]
+    #: local alias → dotted *module* (``import a.b.c as x`` → ``{"x": "a.b.c"}``; plain ``import a.b`` → ``{"a": "a"}``).
+    modules: dict[str, str]
+
+    def resolve(self, node: ast.expr) -> str | None:
+        """The dotted origin a ``Name``/``Attribute`` refers to via this file's imports, or ``None``."""
+        if isinstance(node, ast.Name):
+            return self.symbols.get(node.id)
+        if isinstance(node, ast.Attribute):
+            base = self._resolve_module(node.value)
+            if base is not None:
+                return f"{base}.{node.attr}"
+        return None
+
+    def _resolve_module(self, node: ast.expr) -> str | None:
+        """Walk a dotted ``a.b.c`` module reference back to its imported root, or ``None``."""
+        if isinstance(node, ast.Name):
+            return self.modules.get(node.id)
+        if isinstance(node, ast.Attribute):
+            base = self._resolve_module(node.value)
+            if base is not None:
+                return f"{base}.{node.attr}"
+        return None
+
+
+def build_import_bindings(tree: ast.Module) -> ImportBindings:
+    """Build a file's :class:`ImportBindings` from every ``import`` in its tree.
+
+    Walks the whole module (not just the top level) so a function-local or
+    ``TYPE_CHECKING``-guarded import is seen too. Absolute imports only: a relative
+    import (``level > 0``) is skipped, because resolving it needs the file's package
+    path, which this Django-free, parse-only binder deliberately does not take — the
+    unresolved name falls through to the caller's fallback.
+    """
+    symbols: dict[str, str] = {}
+    modules: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            if node.level != 0 or node.module is None:
+                continue  # relative import — left absent (caller falls back)
+            for alias in node.names:
+                if alias.name == "*":
+                    continue  # star import — origin unknown, left absent
+                symbols[alias.asname or alias.name] = f"{node.module}.{alias.name}"
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.asname:
+                    modules[alias.asname] = alias.name  # import a.b.c as x → x → a.b.c
+                else:
+                    # `import a.b.c` binds the top name `a`; `a.b.c.X` then resolves by
+                    # walking attributes from that root, so bind the top package to itself.
+                    modules.setdefault(alias.name.split(".", 1)[0], alias.name.split(".", 1)[0])
+    return ImportBindings(symbols, modules)
+
+
 class ScopeStackVisitor(ast.NodeVisitor):
     """`NodeVisitor` base that tracks the enclosing `def`/`class` qualname.
 
