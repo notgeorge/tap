@@ -246,10 +246,13 @@ DJANGO_SETTINGS_MODULE = "tap.test_settings"
 python_files = ["test_*.py", "*_test.py"]
 # Intentional, justified coverage exclusions — MIRROR each in the completeness
 # guard's `_IGNORED_DIRS`, or the guard fails. `-m 'not live_fetch'` defers the
-# opt-in network tests. (lotr stays registered as install-only test-fixture/nostalgia
-# vocabulary and for its own self-tests; the core suites' fixtures now live in the
-# neutral grid_fixtures plugin.)
-addopts = "-v --tb=short -m 'not live_fetch'"
+# opt-in network tests. `--ignore=_dev-plugins` drops the editable plugin-REPO
+# checkouts that `spawn --dev-plugins` clones into this worktree: they are working
+# copies of other repositories, gated by their own repo CI and by release-plugin.sh,
+# and collecting them would make the core lane depend on which plugins a developer
+# happens to have checked out. (The core suites' fixtures live in the neutral
+# grid_fixtures plugin, installed like any other.)
+addopts = "-v --tb=short -m 'not live_fetch' --ignore=_dev-plugins"
 markers = [
     "no_registry_isolation: opt out of search runner registry isolation between tests",
     "spec: link a test to one or more spec acceptance criteria by ACID",

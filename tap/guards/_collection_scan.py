@@ -19,7 +19,19 @@ _PRUNED_DIR_NAMES = {"node_modules", "build", "dist", "venv", "CVS", "_darcs", "
 
 # The ONLY deliberately-uncollected test dirs. Each MUST correspond to an `--ignore=`
 # in pyproject `addopts`. Keep tiny; adding a row is a visible decision.
-_IGNORED_DIRS: set[str] = set()
+_IGNORED_DIRS: set[str] = {
+    # Editable plugin-REPO checkouts created by `spawn --dev-plugins`
+    # (spec-dev-plugin-workspace.md). These are working copies of OTHER repositories
+    # that happen to sit inside this worktree; their tests are owned and gated by
+    # their own repo CI and by `release-plugin.sh` pre-release, not by the core lane.
+    # Collecting them here would (a) make the core lane's result depend on whichever
+    # plugins a developer happens to have checked out — the same non-determinism the
+    # ignore-list design exists to prevent — and (b) import repo-root conftests that
+    # assume their own repo's layout. This is the post-eviction successor to the
+    # `_uninstalled_plugin_test` carve-out below, which covered the monorepo-era
+    # `plugins/<slug>/` layout.
+    "_dev-plugins",
+}
 
 # Files matching test_*.py that are NOT tests (pytest imports them, collects zero).
 _IGNORED_FILES = {

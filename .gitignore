@@ -106,3 +106,8 @@ wheelhouse/
 
 # Nested editable plugin checkouts for `spawn --dev-plugins` (spec-dev-plugin-workspace.md).
 _dev-plugins/
+# ...and the profile that flag DERIVES from a committed base (boot/<base>__dev.boot.json).
+# It points at `_dev-plugins/` paths that exist only in one developer's worktree, so
+# committing it would ship an unbootable profile. The committed base profile is the
+# shippable artifact; the __dev overlay is a session artifact, like the checkouts it names.
+boot/*__dev.boot.json
