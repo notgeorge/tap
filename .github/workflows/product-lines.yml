@@ -66,8 +66,49 @@ jobs:
           fi
           echo "matrix={\"include\":[$inc]}" >> "$GITHUB_OUTPUT"
 
+  # Broad credential scan — the complement to the in-repo `secret-pattern` guard
+  # (req-tap-cares-secrets-credential-patterns). The guard is exact and always-on over six
+  # shapes; this covers the ~100 provider patterns it does not. Empirically NOT redundant:
+  # on 2026-07-22 gitleaks caught a planted Stripe token the guard has no pattern for, and
+  # MISSED a planted AWS access key id the guard catches. Both layers, or neither is honest.
+  #
+  # Runs the GATE profile (.gitleaks.toml — entropy rules off; see that file for the 21
+  # findings / 21 false positives measurement that justifies it). The full ruleset belongs
+  # to the human-triaged pre-publication history audit (req-tap-cares-secrets-history-audit),
+  # not here.
+  #
+  # Installed from the GitHub release rather than the Docker Hub image, deliberately:
+  # anonymous Docker Hub pulls chronically 429'd and redded this gate
+  # (req-cicd-base-image-sourcing). The release tarball comes from the same host the runner
+  # already talks to. Version pinned — an auto-updating scanner is an unreviewed change to
+  # what "green" means.
+  secret-scan:
+    runs-on: ubuntu-latest
+    env:
+      GITLEAKS_VERSION: "8.30.1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The gate scans the tree, not history — but a shallow clone also breaks the
+          # `git`-mode fallback, so keep full history available for manual re-runs.
+          fetch-depth: 0
+      - name: Install gitleaks ${{ env.GITLEAKS_VERSION }}
+        run: |
+          set -euo pipefail
+          url="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -fsSL "$url" -o /tmp/gitleaks.tar.gz
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          sudo install -m 0755 /tmp/gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+      - name: Scan working tree (gate profile)
+        run: |
+          # --redact so a true positive is not re-disclosed in a public CI log.
+          gitleaks dir . --config .gitleaks.toml --no-banner --redact --exit-code 1
+
   line:
-    needs: setup
+    # secret-scan gates the expensive lanes: it is ~30s, the CodeBuild lanes are ~25min,
+    # and there is no value in testing a tree that is leaking a credential.
+    needs: [setup, secret-scan]
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}

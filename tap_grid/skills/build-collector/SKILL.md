@@ -38,7 +38,7 @@ Before code:
 3. **Source pattern** — manifest-driven enumeration or fetch-and-verify (or something else; flag).
 4. **What goes on the grid** — which node types and edge types the collector emits, all of which must already be specced + registered in the plugin (use the **add-model** and **add-edge** skills first if not).
 5. **Identity strategy** — what is the natural key per node type, and does it dedup across runs (per the plugin's identity spec)?
-6. **Credentials / config** — none, or via `TAP_SECRETS_ROOT`? Plugin-self-config, never core infra.
+6. **Credentials / config** — none, or via `TAP_SECRETS_ROOT`? Plugin-self-config, never core infra. **If this collector needs a credential, stop and run the [manage-secret](../../../tap_cares/skills/manage-secret/SKILL.md) skill first** — it owns scoping, the `kind` data schema, redaction, and teaching the leak scanner the credential's shape. Do not wire a secret from memory; a mistake here is not recoverable by editing.
 7. **Schedule** — manual-only in v0, or recurring (GRIFT-seeded schedule)?
 
 Write the agreed shape down; it becomes the spec section in Step 8.

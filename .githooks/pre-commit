@@ -1,0 +1,17 @@
+#!/usr/bin/env sh
+# Refuse a commit carrying credential material (req-tap-cares-secrets-precommit).
+#
+# Delegates to precommit_secret_scan.py — stdlib-only, so it works on a bare host with
+# no .venv (dependencies live in the container). See that file for what is and is not
+# covered here; the CI guards remain the enforcement boundary.
+#
+# Deliberately fails LOUD if python3 is missing rather than passing silently: a secret
+# scanner that no-ops when its interpreter is absent is worse than no scanner, because
+# it still reads as a green commit.
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "pre-commit: python3 not found — cannot run the staged secret scan." >&2
+    echo "  Install python3, or bypass deliberately with 'git commit --no-verify'." >&2
+    exit 1
+fi
+
+exec python3 "$(dirname "$0")/precommit_secret_scan.py"

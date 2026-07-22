@@ -40,5 +40,6 @@ record-site-uniqueness
 recurring-uniqueness
 schedule-grift-targets
 secret-leak
+secret-pattern
 service-boundary-coverage
 service-boundary-import-encapsulation

@@ -34,6 +34,9 @@ The grid may eventually know about secret references, health, usage, policy, and
 | req-tap-cares-secrets-conditional-validation | [Conditional Validation Lives In Health Probes](#conditional-validation-lives-in-health-probes) | Implemented | Whether a secret is *needed* is per-consumer conditional logic owned by health probes, not a static declaration; tap_cares owns only generic file-level load/format |
 | req-tap-cares-secrets-rotation | [Rotation Semantics](#rotation-semantics) | Implemented | v0 is restart-to-rotate; atomic reload / staleness / rotation-due are named-deferred |
 | req-tap-cares-secrets-leak-guard | [Source-Control Leak Guard](#source-control-leak-guard) | Implemented | A committed `*.secret.json` (or an envelope-shaped file outside the mount) fails a CI-guarded scan — push-protection beyond `.gitignore` |
+| req-tap-cares-secrets-credential-patterns | [Credential Pattern Guard](#credential-pattern-guard) | Implemented | Self-identifying credential shapes (`github_pat_…`, `AKIA…`, PEM armor) fail a hard-zero scan across **every** text file — the leak guard reads only `*.json` |
+| req-tap-cares-secrets-precommit | [Pre-Commit Enforcement](#pre-commit-enforcement) | Implemented | Both leak scans run in `.githooks/pre-commit` over staged files, so a credential is refused before the commit object exists |
+| req-tap-cares-secrets-history-audit | [History Audit Before Publication](#history-audit-before-publication) | Implemented | A repository may not change visibility to public until a full-history credential scan is clean — the tree being clean says nothing about the commits |
 | req-tap-cares-secrets-size-guard | [Secret Size Guard](#secret-size-guard) | Implemented | 1 MiB default ceiling per secret file, raised per-file via `metadata.max_bytes` — guards the dumb/malicious-oversize case while allowing a deliberately large secret |
 | req-tap-cares-secrets-cross-scope-concern | [Cross-Scope Access Concern](#cross-scope-access-concern) | Implemented | Detective `CONCERN` tripwire — a plugin resolving the install-system `tap_plugins.source` scope emits a security `CONCERN`; the interim detective half of the deferred least-privilege enforcement |
 | req-tap-cares-secrets-future-secret-model | [Future Secret BaseModel](#future-secret-basemodel) | Backlog | Future on-grid Secret metadata and file generation |
@@ -461,7 +464,9 @@ The scan is a CI-guarded `pytest` surface, mirroring the log-site-token and JSON
 1. **Any `*.secret.json` file** — a secret file in the tree. High-signal, zero false positives.
 2. **Any `*.json` file whose content is envelope-shaped** — a top-level object carrying the full canonical secret envelope (`scope` + `key` + `kind` + `data`) — outside allowed locations. Allowed: test fixtures/scaffolding and explicit `*.secret.example.json` templates. This catches a real secret renamed to evade the `.secret.json` suffix.
 
-A hit is therefore either a committed leak or a stray real secret a developer dropped in the tree outside the mount — both must be removed (and the credential rotated). This surface is registered in the Validation Map (`spec-dev-validation.md`). Guard status today: CI-guarded (`pytest`); a pre-commit hook and the promote/push gate are the natural future homes.
+A hit is therefore either a committed leak or a stray real secret a developer dropped in the tree outside the mount — both must be removed (and the credential rotated). This surface is registered in the Validation Map (`spec-dev-validation.md`). It is enforced both per-commit (`.githooks/pre-commit`, `req-tap-cares-secrets-precommit`) and in CI (`pytest`).
+
+This guard covers *envelope-shaped* material only, and only in `*.json`. Raw credentials in any other file type are the sibling `req-tap-cares-secrets-credential-patterns` guard's job; the two are complementary and neither subsumes the other.
 
 ### Acceptance Criteria
 
@@ -471,6 +476,74 @@ A hit is therefore either a committed leak or a stray real secret a developer dr
 | req-tap-cares-secrets-leak-guard-2 | No Disguised Secrets | Implemented | A file whose content is the canonical secret envelope fails, outside test fixtures and `*.secret.example.json` templates. | Catches suffix-evasion. |
 | req-tap-cares-secrets-leak-guard-3 | Mount + Vendored Dirs Excluded | Implemented | The walk excludes the live secrets mount (`tap_secrets`) and vendored/cache dirs, so the legitimate off-grid store is never flagged. | |
 | req-tap-cares-secrets-leak-guard-4 | Map-Registered Surface | Implemented | The guard has a row in the `spec-dev-validation.md` Validation Map. | Co-change discipline. |
+
+## Credential Pattern Guard
+----
+RID: `req-tap-cares-secrets-credential-patterns`
+Status: `Implemented`
+
+The leak guard (`req-tap-cares-secrets-leak-guard`) is structural and reads only `*.json`. That leaves an entire class uncovered: a raw token pasted into a `.py`, `.md`, `.sh`, `.yml` or `.env`, or a PEM private key — a GitHub App signing key, for instance — dropped in as a `.pem`. Neither the envelope scan nor `.gitignore` (which globs `*.secret.json`) sees any of it. This guard walks **every text file** in the tree for credential shapes that identify themselves.
+
+**Issuer prefixes, not entropy — and this is an evidence-based choice, not a preference.** A full-history `gitleaks` run over this repository on 2026-07-22 (1,198 commits) returned 13 findings, *all* from its entropy-based `generic-api-key` rule and *all* false positives: log-site-id constants, an AWS `OriginAccessControlId` in a test fixture, `s3cret-pw-xyz` in a superuser test, and `authz denied:` lines in committed log samples. Entropy cannot distinguish "opaque identifier" from "credential" in a codebase whose fixtures are full of the former. The patterns here key on the issuer's own prefix and length instead (`github_pat_`, `gh[pousr]_`, `AKIA`/`ASIA`, PEM armor, `xox[baprs]-`, `AIza`), which is self-identifying and matched **zero** of the 874 text files in the tree.
+
+That zero is what licenses a **hard zero** rather than a ratcheting baseline. Every other ceiling guard in this repo carries a baseline of accepted debt; this one must not, because an accepted-debt list of leaked credentials is not a coherent object. New matches fail, full stop.
+
+**What it deliberately does not catch** (`req-sec-honest-risk`): AWS *secret* access keys, database passwords, and bare high-entropy strings with no distinguishing prefix. Those are entropy problems and belong in the per-push `gitleaks` CI step, where a human triages. This surface is the fast exact layer and does not claim to be a general secret scanner. Saying so here is the point — a guard that implied full coverage would be worse than one that admits its edge.
+
+A documentation example or test vector that must show a real-looking token may carry the `TAP-CREDENTIAL-OK` marker on the same line — the narrow, review-visible escape hatch, mirroring `# noqa: TAP-LOG-ID`.
+
+### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-cares-secrets-credential-patterns-1 | All Text Files Scanned | Implemented | The walk covers every decodable UTF-8 file, not just `*.json`. | Closes the leak guard's file-type blind spot. |
+| req-tap-cares-secrets-credential-patterns-2 | Self-Identifying Shapes Only | Implemented | Patterns key on issuer prefix + length; no entropy heuristic. | Evidence: 13/13 entropy findings were false positives. |
+| req-tap-cares-secrets-credential-patterns-3 | Hard Zero, No Baseline | Implemented | Any match fails; there is no accepted-debt baseline file. | Deliberate divergence from the ceiling-ratchet guards. |
+| req-tap-cares-secrets-credential-patterns-4 | Masked Failure Output | Implemented | Failure output masks the matched body, keeping the issuer prefix only. | CI logs are themselves a disclosure surface. |
+| req-tap-cares-secrets-credential-patterns-5 | Reviewable Exemption | Implemented | A line carrying `TAP-CREDENTIAL-OK` is skipped. | Same idiom as `# noqa: TAP-LOG-ID`. |
+| req-tap-cares-secrets-credential-patterns-6 | Mount + Vendored Dirs Excluded | Implemented | The walk excludes `tap_secrets` and vendored/cache/coverage dirs. | The legitimate off-grid store is never scanned. |
+
+## Pre-Commit Enforcement
+----
+RID: `req-tap-cares-secrets-precommit`
+Status: `Implemented`
+
+Both leak scans previously ran only as `pytest` guards, which meant a credential was caught *after* the commit object existed and possibly after it was pushed to a branch. For a repository whose history is destined to become public that is the wrong side of the line: rewriting history is far more expensive than refusing the commit. The `secret-leak` guard's own docstring described it as "push-protection" and said it "fails the commit" — a comment asserting a guarantee the implementation did not provide.
+
+`.githooks/pre-commit` closes it. `core.hooksPath` is already set to `.githooks` (the post-checkout/post-merge/post-rewrite hooks live there), so the hook is picked up with no per-developer setup. It scans **staged content only** — via `git diff --cached` — so it is fast enough to keep, and it imports `tap.credential_patterns` and `tap.runtime_secrets` directly with no Django configured.
+
+A client-side hook is bypassable (`git commit --no-verify`), which is exactly why the CI guards remain the authority. The hook is the cheap early catch, not the enforcement boundary; claiming otherwise would repeat the error it fixes.
+
+### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-cares-secrets-precommit-1 | Staged Content Scanned | Implemented | The hook scans staged blobs, not the working tree. | Catches exactly what is about to be committed. |
+| req-tap-cares-secrets-precommit-2 | Filename + Pattern Scans Run | Implemented | The staged-`*.secret.json` filename rule and the full credential-pattern scan both run. | |
+| req-tap-cares-secrets-precommit-5 | Envelope-Content Scan Is CI-Only | Implemented | The envelope-shape scan is NOT in the hook — it needs `jsonschema`, absent on a bare host. Stated in the hook, not hidden. | `secret-leak` guard still enforces it. |
+| req-tap-cares-secrets-precommit-6 | Fails Loud Without python3 | Implemented | A missing interpreter blocks the commit rather than passing silently. | A no-op scanner reads as green. |
+| req-tap-cares-secrets-precommit-3 | No Setup Required | Implemented | Delivered via the existing `core.hooksPath = .githooks`. | No per-developer install step to forget. |
+| req-tap-cares-secrets-precommit-4 | Not The Authority | Implemented | Bypassable by design; the CI guards remain enforcing. | Documented, not implied. |
+
+## History Audit Before Publication
+----
+RID: `req-tap-cares-secrets-history-audit`
+Status: `Implemented`
+
+A clean working tree says nothing about the 1,198 commits behind it. Once a repository is public its history is cloned and indexed permanently, so a credential committed and later removed is still disclosed — and rotation after the fact is the only remedy. Publication is therefore gated on a **full-history** scan, not a tree scan.
+
+The audit runs `gitleaks git` over the complete object graph. Findings are triaged by a human — the entropy rules that make it useful here are the same ones that make it noisy, and the triage record belongs with the decision. The scan **must not** be run from a git worktree with the object store unmounted: doing so exits 0 having read nothing, which is a false green (observed 2026-07-22, and the reason this requirement names the failure mode explicitly).
+
+**Audit record.** Core repository `tap`, full history at `7fb1c06a`, scanned 2026-07-22: 13 findings, all triaged false positives, **no real credentials**. The 16 evicted plugin repositories carry history extracted from this monorepo and are **not yet audited** — each requires its own clean scan before its visibility changes.
+
+### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-cares-secrets-history-audit-1 | Full History, Not Tree | Implemented | The scan covers all commits, not the checked-out tree. | A tree scan cannot clear a history. |
+| req-tap-cares-secrets-history-audit-2 | Gate On Visibility Change | Implemented | No repository becomes public without a clean, triaged audit. | Publication is irreversible. |
+| req-tap-cares-secrets-history-audit-3 | False-Green Guarded | Implemented | The scan must run where the git object store is readable; a worktree with an unmounted `.git` exits 0 having scanned nothing. | Observed failure, 2026-07-22. |
+| req-tap-cares-secrets-history-audit-4 | Per-Repository | Proposed | Each evicted plugin repository needs its own audit. | Core done; 16 plugin repos outstanding. |
 
 ## Secret Size Guard
 ----

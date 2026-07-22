@@ -1,0 +1,49 @@
+# gitleaks configuration — the per-push CI gate (req-tap-cares-secrets-credential-patterns).
+#
+# THIS CONFIG IS THE *GATE* PROFILE, NOT THE AUDIT PROFILE. Two different jobs, two
+# different tolerances, and conflating them is how a secret scanner becomes noise
+# everyone learns to ignore:
+#
+#   * GATE (this file, per push, `gitleaks dir --config .gitleaks.toml`) — must be a
+#     hard zero, so it may only carry rules with a near-zero false-positive rate.
+#   * AUDIT (pre-publication, `gitleaks git` with the DEFAULT config, no --config) —
+#     runs everything including entropy heuristics, and a human triages the output.
+#     See req-tap-cares-secrets-history-audit.
+#
+# Why `generic-api-key` is disabled HERE and kept THERE.
+# Measured on this repository 2026-07-22, not assumed:
+#   * full history (1,198 commits): 13 findings, 13 from `generic-api-key`, 13 false
+#     positives — log-site-id constants, an AWS `OriginAccessControlId` in a test
+#     fixture, `s3cret-pw-xyz` in a superuser test, `authz denied:` log samples.
+#   * working tree (874 text files): 8 findings, 8 from `generic-api-key`, 8 false
+#     positives, two of them inside the very tests that assert entropy noise is ignored.
+# That is 21 findings, 21 false positives, zero true positives. A rule with no observed
+# signal and guaranteed noise cannot gate a promote — it would either block every
+# promote or, worse, train everyone to pass it with --no-verify. Every OTHER default
+# rule stays enabled: the ~100 provider-specific patterns (Stripe, Twilio, SendGrid,
+# npm, PyPI, …) are self-identifying the same way our own six are, and they are the
+# reason this runs at all — they cover issuers `tap.credential_patterns` does not.
+#
+# Relationship to the in-repo guard: `tap/guards/secret_pattern.py` is the fast, exact,
+# always-on layer over six shapes we care about most. gitleaks is the broad layer. The
+# guard runs in every test lane with no network or container; gitleaks runs once per
+# push. Neither subsumes the other, and a finding from either is a hard failure.
+
+title = "TAP secret-scan gate profile"
+
+[extend]
+useDefault = true
+# See the measurement above. Entropy heuristics belong in the human-triaged audit,
+# never in an automated gate.
+disabledRules = ["generic-api-key"]
+
+[allowlist]
+description = "Paths that legitimately contain credential-SHAPED but non-secret material."
+paths = [
+    # Committed evidence from security-scan runs: real log lines, deliberately retained
+    # as artifacts. They contain authz decision records, not credentials.
+    '''docs/security/scans/.*''',
+    # The FP-resistance tests assert that specific non-secret strings do NOT match; the
+    # strings must therefore appear literally in the file.
+    '''tap/tests/test_credential_patterns\.py''',
+]
