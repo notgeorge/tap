@@ -31,16 +31,29 @@ requirements. Written up so it does not live only in a chat log.
 3. **`CODEOWNERS` can only name individual users** on a personal account. The
    guard-integrity work uses CODEOWNERS; team ownership (`@org/team`) needs an org, and
    it is how the single-named-owner bottleneck goes away.
-4. **Signing is blocked on this.** `req-plugin-extdev-signing` (#5) and
-   `req-cicd-supply-chain-provenance` are already pinned to the org refactor because
-   Sigstore/OIDC provenance claims are org-rooted (`repo:org/name`).
+4. ~~**Signing is blocked on this.**~~ **CORRECTED 2026-07-22 — this driver was wrong.**
+   `req-plugin-extdev-signing` (#5) and `req-cicd-supply-chain-provenance` are *not*
+   unblocked by the org. GitHub gates artifact attestations by repository visibility, not
+   by org membership: *"If you are on a GitHub Free, GitHub Pro, or GitHub Team plan,
+   artifact attestations are only available for public repositories. To use artifact
+   attestations in private or internal repositories, you must be on a GitHub Enterprise
+   Cloud plan."* Worse, GHEC's private-repo attestations use GitHub's **own** Sigstore
+   instance with **no transparency log**, whereas public repos use the Sigstore Public
+   Good Instance **with** a public immutable log. So the private path costs $21/user/mo
+   for the strictly *weaker* provenance artifact. Signing is blocked on the
+   **public/private decision**, not on the org and not on money.
 5. **External developers arrive ~Aug 1.** On a personal account every external dev is a
    collaborator on personal repos. An org gives scoped teams and a boundary between "our
    plugins" and "theirs" — and avoids onboarding devs under a credential model we then
    migrate underneath them.
-6. **A home for the package index.** The deferred `index` / `wheelhouse` source paths
-   (`req-plugin-arch-sources-3` / `-6`) need somewhere to live; org-scoped GitHub Packages
-   is the natural answer.
+6. ~~**A home for the package index.**~~ **FALSIFIED 2026-07-22.** GitHub Packages
+   supports npm, RubyGems, Maven, Gradle, NuGet and Docker/OCI. **Python/PyPI is absent
+   from the registry table entirely** — it is not a supported ecosystem at any tier in
+   2026, and the org "linked artifacts" / virtual registry is metadata only and hosts no
+   package files. Org-scoped GitHub Packages is not "the natural answer" for the deferred
+   `index` / `wheelhouse` source paths (`req-plugin-arch-sources-3` / `-6`); it is not an
+   answer. Those need a different home — git+https as today, AWS CodeArtifact, S3 behind
+   a PEP 503 index, or self-hosted devpi — independent of this migration.
 
 ## Measured inventory (2026-07-21 — verified, not estimated)
 
@@ -51,10 +64,18 @@ requirements. Written up so it does not live only in a chat log.
 | Core | `tap` | yes |
 | Live plugins (in boot profiles) | `tap-plugin-` + `administrivia`, `computing-core`, `roscale`, `identity-core`, `aws-core`, `sigstore-core`, `github-core`, `compliance-core`, `fedramp-20x-ksi`, `samsite`, `grid-fixtures`, `gryphon-playground` (12) | yes |
 | Deferred but real | `tap-plugin-aws-secrets-source` (build-bake eviction still open) | yes |
-| Dead weight | `tap-plugin-aws`, `tap-plugin-genericom` (plugin deleted), `tap-plugin-lotr` (already archived) | **decide** — leaving them behind is a feature |
+| Dead weight | `tap-plugin-aws`, `tap-plugin-genericom` (plugin deleted) | yes — *decided 2026-07-22* |
+| Stays behind | `tap-plugin-lotr` (already archived) | **no** — stays on `notgeorge` as the archaeology shelf |
 
-The migration is the natural moment to decide what does *not* come. Archived/dead repos
-can stay on the personal account as an archaeology shelf.
+Verified 2026-07-22: all three dead repos have **zero** references anywhere in this
+repo — no boot profile, no code, no config. Leaving any of them behind is free.
+`tap-plugin-lotr` in particular is already archived, and transferring an archived repo
+would mean unarchive → transfer → re-archive for no gain. **16 repos migrate.**
+
+One-way caveat: if a repo saw >100 clones or >100 Actions runs in the week before
+transfer, GitHub *permanently retires* the old `notgeorge/<name>` — you cannot recreate a
+placeholder there afterwards. Also note redirects are destroyed permanently if a new repo
+is ever created at an old name.
 
 ### In-repo changes: ~30 functional lines, ZERO code
 
@@ -100,39 +121,66 @@ the URL rewrite (step 5) from the transfer itself (step 3).
 
 They point in **opposite directions** and must stay separate even while both are broad.
 
+## The second real risk: reusable workflows are same-owner-only
+
+**Discovered 2026-07-22, confirmed in GitHub docs.** Private reusable workflows can be
+shared *only* with repos owned by the same user or organization. The `access_level` enum
+is `none | user | organization`, and the UI offers only the value matching the repo's own
+owner type — there is **no setting** that lets an org-owned repo call a **user**-owned
+private repo's reusable workflow, or the reverse.
+
+Compounding it: *"GitHub Actions does not support redirects for actions or reusable
+workflows."* Unlike git operations, a `uses:` reference breaks the instant the owner
+changes, and the error (`workflow was not found`) is identical to "file missing" and
+"Actions disabled" — it will not tell you which.
+
+**Therefore core and every plugin repo that has CI must transfer as ONE wave, with every
+`uses:` rewritten in that same wave.** Today that unit is exactly `{tap,
+tap-plugin-grid-fixtures}` — small only because the other 11 plugin repos have no CI yet.
+The deliberate hold on wiring them (see "Not yet done") is load-bearing, not merely tidy.
+
+Note this constraint is about **owner matching, not tier** — sharing a private repo's
+reusable workflow org-wide is not a paid feature.
+
 ## Sequence
 
 Each step independently verifiable; risk-ordered so the scary part is proven on one repo.
 
-0. **Decide.** Org name. Which dead repos stay behind. Free vs paid tier.
-1. **Create the org**; install the AWS Connector GitHub App on it. **Transfer nothing yet.**
-2. **PILOT: transfer ONE repo — `grid-fixtures`.** Re-issue a PAT scoped to the org.
-   Verify: redirect works, local boot green, the pilot CI still green.
-   **Then stop and assess.** This exercises the entire credential story for the price of
-   one repo. (Same pilot-first discipline that found three real bugs on 2026-07-21.)
-3. **Transfer the rest.**
-4. **Credential swap.** Re-issue → update `~/tap-secrets` **and** AWS Secrets Manager
-   together. Verify with a scratch `spawn-session.sh`.
-5. **Rewrite boot URLs + the two defaults**; promote through the normal gate.
-6. **Terraform.** `github_owner` + a new CodeConnections (one-time manual authorize in the
-   AWS console); `terraform apply`; verify a CodeBuild lane green. Safe now that tfstate is
-   in S3 (`s3://tap-ci-tfstate`) — this would have been genuinely risky before 2026-07-21.
-7. **Org hardening.** Org secret replaces the per-repo `TAP_CORE_RO_PAT`; delete the
-   per-repo copy; Actions `access_level` → `organization` (currently `user`); org rulesets.
-8. **Docs/specs prose sweep.**
+**Revised 2026-07-22.** Three changes from the original ordering, all forced by
+verification: the credential swap moves *into* the pilot; the URL rewrite and promote
+happen *before* core moves; and core moves last, welded to `grid-fixtures`,
+CodeConnections and Terraform.
 
-Steps 1–4 are the disruptive window (a few hours, much of it GitHub UI work only George can
-do). 5–8 are ordinary work.
+| # | Step | Gate |
+| --- | --- | --- |
+| 0 | **Decide.** — *closed 2026-07-22, see Decisions below* | — |
+| 1 | Create org `unified-systems-com`; upgrade to **Team**; install AWS Connector GitHub App on it. **Transfer nothing.** | Org exists, app installed |
+| 2 | **PILOT: transfer `grid-fixtures` only.** Pause its CI workflow first (it *will* break — deliberately, not mysteriously). Re-issue an org-scoped PAT into a **session-local** secrets dir. | Redirect resolves; local boot green on `core_dev` — *without touching `~/tap-secrets`* |
+| 3 | Transfer the remaining 11 live plugins + `aws-secrets-source` + `tap-plugin-aws` + `tap-plugin-genericom`. | All clone with the org PAT |
+| 4 | **Credential swap:** `~/tap-secrets` **and** AWS Secrets Manager together. | Scratch spawn installs all plugins; both CodeBuild lanes green — *core still on `notgeorge`, so the gate still works* |
+| 5 | Rewrite 26 boot URLs + 2 defaults + 3 test fixtures; promote. | `scripts/gate` green; promote gate green |
+| 6 | **ATOMIC:** transfer `tap`; rewrite `grid-fixtures`' `uses:`; Actions `access_level` → `organization`; new CodeConnections; `terraform apply`. | `terraform plan` clean; real `product-lines` run green; `grid-fixtures` CI green |
+| 7 | Org hardening: org secret replaces per-repo `TAP_CORE_RO_PAT`; delete per-repo copy; org rulesets; CODEOWNERS; wire the 11 remaining plugin CIs. | A plugin repo's CI passes on the **org** secret; per-repo secret deleted |
+| 8 | Docs/specs prose sweep. | — |
 
-### Verification gates
+Steps 2–4 are the disruptive window (a few hours, much of it GitHub UI work only George
+can do). 5–8 are ordinary work.
 
-| After | Check |
-| --- | --- |
-| 2 | `spawn-session.sh` boots with the transferred repo git-sourced; `gh run list` on that repo is green |
-| 4 | a scratch spawn installs **all** plugins; both CodeBuild lanes dispatch green |
-| 5 | `scripts/gate` green; promote gate green |
-| 6 | `terraform plan` clean; a real `product-lines` run succeeds |
-| 7 | a plugin repo's CI passes using the **org** secret, per-repo secret deleted |
+### Why the reordering was necessary
+
+- **The credential cliff arrives at step 2, not step 4.** The CodeBuild `test_all` lane
+  git-installs all 12 plugins, `grid-fixtures` included. A fine-grained PAT has exactly
+  one resource owner, so the moment `grid-fixtures` is org-owned the existing token 404s
+  on it. The swap cannot wait.
+- **Step 5's gate depended on step 6.** CodeBuild's project source is
+  `https://github.com/${var.github_owner}/${var.github_repo}.git` with `github_repo =
+  "tap"` — the lanes are bound to **core** — and `promote-to-main.sh` step 2.6 dispatches
+  `product-lines.yml` onto them. Transferring core kills the promote gate until
+  CodeConnections + `terraform apply` is redone, so "promote through the normal gate"
+  cannot be verified if core moved in step 3.
+- **`TAP_SECRETS_ROOT` is an env var** and `tap_secrets` is a per-worktree symlink to the
+  shared store, so the pilot can point *one session only* at a private secrets dir. The
+  "shared host state mutates every live session" amplifier disappears for step 2.
 
 ## Do this during the migration, not after
 
@@ -143,14 +191,71 @@ inherit it. An external dev holding a token that reads the whole account is a ma
 different risk from us holding one — and anyone who can push a workflow to their own plugin
 repo can exfiltrate whatever secret that repo holds.
 
-## Open questions — verify before relying on them
+## Decisions — locked 2026-07-22
 
-- **Free vs Team tier**: org rulesets / required workflows may need a paid tier. Confirm
-  before building the governance plan on them.
-- **CodeConnections**: can the existing connection be re-pointed at an org, or must it be
-  recreated? Likely recreated, which means a brief CI outage inside step 6.
-- **Org PAT-approval policy**: whether fine-grained PATs need explicit org approval — the
-  most probable cause of a surprise in step 2, which is exactly why step 2 is one repo.
+| Decision | Value | Note |
+| --- | --- | --- |
+| Org name | **`unified-systems-com`** | Verified available. Matches `unified-systems.com`. `unified-systems` (org, 0 repos, dormant since Jan 2024) and `unifiedsystems` (user, dormant since 2015) are both squatted. Renaming later is *not* free — Actions `uses:` refs do not redirect and provenance claims are historical. |
+| Tier | **Team**, $4/user/mo, from step 1 | Eventual state is public repos, but stealth/private for the next several months; buy CODEOWNERS + rulesets + branch protection on private repos now to build the muscle memory. Tier is a slider, not a one-way door — revisit at step 7. |
+| Repos migrating | **16** | All except `tap-plugin-lotr`, which stays on `notgeorge` (already archived; transferring it would mean unarchive → transfer → re-archive for no gain). |
+| Plugin-pull credential | **Fine-grained PAT**, org-scoped | Not a smell: the credential is already stored as an envelope, fed via `GIT_ASKPASS`, redacted in `__repr__`, never interpolated into the URL. See "GitHub App" below. |
+
+### GitHub App — parked, not rejected
+
+The original plan recommended moving plugin-pull to a GitHub App *during* the migration.
+Two findings changed that:
+
+1. **It is cheaper than assumed** — the seam already exists. `SecretSource.fetch()`
+   returns "exactly what the envelope would have held inline on disk", so a `github_app`
+   provider mints the 1-hour installation token and `plugin_source_auth.py` never knows
+   the difference. The schema *already* documents `x-access-token` as working for "both
+   fine-grained/classic PATs **and** GitHub App installation tokens". By the
+   `aws_secrets_source` precedent (58 lines of provider + 29 pyproject + 93 tests) this is
+   a slim out-of-core distribution plus a one-line widening of
+   `_ALLOWED_SOURCE_DISTRIBUTIONS` — **no core pre-boot change**.
+2. **It may be unnecessary.** `plugin_source_auth.py` implements conditional necessity —
+   *"a git source with no `credential` is public and never raises"*. If the primary
+   plugins go public, their boot-record sources declare no `credential` at all and the
+   plugin-pull token ceases to exist. Same for `TAP_CORE_RO_PAT` if core goes public.
+
+So build it only if the private product line needs authenticated pull. Aim it at
+`TAP_CORE_RO_PAT` first when it comes up — that is the read-everything token external
+developers' repos will actually hold.
+
+## Resolved questions (verified 2026-07-22)
+
+- **Free vs Team tier** — RESOLVED. Rulesets, protected branches and CODEOWNERS are all
+  *"public repositories with GitHub Free"* only; on a Free org a CODEOWNERS file in a
+  private repo does nothing. Worse for driver #1: *"Organization-level secrets and
+  variables are **not accessible by private repositories** for GitHub Free."* **Team is
+  the floor** for the migration's own justification. Add-ons deliberately skipped: Secret
+  Protection $19/active committer, Code Security $30/committer — 5–7× the plan cost.
+- **CodeConnections** — RESOLVED: must be **recreated**. There is no `UpdateConnection`
+  API for connections; the connection rides a specific GitHub App installation, and AWS
+  states a connection bound to a dead installation *"will not revive… you will need to
+  create a new connection."* The console browser authorization is unavoidable, and *"to
+  create the connection, you must be the GitHub organization owner."* Terraform already
+  models this (`codeconnection_arn = ""` → creates one PENDING).
+- **Org PAT-approval policy** — RESOLVED, and it is **not** the feared surprise.
+  Require-approval *is* the default on a new org, but *"fine-grained personal access
+  tokens created by organization owners will not need approval."* George is the owner, so
+  his re-issued token is auto-approved. The friction lands on external devs later.
+
+## Still open
+
+- **Which repos go public, and when.** This is the real architectural fork: it decides the
+  signing story (driver #4), whether the plugin-pull credential exists at all, and whether
+  Team is the end state. Likely a **mixed org** — public substrate (`grid-fixtures`, the
+  `*_core` plugins, `gryphon-playground`) alongside private products (`samsite`,
+  `fedramp-20x-ksi`). Visibility is per-repo and boot records already carry per-source
+  credentials, so a public plugin simply drops its `credential` key.
+- **Publishing is a one-way door.** Once a repo is public its history is cloned and
+  indexed permanently, so any credential *ever* committed is exposed for good — a check of
+  the current tree is not sufficient. `scan_paths_for_secret_leaks` only detects a
+  committed secret-*envelope* JSON file; it is not a general scanner and does not read
+  history. A real history audit (gitleaks/trufflehog over full history) is a prerequisite
+  for any flip, and GitHub push protection — Secret Protection add-on, $19/committer — is
+  the control that best defends that door going forward.
 
 ## Status of the work this plan came out of (all landed, `origin/main` `f9fec738`)
 
