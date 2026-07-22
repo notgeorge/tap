@@ -97,7 +97,15 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}/_harness
         run: |
-          uv run --no-project --with jsonschema --with packaging \
+          # --python is REQUIRED, not a nicety. With --no-project there is no
+          # pyproject for uv to read requires-python from, so it silently uses
+          # whatever python the runner ships (3.12 on ubuntu-latest today) rather
+          # than the >=3.14 core actually needs. Core uses PEP 758 syntax
+          # (`except A, B:` unparenthesized, 3.14+), so an older interpreter fails
+          # with a SyntaxError while merely IMPORTING the validator — which reads
+          # like the plugin is malformed when nothing is wrong with the plugin at
+          # all. uv fetches the interpreter if the runner lacks it.
+          uv run --python 3.14 --no-project --with jsonschema --with packaging \
             python -m tap_plugins.validate_plugin \
             "${{ github.workspace }}/plugin/${{ inputs.plugin_subdir }}" --strict
 
