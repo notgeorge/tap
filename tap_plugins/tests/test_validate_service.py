@@ -196,6 +196,56 @@ class TestStrictMode:
 
 
 # ---------------------------------------------------------------------------
+# Tests directory — existence is not coverage
+# ---------------------------------------------------------------------------
+
+
+class TestTestsDirIsNotEmpty:
+    """A `tests/` holding no test files gates nothing — it must not read as covered.
+
+    This is the exact shape of the two evicted plugins whose suites were dead for two
+    weeks: the directory satisfied "tests/ exists" while `pytest --pyargs` collected
+    zero tests, so the plugin looked gated and was not.
+    """
+
+    def test_absent_tests_dir_warns(self, tmp_path: Path) -> None:
+        plugin_dir = _make_plugin(tmp_path, toml=_MIN_TOML)
+        check = _named_check(validate_plugin(plugin_dir), "tests-dir")
+        assert check.status == "warn"
+
+    def test_tests_dir_with_no_test_files_warns(self, tmp_path: Path) -> None:
+        """The regression that matters: present but empty is NOT a pass."""
+        plugin_dir = _make_plugin(tmp_path, toml=_MIN_TOML, extra_files={"tests/__init__.py": ""})
+        check = _named_check(validate_plugin(plugin_dir), "tests-dir")
+        assert check.status == "warn", "an empty tests/ must not report as covered"
+
+    def test_tests_dir_with_a_test_file_passes(self, tmp_path: Path) -> None:
+        plugin_dir = _make_plugin(
+            tmp_path,
+            toml=_MIN_TOML,
+            extra_files={"tests/__init__.py": "", "tests/test_thing.py": "def test_thing():\n    assert True\n"},
+        )
+        check = _named_check(validate_plugin(plugin_dir), "tests-dir")
+        assert check.status == "pass"
+
+    def test_suffix_pattern_also_counts(self, tmp_path: Path) -> None:
+        """`*_test.py` is one of pytest's two default patterns — agree with what runs."""
+        plugin_dir = _make_plugin(
+            tmp_path,
+            toml=_MIN_TOML,
+            extra_files={"tests/__init__.py": "", "tests/thing_test.py": "def test_thing():\n    assert True\n"},
+        )
+        assert _named_check(validate_plugin(plugin_dir), "tests-dir").status == "pass"
+
+    def test_strict_makes_an_empty_tests_dir_fatal(self, tmp_path: Path) -> None:
+        """--strict is what release-plugin.sh and the per-repo CI admission gate run."""
+        plugin_dir = _make_plugin(tmp_path, toml=_MIN_TOML, extra_files={"tests/__init__.py": ""})
+        result = validate_plugin(plugin_dir, strict=True)
+        assert not result.ok
+        assert _named_check(result, "tests-dir").status == "fail"
+
+
+# ---------------------------------------------------------------------------
 # Structural failure cases
 # ---------------------------------------------------------------------------
 

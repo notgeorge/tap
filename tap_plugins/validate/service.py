@@ -489,15 +489,33 @@ def _check_undeclared_files(manifest: Any, result: ValidationResult) -> None:
 
 
 def _check_tests_dir(package_root: Path, result: ValidationResult) -> None:
-    check = CheckResult(id="tests-dir", name="Tests directory exists")
+    check = CheckResult(id="tests-dir", name="Tests directory exists and holds tests")
     # tests/ lives INSIDE the namespace package (tap_plugin/<slug>/tests/) so it
     # ships in the built wheel and travels with the plugin — the all-plugins CI
     # lane's coverage and an AI-legible corpus (see tap.plugin_testing).
     tests_dir = package_root / "tests"
-    if tests_dir.is_dir():
-        check.info("tests/ exists")
-    else:
+    if not tests_dir.is_dir():
         check.warn("Missing tests/ directory", path="tests")
+        result.checks.append(check)
+        return
+
+    # Existence is not coverage. A tests/ holding only __init__.py satisfies "the
+    # directory is there" while `pytest --pyargs tap_plugin.<slug>` collects nothing,
+    # so the plugin looks gated and is not — the exact shape of the two evicted
+    # plugins whose suites were dead for two weeks (doc-plugin-eviction-plan.md).
+    # Match pytest's own discovery patterns so this agrees with what actually runs.
+    test_files = sorted(p.name for p in tests_dir.rglob("test_*.py")) + sorted(
+        p.name for p in tests_dir.rglob("*_test.py")
+    )
+    if test_files:
+        check.info(f"tests/ exists with {len(test_files)} test file(s)")
+    else:
+        check.warn(
+            "tests/ exists but contains no test files (test_*.py / *_test.py) — "
+            "`pytest --pyargs tap_plugin.<slug>` would collect nothing, so the plugin "
+            "would appear gated while gating nothing",
+            path="tests",
+        )
     result.checks.append(check)
 
 

@@ -118,9 +118,26 @@ if [[ "$SKIP_TESTS" -eq 1 ]]; then
   warn "Skipping the plugin test suite (--skip-tests). Ensure CI is green before you rely on this release."
 else
   bold "Plugin tests: pytest --pyargs tap_plugin.$SLUG"
-  scripts/dc exec -T web uv run pytest --pyargs "tap_plugin.$SLUG" \
-    || fail "Plugin tests failed for $SLUG — refusing to release. (Is the harness up? scripts/dc up -d)"
-  info "tests: pass"
+  # Distinguish "the tests failed" from "there were no tests". pytest exits 5 for
+  # NO TESTS COLLECTED, which is a DIFFERENT and more dangerous outcome: it means the
+  # release gate ran and asserted nothing. Both refuse, but conflating them reports a
+  # plugin with a dead/absent suite as an ordinary test failure and sends the release
+  # engineer hunting for a broken test that does not exist. This is exactly how two
+  # evicted plugins shipped unrunnable suites for two weeks.
+  set +e
+  scripts/dc exec -T web uv run pytest --pyargs "tap_plugin.$SLUG"
+  pytest_rc=$?
+  set -e
+  case "$pytest_rc" in
+    0) info "tests: pass" ;;
+    5) fail "Plugin tests for $SLUG collected ZERO tests — refusing to release.
+    The suite is absent, unimportable, or not shipped inside the package. Tests must
+    live at tap_plugin/$SLUG/tests/ so they ship in the wheel and '--pyargs' finds
+    them; a repo-root tests/ directory is NOT collected by this gate. A green release
+    on an empty suite is worse than a red one — it certifies nothing while looking
+    like it certified something." ;;
+    *) fail "Plugin tests failed for $SLUG (pytest exit $pytest_rc) — refusing to release. (Is the harness up? scripts/dc up -d)" ;;
+  esac
 fi
 
 # ---------------------------------------------------------------------------
