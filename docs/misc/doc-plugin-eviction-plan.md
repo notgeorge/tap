@@ -249,7 +249,9 @@ evicted plugin still *boots* perfectly while its test suite quietly gates nothin
 eviction should run `validate_plugin --strict` and `pytest --pyargs tap_plugin.<slug>` as the
 completion check, not the boot.
 
-**Still open:** `gryphon_playground` and `grid_fixtures` have **no repo CI**; the
+**Follow-on:** the per-repo CI gap this wave exposed is now tracked in `doc-github-org-migration-plan.md` — `plugin-ci.yml` is fixed and green on one repo, and the remaining 11 are deliberately held until the GitHub-organization migration so they are wired once, against an org secret, rather than configured twice.
+
+**Still open:** the `bare_match__field_absent` scenario is FIXED (grid_fixtures v0.3.0 added an `ExclusiveField` type owning the field the corpus had been borrowing from lotr); the
 `bare_match__field_absent` scenario is now vacuous (it filtered on a field only the retired `lotr`
 carried); and `aws_secrets_source` build-bake eviction remains deferred.
 
