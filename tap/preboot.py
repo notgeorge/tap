@@ -39,6 +39,9 @@ from urllib.parse import unquote, urlparse
 
 from tap import plugin_deps
 from tap.logging import abort
+from tap.plugin_identity import NAMESPACE_PACKAGE as NAMESPACE_PACKAGE
+from tap.plugin_identity import TAP_PLUGINS_ENTRY_POINT_GROUP as TAP_PLUGINS_ENTRY_POINT_GROUP
+from tap.plugin_identity import dist_name_for_slug as dist_name_for_slug
 from tap.plugin_source_auth import GitCredential, SourceAuthError, git_askpass_env, resolve_git_credential
 
 logger = logging.getLogger(__name__)
@@ -82,12 +85,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # (which now asserts the empty set equals zero hardcoded `plugins.*` INSTALLED_APPS entries).
 BUILD_BAKED_PLUGIN_SLUGS: frozenset[str] = frozenset()
 
-TAP_PLUGINS_ENTRY_POINT_GROUP = "tap.plugins"
-
-# PEP 420 native namespace all package-mode plugins import under: tap_plugin.<slug>
-# (singular, to avoid the plural `tap_plugins` management app). The conformance gate
-# asserts every plugin's AppConfig lives here. See req-plugin-arch-identity-3.
-NAMESPACE_PACKAGE = "tap_plugin"
+# TAP_PLUGINS_ENTRY_POINT_GROUP / NAMESPACE_PACKAGE / dist_name_for_slug are DEFINED in
+# tap/plugin_identity.py (stdlib-only) and re-exported above, so the conformance gate can
+# import them without pulling this module's Django-bearing dependency chain. They remain
+# part of this module's public surface — callers need not care where they live.
 
 
 class PrebootError(Exception):
@@ -193,11 +194,6 @@ def _population_seed_slugs(profile: dict[str, Any]) -> list[str]:
 # =============================================================================
 # Plugin install (req-boot-install-section, req-boot-preboot-3 idempotency)
 # =============================================================================
-
-
-def dist_name_for_slug(slug: str) -> str:
-    """Distribution name convention: ``tap-plugin-<slug>`` (PEP 503 normalized)."""
-    return "tap-plugin-" + slug.replace("_", "-")
 
 
 def _installed_distribution(dist_name: str) -> importlib.metadata.Distribution | None:

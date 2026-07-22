@@ -540,7 +540,11 @@ def _check_identity_coherence(
     """
     import tomllib
 
-    from tap.preboot import NAMESPACE_PACKAGE, TAP_PLUGINS_ENTRY_POINT_GROUP, dist_name_for_slug
+    # tap.plugin_identity, NOT tap.preboot — same three symbols, but preboot imports
+    # tap.plugin_source_auth -> tap.runtime_secrets -> tap.registry -> Django, and this
+    # runs in the per-repo CI conformance job on a bare runner with no Django installed.
+    # Enforced by tap/tests/test_plugin_identity.py, not just by this comment.
+    from tap.plugin_identity import NAMESPACE_PACKAGE, TAP_PLUGINS_ENTRY_POINT_GROUP, dist_name_for_slug
 
     check = CheckResult(id="identity-coherence", name="Package identity chain agrees (slug/namespace/dist/entry-point)")
     slug = manifest.slug
