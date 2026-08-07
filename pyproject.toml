@@ -8,6 +8,10 @@ name = "tap"
 version = "0.1.0"
 description = "The Analogy Platform - a graph-based systems mastery platform"
 readme = "README.md"
+# SPDX identifier (PEP 639). The authoritative text is the LICENSE file at the repo
+# root; NOTICE carries the attribution required for the third-party assets vendored
+# into the source tree. This field is the machine-legible declaration of the same fact.
+license = "Apache-2.0"
 requires-python = ">=3.14"
 
 # -----------------------------------------------------------------------------
