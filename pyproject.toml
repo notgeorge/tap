@@ -23,7 +23,7 @@ requires-python = ">=3.14"
 dependencies = [
     # Web Framework
     # Django 6 includes built-in background tasks (django.tasks) and CSP support
-    "django>=6.0",
+    "django>=6.0.7",
     # API Framework
     # Django Ninja provides fast, type-hinted API development with OpenAPI docs
     # Similar to FastAPI but designed for Django
