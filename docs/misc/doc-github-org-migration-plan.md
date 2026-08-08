@@ -162,9 +162,11 @@ CodeConnections and Terraform.
 | 6 | **ATOMIC:** transfer `tap`; rewrite `grid-fixtures`' `uses:`; Actions `access_level` → `organization`; new CodeConnections; `terraform apply`. | `terraform plan` clean; real `product-lines` run green; `grid-fixtures` CI green |
 | 7 | Org hardening: org secret replaces per-repo `TAP_CORE_RO_PAT`; delete per-repo copy; org rulesets; CODEOWNERS; wire the 11 remaining plugin CIs. | A plugin repo's CI passes on the **org** secret; per-repo secret deleted |
 | 8 | Docs/specs prose sweep. | — |
+| 9 | **Retire the AWS account** (`180731181784`) — see below. **Strictly last.** | New account carries the CI substrate + samsite; old account closed |
 
 Steps 2–4 are the disruptive window (a few hours, much of it GitHub UI work only George
-can do). 5–8 are ordinary work.
+can do). 5–8 are ordinary work. Step 9 is a separate project of its own and is deliberately
+fenced off at the end — see below.
 
 ### Why the reordering was necessary
 
@@ -190,6 +192,39 @@ the "read-everything token sitting in a repo secret" pattern **before** external
 inherit it. An external dev holding a token that reads the whole account is a materially
 different risk from us holding one — and anyone who can push a workflow to their own plugin
 repo can exfiltrate whatever secret that repo holds.
+
+## Step 9 (backlog): retire the AWS account
+
+**Decided 2026-08-08.** AWS account `180731181784` gets stood down and replaced. The driver
+is disclosure hygiene, not a live incident: the account id is spread across public-bound git
+history and — as the audit below establishes — cannot be recalled by editing. Retiring the
+account is the compensating control that makes the disclosure inert, and it is strictly
+cheaper than rewriting the history of every repo. *"It's unnecessary to give anyone the
+knowledge of where my stuff sits."*
+
+**Why it must be last.** That account is not a bystander to this migration; it currently
+carries most of the substrate the earlier steps depend on:
+
+- the **CodeBuild product-line lanes** — the promote gate itself (`product-lines.yml`,
+  `line=test_all`), which step 6 rebuilds against the org;
+- the **CodeConnections** app installation step 6 recreates, and the **Terraform** that
+  defines those lanes;
+- the **S3 tfstate backend** recovered in `09b179f2`, a stated prerequisite for step 6;
+- the **AWS Secrets Manager** copy of the plugin-pull credential that step 4 swaps;
+- the **samsite deployment** itself — the reference assessment target the `samsite` boot
+  profile collects from.
+
+Doing this before step 8 would mean rebuilding the CI substrate twice and losing the promote
+gate mid-migration, which is the same failure mode that already forced core to move last.
+
+**Rough shape of the work** (not planned in detail — that is the point of backlogging it):
+stand up the replacement account; re-run the CodeBuild Terraform against it with a fresh
+CodeConnections; migrate the tfstate bucket; re-create the collector IAM principal and
+re-issue the collector secret; redeploy samsite and repoint `artifact_manifest.json`; verify
+a real promote runs green end to end on the new account; only then close the old one.
+
+**Not a blocker for going public.** The disclosure is an account id, not a credential, and
+this step makes it moot on its own schedule.
 
 ## Decisions — locked 2026-07-22
 
@@ -256,6 +291,34 @@ developers' repos will actually hold.
   history. A real history audit (gitleaks/trufflehog over full history) is a prerequisite
   for any flip, and GitHub push protection — Secret Protection add-on, $19/committer — is
   the control that best defends that door going forward.
+
+  **Audit run 2026-08-08 — no credentials, but the AWS account id is unrecallable.** All 29
+  repos under `notgeorge` were scanned exhaustively: every blob in each object store
+  (deduplicated, *including* objects unreachable from any ref), not merely the tip trees or
+  the reachable commit graph. `tap-plugin-samsite` was used as a planted positive control so
+  a scan that silently read nothing could not report clean — the false-green failure mode
+  that already bit the core credential audit once.
+
+  Result: **zero real AWS access keys anywhere.** The only credential-shaped hits were 207
+  occurrences of `AKIAIOSFODNN7EXAMPLE` <!-- TAP-CREDENTIAL-OK: AWS's published doc placeholder, quoted as the audit finding -->
+  — AWS's own canonical documentation placeholder — in vendored third-party Teleport docs,
+  not our code. (Quoting it here tripped the new pre-commit hook on the first commit
+  attempt; resolved with the documented marker rather than `--no-verify`.)
+
+  AWS account id `180731181784` is present in six repos: `tap` (**195 blobs** in history vs
+  4 files at HEAD), `tap-plugin-aws-core` (16 / 1 — test fixtures), `tap-plugin-samsite`
+  (4 / 2), `tap-plugin-roscale` (4 / 1 — an OSCAL fixture), `samsite` (4 / 1), and `rampart`
+  (4 / **0** — history only). Core's spread is monorepo-era residue from when samsite,
+  aws_core and roscale lived inside it.
+
+  **Decision: do not rewrite history for this.** An account id is not a credential, and the
+  codebase already takes that position in `account_mismatch_error` — *"Account ids are
+  non-secret identifiers and are safe to surface in the message"* — while
+  `req-aws-core-secret-aws-static-5` has operators writing their own into a config file.
+  Rewriting ~1,200 commits of core to hide a value we classify as non-secret is a bad trade.
+  Scrubbing HEAD is worth doing as hygiene (the aws_core and roscale test fixtures
+  especially, where a synthetic 12-digit id costs nothing) but it is **cosmetic while the
+  history ships** — step 9 above is the actual remedy.
 
 ## Status of the work this plan came out of (all landed, `origin/main` `f9fec738`)
 
