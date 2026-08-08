@@ -173,3 +173,25 @@ jobs:
       - name: Dump web logs on failure
         if: failure()
         run: docker compose --env-file .env logs web | tail -200
+
+  # The single stable required-check target — rulesets point ONLY at this name.
+  # The matrix names its `line` instances from matrix DATA ("line (test_all, ...)"),
+  # so those names silently change whenever the matrix shape changes; requiring them
+  # directly leaves the ruleset pinned to strings that stop reporting. This job has a
+  # hand-chosen name and one opinion. `if: always()` means it cannot be skipped into
+  # a false green (GitHub treats a skipped required check as satisfied — fail-open);
+  # it demands `success` specifically, so skipped/cancelled upstream jobs FAIL the
+  # gate. Sibling of all-plugins.yml's `all-plugins-gate`, same convention.
+  gate:
+    needs: [setup, secret-scan, line]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every required job must have actually succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "results: $RESULTS"
+          for r in $RESULTS; do
+            [ "$r" = "success" ] || { echo "::error::a required job finished '$r' (skipped counts as failure here)"; exit 1; }
+          done

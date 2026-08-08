@@ -89,7 +89,12 @@ variable "log_retention_days" {
 variable "bedrock_enabled" {
   description = "Grant the lane role bedrock:InvokeModel* for native tap_ai / LLM tests."
   type        = bool
-  default     = true
+  # Default OFF (flipped 2026-08-08): nothing in the current lanes invokes Bedrock, and an
+  # unused wildcard grant on a runner that executes approved fork-PR code is exactly the
+  # standing power the security posture says not to carry. Re-enable WITH specific model
+  # ARNs (scope resources in iam.tf at the same time) when a lane actually needs it —
+  # over-restriction relaxes cheaply.
+  default = false
 }
 
 variable "sts_assume_role_arns" {

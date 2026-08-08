@@ -4,10 +4,12 @@ output "codeconnection_arn" {
 }
 
 output "codeconnection_action_required" {
-  description = "Whether the connection still needs manual authorization."
-  value = var.codeconnection_arn == "" ? (
-    "ACTION REQUIRED: authorize the new connection in AWS console (Developer Tools > Settings > Connections) — it is PENDING until then."
-  ) : "Using a pre-existing connection (assumed already authorized)."
+  description = "Whether the connection still needs manual authorization (reads the LIVE status, not an assumption)."
+  value = var.codeconnection_arn != "" ? "Using a pre-existing connection (assumed already authorized)." : (
+    aws_codeconnections_connection.github[0].connection_status == "AVAILABLE"
+    ? "Connection authorized (AVAILABLE) — no action needed."
+    : "ACTION REQUIRED: authorize the connection in AWS console (CodeConnections > Connections) — status is ${aws_codeconnections_connection.github[0].connection_status} until then."
+  )
 }
 
 output "codebuild_project_names" {
