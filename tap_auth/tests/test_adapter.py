@@ -20,15 +20,15 @@ from tap_auth.adapter import TapSocialAccountAdapter
 from tap_auth.models import ExternalIdentity, ExternalIdentityStatus
 from tap_auth.providers import ProviderConfig, get_provider
 
-PROVIDER_ID = "criticalsec-google"
+PROVIDER_ID = "example-google"
 
 
 def _provider_raw(**over) -> dict:
     raw = {
         "id": PROVIDER_ID,
         "type": "google_oidc",
-        "display_name": "criticalsec.com (Google)",
-        "allowed_domains": ["criticalsec.com"],
+        "display_name": "example.com (Google)",
+        "allowed_domains": ["example.com"],
     }
     raw.update(over)
     return raw
@@ -37,9 +37,9 @@ def _provider_raw(**over) -> dict:
 def _claims(**over) -> dict:
     c = {
         "sub": "google-sub-123",
-        "email": "george@criticalsec.com",
+        "email": "operator@example.com",
         "email_verified": True,
-        "hd": "criticalsec.com",
+        "hd": "example.com",
         "name": "George",
     }
     c.update(over)
@@ -58,10 +58,10 @@ def _eval(provider_raw: dict, claims: dict):
 
 class TestEvaluateAccess:
     def test_allow_verified_in_domain_and_allowlist(self):
-        d = _eval(_provider_raw(allowed_emails=["george@criticalsec.com"]), _claims())
+        d = _eval(_provider_raw(allowed_emails=["operator@example.com"]), _claims())
         assert d.allowed is True
-        assert d.matched_domain == "criticalsec.com"
-        assert d.verified_email == "george@criticalsec.com"
+        assert d.matched_domain == "example.com"
+        assert d.verified_email == "operator@example.com"
 
     def test_allow_domain_only_no_allowlist(self):
         assert _eval(_provider_raw(), _claims()).allowed is True
@@ -79,34 +79,34 @@ class TestEvaluateAccess:
 
     def test_deny_no_hd_no_fallback(self):
         # consumer Google account: no hd, fallback off → denied (no silent email-domain match)
-        c = _claims(email="george@criticalsec.com")
+        c = _claims(email="operator@example.com")
         c.pop("hd")
         d = _eval(_provider_raw(), c)
         assert d.allowed is False and d.reason == "domain_not_allowed"
 
     def test_allow_via_email_domain_fallback_when_enabled(self):
-        c = _claims(email="george@criticalsec.com")
+        c = _claims(email="operator@example.com")
         c.pop("hd")
         d = _eval(_provider_raw(email_domain_fallback=True), c)
-        assert d.allowed is True and d.matched_domain == "criticalsec.com"
+        assert d.allowed is True and d.matched_domain == "example.com"
 
     def test_fallback_still_requires_verified_email(self):
-        c = _claims(email="george@criticalsec.com", email_verified=False)
+        c = _claims(email="operator@example.com", email_verified=False)
         c.pop("hd")
         d = _eval(_provider_raw(email_domain_fallback=True), c)
         assert d.allowed is False and d.reason == "email_not_verified"
 
     def test_deny_account_not_allowlisted(self):
-        d = _eval(_provider_raw(allowed_emails=["someone-else@criticalsec.com"]), _claims())
+        d = _eval(_provider_raw(allowed_emails=["someone-else@example.com"]), _claims())
         assert d.allowed is False and d.reason == "account_not_allowlisted"
 
     def test_hd_takes_precedence_over_email_domain(self):
         # hd is the trustworthy claim; an attacker-controlled email domain must not widen access
         d = _eval(
-            _provider_raw(allowed_domains=["criticalsec.com"]), _claims(hd="criticalsec.com", email="george@gmail.com")
+            _provider_raw(allowed_domains=["example.com"]), _claims(hd="example.com", email="personal@example.net")
         )
-        # email domain (gmail.com) is NOT allowed, but hd (criticalsec.com) IS → matched on hd
-        assert d.allowed is True and d.matched_domain == "criticalsec.com"
+        # email domain (example.net) is NOT allowed, but hd (example.com) IS → matched on hd
+        assert d.allowed is True and d.matched_domain == "example.com"
 
 
 # --------------------------------------------------------------------------- #
@@ -156,10 +156,10 @@ def _sociallogin(claims: dict, *, is_existing: bool = False) -> SocialLogin:
 @pytest.mark.django_db
 class TestSocialAdapter:
     def _request(self):
-        return RequestFactory().get("/auth/oidc/criticalsec-google/login/callback/")
+        return RequestFactory().get("/auth/oidc/example-google/login/callback/")
 
     def test_pre_social_login_allows_valid(self, settings):
-        settings.TAP_AUTH_PROVIDERS = [_provider_raw(allowed_emails=["george@criticalsec.com"])]
+        settings.TAP_AUTH_PROVIDERS = [_provider_raw(allowed_emails=["operator@example.com"])]
         # no raise == allowed
         TapSocialAccountAdapter().pre_social_login(self._request(), _sociallogin(_claims()))
 
@@ -173,7 +173,7 @@ class TestSocialAdapter:
         assert b"domain_not_allowed" in exc.value.response.content
 
     def test_pre_social_login_denies_not_allowlisted(self, settings):
-        settings.TAP_AUTH_PROVIDERS = [_provider_raw(allowed_emails=["only@criticalsec.com"])]
+        settings.TAP_AUTH_PROVIDERS = [_provider_raw(allowed_emails=["only@example.com"])]
         with pytest.raises(ImmediateHttpResponse) as exc:
             TapSocialAccountAdapter().pre_social_login(self._request(), _sociallogin(_claims()))
         assert b"account_not_allowlisted" in exc.value.response.content
@@ -186,7 +186,7 @@ class TestSocialAdapter:
     def test_pre_social_login_denies_linking_same_email(self, settings):
         settings.TAP_AUTH_PROVIDERS = [_provider_raw()]
         # an existing user already holds this email
-        get_user_model().objects.create_user(username="existing", email="george@criticalsec.com")
+        get_user_model().objects.create_user(username="existing", email="operator@example.com")
         with pytest.raises(ImmediateHttpResponse) as exc:
             TapSocialAccountAdapter().pre_social_login(self._request(), _sociallogin(_claims(), is_existing=False))
         assert b"identity_linking_disabled" in exc.value.response.content
@@ -215,22 +215,22 @@ class TestSocialAdapter:
         TapSocialAccountAdapter()._sync_external_identity(sl, user)
         ei = ExternalIdentity.objects.get(provider_id=PROVIDER_ID, subject="google-sub-123")
         assert ei.user_id == user.pk
-        assert ei.email_snapshot == "george@criticalsec.com"
-        assert ei.hosted_domain_snapshot == "criticalsec.com"
+        assert ei.email_snapshot == "operator@example.com"
+        assert ei.hosted_domain_snapshot == "example.com"
         assert ei.status == ExternalIdentityStatus.ACTIVE
         user.refresh_from_db()
         assert user.username.startswith(f"ext-{PROVIDER_ID}-")
-        assert user.email == "george@criticalsec.com"
+        assert user.email == "operator@example.com"
         # display profile for the UI (never the generated username)
         assert user.get_full_name() == "George Aydlette"
         assert user.avatar_url == "https://lh3.googleusercontent.com/p"
 
     def test_apply_initial_grants_grants_all_mapped_roles(self, settings):
         # A single email may be granted several human roles at once.
-        settings.TAP_AUTH_INITIAL_GRANTS = {"george@criticalsec.com": ["tap_admin", "tap_viewer"]}
+        settings.TAP_AUTH_INITIAL_GRANTS = {"operator@example.com": ["tap_admin", "tap_viewer"]}
         Group.objects.get_or_create(name="tap_admin")
         Group.objects.get_or_create(name="tap_viewer")
-        user = get_user_model().objects.create_user(username="g", email="george@criticalsec.com")
+        user = get_user_model().objects.create_user(username="g", email="operator@example.com")
         TapSocialAccountAdapter()._apply_initial_grants(user)
         assert user.groups.filter(name="tap_admin").exists()
         assert user.groups.filter(name="tap_viewer").exists()
@@ -246,9 +246,9 @@ class TestSocialAdapter:
         assert not user.groups.filter(name="tap_admin").exists()
 
     def test_apply_initial_grants_skips_unmapped_email(self, settings):
-        settings.TAP_AUTH_INITIAL_GRANTS = {"someone@criticalsec.com": ["tap_admin"]}
+        settings.TAP_AUTH_INITIAL_GRANTS = {"someone@example.com": ["tap_admin"]}
         Group.objects.get_or_create(name="tap_admin")
-        user = get_user_model().objects.create_user(username="h", email="other@criticalsec.com")
+        user = get_user_model().objects.create_user(username="h", email="other@example.com")
         TapSocialAccountAdapter()._apply_initial_grants(user)
         assert not user.groups.filter(name="tap_admin").exists()
 
@@ -256,20 +256,20 @@ class TestSocialAdapter:
         # Defense in depth: even if a program-only role leaks into the map (past
         # the schema/boot guards), the adapter refuses to grant it to a person —
         # a human can NEVER be handed a program actor's authority via login.
-        settings.TAP_AUTH_INITIAL_GRANTS = {"x@criticalsec.com": ["tap_bootloader", "tap_viewer"]}
+        settings.TAP_AUTH_INITIAL_GRANTS = {"x@example.com": ["tap_bootloader", "tap_viewer"]}
         Group.objects.get_or_create(name="tap_bootloader")
         Group.objects.get_or_create(name="tap_viewer")
-        user = get_user_model().objects.create_user(username="x", email="x@criticalsec.com")
+        user = get_user_model().objects.create_user(username="x", email="x@example.com")
         TapSocialAccountAdapter()._apply_initial_grants(user)
         assert not user.groups.filter(name="tap_bootloader").exists()  # refused
         assert user.groups.filter(name="tap_viewer").exists()  # the grantable one still applied
 
     def test_apply_initial_grants_is_add_only_idempotent(self, settings):
         # Add-only: never removes a pre-existing membership; idempotent on re-run.
-        settings.TAP_AUTH_INITIAL_GRANTS = {"george@criticalsec.com": ["tap_viewer"]}
+        settings.TAP_AUTH_INITIAL_GRANTS = {"operator@example.com": ["tap_viewer"]}
         Group.objects.get_or_create(name="tap_admin")
         Group.objects.get_or_create(name="tap_viewer")
-        user = get_user_model().objects.create_user(username="g2", email="george@criticalsec.com")
+        user = get_user_model().objects.create_user(username="g2", email="operator@example.com")
         user.groups.add(Group.objects.get(name="tap_admin"))  # a standing grant the map omits
         adapter = TapSocialAccountAdapter()
         adapter._apply_initial_grants(user)
@@ -289,13 +289,13 @@ class TestClaimUnwrapping:
         from tap_auth.adapter import _pick_claims
 
         wrapped = {
-            "userinfo": {"email": "george@criticalsec.com", "name": "George"},
-            "id_token": {"email_verified": True, "hd": "criticalsec.com", "sub": "s1"},
+            "userinfo": {"email": "operator@example.com", "name": "George"},
+            "id_token": {"email_verified": True, "hd": "example.com", "sub": "s1"},
         }
         c = _pick_claims(wrapped)
-        assert c["email"] == "george@criticalsec.com"  # from userinfo
+        assert c["email"] == "operator@example.com"  # from userinfo
         assert c["email_verified"] is True  # from id_token
-        assert c["hd"] == "criticalsec.com"
+        assert c["hd"] == "example.com"
 
     def test_id_token_wins_on_overlap(self):
         # the SIGNED id_token is authoritative for security claims; a userinfo
@@ -321,13 +321,13 @@ class TestClaimUnwrapping:
         # verified Workspace account must be ALLOWED, not denied email_not_verified
         from django.test import RequestFactory
 
-        settings.TAP_AUTH_PROVIDERS = [_provider_raw(allowed_emails=["george@criticalsec.com"])]
+        settings.TAP_AUTH_PROVIDERS = [_provider_raw(allowed_emails=["operator@example.com"])]
         account = SocialAccount(
             provider=PROVIDER_ID,
             uid="s1",
             extra_data={
-                "userinfo": {"email": "george@criticalsec.com", "name": "George", "sub": "s1"},
-                "id_token": {"email_verified": True, "hd": "criticalsec.com", "sub": "s1"},
+                "userinfo": {"email": "operator@example.com", "name": "George", "sub": "s1"},
+                "id_token": {"email_verified": True, "hd": "example.com", "sub": "s1"},
             },
         )
         sl = SocialLogin(account=account)
@@ -345,9 +345,9 @@ class TestUserDisplay:
         from tap_auth.adapter import user_display
 
         u = get_user_model().objects.create_user(
-            username="ext-criticalsec-google-abc123", email="george@criticalsec.com"
+            username="ext-example-google-abc123", email="operator@example.com"
         )
-        assert user_display(u) == "george@criticalsec.com"
+        assert user_display(u) == "operator@example.com"
 
     def test_falls_back_to_username_without_email(self):
         from tap_auth.adapter import user_display

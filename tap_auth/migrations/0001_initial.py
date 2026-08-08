@@ -218,7 +218,7 @@ class Migration(migrations.Migration):
                 (
                     "provider_id",
                     models.CharField(
-                        help_text="Stable provider natural key, e.g. 'criticalsec-google'.", max_length=64
+                        help_text="Stable provider natural key, e.g. 'example-google'.", max_length=64
                     ),
                 ),
                 ("provider_type", models.CharField(help_text="Provider type, e.g. 'google_oidc'.", max_length=32)),

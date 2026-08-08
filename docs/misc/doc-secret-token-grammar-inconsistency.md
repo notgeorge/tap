@@ -25,7 +25,7 @@ tap_cares.secrets.loader — skipping file with invalid token
 tap_cares.W001  Secret failed to load (degraded): tap_plugins/source:github-plugins-ro — …
 ```
 
-The other three secrets in the same dir load clean (`auth:criticalsec-google`,
+The other three secrets in the same dir load clean (`auth:example-google`,
 `aws_core:boto_collector`, `github_core:collector`) — every one uses a **flat, slash-free**
 scope. `tap_plugins/source` is the lone `/` outlier. Confirmed identical on `session/plugins`
 (plugin-clear) and `session/codex-security` — the secrets subsystem is byte-identical between

@@ -76,12 +76,12 @@ class TestInitialGrantsMerge:
     def test_folds_admins_lowercases_and_unions(self):
         merged = merge_initial_grants(
             {
-                "initial_admins": ["George@Criticalsec.com"],
-                "initial_grants": {"george@criticalsec.com": ["tap_viewer"], " Sam@Example.com ": ["tap_viewer"]},
+                "initial_admins": ["Operator@Example.com"],
+                "initial_grants": {"operator@example.com": ["tap_viewer"], " Sam@Example.com ": ["tap_viewer"]},
             }
         )
         # grants are applied first, then the folded-in admin — unioned, order-stable.
-        assert merged["george@criticalsec.com"] == ["tap_viewer", "tap_admin"]
+        assert merged["operator@example.com"] == ["tap_viewer", "tap_admin"]
         assert merged["sam@example.com"] == ["tap_viewer"]
 
     def test_empty_section_is_empty_map(self):

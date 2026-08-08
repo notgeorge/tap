@@ -59,10 +59,10 @@ def _write_secret(
 
 def _cfg(**over) -> ProviderConfig:
     raw = {
-        "id": "criticalsec-google",
+        "id": "example-google",
         "type": "google_oidc",
-        "display_name": "criticalsec.com (Google)",
-        "allowed_domains": ["criticalsec.com"],
+        "display_name": "example.com (Google)",
+        "allowed_domains": ["example.com"],
     }
     raw.update(over)
     return ProviderConfig.from_dict(raw)
@@ -130,8 +130,8 @@ class TestRegistry:
 class TestSecretResolver:
     def test_resolve_valid(self, tmp_path, settings):
         settings.TAP_SECRETS_ROOT = str(tmp_path)
-        _write_secret(tmp_path, "criticalsec-google")
-        data = resolve_oidc_client_secret("criticalsec-google")
+        _write_secret(tmp_path, "example-google")
+        data = resolve_oidc_client_secret("example-google")
         assert data["client_id"].endswith("apps.googleusercontent.com")
         assert data["client_secret"].startswith("GOCSPX-")
 
@@ -139,8 +139,8 @@ class TestSecretResolver:
         settings.TAP_SECRETS_ROOT = str(tmp_path)
         sub = tmp_path / "auth"
         sub.mkdir()
-        _write_secret(sub, "criticalsec-google")
-        assert resolve_oidc_client_secret("criticalsec-google")["client_id"]
+        _write_secret(sub, "example-google")
+        assert resolve_oidc_client_secret("example-google")["client_id"]
 
     def test_missing_raises(self, tmp_path, settings):
         settings.TAP_SECRETS_ROOT = str(tmp_path)
@@ -200,7 +200,7 @@ class TestGoogleOidcValidate:
     def test_callback_url_derivation(self, settings):
         settings.TAP_BASE_URL = "https://rampart.example.com/"
         url = GoogleOidcProvider().callback_url(_cfg())
-        assert url == "https://rampart.example.com/auth/oidc/criticalsec-google/login/callback/"
+        assert url == "https://rampart.example.com/auth/oidc/example-google/login/callback/"
 
 
 # --------------------------------------------------------------------------- #
@@ -215,7 +215,7 @@ class TestGoogleOidcSelfTest:
     def test_offline_secret_present(self, tmp_path, settings):
         settings.TAP_SECRETS_ROOT = str(tmp_path)
         settings.TAP_BASE_URL = "https://x"
-        _write_secret(tmp_path, "criticalsec-google")
+        _write_secret(tmp_path, "example-google")
         provider = GoogleOidcProvider()
         cfg = _cfg()
         secrets = provider.resolve_secrets(cfg)
@@ -233,7 +233,7 @@ class TestGoogleOidcSelfTest:
     def test_live_discovery_pass(self, tmp_path, settings):
         settings.TAP_SECRETS_ROOT = str(tmp_path)
         settings.TAP_BASE_URL = "https://x"
-        _write_secret(tmp_path, "criticalsec-google")
+        _write_secret(tmp_path, "example-google")
         provider = GoogleOidcProvider()
         cfg = _cfg()
         with mock.patch.object(requests, "get", return_value=_mock_response(200, _discovery_doc())):
@@ -243,7 +243,7 @@ class TestGoogleOidcSelfTest:
     def test_live_discovery_unreachable_fails(self, tmp_path, settings):
         settings.TAP_SECRETS_ROOT = str(tmp_path)
         settings.TAP_BASE_URL = "https://x"
-        _write_secret(tmp_path, "criticalsec-google")
+        _write_secret(tmp_path, "example-google")
         provider = GoogleOidcProvider()
         cfg = _cfg()
         with mock.patch.object(requests, "get", side_effect=requests.ConnectionError("boom")):
@@ -253,7 +253,7 @@ class TestGoogleOidcSelfTest:
     def test_live_discovery_missing_keys_fails(self, tmp_path, settings):
         settings.TAP_SECRETS_ROOT = str(tmp_path)
         settings.TAP_BASE_URL = "https://x"
-        _write_secret(tmp_path, "criticalsec-google")
+        _write_secret(tmp_path, "example-google")
         provider = GoogleOidcProvider()
         cfg = _cfg()
         with mock.patch.object(requests, "get", return_value=_mock_response(200, {"issuer": "x"})):
@@ -269,11 +269,11 @@ class TestGoogleOidcSelfTest:
 class TestAllauthWiring:
     def test_build_allauth_settings_entry(self, tmp_path, settings):
         settings.TAP_SECRETS_ROOT = str(tmp_path)
-        _write_secret(tmp_path, "criticalsec-google")
+        _write_secret(tmp_path, "example-google")
         provider = GoogleOidcProvider()
         cfg = _cfg()
         entry = provider.build_allauth_settings(cfg, provider.resolve_secrets(cfg))
-        assert entry["provider_id"] == "criticalsec-google"
+        assert entry["provider_id"] == "example-google"
         assert entry["client_id"].endswith("apps.googleusercontent.com")
         assert entry["settings"]["server_url"] == "https://accounts.google.com"
 
@@ -282,16 +282,16 @@ class TestAllauthWiring:
 
     def test_build_socialaccount_providers_one(self, tmp_path, settings):
         settings.TAP_SECRETS_ROOT = str(tmp_path)
-        _write_secret(tmp_path, "criticalsec-google")
+        _write_secret(tmp_path, "example-google")
         raw = {
-            "id": "criticalsec-google",
+            "id": "example-google",
             "type": "google_oidc",
-            "display_name": "criticalsec.com",
-            "allowed_domains": ["criticalsec.com"],
+            "display_name": "example.com",
+            "allowed_domains": ["example.com"],
         }
         out = build_socialaccount_providers([raw])
         assert "openid_connect" in out
-        assert out["openid_connect"]["APPS"][0]["provider_id"] == "criticalsec-google"
+        assert out["openid_connect"]["APPS"][0]["provider_id"] == "example-google"
 
     def test_critical_missing_secret_raises(self, tmp_path, settings):
         settings.TAP_SECRETS_ROOT = str(tmp_path)  # no secret written

@@ -2,7 +2,7 @@
 
 Covers the settings-time readers, fragment validation, provider self-test
 gating, the deploy-posture gate, and the last-admin invariant. Also asserts the
-shipped criticalsec profile's auth section is valid against the fragment.
+shipped operator_sso profile's auth section is valid against the fragment.
 """
 
 from __future__ import annotations
@@ -39,17 +39,17 @@ def _section(**over) -> dict:
 
 def _provider(**over) -> dict:
     p = {
-        "id": "criticalsec-google",
+        "id": "example-google",
         "type": "google_oidc",
-        "display_name": "criticalsec.com",
+        "display_name": "example.com",
         "description": "test provider",
-        "allowed_domains": ["criticalsec.com"],
+        "allowed_domains": ["example.com"],
     }
     p.update(over)
     return p
 
 
-def _write_secret(root: Path, key: str = "criticalsec-google") -> None:
+def _write_secret(root: Path, key: str = "example-google") -> None:
     (root / f"{key}.secret.json").write_text(
         json.dumps(
             {
@@ -64,21 +64,21 @@ def _write_secret(root: Path, key: str = "criticalsec-google") -> None:
 
 
 # --------------------------------------------------------------------------- #
-# settings-time readers (against the shipped criticalsec profile)
+# settings-time readers (against the shipped operator_sso profile)
 # --------------------------------------------------------------------------- #
 
 
 class TestSettingsReaders:
-    def test_read_criticalsec_profile(self):
-        section = read_auth_section("criticalsec")
-        assert section["providers"][0]["id"] == "criticalsec-google"
-        assert "george@criticalsec.com" in section["initial_admins"]
+    def test_read_operator_sso_profile(self):
+        section = read_auth_section("operator_sso")
+        assert section["providers"][0]["id"] == "example-google"
+        assert "operator@example.com" in section["initial_admins"]
 
     def test_providers_for_settings(self):
-        assert providers_for_settings("criticalsec")[0]["type"] == "google_oidc"
+        assert providers_for_settings("operator_sso")[0]["type"] == "google_oidc"
 
     def test_initial_admins_for_settings(self):
-        assert initial_admins_for_settings("criticalsec") == ["george@criticalsec.com"]
+        assert initial_admins_for_settings("operator_sso") == ["operator@example.com"]
 
     def test_missing_profile_is_empty(self):
         assert read_auth_section("does-not-exist") == {}
@@ -107,8 +107,8 @@ class TestValidation:
         with pytest.raises(AuthBootError):
             validate_auth_section(_section(providers=[bad]))
 
-    def test_shipped_criticalsec_profile_is_valid(self):
-        section = read_auth_section("criticalsec")
+    def test_shipped_operator_sso_profile_is_valid(self):
+        section = read_auth_section("operator_sso")
         validate_auth_section(section)  # must not raise
 
 
@@ -150,7 +150,7 @@ class TestApply:
 
     def test_last_admin_ok_with_declared_initial_admin(self):
         # no admin exists, but initial_admins declares a path → OK
-        apply_auth_boot_section(_section(initial_admins=["george@criticalsec.com"]), deploy=False, echo=_NOOP)
+        apply_auth_boot_section(_section(initial_admins=["operator@example.com"]), deploy=False, echo=_NOOP)
 
     def test_last_admin_fails_with_no_admin_no_path(self):
         with pytest.raises(AuthBootError, match="active human tap_admin"):

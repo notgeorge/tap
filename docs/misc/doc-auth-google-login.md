@@ -24,9 +24,9 @@ Google; the only step a browser/human must complete is the consent round-trip.
 - The `google_oidc` provider, the security adapter (verified-email / `hd`-domain /
   `allowed_emails` / linking-disabled), `ExternalIdentity`, gated provisioning,
   initial-admin-on-first-login.
-- The `criticalsec` boot profile (`boot/criticalsec.boot.json`) wiring the
-  `criticalsec-google` provider pinned to `george@criticalsec.com`.
-- The secret `~/tap-secrets/auth/criticalsec-google.secret.json` (your real
+- The `operator_sso` boot profile (`boot/operator_sso.boot.json`) wiring the
+  `example-google` provider pinned to `operator@example.com`.
+- The secret `~/tap-secrets/auth/example-google.secret.json` (your real
   Google client id/secret), schema-validated.
 - Live-verified: `manage.py auth_selftest --live` PASSes (incl. real Google
   discovery), and login-initiation redirects to `accounts.google.com` with the
@@ -38,23 +38,23 @@ The OAuth client you created must have this **authorized redirect URI** for the
 local stack (port 8010 for the `boot` session):
 
 ```
-http://localhost:8010/auth/oidc/criticalsec-google/login/callback/
+http://localhost:8010/auth/oidc/example-google/login/callback/
 ```
 
-- Consent screen: **Internal** (restricts to criticalsec.com + guarantees the
+- Consent screen: **Internal** (restricts to example.com + guarantees the
   returned `hd` claim).
 - Scopes: `openid`, `email`, `profile` (non-sensitive — no Google review needed).
-- For a deployed instance, add `https://<host>/auth/oidc/criticalsec-google/login/callback/`.
+- For a deployed instance, add `https://<host>/auth/oidc/example-google/login/callback/`.
 
 ## Wire the running server to the profile
 
 The running web server reads providers from its `TAP_BOOT_PROFILE`. For the local
-browser smoke, point this session's stack at the `criticalsec` profile and set the
+browser smoke, point this session's stack at the `operator_sso` profile and set the
 base URL (used for self-test/callback display):
 
 ```bash
 # in .env.local (this session) — or export before `scripts/dc up`
-TAP_BOOT_PROFILE=criticalsec
+TAP_BOOT_PROFILE=operator_sso
 TAP_BASE_URL=http://localhost:8010
 ```
 
@@ -72,12 +72,12 @@ scripts/dc exec web uv run python manage.py auth_selftest --live   # all PASS
 ## The browser smoke
 
 1. Open `http://localhost:8010/` → you're redirected to `/auth/login/`.
-2. The login page shows the **criticalsec.com (Google)** button (POST-only —
+2. The login page shows the **example.com (Google)** button (POST-only —
    `SOCIALACCOUNT_LOGIN_ON_GET=False`).
 3. Click it → Google consent → back to the callback.
-4. The TAP adapter runs: verified email + `hd=criticalsec.com` + `george@` on the
+4. The TAP adapter runs: verified email + `hd=example.com` + `george@` on the
    allowlist → allowed → a user is provisioned, an `ExternalIdentity` is written,
-   and because `george@criticalsec.com` is in `auth.initial_admins`, the user is
+   and because `operator@example.com` is in `auth.initial_admins`, the user is
    added to `tap_admin`. (`initial_admins` is sugar for the general
    `auth.initial_grants` email→role map; e.g. `{"sam@example.com": ["tap_viewer"]}`
    admits a read-only guest. Only human-assignable roles — `tap_admin`,
@@ -86,8 +86,8 @@ scripts/dc exec web uv run python manage.py auth_selftest --live   # all PASS
 
 ### Expected denials (try them to see the security adapter work)
 
-- A `criticalsec.com` account NOT on `allowed_emails` → `account_not_allowlisted`.
-- A non-`criticalsec.com` Google account → `domain_not_allowed`.
+- A `example.com` account NOT on `allowed_emails` → `account_not_allowlisted`.
+- A non-`example.com` Google account → `domain_not_allowed`.
 - Each shows a specific page (not an opaque error) and logs a structured security
   event with a redacted subject.
 

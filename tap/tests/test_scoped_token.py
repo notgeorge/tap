@@ -24,7 +24,7 @@ class _DummyError(Exception):
         "github_core",
         "aws_core",
         "tap_plugins.source",  # the realigned install-system scope (dot, flat)
-        "criticalsec-google",
+        "example-google",
         "a",
         "A0._-",
     ],

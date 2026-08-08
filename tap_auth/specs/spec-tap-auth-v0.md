@@ -8,7 +8,7 @@ The core doctrine is:
 
 > Authentication is surface-specific. Authorization is service-boundary enforcement. Every authenticated surface resolves to a named TAP actor; every TAP operation is authorized at the service boundary by `tap_auth`.
 
-Human authentication starts with Django and django-allauth, with Google/OIDC as the first real provider path because the first customer signal points at Google Workspace and `criticalsec.com` is also Google-managed. Enterprise SAML remains a supported direction, but the first implementation should not force SAML before demand. Machine and AI actors are deliberately treated as named program users from the beginning so TAP never normalizes anonymous system work.
+Human authentication starts with Django and django-allauth, with Google/OIDC as the first real provider path because the first customer signal points at Google Workspace and `example.com` is also Google-managed. Enterprise SAML remains a supported direction, but the first implementation should not force SAML before demand. Machine and AI actors are deliberately treated as named program users from the beginning so TAP never normalizes anonymous system work.
 
 Authorization starts with Django groups and permissions as the backend substrate, but TAP exposes its own capability vocabulary. Django permissions are storage and evaluation machinery; TAP capabilities are the platform contract. V1 uses coarse operation-level capabilities, then later refines grid access by dimensions, delegation, and resource scope.
 
@@ -28,7 +28,7 @@ No `User=None` actor is permitted at the application/service boundary. If TAP di
 
 This spec supports `plan/road-rampart.md` active steps:
 
-- `step-rampart-first-paid-assessment`: Robco deployment needs Google/Workspace-style login while allowing `criticalsec.com` access.
+- `step-rampart-first-paid-assessment`: Robco deployment needs Google/Workspace-style login while allowing `example.com` access.
 - `step-rampart-first-paying-customer`: AuthN is the first critical-path item before plugin refactor, boot loader, configuration, and subscription launch.
 
 ## Prior Art
@@ -613,7 +613,7 @@ Provider-specific login machinery is isolated under `tap_auth/providers/`.
   - secret references
   - `critical_for_boot`
   - auto-provisioning policy
-- Provider IDs are stable natural keys such as `criticalsec-google` and `robco-google`.
+- Provider IDs are stable natural keys such as `example-google` and `robco-google`.
 - Provider display names are separate from IDs.
 - Provider secrets are referenced by keys under `TAP_SECRETS_ROOT`; secrets are never embedded in boot profiles or DB rows.
 - Provider secrets are resolved from the shared `*.secret.json` store via the **app-neutral `tap/runtime_secrets` resolver** (the same file-discovery and envelope contract tap_cares uses; see `spec-tap-cares-secrets` → *Shared Resolver*). tap_auth deliberately resolves **independently of the `tap_cares` app**: allauth settings are built at settings-import time, before `tap_cares.ready()` loads its registry, and tap_auth must not depend on tap_cares (the `tap_*` apps stay independently shippable; `tap/` and `tap_grid` are the only shared-dependency layers). tap_auth therefore reads the upstream resolver directly and owns its provider-side `oidc_client` data-block schema; the tap_cares *registry*, resilient-load report, and secrets health probe are not on this path.
@@ -673,10 +673,10 @@ Status: `Implemented`
 
 #### Implementation
 
-- Google/OIDC is first because Robco likely uses Google Workspace and `criticalsec.com` is Google-managed.
-- `criticalsec.com` and Robco are represented as separate `google_oidc` providers.
+- Google/OIDC is first because Robco likely uses Google Workspace and `example.com` is Google-managed.
+- `example.com` and Robco are represented as separate `google_oidc` providers.
 - Customer/deploy providers require `allowed_domains`.
-- Providers may optionally declare `allowed_emails`: an explicit allowlist of individual accounts. When present, only those accounts may log in through this provider; absent or empty means domain-only (no per-account restriction). This is how a `criticalsec.com` provider can be pinned to a single operator — e.g. allow only `george@criticalsec.com` even though the whole `criticalsec.com` domain is otherwise eligible.
+- Providers may optionally declare `allowed_emails`: an explicit allowlist of individual accounts. When present, only those accounts may log in through this provider; absent or empty means domain-only (no per-account restriction). This is how a `example.com` provider can be pinned to a single operator — e.g. allow only `operator@example.com` even though the whole `example.com` domain is otherwise eligible.
   - `allowed_emails` is matched against the provider-asserted **verified** email (`email` with `email_verified=true`), normalized and case-insensitive.
   - It is an authorization filter, not an identity key. Because email is mutable and `req-tap-auth-external-identity` keeps `sub` as the durable identity, `allowed_emails` is enforced on **every** login, not only at first provisioning. An already-provisioned account whose email drops out of the allowlist is denied at the next login.
   - `allowed_emails` only ever narrows within `allowed_domains`; both checks apply. It never widens access beyond the allowed domains and never bypasses `email_verified`.

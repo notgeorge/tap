@@ -697,7 +697,7 @@ each custom_fn signature.
 
 - **9 of those 12 carry `GeorgeAddition`** — the cross-deployment additions.
 - **Bonus FEDERATES_INTO edge surfaced for free**: pre-existing Teleport
-  OIDC federation (`criticalsec-connect.teleport.sh -> TeleportConnectDemo`)
+  OIDC federation (`operator_sso-connect.teleport.sh -> TeleportConnectDemo`)
   also matches the role-trust-policy pattern, so it landed too. Not part
   of samsite — but a real federation relationship now visible on the grid.
 

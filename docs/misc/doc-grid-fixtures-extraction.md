@@ -183,7 +183,7 @@ tables, so no data migration is required (note this in the migration if desired)
 
 7. **Verify.** In the container, rebuilt image:
    - `manage.py makemigrations --check` clean.
-   - Preboot coherence passes for every shipped profile (`base`, `criticalsec`,
+   - Preboot coherence passes for every shipped profile (`base`, `operator_sso`,
      `samsite`, dev) — the 2026-07-02 `base`-break class.
    - Full suite green: `scripts/test` (includes the Gridkin lane). Expect the Gridkin
      corpus (201-ish scenarios) + `tap_grid/tests/test_gryphon.py` to pass against the

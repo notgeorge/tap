@@ -38,8 +38,8 @@ _APPS = {
     "openid_connect": {
         "APPS": [
             {
-                "provider_id": "criticalsec-google",
-                "name": "criticalsec.com",
+                "provider_id": "example-google",
+                "name": "example.com",
                 "client_id": "mock-client.apps.googleusercontent.com",
                 "secret": "GOCSPX-mock",
                 "settings": {"server_url": _IDP},
@@ -62,21 +62,21 @@ class TestOidcInitiation:
     def test_post_initiation_redirects_to_idp(self, settings):
         settings.SOCIALACCOUNT_PROVIDERS = _APPS
         with mock.patch("requests.Session.get", return_value=_discovery_response()):
-            r = Client().post("/auth/oidc/criticalsec-google/login/", SERVER_NAME="localhost")
+            r = Client().post("/auth/oidc/example-google/login/", SERVER_NAME="localhost")
         assert r.status_code == 302
         loc = r.headers["Location"]
         assert loc.startswith(f"{_IDP}/authorize")
         q = urlparse.parse_qs(urlparse.urlparse(loc).query)
         assert q["client_id"][0] == "mock-client.apps.googleusercontent.com"
         assert q["response_type"][0] == "code"
-        assert q["redirect_uri"][0].endswith("/auth/oidc/criticalsec-google/login/callback/")
+        assert q["redirect_uri"][0].endswith("/auth/oidc/example-google/login/callback/")
 
     def test_get_does_not_initiate(self, settings):
         """LOGIN_ON_GET=False: a GET must not 302 straight to the IdP (login-CSRF
         guard). allauth renders a confirm page instead."""
         settings.SOCIALACCOUNT_PROVIDERS = _APPS
         with mock.patch("requests.Session.get", return_value=_discovery_response()):
-            r = Client().get("/auth/oidc/criticalsec-google/login/", SERVER_NAME="localhost")
+            r = Client().get("/auth/oidc/example-google/login/", SERVER_NAME="localhost")
         assert r.status_code != 302 or not r.headers.get("Location", "").startswith(_IDP)
 
 
@@ -93,7 +93,7 @@ class TestProviderUnreachableRescue:
         # The discovery fetch (requests.Session.get) blows up with a connection
         # error — the same failure a network blip mid-login produces.
         with mock.patch("requests.Session.get", side_effect=requests.ConnectionError("unreachable")):
-            r = Client().post("/auth/oidc/criticalsec-google/login/", SERVER_NAME="localhost")
+            r = Client().post("/auth/oidc/example-google/login/", SERVER_NAME="localhost")
         assert r.status_code == 503
         assert r["Retry-After"] == "10"
         assert b"couldn't reach the sign-in provider" in r.content.lower()
@@ -127,7 +127,7 @@ class TestFipsAlgorithmRescue:
 
     @pytest.mark.django_db
     def test_fips_crypto_error_during_login_renders_502(self):
-        req = RequestFactory().get("/auth/oidc/criticalsec-google/login/callback/", SERVER_NAME="localhost")
+        req = RequestFactory().get("/auth/oidc/example-google/login/callback/", SERVER_NAME="localhost")
         req.user = AnonymousUser()
         # The RSA-key-too-small signature, as cryptography raises it inside from_jwk().
         exc = ValueError("Unable to sign/verify with this key")
@@ -145,6 +145,6 @@ class TestFipsAlgorithmRescue:
     def test_unrelated_exception_on_auth_path_is_not_swallowed(self):
         """An /auth/ exception that is NOT a recognizable FIPS crypto refusal stays a 500 —
         the rescue must not mask unrelated login bugs."""
-        req = RequestFactory().get("/auth/oidc/criticalsec-google/login/")
+        req = RequestFactory().get("/auth/oidc/example-google/login/")
         req.user = AnonymousUser()
         assert self._mw().process_exception(req, ValueError("some unrelated bug")) is None

@@ -20,7 +20,7 @@ class TestScanLogic:
     def _envelope(self) -> dict:
         return {
             "scope": "auth",
-            "key": "criticalsec-google",
+            "key": "example-google",
             "kind": "oidc_client",
             "description": "x",
             "data": {"client_id": "a", "client_secret": "b"},

@@ -235,7 +235,7 @@ def test_shipped_profiles_classification_matches_allowlist():
     unclassified, so import fails closed against them."""
     for dev_profile in ("core_dev", "samsite", "soak", "test_all"):
         assert read_profile_kind(dev_profile) == "dev_local"
-    for deployable in ("core", "criticalsec"):
+    for deployable in ("core", "operator_sso"):
         kind = read_profile_kind(deployable)
         assert kind != "dev_local"
         with pytest.raises(DevImportNotAllowed):
