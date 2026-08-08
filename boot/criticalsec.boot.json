@@ -1,21 +1,21 @@
 {
   "version": 1,
-  "description": "criticalsec.com operator deployment — Google Workspace login pinned to a single operator. The reference deploy profile (and the robco-google template): an auth-only standup with no outbound population. Google OIDC is the login path; george@criticalsec.com becomes tap_admin on first verified login.",
+  "description": "Reference deploy profile — single-operator Google Workspace (OIDC) login: an auth-only standup with no outbound population. Google OIDC is the login path; the pinned operator becomes tap_admin on first verified login. The example.com values below are RFC 2606 placeholders — replace them with your own Workspace domain and operator address before booting.",
   "auth": {
-    "description": "Single-operator auth for the criticalsec.com instance: one google_oidc provider restricted to the criticalsec.com Workspace domain and pinned to george@criticalsec.com, who is the initial admin. Local password login stays enabled as the recovery floor until the Google path is confirmed in production.",
+    "description": "Single-operator auth: one google_oidc provider restricted to a Google Workspace domain and pinned to a single operator address, who is the initial admin. Local password login is left enabled as a recovery floor so a misconfigured OIDC path cannot lock the operator out; disable it once the Google path is confirmed.",
     "providers": [
       {
         "id": "criticalsec-google",
         "type": "google_oidc",
-        "display_name": "criticalsec.com (Google)",
-        "description": "Google Workspace OIDC for criticalsec.com. allowed_domains enforces the returned hd claim; allowed_emails pins login to the single operator even though the whole domain is otherwise eligible.",
-        "allowed_domains": ["criticalsec.com"],
-        "allowed_emails": ["george@criticalsec.com"],
+        "display_name": "example.com (Google)",
+        "description": "Google Workspace OIDC. allowed_domains enforces the returned hd claim; allowed_emails pins login to the named operator even though the whole domain is otherwise eligible. NOTE: the provider id doubles as the secret key — client credentials resolve from the auth:<id> secret, so renaming this id means renaming the secret alongside it.",
+        "allowed_domains": ["example.com"],
+        "allowed_emails": ["operator@example.com"],
         "critical_for_boot": true,
         "auto_provision": true
       }
     ],
-    "initial_admins": ["george@criticalsec.com"],
+    "initial_admins": ["operator@example.com"],
     "local_password_enabled": true,
     "allow_admin_lockout": false
   }
