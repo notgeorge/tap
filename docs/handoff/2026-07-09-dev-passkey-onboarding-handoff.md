@@ -23,7 +23,7 @@ The documented dev-bootstrap loop is: register a `localhost` passkey once → ex
 
 But there was **no way to register a passkey onto `admin`**:
 
-- `enroll_admin --email …` derives the username from the email (`_unique_username`), producing `george@criticalsec.com`, not `admin`.
+- `enroll_admin --email …` derives the username from the email (`_unique_username`), producing `operator@example.com`, not `admin`.
 - Pinning the username wasn't possible — there was no `--username`.
 - Even with one, `enroll_first` is create-only and `admin` already exists (spawn's Step 6 password bridge creates it).
 - The correct path, `add_credential`, **crashed**: `views_enroll.enroll_options` called `WebAuthnUserHandle.objects.get(user=target)`, which raises `DoesNotExist` for an account that never registered a passkey — i.e. every password-era account, including `admin`.
@@ -165,8 +165,8 @@ Resolves exactly one of `not_dev` / `ready` / `needs_registration`, then acts.
 
 15. Zero-byte `~/tap-secrets/dev-passkey/admin.dev-passkey.json` — inert now (classified `needs_registration`), overwritten by the first real export. **Shared across all sessions.**
 16. Two pending `add_credential` invitations in the samsite DB from `--register` smoke tests (1h TTL, expired by now).
-17. George's Touch ID holds a real passkey registered against `localhost:8020` bound to user **`george@criticalsec.com`**, not `admin`. It works for login. macOS Passwords will show it under that name. The guided flow will register a *second* credential onto `admin`; that is the intended target for replay.
-18. This session's DB has **two** admins: `admin` (password bridge, superuser, `tap_admin`) and `george@criticalsec.com` (passkey, `tap_admin`).
+17. George's Touch ID holds a real passkey registered against `localhost:8020` bound to user **`operator@example.com`**, not `admin`. It works for login. macOS Passwords will show it under that name. The guided flow will register a *second* credential onto `admin`; that is the intended target for replay.
+18. This session's DB has **two** admins: `admin` (password bridge, superuser, `tap_admin`) and `operator@example.com` (passkey, `tap_admin`).
 
 ---
 

@@ -21,7 +21,7 @@
         "required": ["id", "type", "display_name", "description"],
         "properties": {
           "id": {
-            "description": "Stable provider natural key, also the secret key by default (e.g. 'criticalsec-google', 'robco-google'). Lowercase with hyphens.",
+            "description": "Stable provider natural key, also the secret key by default (e.g. 'example-google', 'robco-google'). Lowercase with hyphens.",
             "type": "string",
             "pattern": "^[a-z][a-z0-9-]*$"
           },
@@ -59,7 +59,7 @@
             "items": {"type": "string", "minLength": 1}
           },
           "allowed_emails": {
-            "description": "google_oidc: optional allowlist of individual verified emails within allowed_domains (e.g. pin a criticalsec.com provider to a single operator). Absent/empty ⇒ domain-only.",
+            "description": "google_oidc: optional allowlist of individual verified emails within allowed_domains (e.g. pin an example.com provider to a single operator). Absent/empty ⇒ domain-only.",
             "type": "array",
             "items": {"type": "string", "format": "email"}
           },

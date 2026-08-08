@@ -29,10 +29,10 @@ def _write_secret(root: Path, key: str, *, scope: str = "auth") -> None:
 
 def _provider(**over: object) -> dict:
     raw: dict = {
-        "id": "criticalsec-google",
+        "id": "example-google",
         "type": "google_oidc",
-        "display_name": "criticalsec.com (Google)",
-        "allowed_domains": ["criticalsec.com"],
+        "display_name": "example.com (Google)",
+        "allowed_domains": ["example.com"],
     }
     raw.update(over)
     return raw
@@ -48,7 +48,7 @@ class TestProbeAuthProviders:
         settings.TAP_SECRETS_ROOT = str(tmp_path)
         settings.TAP_BASE_URL = "https://tap.example.com"
         settings.TAP_AUTH_PROVIDERS = [_provider()]
-        _write_secret(tmp_path, "criticalsec-google")
+        _write_secret(tmp_path, "example-google")
         result = probe_auth_providers()
         assert result.status is ProbeStatus.HEALTHY
 
@@ -59,14 +59,14 @@ class TestProbeAuthProviders:
         result = probe_auth_providers()
         assert result.status is ProbeStatus.UNHEALTHY
         assert result.code == "auth.providers.selftest_failed"
-        assert any("criticalsec-google:secret" == f for f in result.context["failed"])
+        assert any("example-google:secret" == f for f in result.context["failed"])
 
     def test_unknown_provider_type_fails(self, tmp_path, settings) -> None:
         settings.TAP_SECRETS_ROOT = str(tmp_path)
         settings.TAP_AUTH_PROVIDERS = [_provider(type="saml")]
         result = probe_auth_providers()
         assert result.status is ProbeStatus.UNHEALTHY
-        assert "criticalsec-google:unknown_type" in result.context["failed"]
+        assert "example-google:unknown_type" in result.context["failed"]
 
     def test_malformed_config_reports_config_error(self, settings) -> None:
         settings.TAP_AUTH_PROVIDERS = [{"type": "google_oidc"}]  # missing id/display_name

@@ -90,10 +90,10 @@ def test_bumps_only_the_named_slug_in_git_entries(tmp_path: Path) -> None:
 
 def test_bumps_across_multiple_profiles(tmp_path: Path) -> None:
     _write_profile(tmp_path, "samsite", [_git("compliance_core", "v0.1.0")])
-    _write_profile(tmp_path, "criticalsec", [_git("compliance_core", "v0.1.0")])
+    _write_profile(tmp_path, "operator_sso", [_git("compliance_core", "v0.1.0")])
     bumps = bump_profiles(tmp_path, "compliance_core", "v0.2.0")
-    assert {b.path.name for b in bumps} == {"samsite.boot.json", "criticalsec.boot.json"}
-    for name in ("samsite", "criticalsec"):
+    assert {b.path.name for b in bumps} == {"samsite.boot.json", "operator_sso.boot.json"}
+    for name in ("samsite", "operator_sso"):
         written = json.loads((tmp_path / f"{name}.boot.json").read_text())
         assert written["install"]["plugins"][0]["source"]["rev"] == "v0.2.0"
 

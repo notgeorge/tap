@@ -265,7 +265,7 @@ class ExternalIdentity(models.Model):
 
     provider_id = models.CharField(
         max_length=64,
-        help_text="Stable provider natural key, e.g. 'criticalsec-google'.",
+        help_text="Stable provider natural key, e.g. 'example-google'.",
     )
     provider_type = models.CharField(
         max_length=32,

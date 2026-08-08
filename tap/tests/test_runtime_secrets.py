@@ -25,12 +25,12 @@ from tap.runtime_secrets import (
 )
 
 
-def _valid_payload(scope: str = "auth", key: str = "criticalsec-google") -> dict:
+def _valid_payload(scope: str = "auth", key: str = "example-google") -> dict:
     return {
         "scope": scope,
         "key": key,
         "kind": "oidc_client",
-        "description": "Google OIDC client for criticalsec.",
+        "description": "Google OIDC client for the operator instance.",
         "data": {"client_id": "abc", "client_secret": "shh"},
     }
 
@@ -47,8 +47,8 @@ class TestParseSecretEnvelope:
         env = parse_secret_envelope(_valid_payload(), Path("x.secret.json"))
         assert isinstance(env, SecretEnvelope)
         assert env.scope == "auth"
-        assert env.key == "criticalsec-google"
-        assert env.qualified == "auth:criticalsec-google"
+        assert env.key == "example-google"
+        assert env.qualified == "auth:example-google"
         assert env.data["client_id"] == "abc"
         assert env.metadata == {}  # defaulted when absent
 
@@ -99,14 +99,14 @@ class TestParseSecretEnvelope:
         env = parse_secret_envelope(_valid_payload(), Path("x.secret.json"))
         rendered = repr(env)
         assert "shh" not in rendered
-        assert "auth:criticalsec-google" in rendered
+        assert "auth:example-google" in rendered
 
 
 class TestLoadSecretEnvelope:
     def test_loads_valid_file(self, tmp_path: Path) -> None:
         path = _write_secret(tmp_path, _valid_payload())
         env = load_secret_envelope(path)
-        assert env.qualified == "auth:criticalsec-google"
+        assert env.qualified == "auth:example-google"
 
     def test_invalid_json_raises(self, tmp_path: Path) -> None:
         path = tmp_path / "broken.secret.json"
@@ -118,13 +118,13 @@ class TestLoadSecretEnvelope:
 class TestFindSecretFile:
     def test_found_at_root(self, tmp_path: Path) -> None:
         path = _write_secret(tmp_path, _valid_payload())
-        assert find_secret_file(tmp_path, "auth", "criticalsec-google") == path
+        assert find_secret_file(tmp_path, "auth", "example-google") == path
 
     def test_found_in_subdir(self, tmp_path: Path) -> None:
         sub = tmp_path / "nested" / "deeper"
         sub.mkdir(parents=True)
         path = _write_secret(sub, _valid_payload())
-        assert find_secret_file(tmp_path, "auth", "criticalsec-google") == path
+        assert find_secret_file(tmp_path, "auth", "example-google") == path
 
     def test_not_found_raises(self, tmp_path: Path) -> None:
         with pytest.raises(RuntimeSecretError, match="no secret file found"):
@@ -140,19 +140,19 @@ class TestFindSecretFile:
         # different scope must not be returned.
         _write_secret(tmp_path, _valid_payload(scope="other"))
         with pytest.raises(RuntimeSecretError, match="no secret file found"):
-            find_secret_file(tmp_path, "auth", "criticalsec-google")
+            find_secret_file(tmp_path, "auth", "example-google")
 
     def test_unreadable_candidate_raises(self, tmp_path: Path) -> None:
-        bad = tmp_path / "criticalsec-google.secret.json"
+        bad = tmp_path / "example-google.secret.json"
         bad.write_text("{not json", encoding="utf-8")
         with pytest.raises(RuntimeSecretError, match="unreadable/invalid JSON"):
-            find_secret_file(tmp_path, "auth", "criticalsec-google")
+            find_secret_file(tmp_path, "auth", "example-google")
 
 
 class TestResolveSecretEnvelope:
     def test_discover_and_load(self, tmp_path: Path) -> None:
         _write_secret(tmp_path, _valid_payload())
-        env = resolve_secret_envelope(tmp_path, "auth", "criticalsec-google")
+        env = resolve_secret_envelope(tmp_path, "auth", "example-google")
         assert env.kind == "oidc_client"
         assert env.data["client_secret"] == "shh"
 
@@ -209,4 +209,4 @@ class TestSizeGuard:
     def test_find_rejects_oversized_candidate(self, tmp_path: Path) -> None:
         _write_secret(tmp_path, _oversized_payload(DEFAULT_SECRET_MAX_BYTES + 50_000))
         with pytest.raises(RuntimeSecretError, match="over the .* limit"):
-            find_secret_file(tmp_path, "auth", "criticalsec-google")
+            find_secret_file(tmp_path, "auth", "example-google")

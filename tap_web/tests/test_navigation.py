@@ -387,8 +387,8 @@ class TestUserMenu:
         # the generated ext-<provider>-<hash> login key must never appear in the
         # menu — show the display name + provider avatar (req-tap-auth-external-identity)
         u = get_user_model().objects.create_user(
-            username="ext-criticalsec-google-zzz",
-            email="george@criticalsec.com",
+            username="ext-example-google-zzz",
+            email="operator@example.com",
             first_name="George",
             avatar_url="https://lh3.googleusercontent.com/p",
         )
@@ -396,7 +396,7 @@ class TestUserMenu:
         c = Client()
         c.force_login(u)
         body = c.get("/").content.decode()
-        assert "ext-criticalsec-google-zzz" not in body
+        assert "ext-example-google-zzz" not in body
         assert "George" in body
         assert "lh3.googleusercontent.com/p" in body
 
