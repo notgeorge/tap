@@ -64,13 +64,25 @@ requirements. Written up so it does not live only in a chat log.
 | Core | `tap` | yes |
 | Live plugins (in boot profiles) | `tap-plugin-` + `administrivia`, `computing-core`, `roscale`, `identity-core`, `aws-core`, `sigstore-core`, `github-core`, `compliance-core`, `fedramp-20x-ksi`, `samsite`, `grid-fixtures`, `gryphon-playground` (12) | yes |
 | Deferred but real | `tap-plugin-aws-secrets-source` (build-bake eviction still open) | yes |
-| Dead weight | `tap-plugin-aws`, `tap-plugin-genericom` (plugin deleted) | yes — *decided 2026-07-22* |
+| Dead weight | `tap-plugin-aws`, `tap-plugin-genericom` (plugin deleted) | ~~yes~~ **no — REVERSED 2026-08-08** |
 | Stays behind | `tap-plugin-lotr` (already archived) | **no** — stays on `notgeorge` as the archaeology shelf |
 
 Verified 2026-07-22: all three dead repos have **zero** references anywhere in this
 repo — no boot profile, no code, no config. Leaving any of them behind is free.
 `tap-plugin-lotr` in particular is already archived, and transferring an archived repo
-would mean unarchive → transfer → re-archive for no gain. **16 repos migrate.**
+would mean unarchive → transfer → re-archive for no gain.
+
+**REVERSED 2026-08-08 — `tap-plugin-aws` and `tap-plugin-genericom` now stay behind too,
+so 14 repos migrate, not 16.** The 2026-07-22 decision to bring them was made when the end
+state was a private org. It is now public-everything, and these two are not going public
+(publishing dead code whose plugin was deleted is a choice with no upside). Carrying two
+*private* repos into a public-everything org reintroduces exactly the friction the migration
+removes: no artifact attestations without Enterprise Cloud, org secrets that behave
+differently on private repos, and a same-owner `uses:` constraint if either ever gets CI.
+They join `tap-plugin-lotr` on the archaeology shelf. Both are Apache-2.0 licensed as of
+2026-08-08, so reviving or publishing one later needs no further licensing work.
+
+**14 repos migrate:** `tap` + the 13 plugin repos above.
 
 One-way caveat: if a repo saw >100 clones or >100 Actions runs in the week before
 transfer, GitHub *permanently retires* the old `notgeorge/<name>` — you cannot recreate a
