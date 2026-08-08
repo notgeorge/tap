@@ -22,9 +22,19 @@ assertion verifies. Self-contained, styled with the shared auth.css.
     <main class="tap-auth-main">
         <div class="tap-auth-card">
             <h1 class="tap-auth-title">Sign in</h1>
-            <p class="tap-auth-sub">Use the passkey registered on this device.</p>
+            <p class="tap-auth-sub">
+                Use a passkey — either this device's built-in authenticator (Touch&nbsp;ID,
+                Windows&nbsp;Hello) or a security key you plug in (YubiKey and similar).
+                A security key must have a PIN set, since this instance requires the
+                authenticator to verify you.
+            </p>
             <button id="login-btn" type="button" class="tap-auth-btn">Sign in with a passkey</button>
             <p id="status" class="tap-auth-sub" role="status" aria-live="polite"></p>
+            {% if local_password_enabled %}
+            <p class="tap-auth-sub">
+                <a class="tap-auth-link" href="{% url 'account_login' %}{% if next %}?next={{ next|urlencode }}{% endif %}">Sign in with a password instead</a>
+            </p>
+            {% endif %}
         </div>
     </main>
     <script>
@@ -34,8 +44,40 @@ assertion verifies. Self-contained, styled with the shared auth.css.
         var NEXT = "{{ next|escapejs }}";
         var statusEl = document.getElementById("status");
         var btn = document.getElementById("login-btn");
+        // Whether a password fallback exists to point at (TAP_LOCAL_PASSWORD_ENABLED).
+        var HAS_PASSWORD_FALLBACK = {% if local_password_enabled %}true{% else %}false{% endif %};
 
         function setStatus(msg) { statusEl.textContent = msg; }
+
+        // The alternative to suggest when no passkey ceremony can complete. Kept in one
+        // place so the "you are not stuck" half of every failure message stays consistent.
+        function fallbackHint() {
+            return HAS_PASSWORD_FALLBACK
+                ? " You can sign in with a password using the link below."
+                : " If you have no passkey on this machine, ask an administrator for an enrollment link.";
+        }
+
+        // WebAuthn deliberately collapses "the user cancelled" and "no credential is
+        // available for this site" into a single NotAllowedError, so that a caller cannot
+        // enumerate which accounts have credentials. We must not claim to know which one
+        // happened — naming both is the only honest message, and it is also the useful one
+        // for the case we most expect here: a machine with no authenticator at all.
+        function failureMessage(err) {
+            var name = err && err.name ? err.name : "";
+            if (name === "NotAllowedError" || name === "AbortError") {
+                return "No passkey was used. Either the prompt was dismissed, or this device "
+                    + "has no passkey registered for this site." + fallbackHint();
+            }
+            if (name === "NotSupportedError") {
+                return "No compatible authenticator was found. A security key must support "
+                    + "FIDO2 (not U2F-only) to be used here." + fallbackHint();
+            }
+            if (name === "SecurityError") {
+                return "This page's origin does not match the server's expected origin, so the "
+                    + "browser refused the ceremony. Check the URL you are using.";
+            }
+            return "Sign-in could not be completed." + fallbackHint();
+        }
 
         function b64urlToBuf(s) {
             s = s.replace(/-/g, "+").replace(/_/g, "/");
@@ -59,7 +101,7 @@ assertion verifies. Self-contained, styled with the shared auth.css.
         }
 
         async function signIn() {
-            if (!window.PublicKeyCredential) { setStatus("This browser does not support passkeys."); return; }
+            if (!window.PublicKeyCredential) { setStatus("This browser does not support passkeys." + fallbackHint()); return; }
             btn.disabled = true;
             setStatus("Requesting a challenge…");
             try {
@@ -92,7 +134,7 @@ assertion verifies. Self-contained, styled with the shared auth.css.
                 var out = await verifyResp.json();
                 window.location.href = out.redirect || "/";
             } catch (err) {
-                setStatus("Sign-in was cancelled or failed. You can try again.");
+                setStatus(failureMessage(err));
                 btn.disabled = false;
             }
         }

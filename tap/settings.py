@@ -426,7 +426,12 @@ SITE_ID = 1
 # links + logout redirect is Phase 3 (spec-tap-auth-passkey-v0 webauthn-6/slim-6).
 LOGIN_URL = "passkey_login"
 LOGIN_REDIRECT_URL = "/"
-ACCOUNT_LOGOUT_REDIRECT_URL = "account_login"
+# Log out to TAP's own front door, not allauth's (req-tap-auth-passkey-rollout-5). Until
+# 2026-08-08 this was "account_login", so every logout landed the user on the federated
+# login page — which on a zero-provider instance is a bare username/password form. The
+# front door and the back door disagreed; they now both point at the passkey page, which
+# links onward to the password form when TAP_LOCAL_PASSWORD_ENABLED permits it.
+ACCOUNT_LOGOUT_REDIRECT_URL = "passkey_login"
 
 # Path prefixes the login wall does NOT gate. Each has its own enforcement:
 #   /auth/    — the login routes themselves (gating them would loop)

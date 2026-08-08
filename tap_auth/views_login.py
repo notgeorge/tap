@@ -19,6 +19,7 @@ import json
 import logging
 from typing import Any
 
+from django.conf import settings
 from django.contrib.auth import login as auth_login
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import render
@@ -37,8 +38,24 @@ _CHALLENGE_KIND = "auth"
 @require_GET
 @ensure_csrf_cookie
 def login_page(request: HttpRequest) -> HttpResponse:
-    """Render the native passkey login page (LOGIN_URL target)."""
-    return render(request, "tap_web/auth/passkey_login.html", {"next": _safe_next(request)})
+    """Render the native passkey login page (LOGIN_URL target).
+
+    ``local_password_enabled`` decides whether the page offers the password fallback
+    (req-tap-auth-passkey-rollout-5). It mirrors ``TAP_LOCAL_PASSWORD_ENABLED`` exactly,
+    so the link's visibility tracks the capability: ``TapModelBackend`` refuses password
+    auth everywhere when the flag is False, and a link to a path that refuses is worse
+    than no link. The fallback is allauth's already-mounted, already-rate-limited login
+    view rather than a native one — see the requirement for why serving our own would
+    mean rebuilding brute-force protection.
+    """
+    return render(
+        request,
+        "tap_web/auth/passkey_login.html",
+        {
+            "next": _safe_next(request),
+            "local_password_enabled": settings.TAP_LOCAL_PASSWORD_ENABLED,
+        },
+    )
 
 
 @require_POST
