@@ -114,7 +114,8 @@ The launch target auto-attaches an editor after spawn completes:
             becomes the claude REPL)
   codex   — open the worktree in the Codex desktop app via
             \`codex app <worktree>\` (non-blocking — Codex launches separately)
-  vscode  — open the worktree in VS Code via \`open -a "Visual Studio Code"\`
+  vscode  — open the worktree in VS Code via the \`code\` CLI (any platform),
+            falling back to \`open -a "Visual Studio Code"\` on macOS
             (non-blocking — VS Code launches as a separate app)
 
 \`--boot <profile>\` is an explicit alternative to the positional boot-profile
@@ -374,6 +375,12 @@ fi
 # claim it. The actual-port check catches the drift case where a session was
 # spawned by an earlier script version that never appended its registry row,
 # or where the host has something else listening on the band's ports.
+#
+# The probe needs lsof, and a missing lsof must fail LOUDLY: with it absent the
+# pipeline below quietly returns "not in use" for every port, the guard reads
+# nothing and passes, and spawn allocates a band something else is listening on.
+# Ubiquitous on macOS; minimal Linux installs may lack it (apt install lsof).
+command -v lsof >/dev/null 2>&1 || fail "lsof not found — the port-band probe depends on it. Install it (e.g. apt install lsof) and re-run."
 port_in_use() {
   lsof -iTCP:"$1" -sTCP:LISTEN -P -n 2>/dev/null | grep -q LISTEN
 }
@@ -975,6 +982,15 @@ case "$LAUNCH_TARGET" in
     ;;
   vscode)
     bold "Opening $WORKTREE in VS Code..."
-    open -a "Visual Studio Code" "$WORKTREE"
+    # Prefer the `code` CLI: it exists on Linux and on any macOS install that ran
+    # "Shell Command: Install 'code' command". `open -a` is the Darwin-only fallback
+    # for a macOS VS Code whose shell command was never installed.
+    if command -v code >/dev/null 2>&1; then
+      code "$WORKTREE"
+    elif [[ "$(uname)" == "Darwin" ]]; then
+      open -a "Visual Studio Code" "$WORKTREE"
+    else
+      warn "No 'code' CLI on PATH — open $WORKTREE in your editor manually."
+    fi
     ;;
 esac
