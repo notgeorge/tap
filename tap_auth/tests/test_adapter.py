@@ -103,9 +103,9 @@ class TestEvaluateAccess:
     def test_hd_takes_precedence_over_email_domain(self):
         # hd is the trustworthy claim; an attacker-controlled email domain must not widen access
         d = _eval(
-            _provider_raw(allowed_domains=["example.com"]), _claims(hd="example.com", email="george@gmail.com")
+            _provider_raw(allowed_domains=["example.com"]), _claims(hd="example.com", email="personal@example.net")
         )
-        # email domain (gmail.com) is NOT allowed, but hd (example.com) IS → matched on hd
+        # email domain (example.net) is NOT allowed, but hd (example.com) IS → matched on hd
         assert d.allowed is True and d.matched_domain == "example.com"
 
 
