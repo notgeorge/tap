@@ -86,8 +86,13 @@ console-current.log
 #
 # Exception: get-api-docs.md — a harness-side skill that lives standalone in
 # this repo rather than under an app's skills/ dir.
+# Exception: stand-up — the ONE symlink that must exist in a fresh clone,
+# because it is the skill that runs the setup everything else (including
+# wire-skills) rides on. scripts/stand-up.sh wires the rest of the farm as its
+# final step; committing more symlinks than this would just shadow wire-skills.
 .claude/skills/*
 !.claude/skills/get-api-docs.md
+!.claude/skills/stand-up
 # Harness-managed state under .claude/ — not committed (per-user / per-worktree).
 .claude/scheduled_tasks.lock
 .claude/settings.local.json

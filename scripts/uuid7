@@ -5,10 +5,13 @@
 #   scripts/uuid7              # one UUIDv7
 #   scripts/uuid7 N            # N UUIDv7s, one per line
 #
-# Implementation: prefers the host's python3 (works on Python 3.14+, where
-# uuid.uuid7 is in the stdlib). Falls back to running it inside the dev
-# container via scripts/dc when the host python is older — useful before the
-# stack starts and on machines without 3.14 installed.
+# Implementation, in preference order:
+#   1. host python3 with stdlib uuid.uuid7 (Python 3.14+)
+#   2. host python3 of ANY version, via an inline RFC 9562 UUIDv7 construction
+#      (same fallback scripts/spawn-session.sh inlines for TAP_GRID_ID — needed
+#      wherever an id must be minted BEFORE the container exists, e.g.
+#      scripts/stand-up.sh writing .env.local on a fresh clone)
+#   3. the dev container via scripts/dc (no host python3 at all — rare)
 
 set -euo pipefail
 
@@ -20,6 +23,19 @@ import sys, uuid
 for _ in range($count):
     print(uuid.uuid7())
 "
+    exit 0
+fi
+
+if command -v python3 >/dev/null 2>&1; then
+    python3 - <<PY
+import os, time, uuid
+for _ in range($count):
+    ms = int(time.time() * 1000) & ((1 << 48) - 1)
+    rand_a = int.from_bytes(os.urandom(2), "big") & 0xFFF
+    rand_b = int.from_bytes(os.urandom(8), "big") & ((1 << 62) - 1)
+    val = (ms << 80) | (0x7 << 76) | (rand_a << 64) | (0b10 << 62) | rand_b
+    print(uuid.UUID(int=val))
+PY
     exit 0
 fi
 
