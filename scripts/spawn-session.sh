@@ -132,7 +132,7 @@ exclusive with --boot / the positional boot-profile.
 \`--from <pointer> [--credential <ref>]\` boots from a BOOTSTRAP POINTER
 (spec-tap-boot-bootstrap.md): \`<source-ref>#<record>\` names a versioned plugin
 artifact + a boot record shipped inside it, e.g.
-\`git+https://github.com/notgeorge/tap-plugin-gryphon-playground@v0.1.0#soak\`.
+\`git+https://github.com/unified-systems-com/tap-plugin-gryphon-playground@v0.1.0#soak\`.
 Stage-0 fetches ONLY that record out of the git artifact (a blobless clone, no
 install), verifies it against the artifact's declared sha256, writes it into
 this worktree's boot/, and boots it — the record's own \`install\` section then
@@ -162,7 +162,7 @@ Examples:
   $0 aws-standalone --boot-file plugins/aws_core/standalone.boot.json
                                   # boot a plugin's own profile from its directory
   $0 gryphon-soak cli --from \\
-     git+https://github.com/notgeorge/tap-plugin-gryphon-playground@v0.1.0#soak \\
+     git+https://github.com/unified-systems-com/tap-plugin-gryphon-playground@v0.1.0#soak \\
      --credential github-plugins-ro
                                   # single-command boot from a git bootstrap pointer
 

@@ -12,8 +12,11 @@
 #   1. Branch protection on `main`: PRs only, "Require review from Code Owners" ON,
 #      the guard/gate status check (CodeBuild `test_all` lane) required + non-bypassable.
 #   2. GitHub SILENTLY IGNORES an owner it cannot resolve (wrong handle / no write
-#      access). @notgeorge is this repo's owner (github.com/notgeorge/tap). If ownership
-#      ever moves, update this file or the protection quietly becomes a no-op.
+#      access). This repo lives in the unified-systems-com org (transferred from
+#      notgeorge 2026-08-08); @notgeorge is George's USERNAME and still resolves because
+#      he is the org owner — the handle names a person, not the repo's home. If his
+#      access ever changes (or ownership moves to a team, e.g. @unified-systems-com/...),
+#      update this file or the protection quietly becomes a no-op.
 # This file owns itself (via /.github/ below), so weakening it is itself a gated change.
 #
 # Policy DATA is deliberately NOT owned here (req-dev-validation-meta-integrity-1): a

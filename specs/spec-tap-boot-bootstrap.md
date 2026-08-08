@@ -287,7 +287,7 @@ A single-line pointer names package + version + record.
   2. the **record digest** (which exact recipe bytes) — the `@<algo>:<hex>` guard;
   3. the **per-plugin install** versions (what code the recipe installs) — inside the record's
      `install` entries.
-- Example (simple, pilot): `git+https://github.com/notgeorge/tap-plugin-gryphon-playground@v0.1.0#soak`
+- Example (simple, pilot): `git+https://github.com/unified-systems-com/tap-plugin-gryphon-playground@v0.1.0#soak`
   → the `soak` record from the v0.1.0 gryphon artifact.
 - The pointer is a **locator, not a full profile**: it identifies + verifies the record; the record
   declares the install set and population. The reproducibility surface (pinned plugin versions) lives
@@ -532,7 +532,7 @@ The pointer is a supply-chain root of trust; the instance unrolls from it. Integ
   | **TUF-style channel security** (rollback / freshness / threshold keys) | high | only when an untrusted mirror/index is in the path |
 
 - **Sigstore keyless, specifically.** No long-lived keys. The GitHub Actions release workflow gets
-  an OIDC token ("I am the release job of `notgeorge/tap-plugin-<slug>`"), sends an ephemeral public
+  an OIDC token ("I am the release job of `unified-systems-com/tap-plugin-<slug>`"), sends an ephemeral public
   key + that token to Fulcio (Sigstore's CA), and receives a ~10-minute cert **binding the workflow
   identity to the key**. It signs the artifact's digest, producing a PEP-740-style in-toto
   attestation that ties *this artifact's name + hash* to *that identity*, logged in the Rekor

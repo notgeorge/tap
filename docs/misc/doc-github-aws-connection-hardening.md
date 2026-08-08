@@ -30,8 +30,10 @@ provides: |
 ## 1. Thesis — minimize the standing write, isolate what remains
 
 Standing up AWS-native CI created a durable trust edge: AWS can act on GitHub. Today that
-edge runs through the **AWS Connector for GitHub** App, authorized under the personal
-`notgeorge` account, holding `Administration:write` + `Repository hooks:write` on the
+edge runs through the **AWS Connector for GitHub** App — *as of 2026-08-08 installed on
+the `unified-systems-com` org (scoped to `tap` only), no longer under the personal
+`notgeorge` account; the connection was recreated and authorized by George during the org
+migration* — holding `Administration:write` + `Repository hooks:write` on the
 `tap` repo. That is more standing power than the *human owner's personal identity* should
 lend to an automated, AI-operated system — and it is the exact asymmetric surface the
 security posture says to harden while it is cheap ([spec-security-posture.md](../../specs/spec-security-posture.md)).
@@ -141,7 +143,10 @@ writes; the whole game is *whose identity holds E1–E3 and how tightly it is sc
 Each phase stands alone and buys real hardening; do them in order but stop wherever the
 risk/effort trade flattens for the current stage of the company.
 
-### Phase 0 — today (baseline)
+### Phase 0 — baseline *(superseded 2026-08-08: the org transfer happened — the App now
+sits on `unified-systems-com`, still scoped to `tap` only, authorized by George rather
+than a machine identity; E1–E3 now sit on the org via a human authorization, so the
+remaining gap is the `tap-ci-bot` graduation, not the org move)*
 Personal `notgeorge`; AWS Connector App with `Administration`+`hooks` write on `tap`;
 plugin-pull credential in Secrets Manager, read-only (E5 done). **Named open risk:**
 E1–E3 write surface sits on the personal identity.

@@ -9,7 +9,7 @@
         "enabled": true,
         "source": {
           "type": "git",
-          "url": "https://github.com/notgeorge/tap-plugin-grid-fixtures",
+          "url": "https://github.com/unified-systems-com/tap-plugin-grid-fixtures",
           "rev": "v0.3.0",
           "credential": "github-plugins-ro"
         },
@@ -20,7 +20,7 @@
         "enabled": true,
         "source": {
           "type": "git",
-          "url": "https://github.com/notgeorge/tap-plugin-gryphon-playground",
+          "url": "https://github.com/unified-systems-com/tap-plugin-gryphon-playground",
           "rev": "v0.3.0",
           "credential": "github-plugins-ro"
         },

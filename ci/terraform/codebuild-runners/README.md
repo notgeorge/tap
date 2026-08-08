@@ -95,7 +95,7 @@ CodeConnections requires a human to authorize the GitHub App once:
 1. First `apply` with `codeconnection_arn = ""` creates the connection **PENDING**.
 2. AWS console → **Developer Tools → Settings → Connections** → select
    `tap-ci-github` → **Update pending connection** → install/authorize the AWS
-   Connector for GitHub on `notgeorge/tap`.
+   Connector for GitHub on `unified-systems-com/tap`.
 3. (Optional) paste the now-authorized ARN into `terraform.tfvars` as
    `codeconnection_arn` so future applies reuse it explicitly.
 

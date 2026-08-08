@@ -164,7 +164,7 @@ generic runners — the same validation entrypoint that runs locally.
 
 - **Shape.** `.github/workflows/plugin-ci.yml` with `on: workflow_call`. A plugin
   repo's own CI is a thin caller:
-  `uses: notgeorge/tap/.github/workflows/plugin-ci.yml@<tag>`, passing its plugin
+  `uses: unified-systems-com/tap/.github/workflows/plugin-ci.yml@<tag>`, passing its plugin
   slug(s) and boot profile as inputs. This is the GitHub reusable-workflow +
   float-forward-major-tag pattern.
 - **Pinned harness.** The workflow checks out the core repo at a **pinned ref**

@@ -1,7 +1,7 @@
 # Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored (may hold ARNs).
 
 aws_region   = "us-east-1"
-github_owner = "notgeorge"
+github_owner = "unified-systems-com"
 github_repo  = "tap"
 
 # First apply: leave empty, let Terraform create the connection, then AUTHORIZE it in

@@ -24,7 +24,7 @@ def _git(slug: str, rev: str = "v0.1.0") -> dict[str, Any]:
         "enabled": True,
         "source": {
             "type": "git",
-            "url": f"https://github.com/notgeorge/tap-plugin-{slug.replace('_', '-')}",
+            "url": f"https://github.com/unified-systems-com/tap-plugin-{slug.replace('_', '-')}",
             "rev": rev,
             "credential": "github-plugins-ro",
         },

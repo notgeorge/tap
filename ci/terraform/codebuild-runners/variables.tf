@@ -7,7 +7,7 @@ variable "aws_region" {
 variable "github_owner" {
   description = "GitHub owner of the repo CodeBuild connects to."
   type        = string
-  default     = "notgeorge"
+  default     = "unified-systems-com"
 }
 
 variable "github_repo" {

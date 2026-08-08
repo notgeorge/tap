@@ -147,9 +147,11 @@ are load-bearing for the runner mechanism and cannot be declined:
 Commit-statuses / pull-requests / contents come along unused (they serve the App's
 CodeBuild-source-build and CodePipeline modes, which we do not use).
 
-**As stood up today** the App is installed under the **personal `notgeorge` account**,
-scoped to the **`tap` repo only**. The named, bounded risk: Administration-write sits on
-a repo owned by the personal identity. This is the accepted cost of the *keyless,
+**As stood up today** *(updated 2026-08-08: the org migration happened — the App is now
+installed on the **`unified-systems-com` org**, scoped to the **`tap` repo only**, and the
+CodeConnections connection was recreated and authorized against it by George, not a bot)*
+the named, bounded risk is unchanged in kind: Administration-write sits on a repo, held
+via a human identity's authorization. This is the accepted cost of the *keyless,
 managed* runner path — the narrow alternative (self-managed runner registration via a
 fine-grained PAT) reintroduces a long-lived secret an AI-operated CI would hold, which is
 exactly what keyless SSO was chosen to avoid. Administration-on-one-personal-repo is the
@@ -164,9 +166,9 @@ re-authorize the CodeConnections connection **as the bot**. This does not shrink
 permission set — it relocates *whose identity* holds Administration-write off the personal
 account onto a disposable, narrowly-scoped one. On a personal account the pattern is
 cosmetic (you'd have to transfer `tap` to the bot or add it as an admin collaborator); it
-only becomes clean isolation inside an org. So: **accept the App on `tap` under
-`notgeorge` now; graduate to `tap-ci-bot` in the org when the org is created.** Do not
-build the bot before the org — it is org-shaped work that does not pay off standalone.
+only becomes clean isolation inside an org. *(2026-08-08: the org now exists and `tap`
+lives in it, so this step is UNBLOCKED but not done — the current connection is
+authorized as George. Graduating to `tap-ci-bot` is now purely additive work.)*
 
 ## Prior art / sources
 

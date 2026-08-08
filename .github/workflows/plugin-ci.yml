@@ -5,7 +5,7 @@
 #
 #   jobs:
 #     tap:
-#       uses: notgeorge/tap/.github/workflows/plugin-ci.yml@v1
+#       uses: unified-systems-com/tap/.github/workflows/plugin-ci.yml@v1
 #       with:
 #         plugin_slug: my_plugin
 #         harness_ref: v0.2.0          # pin the core harness — reproducible, known-good
@@ -40,7 +40,7 @@ on:
         description: "The core TAP repo used as the dev harness."
         required: false
         type: string
-        default: notgeorge/tap
+        default: unified-systems-com/tap
       harness_ref:
         description: "Git ref (tag/branch/sha) of core to pin as the harness — reproducible, known-good."
         required: false

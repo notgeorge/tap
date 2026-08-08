@@ -72,7 +72,7 @@ Everything that *removes* or *loosens* is a weakening move and sits on the revie
 1. **Require a pull request before merging** → check **Require review from Code Owners**. *(This is the switch that makes CODEOWNERS bite.)*
 2. **Require status checks to pass** → add the CodeBuild **`test_all`** lane as required; check **Require branches to be up to date**.
 3. **Do not allow bypassing the above** — make any escape hatch deliberate.
-4. Confirm **`@notgeorge` resolves** (it is the repo owner). GitHub **silently ignores** an owner it cannot resolve, so if code-owner review ever seems to do nothing, check this first.
+4. Confirm **`@notgeorge` resolves** (George's username; since 2026-08-08 the repo lives in the `unified-systems-com` org, where he is owner). GitHub **silently ignores** an owner it cannot resolve, so if code-owner review ever seems to do nothing, check this first.
 
 Together: an edit to a workflow that drops the guard lane cannot self-authorize, because the required-check contract lives in repo *settings*, not in a file the PR can touch.
 
