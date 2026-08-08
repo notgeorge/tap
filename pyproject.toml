@@ -83,7 +83,7 @@ dependencies = [
 dev = [
     # Code Formatting
     # Black is the uncompromising Python formatter - no config debates
-    "black>=24.0",
+    "black>=26.3.1",
     # Linting
     # Ruff is a fast Python linter written in Rust, replaces flake8/isort/etc
     "ruff>=0.8",
