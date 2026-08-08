@@ -162,8 +162,7 @@ Examples:
   $0 aws-standalone --boot-file plugins/aws_core/standalone.boot.json
                                   # boot a plugin's own profile from its directory
   $0 gryphon-soak cli --from \\
-     git+https://github.com/unified-systems-com/tap-plugin-gryphon-playground@v0.1.0#soak \\
-     --credential github-plugins-ro
+     git+https://github.com/unified-systems-com/tap-plugin-gryphon-playground@v0.1.0#soak
                                   # single-command boot from a git bootstrap pointer
 
 Spec: req-dev-multisession-spawn-script in specs/spec-dev-multisession.md

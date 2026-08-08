@@ -13,8 +13,8 @@ codeconnection_arn = ""
 # plugin-pull secret (lines that git-install private plugins). Post-eviction both lanes are
 # git-sourced (the monorepo plugin copies are gone), so both set it true.
 product_lines = {
-  test_all = { profile = "test_all", needs_plugin_pull = true }
-  samsite  = { profile = "samsite", needs_plugin_pull = true }
+  test_all = { profile = "test_all", needs_plugin_pull = false }
+  samsite  = { profile = "samsite", needs_plugin_pull = false }
 }
 
 # Capability axis:

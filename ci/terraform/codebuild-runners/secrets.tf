@@ -21,7 +21,8 @@ locals {
   plugin_pull_enabled = var.plugin_pull_secret_name != ""
 
   # Only lines flagged needs_plugin_pull get to READ the value at runtime (least-privilege).
-  # Post-eviction both test_all and samsite git-install private plugins, so both are flagged.
+  # Since 2026-08-08 all TAP plugin repos are public and NO shipped line is flagged — the
+  # grant machinery below stays for forks/lines that install private plugins.
   plugin_pull_lines = {
     for name, cfg in var.product_lines : name => cfg
     if local.plugin_pull_enabled && cfg.needs_plugin_pull
