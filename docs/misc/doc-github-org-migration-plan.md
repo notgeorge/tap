@@ -316,9 +316,11 @@ developers' repos will actually hold.
   non-secret identifiers and are safe to surface in the message"* — while
   `req-aws-core-secret-aws-static-5` has operators writing their own into a config file.
   Rewriting ~1,200 commits of core to hide a value we classify as non-secret is a bad trade.
-  Scrubbing HEAD is worth doing as hygiene (the aws_core and roscale test fixtures
-  especially, where a synthetic 12-digit id costs nothing) but it is **cosmetic while the
-  history ships** — step 9 above is the actual remedy.
+
+  **And HEAD is not being scrubbed either (decided 2026-08-08).** A tree-level scrub is
+  cosmetic while the history ships, so it buys nothing on its own; the id is fine where it
+  sits. Step 9 above is the whole remedy — once the account is closed the disclosure is
+  inert everywhere at once, in history and at HEAD, across every repo, with no edits.
 
 ## Status of the work this plan came out of (all landed, `origin/main` `f9fec738`)
 
