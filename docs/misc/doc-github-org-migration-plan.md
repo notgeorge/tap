@@ -352,3 +352,44 @@ developers' repos will actually hold.
   2 runs against installed plugins.
 - `plugin-ci.yml` pins `astral-sh/setup-uv@v5`, which triggers a Node 20 deprecation
   warning on GitHub runners.
+
+## The legal / copyright wave (added 2026-08-08 — the remaining standard docs)
+
+The migration's disruptive phase completed 2026-08-08 (all 14 repos public on the org, CI
+rebuilt and green, zero standing credentials). What remains is the **documents wave**,
+gated on two external events: the copyright assignment to Unified Systems LLC closing
+(days away) and legal review of the contribution docs.
+
+**Delivery vehicle — an org-level `.github` repository.** GitHub applies community health
+files in a public org repo named `.github` as *defaults for every repo in the org* that
+lacks its own copy (surfaced in issue/PR flows and community profiles as if committed
+locally). Write each doc once there; all 14 repos inherit; any repo can override by
+carrying its own. This turns "apply the model fleet-wide" into one repo's worth of work.
+The repo must be public. LICENSE/NOTICE are NOT inheritable this way — those stay per-repo.
+
+Checklist, in dependency order:
+
+1. **Copyright swap** (on assignment closing): `Copyright 2026 George Chamales` →
+   `Copyright 2026 Unified Systems LLC` in all 16 LICENSE files (14 org repos + the two
+   shelved dead repos if ever revived — lotr excluded, archived) and core's NOTICE. One
+   mechanical pass; the LICENSE files are otherwise byte-identical canonical Apache 2.0.
+2. **CONTRIBUTING.md** (George's draft, in legal review) + **DCO** (verbatim 1.1, text at
+   developercertificate.org): the sign-off model. Lives in `.github` repo as the org
+   default; core may carry a tailored copy.
+3. **GOVERNANCE.md**: single-maintainer model (BDFL-style) stated once for legibility;
+   the maintainer's title is **Philosopher King For Now**, and the structure "is neither
+   constitutional nor a lifetime sentence" (George's wording — keep it). Contributor
+   ladder: contributors (fork+PR, no org membership) → triagers (future team, `triage`
+   role) → `maintainers` team (`maintain` role, exists, membership by invitation) → org
+   owner (break-glass only, not a working identity).
+4. **CODE_OF_CONDUCT.md**: Contributor Covenant unless legal prefers otherwise.
+5. **SECURITY.md**: points at GitHub private vulnerability reporting (enabled on all 14
+   repos 2026-08-08); supported-versions statement; response expectations; safe-harbor
+   language (legal input needed on that clause).
+6. **Issue / PR templates + SUPPORT.md**: PR template reminds about DCO sign-off.
+7. **CODEOWNERS flip** (independent of legal): `@notgeorge` → `@unified-systems-com/
+   maintainers` (team exists with `maintain` on all 14). Needs its own reviewed commit —
+   the file self-owns.
+8. **After the wave**: enable require-code-owner-review only when the maintainers team has
+   a second member (a sole code owner cannot approve their own PR — deadlock); the
+   require-PR repo ruleset on core waits on the promote-via-PR rewrite either way.
