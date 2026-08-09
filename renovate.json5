@@ -21,6 +21,10 @@
   vulnerabilityAlerts: {
     labels: ["renovate", "security"],
   },
+  // NO schedules while in PR-only mode: the human merge is already the rate
+  // limiter, and schedule windows just deferred PR creation invisibly (the
+  // 2026-08-09 first-run lesson — four green runs, zero PRs). Revisit schedules
+  // together with the automerge flip, where they actually earn their keep.
   packageRules: [
     {
       // Our own published images (compose image: fields) — never chase our own tags.
@@ -28,26 +32,22 @@
       enabled: false,
     },
     {
-      // wolfi-base rotates its digest daily; one rolling PR, refreshed daily,
-      // delivers Chainguard's patch stream as reviewable commits (this is the
-      // loop that makes the digest pins strictly better than :latest).
+      // wolfi-base rotates its digest daily; one rolling PR, refreshed as
+      // Chainguard publishes, delivers their patch stream as reviewable commits
+      // (the loop that makes the digest pins strictly better than :latest).
       matchManagers: ["dockerfile"],
       groupName: "base-image digests",
-      schedule: ["before 11am"],
     },
     {
       matchManagers: ["github-actions"],
       groupName: "github-actions",
-      schedule: ["before 11am on monday"],
     },
     {
       matchManagers: ["pep621"],
       groupName: "python dependencies (uv.lock)",
-      schedule: ["before 11am on monday"],
     },
   ],
   lockFileMaintenance: {
     enabled: true,
-    schedule: ["before 11am on monday"],
   },
 }
