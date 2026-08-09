@@ -101,11 +101,13 @@ dev = [
     # Type Checking
     # Mypy catches type errors before runtime
     # django-stubs provides type hints for Django's internals
-    # <2: a mypy MAJOR changes the emitted error set and trips the baseline
-    # ratchet (mypy 2.3.0 via lockfile maintenance = 6 new items, PR #20,
-    # 2026-08-09). Majors arrive as their own deliberate Renovate PR with a
-    # baseline triage, never inside a routine lockfile refresh.
-    "mypy>=1.13,<2",
+    # MINOR-bounded, not just major-bounded: mypy's emitted error set shifts on
+    # MINORS too (1.19->1.20 = 1 new finding, 2.3 major = 6; PR #20, 2026-08-09),
+    # and the baseline ratchet asserts that set. Every mypy step arrives as its
+    # own Renovate range-bump PR with a deliberate fix-vs-baseline triage —
+    # never inside a routine lockfile refresh. (Same treatment as ruff, whose
+    # 0.x bound achieves this naturally.)
+    "mypy>=1.13,<1.20",
     "django-stubs>=5.1,<6",
     # Testing
     # pytest is the modern Python test framework
