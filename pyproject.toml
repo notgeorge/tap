@@ -21,13 +21,22 @@ requires-python = ">=3.14"
 # Add new dependencies with: docker compose exec web uv add <package>
 # Remove with: docker compose exec web uv remove <package>
 dependencies = [
+    # MAJOR-BOUND POLICY (2026-08-09, the PR #20 mypy lesson): every dep whose
+    # major version is either a RULER (its output is asserted by guards/gates:
+    # mypy, black, ruff, pytest+plugins, jsonschema, lark) or a MIGRATION
+    # (framework/infra behavior: django, ninja, psycopg, auth stack, queue) is
+    # bounded below its next major, so majors arrive as their own deliberate
+    # Renovate PR — never inside a routine lockfile refresh. Named exceptions:
+    # cryptography (major-per-release versioning — a bound would starve security
+    # fixes; changes surface loudly via the FIPS boot self-check + Dependabot
+    # alerts) and types-* stubs (no meaningful majors).
     # Web Framework
     # Django 6 includes built-in background tasks (django.tasks) and CSP support
-    "django>=6.0",
+    "django>=6.0,<7",
     # API Framework
     # Django Ninja provides fast, type-hinted API development with OpenAPI docs
     # Similar to FastAPI but designed for Django
-    "django-ninja>=1.5",
+    "django-ninja>=1.5,<2",
     # Database
     # psycopg3 is the modern PostgreSQL adapter (psycopg2 is legacy).
     # The `[c]` extra builds psycopg's C speedups against the SYSTEM libpq (which links the
@@ -37,17 +46,19 @@ dependencies = [
     # it cannot satisfy (no matching fips.so/MAC) and SCRAM auth hard-fails with "could not
     # generate nonce" at boot. Linking the system libpq routes SCRAM's RNG through the validated
     # FIPS DRBG instead. Needs pg_config + libpq headers (postgresql-dev) at build (see Dockerfile).
-    "psycopg[c]>=3.2",
+    "psycopg[c]>=3.2,<4",
     # Configuration
     # Parses DATABASE_URL environment variable into Django's DATABASES dict
-    "dj-database-url>=2.2",
+    # <4 not <3: the lock was already on 3.x (an earlier bump wave) — bounds
+    # encode the CURRENT major, they never rewind one that's proven in.
+    "dj-database-url>=2.2,<4",
     # History Tracking
     # django-simple-history provides audit trail for model changes
-    "django-simple-history>=3.4",
-    "jsonschema>=4.26.0",
-    "lark>=1.3.1",
-    "croniter>=6.2.2",
-    "steady-queue>=0.2.0",
+    "django-simple-history>=3.4,<4",
+    "jsonschema>=4.26.0,<5",
+    "lark>=1.3.1,<2",
+    "croniter>=6.2.2,<7",
+    "steady-queue>=0.2.0,<0.3",
     # NOTE: plugin-owned third-party deps are NOT listed here — they live in the
     # owning plugin's pyproject.toml and resolve via the workspace `members`
     # entries below (the github_core PyYAML pattern). `boto3` → aws_core,
@@ -61,7 +72,7 @@ dependencies = [
     # transitively (so a minimal profile crashed at allauth ready() on a missing
     # `jwt`). Declaring the extra, rather than pinning pyjwt/oauthlib ourselves,
     # keeps those deps owned by allauth — the thing that actually imports them.
-    "django-allauth[socialaccount]>=65",
+    "django-allauth[socialaccount]>=65,<66",
     # requests is a DIRECT dependency of core tap_auth — the Google OIDC provider
     # (tap_auth/providers/google_oidc.py) and tap_auth/middleware.py import it at
     # module load. Declared explicitly rather than relied on transitively (it used
@@ -70,8 +81,8 @@ dependencies = [
     # cold-booting boot/gryphon.boot.json. A future slim/headless install may move
     # the auth stack to an optional extra so headless instances drop it entirely
     # (req-plugin-arch-slim-install).
-    "requests>=2.34.2",
-    "webauthn>=3",
+    "requests>=2.34.2,<3",
+    "webauthn>=3,<4",
 ]
 
 # -----------------------------------------------------------------------------
@@ -83,29 +94,35 @@ dependencies = [
 dev = [
     # Code Formatting
     # Black is the uncompromising Python formatter - no config debates
-    "black>=24.0",
+    "black>=24.0,<27",
     # Linting
     # Ruff is a fast Python linter written in Rust, replaces flake8/isort/etc
-    "ruff>=0.8",
+    "ruff>=0.8,<0.16",
     # Type Checking
     # Mypy catches type errors before runtime
     # django-stubs provides type hints for Django's internals
-    "mypy>=1.13",
-    "django-stubs>=5.1",
+    # MINOR-bounded, not just major-bounded: mypy's emitted error set shifts on
+    # MINORS too (1.19->1.20 = 1 new finding, 2.3 major = 6; PR #20, 2026-08-09),
+    # and the baseline ratchet asserts that set. Every mypy step arrives as its
+    # own Renovate range-bump PR with a deliberate fix-vs-baseline triage —
+    # never inside a routine lockfile refresh. (Same treatment as ruff, whose
+    # 0.x bound achieves this naturally.)
+    "mypy>=1.13,<1.20",
+    "django-stubs>=5.1,<6",
     # Testing
     # pytest is the modern Python test framework
     # pytest-django integrates pytest with Django's test utilities
-    "pytest>=8.3",
-    "pytest-django>=4.9",
+    "pytest>=8.3,<10",
+    "pytest-django>=4.9,<5",
     # Parallel test execution — per-worker test DBs (does not violate the
     # shared-DB single-invocation rule); the highest-ROI lever for the
     # DB-bound suite (req-dev-validation-suite-tiers).
-    "pytest-xdist>=3.6",
+    "pytest-xdist>=3.6,<4",
     # Duration-balanced test sharding for the all-plugins CI lane: splits the
     # collected suite into N disjoint groups of ~equal wall-clock across free
     # 2-core runners (`--splits N --group G`, reads committed `.test_durations`).
     # Composes with xdist within each shard (req-dev-validation-all-plugins-lane-7).
-    "pytest-split>=0.9",
+    "pytest-split>=0.9,<0.12",
     # Test Data Generation
     # Factory Boy creates test fixtures declaratively (better than raw fixtures)
     "factory-boy>=3.3",
@@ -139,6 +156,9 @@ dev = [
 # bundled-OpenSSL wheel and FIPS breaks at the far end of the pipeline. The source build
 # needs a Rust + C toolchain and OpenSSL headers, carried by the image (see Dockerfile).
 no-binary-package = ["cryptography"]
+# Major-bound for key TRANSITIVES (same policy as the direct-deps block above;
+# constraint-dependencies bounds without declaring a direct dependency).
+constraint-dependencies = ["pydantic<3"]
 
 [tool.uv.workspace]
 members = []

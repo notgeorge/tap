@@ -291,6 +291,20 @@ Multi-worktree development needs an unambiguous rule for how changes leave a ses
 
    This step is load-bearing: `scripts/spawn-session.sh` runs `git worktree add <path> -b session/<name> main` to branch the new session from the local `main` ref. If that ref is stale, every newly-spawned session starts from old code. The post-push pull keeps it current. (The spawn script also runs its own `pull --ff-only` against `main` at Step 1.5 as a belt-and-suspenders guard — see `req-dev-multisession-push-workflow-6`.)
 
+#### The second road: a gated PR (bot-adjacent changes)
+
+Since the `main-required-checks` ruleset (2026-08-09), the promote is no longer the only
+sanctioned road to `main` — **a PR whose `gate` check is green is equally valid**, and for
+one class of change it is strictly better: a change whose only consumer is a **pending bot
+PR** (a Renovate policy/config/bound edit, a baseline update for a dependency bump). Pushing
+that change onto the bot's own branch bundles policy + payload into ONE gate pass (~10 min)
+instead of three serialized ones (promote the policy ~12 min → bot re-dispatch → rebased-PR
+gate ~10 min ≈ 25 min — measured the hard way, mypy bound saga, 2026-08-09). Renovate stops
+auto-rebasing an edited branch, which is fine when the edit's author intends to merge it.
+Decision rule: *session work → promote; a change consumed by a pending gated PR → bundle
+into that PR's branch.* After the PR merges, sibling session branches pick it up via the
+normal pre-push merge.
+
 #### Why the naive form does not work
 
 The intuitive command for step 4 is `git fetch origin main:main` from inside the session worktree. Git rejects it:

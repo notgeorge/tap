@@ -221,6 +221,10 @@ Multi-session worktrees
         scripts/promote-all-sessions.sh   — run promote-to-main.sh across every session in the registry
     When the user says "consolidate sessions", "ship the sessions", or otherwise asks to advance
     origin/main from session branches, run the promote scripts rather than retyping the git steps.
+    SECOND ROAD (since the main-required-checks ruleset): a change whose only consumer is a
+    pending gated PR (Renovate bounds/config, dep baselines) should be pushed onto THAT PR's
+    branch — one gate pass instead of three serialized ones. See "The second road" in
+    spec-dev-multisession.md (req-dev-multisession-push-workflow).
     See spec-dev-multisession.md for port bands, spawn/despawn, and the push workflow.
     Advancing origin/main is gated on validation (req-dev-multisession-promote-gate ↔
     req-dev-validation-promote-hook): the dev-validation gate runs after the pre-push merge,
