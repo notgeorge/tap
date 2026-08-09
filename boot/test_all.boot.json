@@ -54,7 +54,7 @@
         "source": {
           "type": "git",
           "url": "https://github.com/unified-systems-com/tap-plugin-aws-core",
-          "rev": "v0.3.0"
+          "rev": "v0.4.0"
 
         },
         "note": "Package-mode (tap_plugin.aws_core). Tier-0 boto3 dep (uv resolves at install). AWS dimension + region reference data; seeded in population (its collector is NOT fired in base)."
