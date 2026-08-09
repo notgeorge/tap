@@ -29,6 +29,11 @@ on:
   pull_request:
     branches: [main]
 
+# Explicit least-privilege GITHUB_TOKEN (org default is read-only; stated here so the
+# file is self-describing and CodeQL's missing-workflow-permissions check passes).
+permissions:
+  contents: read
+
 concurrency:
   group: product-lines-${{ github.ref }}
   cancel-in-progress: true

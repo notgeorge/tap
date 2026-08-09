@@ -447,7 +447,11 @@ class TestTablePanelViewEndpoint:
         content = response.content.decode()
         import re
 
-        executable_scripts = re.findall(r"<script(?![^>]*type=['\"]application/json['\"])[^>]*>", content)
+        # re.IGNORECASE: browsers treat <SCRIPT> like <script>, so a case-sensitive
+        # assertion would pass while an uppercase tag executes (CodeQL py/bad-tag-filter).
+        executable_scripts = re.findall(
+            r"<script(?![^>]*type=['\"]application/json['\"])[^>]*>", content, re.IGNORECASE
+        )
         assert executable_scripts == []
 
 
