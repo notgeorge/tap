@@ -83,7 +83,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout core harness (${{ inputs.harness_repo }}@${{ inputs.harness_ref }})
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           repository: ${{ inputs.harness_repo }}
           ref: ${{ inputs.harness_ref }}
@@ -91,12 +91,12 @@ jobs:
           path: _harness
 
       - name: Checkout plugin (${{ inputs.plugin_repo || github.repository }})
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           repository: ${{ inputs.plugin_repo || github.repository }}
           path: plugin
 
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v9.0.0
 
       # Structure-level validation needs only pure-python core modules
       # (tap_plugins.manifest / tap.core_version / tap.plugin_deps / tap.jsonfiles),
@@ -132,7 +132,7 @@ jobs:
       COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
     steps:
       - name: Checkout core harness (${{ inputs.harness_repo }}@${{ inputs.harness_ref }})
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           repository: ${{ inputs.harness_repo }}
           ref: ${{ inputs.harness_ref }}
@@ -142,7 +142,7 @@ jobs:
       # (the core dir) carries it; the caller's boot profile installs it editable
       # from this path (source { type = "editable", path = "_external/<slug>" }).
       - name: Checkout plugin into the harness tree
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           repository: ${{ inputs.plugin_repo || github.repository }}
           path: _external/${{ inputs.plugin_slug }}
@@ -190,9 +190,9 @@ jobs:
           }
           JSON
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       - name: Build web image (GHA layer cache)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           load: true
