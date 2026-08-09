@@ -30,19 +30,28 @@ Linux), and any **python3** on the host.
 first — it covers the docker group, ports, and two known papercuts.
 
 ```bash
-git clone <this repository> tap && cd tap
-scripts/stand-up.sh
+mkdir -p ~/tap-sessions
+git clone <this repository> ~/tap-sessions/main
+cd ~/tap-sessions/main
+scripts/spawn-session.sh dev        # any session name you like
 ```
 
-That's the whole procedure. The script checks your host, builds the image (the first
-build compiles the FIPS-validated OpenSSL provider — 10–20 minutes once (it's worth the wait), 
-boots the instance, and prints your URL and admin credentials.
-Sign in with the password from `.dev-credentials`, then enroll a passkey from your
-session if you want one.
+That's the whole procedure — first boot and every later session are the same
+command. The script checks your host, creates an isolated session worktree at
+`~/tap-sessions/dev`, builds the image (the first build compiles the FIPS-validated
+OpenSSL provider — 10–20 minutes once; it's worth the wait, and later sessions
+reuse the cache), boots the instance, and prints your URL and admin credentials.
+Sign in with the password from the worktree's `.dev-credentials`, then enroll a
+passkey from your session if you want one. Your next concurrent session is just
+`scripts/spawn-session.sh <another-name>`.
+
+The `~/tap-sessions/main` location matters: sessions are git worktrees beside it,
+and the tooling standardizes on that layout (the script checks, and tells you how
+to adopt it if you cloned somewhere else).
 
 **The easier way: let your AI assistant drive.** Open an AI coding assistant in the
-clone (Claude Code, or anything that reads this repo) and ask it to stand TAP up —
-the `/stand-up` skill walks it through host prep, the choices, the run, and the
+clone (Claude Code, or anything that reads this repo) and ask it to get TAP running —
+the `/get-started` skill walks it through host prep, the choices, the run, and the
 first login, and it can diagnose anything that goes wrong. This repo treats AI
 assistants as first-class operators: skills under `*/skills/` are step-by-step
 procedures written for them.
@@ -52,7 +61,10 @@ Day to day:
 -  `scripts/dc down`
 -  `scripts/dc logs -f web`.
   
-To update: `git pull && scripts/dc up -d --build` (migrations run on start).
+All of these run from inside a session worktree (`~/tap-sessions/<name>`).
+To pick up new code, spawn a fresh session from the updated main
+(`git -C ~/tap-sessions/main pull`, then `scripts/spawn-session.sh <new-name>`) —
+sessions are cheap and disposable (`scripts/despawn-session.sh <name>`).
 
 ## Build your own plugin
 

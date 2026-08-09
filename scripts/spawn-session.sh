@@ -7,8 +7,13 @@
 # it does, read the linked requirement — not a parallel description elsewhere
 # (those would just drift).
 #
+# THE single entry point: first boot on a fresh machine and the Nth concurrent
+# session are the same command (scripts/stand-up.sh retired 2026-08-09 — its host
+# checks are Step 0.1 below; its conversational driver is the get-started skill).
+#
 # Top-level requirements implemented here:
 #   req-dev-multisession-spawn-script      — overall flow, registry validation, failure trap
+#   req-dev-multisession-host-readiness    — Step 0.1 toolchain checks + layout seatbelt
 #   req-dev-multisession-admin-bootstrap   — Django admin user creation + .dev-credentials
 #
 # Top-level requirements depended on:
@@ -337,6 +342,73 @@ fi
 cd "$REPO"
 
 # ============================================================================
+# Step 0.1: Host readiness (req-dev-multisession-host-readiness)
+#
+# The first-run gate and the every-run seatbelt, absorbed from the retired
+# scripts/stand-up.sh: spawn is the single entry point for a fresh clone AND
+# the Nth session, so the host checks that used to live in a separate script
+# run here — cheaply, idempotently, on every spawn. Each failure names its
+# platform-specific fix; nothing in this step mutates the host.
+# ============================================================================
+bold "Step 0.1: Host readiness"
+
+command -v git >/dev/null 2>&1 || fail "git not found on PATH."
+command -v python3 >/dev/null 2>&1 || fail "python3 not found on PATH (spawn uses it to mint ids and passwords)."
+command -v docker >/dev/null 2>&1 || fail "docker not found on PATH.
+    macOS: install Docker Desktop. Linux: install Docker Engine + the Compose v2 plugin.
+    See 'Host prerequisites' in docs/misc/doc-dev-multisession-onboarding.md."
+docker compose version >/dev/null 2>&1 || fail "'docker compose' (the v2 plugin) is not available.
+    The retired v1 'docker-compose' binary is not supported. Linux: apt install docker-compose-plugin."
+# The port-band probe (Step 1) reads nothing when lsof is absent and would
+# silently allocate a busy band — so a missing lsof fails HERE, loudly.
+command -v lsof >/dev/null 2>&1 || fail "lsof not found — the port-band probe depends on it. Install it (e.g. apt install lsof) and re-run."
+
+if ! with_timeout 8 docker info >/dev/null 2>&1; then
+  if with_timeout 8 sh -c 'docker info 2>&1' | grep -qi "permission denied"; then
+    fail "Docker daemon refused the connection: permission denied.
+    Linux: add yourself to the docker group (sudo usermod -aG docker \$USER), then log out and back in."
+  fi
+  fail "Docker daemon is not responding.
+    Start Docker Desktop (macOS) or the engine (Linux: systemctl start docker) and re-run."
+fi
+info "Toolchain OK: docker + compose v2 + lsof + python3."
+
+# Layout seatbelt: the primary clone lives at ~/tap-sessions/main — the layout
+# the registry, promote, and despawn lifecycles standardize on. Derived from git
+# itself (the first `git worktree list` entry is the primary working copy, no
+# matter which session worktree invoked us), compared physically so symlinked
+# homes don't false-positive. Skipped when WORKTREE_BASE is overridden — a
+# throwaway consumer (gate-lean) is not part of the durable layout.
+CANONICAL_MAIN="$HOME/tap-sessions/main"
+if [[ -z "${WORKTREE_BASE:-}" ]]; then
+  PRIMARY_CLONE="$(git -C "$REPO" worktree list --porcelain | head -n 1 | cut -d' ' -f2-)"
+  PRIMARY_PHYS="$(cd "$PRIMARY_CLONE" 2>/dev/null && pwd -P || echo "$PRIMARY_CLONE")"
+  CANONICAL_PHYS="$(cd "$CANONICAL_MAIN" 2>/dev/null && pwd -P || echo "$CANONICAL_MAIN")"
+  if [[ "$PRIMARY_PHYS" != "$CANONICAL_PHYS" ]]; then
+    fail "The primary clone lives at $PRIMARY_CLONE — the multi-session layout standardizes on $CANONICAL_MAIN.
+    Fresh clone (nothing to keep):  git clone \$(git -C '$PRIMARY_CLONE' remote get-url origin) $CANONICAL_MAIN
+                                    (then delete $PRIMARY_CLONE)
+    Existing work in this clone:    mkdir -p \$HOME/tap-sessions && mv '$PRIMARY_CLONE' $CANONICAL_MAIN
+                                    (git does not care where the repo directory lives; mv preserves everything)
+    Then: cd $CANONICAL_MAIN && scripts/spawn-session.sh"
+  fi
+  info "Layout OK: primary clone at $CANONICAL_MAIN."
+fi
+
+# First-spawn detection (no registry yet = fresh host): only changes messaging —
+# the first image build compiles the FIPS OpenSSL provider and takes far longer
+# than the cached rebuilds every later spawn gets.
+FIRST_RUN=0
+[[ -f "$HOME/tap-sessions/.registry" ]] || FIRST_RUN=1
+
+# Soft checks: warn, never block. Identity resolves in the repo's context (repo-local
+# config counts — session worktrees share it), not the invoking shell's cwd.
+if ! git -C "$REPO" config user.email >/dev/null 2>&1 || ! git -C "$REPO" config user.name >/dev/null 2>&1; then
+  warn "git identity is unset — commits from sessions will carry an auto-derived name/email."
+  warn "  Fix: git config --global user.name 'Your Name' && git config --global user.email you@example.com"
+fi
+
+# ============================================================================
 # Step 0: macOS Keychain admin password (one-time per Mac)
 #
 # Spec: req-dev-multisession-admin-bootstrap (Password resolution order, source #3).
@@ -435,8 +507,7 @@ fi
 # The probe needs lsof, and a missing lsof must fail LOUDLY: with it absent the
 # pipeline below quietly returns "not in use" for every port, the guard reads
 # nothing and passes, and spawn allocates a band something else is listening on.
-# Ubiquitous on macOS; minimal Linux installs may lack it (apt install lsof).
-command -v lsof >/dev/null 2>&1 || fail "lsof not found — the port-band probe depends on it. Install it (e.g. apt install lsof) and re-run."
+# Enforced up front in the Step 0.1 host-readiness battery.
 port_in_use() {
   lsof -iTCP:"$1" -sTCP:LISTEN -P -n 2>/dev/null | grep -q LISTEN
 }
@@ -718,7 +789,14 @@ bold "Step 3.6: Wiring project-internal skills into .claude/skills/"
 #       per-session port band actually takes effect.
 # ============================================================================
 bold "Step 4: Building and starting Docker stack"
-info "First build pulls postgres:16-alpine and compiles the web image — typically 2-5 minutes."
+if [[ "$FIRST_RUN" -eq 1 ]]; then
+  info "First spawn on this host: the build compiles the FIPS-validated OpenSSL provider"
+  info "from source — expect 10-20 minutes, once. Every later spawn reuses the layer"
+  info "cache and takes 2-5 minutes. (TAP_FIPS=0 skips the FIPS build — an explicit"
+  info "dev-only escape hatch, not the published posture.)"
+else
+  info "First build pulls postgres:16-alpine and compiles the web image — typically 2-5 minutes."
+fi
 run_quiet "Building images + starting containers" scripts/dc up -d --build
 
 # ============================================================================
