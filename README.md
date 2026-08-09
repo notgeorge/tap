@@ -2,7 +2,7 @@
 
 TAP is a general-purpose platform for mastering the systems you are responsible
 for — accounts, pipelines, fleets, data flows, the organization
-itself — by modeling each as a live, queryable, visual representatiion called **the grid**:
+itself — by modeling each as a live, queryable, visual representation called **the grid**:
 nodes and edges fused with dimensions, batches, history, and field-level provenance,
 so the model stays explainable as it changes.  
   
@@ -82,12 +82,9 @@ pull real data in, pages and panels that show it. Ask your assistant to run
 `/new-plugin`, or start from `tap_plugins/specs/spec-plugin-external-development.md`,
 which is the contract for developing plugins against this repo as your harness.
 Boot profiles (`boot/*.boot.json`) declare which plugins an instance runs and where
-they install from.
-
-The reference deployment is **samsite** — a real, deployed website whose AWS
-infrastructure, GitHub pipeline, and published signed artifacts all land on the
-grid. Its plugin README documents what it takes to point that machinery at your own
-deployment, credentials included.
+they install from; a plugin can also ship its own boot records and be stood up
+directly from its repository with `spawn-session.sh --from <pointer>` — each such
+plugin's README is the front door for running it.
 
 ## Finding your way
 
@@ -99,7 +96,7 @@ deployment, credentials included.
 | `specs/`, `<app>/specs/` | Behavior contracts — the canonical source of truth |
 | `tap_grid/` | The graph core: entity spine, edges, service layer, Gryphon, GRIFT |
 | `boot/` | Boot profiles — what an instance installs and seeds |
-| `*/skills/` | AI-operable procedures (stand up, add a model, build a collector, …) |
+| `*/skills/` | AI-operable procedures (get started, provision secrets, add a model, build a collector, …) |
 
 ## License
 
