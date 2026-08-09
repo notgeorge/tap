@@ -120,18 +120,40 @@ If test count grows large within an application, subdirectories within `tests/` 
 RID: `req-tap-test-fixtures`
 Status: `In Development`
 
-Shared test fixtures live in `conftest.py` files at the appropriate scope.
+Shared test fixtures live at the appropriate scope — but the UNIVERSAL harness
+fixtures do **not** live in a conftest at all, and this is load-bearing.
 
 #### Implementation
 
-**Root `conftest.py`:** Contains fixtures used across all applications. Currently provides `default_caller_context` (autouse) which sets up a `CallerContext` with a fresh `batch_id` for every test so FLIP-enabled models work without manual setup.
+**The harness plugin (`tap/pytest_harness.py`):** The fixtures every suite in the
+system depends on — `default_caller_context` (autouse; binds the `tap_test` actor
+`CallerContext` with a fresh `batch_id` per DB test), the `django_db_setup`
+auth-bootstrap seeding, and the `_service_write_hatch` — are a real pytest plugin
+loaded via `-p tap.pytest_harness` in the configfile's `addopts` (with the
+`pythonpath = ["."]` ini making the module importable at plugin-load time).
+
+They moved out of the root conftest on 2026-08-09 because **conftest loading
+depends on the invocation mode**: pytest 9.1 stopped loading the rootdir conftest
+chain for `--pyargs`-resolved packages, which silently stripped the harness from
+`pytest --pyargs tap_plugin.<slug>` — the per-plugin CI lane's exact invocation
+and the documented evicted-plugin completion check — failing every plugin DB test
+with `MissingActor` while the same files passed by path. `addopts` is the correct
+carrier because it rides the same `[tool.pytest.ini_options]` block that delivers
+`DJANGO_SETTINGS_MODULE` to those runs, so the harness provably travels wherever
+Django settings do. (A `pytest11` entry point would be the textbook mechanism,
+but the root project is a virtual — non-installed — uv project with no
+distribution to register one from.)
+
+**Root `conftest.py`:** Rootdir-scoped *collection* configuration only
+(`collect_ignore` for uninstalled-plugin test dirs). Load-bearing fixtures must
+not be moved back here.
 
 **Application `conftest.py`:** Contains fixtures specific to that application's test needs. Example: `tap_api/tests/conftest.py` provides API client fixtures.
 
 **Plugin `conftest.py`:** Plugins may provide their own `conftest.py` in `tests/` for plugin-specific fixtures.
 
 Fixtures should be placed at the narrowest scope that makes sense:
-- Root conftest: truly universal fixtures (caller context, database setup)
+- Harness plugin: truly universal fixtures (caller context, auth seeding, write hatch)
 - App conftest: app-specific helpers (API clients, web request factories)
 - Test file: fixtures used only in that file
 
@@ -139,9 +161,10 @@ Fixtures should be placed at the narrowest scope that makes sense:
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-test-fixtures-1 | Root Caller Context | Implemented | Root conftest provides autouse `default_caller_context` fixture. | |
+| req-tap-test-fixtures-1 | Harness Caller Context | Implemented | The harness plugin provides the autouse `default_caller_context` fixture in every invocation mode. | Was "Root conftest provides..."; relocated 2026-08-09, see -4. |
 | req-tap-test-fixtures-2 | Narrowest Scope Placement | In Development | Fixtures live at the narrowest conftest scope that covers their usage. | |
 | req-tap-test-fixtures-3 | No Fixture Leakage | In Development | App-level fixtures do not depend on other apps' conftest files. | |
+| req-tap-test-fixtures-4 | Invocation Independence | Implemented | The harness fixtures load under `pytest --pyargs tap_plugin.<slug>` (the per-plugin CI invocation), and the guard proving it can also detect their absence. | Guard: `tap/tests/test_pytest_harness_invocation.py` — positive arm (fixture visible under --pyargs) + negative arm (blanked `addopts` makes the same probe report absence). Born from the pytest 9.0.2→9.1.1 upgrade breaking every plugin suite's DB tests. |
 
 #### Future
 Factory-based test data generation (e.g. factory_boy) may be introduced when the number of model types makes manual setup painful.
