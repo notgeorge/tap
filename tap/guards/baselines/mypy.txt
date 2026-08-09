@@ -3,7 +3,6 @@
 # Frozen debt, mostly django-stubs friction + test no-untyped-call cascade (audited: not bugs).
 # A NEW error bumps a count -> ratchet fails. Regenerate ONLY for a reviewed change:
 #   manage.py guards --sync-mypy
-conftest.py:no-untyped-call:1
 tap/guards/mypy.py:attr-defined:2
 tap/jsonfiles.py:assignment:1
 tap/jsonfiles.py:index:1

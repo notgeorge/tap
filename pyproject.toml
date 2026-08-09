@@ -236,6 +236,10 @@ django_settings_module = "tap.settings"
 # ImmediateBackend regardless of what the dev/prod tap/settings.py sets it
 # to. See spec-tap-cares-task-backend.md req-tap-cares-task-backend-test-settings.
 DJANGO_SETTINGS_MODULE = "tap.test_settings"
+# `pythonpath` makes the repo root importable BEFORE plugin loading, which is
+# what lets addopts' `-p tap.pytest_harness` import under invocations that do
+# not add the cwd to sys.path (e.g. `uv run pytest --pyargs ...`).
+pythonpath = ["."]
 # NO `testpaths`. pytest discovers every test file from the repo root, minus
 # `norecursedirs` (.venv, node_modules, build, dist, dot-dirs) and the explicit
 # `--ignore`s below. This is deliberately an IGNORE-list, not an ALLOW-list.
@@ -256,7 +260,17 @@ python_files = ["test_*.py", "*_test.py"]
 # and collecting them would make the core lane depend on which plugins a developer
 # happens to have checked out. (The core suites' fixtures live in the neutral
 # grid_fixtures plugin, installed like any other.)
-addopts = "-v --tb=short -m 'not live_fetch' --ignore=_dev-plugins"
+# `-p tap.pytest_harness` loads the TAP test harness (caller context, auth
+# seeding, write hatch) as a REAL pytest plugin in every invocation mode. It
+# lived in the root conftest until 2026-08-09, when pytest 9.1 stopped loading
+# rootdir conftests for `--pyargs`-resolved packages — silently stripping the
+# harness from `pytest --pyargs tap_plugin.<slug>` (plugin-ci lane 2's exact
+# invocation) and failing every plugin DB test with MissingActor. addopts is
+# the right carrier: this configfile is provably read under --pyargs (it is
+# how DJANGO_SETTINGS_MODULE reaches those runs), and the root project is a
+# virtual (non-installed) uv project, so a pytest11 entry point cannot register.
+# Guarded by tap/tests/test_pytest_harness_invocation.py (req-tap-test-fixtures-4).
+addopts = "-v --tb=short -m 'not live_fetch' --ignore=_dev-plugins -p tap.pytest_harness"
 markers = [
     "no_registry_isolation: opt out of search runner registry isolation between tests",
     "spec: link a test to one or more spec acceptance criteria by ACID",
