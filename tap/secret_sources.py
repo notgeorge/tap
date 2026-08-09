@@ -5,7 +5,8 @@
 inline ``data`` — the built-in **disk source**, today's behavior unchanged. A named
 source dispatches to a provider discovered from the ``tap.secret_sources`` entry-point
 group: disk in core, cloud stores contributed by a slim, allow-listed distribution
-(e.g. ``aws_secrets_source``), so **no cloud SDK enters core** until such a distribution
+(e.g. ``aws-secrets-source``, homed in the hardened ``tap-build-dependencies`` repo and
+installed at image build time), so **no cloud SDK enters core** until such a distribution
 is installed.
 
 Spec: ``specs/spec-plugin-dependency-resolution.md`` ``req-plugin-depres-sources`` /

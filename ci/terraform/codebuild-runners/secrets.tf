@@ -14,7 +14,8 @@
 # value on every apply and re-leak it into state. The value shape is the github_pat data
 # block (tap/plugin_source_auth.py). At runtime a lane resolves it through the secret-source
 # seam: a routing manifest names metadata.source = "aws_secrets_manager" + source_ref.
-# secret_id = this name, and AwsSecretsManagerSource fetches it via the lane role's AMBIENT
+# secret_id = this name, and AwsSecretsManagerSource (the aws-secrets-source distribution,
+# homed in unified-systems-com/tap-build-dependencies) fetches it via the lane role's AMBIENT
 # IAM (the grant below) — no credential is ever stored in GitHub or the workflow.
 
 locals {
