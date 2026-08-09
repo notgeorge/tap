@@ -50,6 +50,14 @@ The `~/tap-sessions/main` location matters: sessions are git worktrees beside it
 and the tooling standardizes on that layout (the script checks, and tells you how
 to adopt it if you cloned somewhere else).
 
+Profiles that pull live data declare the credentials they need
+(`required_secrets` in the boot profile), and the boot preflight checks the
+declarations in seconds — naming exactly what's missing or dead before anything
+expensive runs, with the verdict persisted to `logs/boot/latest.boot-record.json`.
+Your AI assistant closes the gaps with `/provision-secrets`, which reads the same
+declaration and routes each credential to its plugin's canonical setup docs. The
+default `core_dev` profile needs no credentials at all.
+
 **The easier way: let your AI assistant drive.** Open an AI coding assistant in the
 clone (Claude Code, or anything that reads this repo) and ask it to get TAP running —
 the `/get-started` skill walks it through host prep, the choices, the run, and the
