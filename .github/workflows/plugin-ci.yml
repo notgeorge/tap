@@ -36,6 +36,15 @@ on:
         description: "The plugin slug (== manifest slug == tap_plugin.<slug> namespace)."
         required: true
         type: string
+      plugin_repo:
+        description: >-
+          The plugin repository to test. Empty (the default) means the CALLER repo —
+          the per-plugin-repo CI case. Core's nightly matrix passes each discovered
+          tap-plugin-* repo explicitly; without this, a cross-repo caller would check
+          out ITSELF as the plugin (core validating core-as-a-plugin — a false red).
+        required: false
+        type: string
+        default: ""
       harness_repo:
         description: "The core TAP repo used as the dev harness."
         required: false
@@ -81,9 +90,10 @@ jobs:
           token: ${{ secrets.harness_pat || github.token }}
           path: _harness
 
-      - name: Checkout plugin (this repo)
+      - name: Checkout plugin (${{ inputs.plugin_repo || github.repository }})
         uses: actions/checkout@v5
         with:
+          repository: ${{ inputs.plugin_repo || github.repository }}
           path: plugin
 
       - uses: astral-sh/setup-uv@v5
@@ -134,6 +144,7 @@ jobs:
       - name: Checkout plugin into the harness tree
         uses: actions/checkout@v5
         with:
+          repository: ${{ inputs.plugin_repo || github.repository }}
           path: _external/${{ inputs.plugin_slug }}
 
       - name: Stage the boot profile

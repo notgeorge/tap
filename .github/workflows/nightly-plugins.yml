@@ -1,0 +1,88 @@
+# Nightly plugin skew detector (req-plugin-extdev-repo-ci; the 2026-08-09 pytest-9.1
+# incident is the demand signal — see tap/pytest_harness.py).
+#
+# THE PROBLEM THIS OWNS: per-plugin CI triggers on PLUGIN-repo events, so a CORE-side
+# change that breaks plugin suites (a dep bump, a harness change, a service-layer
+# tightening) is invisible until someone happens to push a plugin. This workflow closes
+# that blind spot on a clock: every night, every plugin repo is validated against
+# current core main, so core-side skew surfaces within 24 hours attributed to the right
+# day — not weeks later attributed to an innocent plugin PR.
+#
+# DISCOVERY IS THE REGISTRY: job 1 lists the org's live `tap-plugin-*` repos at run
+# time and fans a matrix out over them. Push a new plugin repo and it is in tomorrow's
+# run with zero config here — the naming convention plus the org boundary IS the
+# roster (archived repos and the notgeorge archaeology shelf are excluded by
+# construction). No allowlist file to forget: discovery fails SAFE, same doctrine as
+# pytest collection (spec-tap-testing.md).
+#
+# DEPTH IS OPT-IN PER PLUGIN: every discovered repo gets the conformance gate
+# (validate_plugin --strict vs core@main — cheap, universal, dependency-free). A repo
+# that additionally ships `ci/nightly.boot.json` gets the FULL boot-and-test leg: its
+# profile boots on a real stack and its in-package suite runs via
+# `pytest --pyargs tap_plugin.<slug>` — the exact invocation the harness guard
+# (req-tap-test-fixtures-4) protects. The profile lives in the PLUGIN repo because its
+# author knows its dependency closure; generating one here generically would mean
+# reimplementing dep resolution in a workflow. A `tap-plugin-*` repo that fails
+# conformance goes RED on purpose: anything claiming the name should meet the
+# admission contract, and tonight is when the claim gets checked.
+#
+# Zero secrets: org + repos are public; discovery and checkouts ride GITHUB_TOKEN.
+# Free runners; unlimited minutes on public repos. Scheduled workflows run from the
+# DEFAULT branch only — this file must live on main to fire.
+
+name: nightly-plugins
+
+on:
+  schedule:
+    # 09:17 UTC ≈ 2:17am PT. Off the top of the hour: GitHub sheds load by
+    # delaying/dropping on-the-hour crons more aggressively.
+    - cron: "17 9 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.roster.outputs.matrix }}
+      count: ${{ steps.roster.outputs.count }}
+    steps:
+      - name: List live tap-plugin-* repos + probe for a nightly profile
+        id: roster
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repos=$(gh api "/orgs/${{ github.repository_owner }}/repos" --paginate \
+            --jq '.[] | select(.archived | not) | select(.name | startswith("tap-plugin-")) | .name' | sort)
+          [ -n "$repos" ] || { echo "::error::discovery returned ZERO tap-plugin-* repos — that is a discovery failure, not an empty org"; exit 1; }
+          matrix="[]"
+          for name in $repos; do
+            slug="${name#tap-plugin-}"; slug="${slug//-/_}"
+            # Suite depth is opt-in: present ci/nightly.boot.json => boot-and-test leg.
+            if gh api "/repos/${{ github.repository_owner }}/${name}/contents/ci/nightly.boot.json" >/dev/null 2>&1; then
+              profile="ci/nightly.boot.json"
+            else
+              profile=""
+            fi
+            matrix=$(echo "$matrix" | jq -c --arg r "${{ github.repository_owner }}/${name}" --arg s "$slug" --arg p "$profile" \
+              '. + [{repo:$r, slug:$s, profile:$p}]')
+          done
+          count=$(echo "$matrix" | jq 'length')
+          echo "Discovered $count plugin repos:"; echo "$matrix" | jq .
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+
+  plugin:
+    needs: discover
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    name: ${{ matrix.slug }}
+    uses: ./.github/workflows/plugin-ci.yml
+    with:
+      plugin_slug: ${{ matrix.slug }}
+      plugin_repo: ${{ matrix.repo }}
+      harness_ref: main
+      boot_profile: ${{ matrix.profile }}
