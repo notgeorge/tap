@@ -853,11 +853,26 @@ web_container_dead_check() {
 
 bold "Step 5: Waiting for entrypoint (uv sync + migrate + runserver)"
 info "First-time uv sync downloads ~50MB of wheels — typically 1-3 minutes."
-WAIT_TIMEOUT=600   # 10 minutes — the backstop; a fatal standup fast-fails long before it.
-                   # Sized for the COLD-cache first boot: the FIPS-mandated cryptography
-                   # --no-binary source build alone runs ~4m30s (observed 2026-08-09), whole
-                   # entrypoint ~6-7 min. Any cryptography/psycopg bump re-pays that compile.
+# Readiness backstops. The PRIMARY hang trigger is STALL DETECTION: a healthy
+# entrypoint streams log output continuously (cache seed, uv sync, plugin
+# installs, migrations), so "no new web-log output for STALL_TIMEOUT" is the
+# real signal — wall-clock alone cannot distinguish slow from stuck (observed
+# 2026-08-09: a loaded host ran a HEALTHY migrate straight past the old 600s
+# wall-clock while streaming the whole time). The wall-clock ceiling remains
+# only as the outer safety bound, sized by which Step 4 path ran: the warm
+# pull-first path still legitimately runs minutes (a samsite-class pre-boot
+# git-installs 11 plugins; a loaded host stretches everything), and the
+# local-build fallback adds the FIPS delta source compile (~4m30s for a
+# cryptography bump alone).
+STALL_TIMEOUT=120
+if [[ "${PULL_OK:-1}" -eq 1 ]]; then
+  WAIT_TIMEOUT=600   # warm path: published images + seeded wheel cache
+else
+  WAIT_TIMEOUT=900   # fallback local build: stale/absent seed re-pays the compile
+fi
 WAIT_START=$(date +%s)
+LAST_LOG_SIZE=0
+LAST_PROGRESS=$WAIT_START
 while true; do
   # Fatal-standup fast-paths (before the readiness probe, which would otherwise
   # poll a dead/aborted container to the timeout — the 300s black-box this replaces,
@@ -888,11 +903,27 @@ except Exception:
     info "Web is responding."
     break
   fi
-  elapsed=$(($(date +%s) - WAIT_START))
-  if [[ $elapsed -gt $WAIT_TIMEOUT ]]; then
-    fail "Web did not become ready in ${WAIT_TIMEOUT}s (no ABORT signal seen). Check 'scripts/dc logs web' in $WORKTREE."
+  # Stall detection: track web-log growth; a healthy entrypoint streams, a hang
+  # goes silent. Byte count via wc -c — cheap, and monotonic while logs append.
+  NOW=$(date +%s)
+  LOG_SIZE=$(scripts/dc logs web 2>&1 | wc -c | tr -d ' ')
+  if [[ "$LOG_SIZE" -gt "$LAST_LOG_SIZE" ]]; then
+    LAST_LOG_SIZE=$LOG_SIZE
+    LAST_PROGRESS=$NOW
   fi
-  printf "    waiting... %ds\r" "$elapsed"
+  STALLED_FOR=$(( NOW - LAST_PROGRESS ))
+  if [[ $STALLED_FOR -gt $STALL_TIMEOUT ]]; then
+    fail "Entrypoint STALLED: no new web-log output for ${STALL_TIMEOUT}s (waited $((NOW - WAIT_START))s total, no ABORT signal).
+    The container is up but silent — a genuine hang, not a slow healthy boot.
+    Inspect: scripts/dc logs web  (in $WORKTREE). Diagnose: the /diagnose-failed-session-spawn skill."
+  fi
+  elapsed=$(( NOW - WAIT_START ))
+  if [[ $elapsed -gt $WAIT_TIMEOUT ]]; then
+    fail "Web did not become ready in the ${WAIT_TIMEOUT}s ceiling (log was still progressing ${STALLED_FOR}s ago; no ABORT signal).
+    A loaded host can stretch a healthy boot past the ceiling — check 'scripts/dc logs web' in $WORKTREE:
+    if the entrypoint is still advancing, let it finish and run the tail steps manually (see the diagnose skill's backstop-timeout signature)."
+  fi
+  printf "    waiting... %ds (log progress %ds ago)   \r" "$elapsed" "$STALLED_FOR"
   sleep 3
 done
 echo

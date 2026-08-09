@@ -7,6 +7,12 @@ argument-hint: [consumer] [what the secret authenticates to]
 
 # Wire a TAP Secret
 
+> **Authoring, not provisioning.** This skill wires a secret INTO the system — a new
+> kind, a new consumer, scanner/redaction/necessity plumbing (developer-facing). If the
+> kind and consumer already exist and the task is "supply the value a boot profile
+> declares" (mint + place + verify), that is `/provision-secrets` (operator-facing,
+> reads the profile's `required_secrets` declaration).
+
 A credential is entering (or changing inside) the system. Secrets are the one surface where a
 mistake is **not recoverable by editing** — once material reaches a commit it is disclosed for
 the life of the repository, and the only remedy is rotation plus history rewriting. So this runs

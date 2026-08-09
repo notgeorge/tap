@@ -146,6 +146,7 @@ them rather than invent.
 | --- | --- | :---: | --- |
 | req-boot-bootstrap-command | [Single-Command Boot](#single-command-boot) | Proposed | `tap boot --from <pointer>` fetches + stages + boots; `--from` subsumes `--boot-file` (local path, or remote `pkg@ver#record`) |
 | req-boot-bootstrap-records-in-package | [Records Ride The Artifact](#records-ride-the-artifact) | Proposed | Boot records live at `tap_plugin/<slug>/boot/<name>.boot.json` as package data; shippable records in-package, harness profiles stay repo-local; supersedes the location of `req-plugin-arch-layout-6` |
+| req-boot-bootstrap-samsite-rehome | [Samsite Profile Re-Home](#samsite-profile-re-home) | Proposed | **Analysis 2026-08-09 (nightly session): newly unblocked, unsequenced.** `boot/samsite.boot.json` — this spec's own motivating example — moves into `tap-plugin-samsite` as an in-package record and the core copy is deleted; the eviction blocker is gone (all install entries git-sourced, `plugins/` empty), the file's "evict-last / editable from monorepo" prose is stale. Ordered actions cover the spawn shorthand → pointer swap, gate-coverage re-home (the stale-collector-key protection must not silently vanish), and the CodeBuild lane |
 | req-boot-bootstrap-pointer-grammar | [Pointer Grammar](#pointer-grammar) | Proposed | `<source-ref>#<record>[@<digest>]` (Nix-flake fragment + OCI reference); three orthogonal axes — carrier version (`@ver`/`@+ver`), record selector (`#record`), record digest (`@algo:hex`, a fail-closed guard); simple cells built, ranges + digest reserved |
 | req-boot-bootstrap-default-record | [Default Record Is Explicit](#default-record-is-explicit) | Proposed | No `#` → `boot/default.boot.json` if present, else loud error naming available records; never "first"/"latest" |
 | req-boot-bootstrap-record-version | [Record Integrity + Version](#record-integrity--version) | Proposed | **Near-term build.** Record carries **no version of its own** (version = the plugin's, single-sourced — dissolves the stamp-circularity); integrity = a content `sha256` in the **referrer** (`tap-plugin.toml`), never in the record; non-circular guard; install entries pin *or* float; `targets_major` compat + monotonic counter explicitly reserved/rejected |
@@ -244,6 +245,40 @@ source-type-agnostic.
 | req-boot-bootstrap-records-in-package-4 | Shippable vs Harness | Proposed | Shippable records are in-package; harness profiles (`core`/`core_dev`/`test_all`) stay repo-local under `boot/` and resolve by local path. | |
 
 ---
+
+### Samsite Profile Re-Home
+----
+RID: `req-boot-bootstrap-samsite-rehome`
+Status: `Proposed`
+
+The motivating example finally executes its own spec: `boot/samsite.boot.json` moves into `tap-plugin-samsite` as an in-package boot record (`tap_plugin/samsite/boot/samsite.boot.json`, `req-boot-bootstrap-records-in-package`) and the core-repo copy is **deleted**. This spec's opening argument was written about exactly this file — "the profile is trapped inside an artifact you have not installed yet" — yet the pointer flow was proven on `gryphon_playground`'s records while samsite's profile stayed put as the transitional daily-driver copy.
+
+#### Status Details
+
+**Newly unblocked, unsequenced (analysis 2026-08-09, nightly session).** The blocker that kept it in core is gone: full eviction is done, the profile's install entries are all git-sourced (`tap-plugin-samsite@v0.1.0` included), `plugins/` holds no samsite code, and the profile is fully self-contained. Its own description block still says "samsite is evict-last, stays editable from the monorepo" — stale prose from the era that justified the in-tree copy, plus general description-vs-install-list drift. Nothing technically traps the profile in core anymore; what remains is sequencing the live consumers off it.
+
+#### Implementation (the ordered actions)
+
+1. **Record ships in the plugin.** Add the profile to `tap-plugin-samsite` as `tap_plugin/samsite/boot/samsite.boot.json` (package data, enumerated in `tap-plugin.toml` with its content `sha256` per `req-boot-bootstrap-discovery`/`-record-version`). In the same move, fix the doc-rot: rewrite the stale "evict-last / editable from the monorepo" description, reconcile description-vs-install-list drift, and keep `required_secrets` — the declaration rides the artifact, so the provisioning flow reads it wherever the record lives (`req-boot-required-secrets-6`). Release as the next plugin version; the record needs no version of its own.
+2. **Spawn shorthand becomes a pointer.** `scripts/spawn-session.sh <name> samsite` resolves from repo-local `boot/` and stops working the moment the file is deleted. The replacement is the existing pointer flow: `spawn --from git+https://github.com/unified-systems-com/tap-plugin-samsite@<ver>#samsite`. **No alias machinery** — a pointer-shortcut table in spawn is demand-gated future, not part of this move. Doc/skill updates ride the same change: README's samsite pointer, the samsite plugin README's boot instructions, the `get-started` skill's profile-choices step (samsite becomes "the full demo, booted via a pointer"), CLAUDE.md's dev-commands note if it names the profile.
+3. **Gate coverage re-homes — the protection must not silently vanish.** The dev-validation shipped-profiles axis (`boot --check` over `boot/*.boot.json`, locked by `tap_boot/tests/test_shipped_profiles_resolve.py`) mechanically stops covering samsite when the file is deleted — and that axis caught a real break in this exact file (the stale module-path collector keys after the collector-identity refactor). The equivalent check moves to the plugin: a test in the plugin's shipped suite (`tap_plugin/samsite/tests/`) that stage-0-loads its own record and cold-resolves it (schema + coherence rules + collector keys against the plugin's registry surface), running in the plugin repo's CI against core-main (the two-mains model). The honest gap is named, not hidden: core's gate no longer sees the samsite profile; the plugin CI owns it. Update the `spec-dev-validation.md` Validation Map row for the shipped-profiles axis (narrowed set) and add the plugin-side row **in the same change as the guard**, per Map discipline.
+4. **Samsite CodeBuild lane repoints.** The per-product-line `samsite` lane currently exercises the in-tree profile. It fetches the record via the same pointer (one copy, no lane-local fork). Effort deliberately minimal: the lane is already slated for deprecation with the `180731181784` account retirement — pointer-fetch keeps it honest until then without investing in machinery it won't outlive.
+5. **Core-side follow-through.** Delete `boot/samsite.boot.json`; `profile_ids()` / `installable_profile_ids()` and the focused-session install-awareness shrink mechanically (samsite's plugin set is no longer demanded by any repo-local profile — `test_all` keeps installing the samsite *plugins* as the test union, which is a different, unaffected file). Sweep repo references to the profile id (`spec-dev-multisession`'s spawn examples, this spec's own prose, memory files at next touch).
+6. **Companion item, explicitly out of scope here:** the `artifact_manifest.json` override gap (samsite plugin README, Known Limitation) — pointing samsite at *your* deployment still requires an editable checkout because the compliance collector's manifest has no per-install override. The re-home does not fix that (records are per-deployment config-as-code; the manifest is package data), and the adopter arc needs it fixed regardless of where the profile lives. Tracked in the samsite plugin's own roadmap, referenced here only because every conversation about "adopters boot samsite" trips over both.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-boot-bootstrap-samsite-rehome-1 | Record In The Plugin | Proposed | `tap_plugin/samsite/boot/samsite.boot.json` ships as package data, enumerated in `tap-plugin.toml` with content hash; description doc-rot fixed in the move; `required_secrets` rides the record. | |
+| req-boot-bootstrap-samsite-rehome-2 | Core Copy Deleted | Proposed | `boot/samsite.boot.json` is removed from the core repo; no repo-local reference to the profile id survives except historical prose. | |
+| req-boot-bootstrap-samsite-rehome-3 | Pointer Is The Path | Proposed | The documented (README/skills) way to boot samsite is `spawn --from <plugin-ref>#samsite`; no spawn alias machinery is added. | |
+| req-boot-bootstrap-samsite-rehome-4 | Gate Coverage Re-Homed | Proposed | The plugin's shipped suite cold-resolves its own record (schema + coherence + collector keys) in plugin CI; the Validation Map reflects both the narrowed core axis and the new plugin-side row in the same change as the guard. | The stale-collector-key class stays caught. |
+| req-boot-bootstrap-samsite-rehome-5 | CI Lane Pointer-Fetches | Proposed | The samsite CodeBuild lane fetches the record via pointer — no lane-local copy. | Minimal effort; lane is deprecation-slated. |
+
+#### Future
+
+- A `spawn` pointer-shortcut table (named aliases for frequently-used remote records) if the long `--from` form proves to be real day-to-day friction — demand-gated, not assumed.
 
 ### Pointer Grammar
 ----
