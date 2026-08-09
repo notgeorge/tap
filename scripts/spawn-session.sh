@@ -651,9 +651,12 @@ bold "Step 3.6: Wiring project-internal skills into .claude/skills/"
 #       (not bare docker compose) so .env.local is layered correctly and the
 #       per-session port band actually takes effect.
 # ============================================================================
-bold "Step 4: Building and starting Docker stack"
-info "First build pulls postgres:16-alpine and compiles the web image — typically 2-5 minutes."
-scripts/dc up -d --build
+bold "Step 4: Pulling images and starting Docker stack"
+info "Pull-first: the published tap-web/tap-db images (GHCR, anonymous) carry the toolchain"
+info "and a pre-built venv seed, so no local compile. Falls back to a local build when the"
+info "pull fails (offline, or the image is not yet published)."
+scripts/dc pull web db || info "Pull failed — compose will build locally (slow path)."
+scripts/dc up -d
 
 # ============================================================================
 # Step 5: Wait for the entrypoint to finish initial setup

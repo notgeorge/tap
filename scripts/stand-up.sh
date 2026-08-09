@@ -187,12 +187,14 @@ info "Install id: $TAP_GRID_ID"
 # ============================================================================
 # Step 4: Build the image and start the stack
 # ============================================================================
-bold "Step 4: Building the image and starting the stack (docker compose up -d --build)"
-info "First build compiles the FIPS-validated OpenSSL provider from source and"
-info "installs the Python closure — expect 10–20 minutes on a laptop. This is the"
-info "one long step; every later start is seconds. (TAP_FIPS=0 skips the FIPS"
-info "build — an explicit dev-only escape hatch, not the published posture.)"
-scripts/dc up -d --build
+bold "Step 4: Pulling images and starting the stack"
+info "Pulls the published tap-web/tap-db images from GHCR (anonymous, multi-arch) —"
+info "toolchain, FIPS-validated OpenSSL provider, and a pre-built Python venv are"
+info "all baked in, so first boot is minutes, not a from-source compile. If the"
+info "pull fails (offline/unpublished), compose builds locally instead — that slow"
+info "path compiles OpenSSL + the Python closure and can take 10–20 minutes."
+scripts/dc pull web db || info "Pull failed — compose will build locally (slow path)."
+scripts/dc up -d
 
 # ============================================================================
 # Step 5: Wait for the entrypoint (uv sync + FIPS self-check + migrate + serve)

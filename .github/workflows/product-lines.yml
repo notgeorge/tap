@@ -139,7 +139,11 @@ jobs:
           context: .
           load: true
           tags: tap-web:ci
-          cache-from: type=gha
+          # gha first (fast, same-day hits); the registry ref (published by
+          # publish-images.yml) catches GHA-cache eviction and day-one misses.
+          cache-from: |
+            type=gha
+            type=registry,ref=ghcr.io/unified-systems-com/tap-web:buildcache-amd64
           cache-to: type=gha,mode=max
 
       # Boot THIS line's profile (preboot installs exactly that profile's plugins).

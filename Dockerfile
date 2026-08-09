@@ -22,6 +22,15 @@
 # TAP_FIPS is a global build ARG so it can select the final stage below. Default 1 (FIPS on).
 ARG TAP_FIPS=1
 
+# Base images are pinned tag@digest (req-cicd-base-image-lifecycle-1): wolfi-base:latest
+# rotates its digest DAILY, which invalidated every downstream layer (apk toolchain, the
+# OpenSSL FIPS compile) on the first CI build of each day — and silently changed the FIPS
+# build environment. Pinning makes bumps deliberate, reviewed commits (Renovate wiring is
+# the deferred automation). Bump procedure, all FROM/COPY --from lines in BOTH Dockerfiles
+# (this one and docker/postgres/Dockerfile) in the same commit:
+#   docker buildx imagetools inspect cgr.dev/chainguard/wolfi-base:latest   # new digest
+#   docker buildx imagetools inspect ghcr.io/astral-sh/uv:<latest release>
+
 # ============================================================================
 # ossl-builder — compile the validated OpenSSL 3.0.9 FIPS provider (fips.so)
 # ============================================================================
@@ -29,7 +38,7 @@ ARG TAP_FIPS=1
 # nothing COPYs from it in the fips-0 path). We run the frozen validated 3.0.9 module against
 # the base's MODERN libcrypto at runtime — OpenSSL guarantees a certified fips.so is
 # binary-compatible with any LATER libcrypto, so OpenSSL 3.0's LTS-EOL is irrelevant (D4).
-FROM cgr.dev/chainguard/wolfi-base AS ossl-builder
+FROM cgr.dev/chainguard/wolfi-base:latest@sha256:1454fe554abc89f10a43cabc290d8d61941d7e81c9778b408894aaba27d398a1 AS ossl-builder
 RUN apk add --no-cache build-base perl linux-headers curl
 WORKDIR /build
 RUN curl -fsSL https://github.com/openssl/openssl/releases/download/openssl-3.0.9/openssl-3.0.9.tar.gz -o o.tgz \
@@ -41,7 +50,7 @@ RUN ./Configure enable-fips && make -j"$(nproc)" && make install_fips
 # ============================================================================
 # base — the common runtime (identical for both FIPS modes)
 # ============================================================================
-FROM cgr.dev/chainguard/wolfi-base AS base
+FROM cgr.dev/chainguard/wolfi-base:latest@sha256:1454fe554abc89f10a43cabc290d8d61941d7e81c9778b408894aaba27d398a1 AS base
 
 # Prevents Python from writing .pyc bytecode files to disk (waste + stale-cache risk).
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -94,7 +103,7 @@ RUN apk add --no-cache \
     postgresql-dev
 
 # Copy the UV binary from the official UV image (no package manager needed).
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.12.3@sha256:2d890623d310b57771ce840f0da5eed5fc6d657da05ffaa45d82797b53fa3abc /uv /uvx /bin/
 
 # Dependency installation runs at container START via docker/entrypoint.sh, NOT at image
 # build: the compose bind mount `.:/app` overrides /app and /app/.venv + /root/.cache/uv are
@@ -102,8 +111,37 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 # into the layer cache. We still carry the lock + pyproject so the image has them.
 COPY pyproject.toml uv.lock* ./
 
+# ============================================================================
+# deps-warm — pre-compiled wheel cache (the req-cicd-build-once-artifact warm path)
+# ============================================================================
+# Branches from base BEFORE any source COPY, so this layer is keyed on
+# pyproject.toml + uv.lock alone (the uv workspace is intentionally empty — the
+# lock holds only the core closure) and survives every source-only commit. The
+# expensive FIPS-mandated source compiles (cryptography --no-binary, psycopg[c])
+# happen here — once per lockfile change per publish, not once per developer
+# boot. What ships is the resulting UV CACHE (built + downloaded wheels), NOT
+# the venv: the runtime venv is always created by `uv sync` in the container
+# (the long-proven path — a cp-seeded venv behaved differently under uv on the
+# CodeBuild runner; see tap/preboot.py _VENV_DIR history), which then installs
+# from this cache in seconds instead of compiling. Not the fossilization the
+# compose comments warn about: --frozen rebuilds this stage from scratch in a
+# clean layer whenever the lock changes.
+FROM base AS deps-warm
+RUN uv sync --frozen --all-packages
+
+# ============================================================================
+# app — source + entrypoint on top of base; carries the venv seed
+# ============================================================================
+FROM base AS app
+
 # Copy the rest of the application code (frequently-changing layer, after deps).
 COPY . .
+
+# Pre-compiled wheel cache. docker/entrypoint.sh copies it into the (named-
+# volume) uv cache on first boot when that volume is empty; `uv sync` then
+# creates the venv from cached wheels — no compile. Explicit entrypoint copy
+# from /opt on purpose: avoids depending on Docker volume-init semantics.
+COPY --from=deps-warm /root/.cache/uv /opt/uv-cache-seed
 
 # Note on tailwindcss: the image does NOT carry the binary. The /tailwind-rebuild skill
 # installs it on demand into the tailwind_bin volume; the committed
@@ -123,14 +161,14 @@ CMD ["/entrypoint.sh"]
 # --no-binary (D7) so the closure matches the FIPS build exactly. The image declares its
 # mode machine-legibly so CI, the boot record, /healthz, and an AI operator can read it
 # without executing crypto (D14).
-FROM base AS fips-0
+FROM app AS fips-0
 ENV TAP_FIPS_MODE=0
 LABEL org.tap.fips="false"
 
 # ============================================================================
 # fips-1 — FIPS variant (default, TAP_FIPS=1)
 # ============================================================================
-FROM base AS fips-1
+FROM app AS fips-1
 
 # Drop our validated 3.0.9 provider into the base's ossl-modules dir.
 COPY --from=ossl-builder /usr/local/lib/ossl-modules/fips.so /usr/lib/ossl-modules/fips.so

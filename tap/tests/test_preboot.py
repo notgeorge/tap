@@ -64,17 +64,20 @@ def test_dist_name_for_slug() -> None:
     assert preboot.dist_name_for_slug("aws_core") == "tap-plugin-aws-core"
 
 
+UV_PIP_PREFIX = ["uv", "pip", "install", "--python", str(preboot._VENV_DIR)]
+
+
 def test_uv_install_args_git() -> None:
     entry = {"slug": "widget", "source": {"type": "git", "url": "https://x/y.git", "rev": "abc123"}}
     args = preboot._uv_install_args(entry)
-    assert args == ["uv", "pip", "install", "tap-plugin-widget @ git+https://x/y.git@abc123"]
+    assert args == [*UV_PIP_PREFIX, "tap-plugin-widget @ git+https://x/y.git@abc123"]
 
 
 def test_uv_install_args_editable() -> None:
     entry = {"slug": "widget", "source": {"type": "editable", "path": "plugins/widget"}}
     args = preboot._uv_install_args(entry)
-    assert args[:4] == ["uv", "pip", "install", "--editable"]
-    assert args[4].endswith("plugins/widget")
+    assert args[:6] == [*UV_PIP_PREFIX, "--editable"]
+    assert args[6].endswith("plugins/widget")
 
 
 def test_uv_install_args_wheelhouse_relative_dir() -> None:
@@ -83,9 +86,9 @@ def test_uv_install_args_wheelhouse_relative_dir() -> None:
         "source": {"type": "wheelhouse", "dir": "wheelhouse", "version": "0.1.1"},
     }
     args = preboot._uv_install_args(entry)
-    assert args[:5] == ["uv", "pip", "install", "--no-index", "--find-links"]
-    assert args[5].endswith("/wheelhouse")  # resolved under the repo root
-    assert args[6] == "tap-plugin-fedramp-20x-ksi==0.1.1"
+    assert args[:7] == [*UV_PIP_PREFIX, "--no-index", "--find-links"]
+    assert args[7].endswith("/wheelhouse")  # resolved under the repo root
+    assert args[8] == "tap-plugin-fedramp-20x-ksi==0.1.1"
 
 
 def test_uv_install_args_wheelhouse_absolute_dir_used_as_is() -> None:
@@ -95,9 +98,7 @@ def test_uv_install_args_wheelhouse_absolute_dir_used_as_is() -> None:
     }
     args = preboot._uv_install_args(entry)
     assert args == [
-        "uv",
-        "pip",
-        "install",
+        *UV_PIP_PREFIX,
         "--no-index",
         "--find-links",
         "/run/tap-wheelhouse",

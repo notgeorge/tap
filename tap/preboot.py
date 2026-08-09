@@ -234,17 +234,35 @@ def _is_satisfied(entry: dict[str, Any]) -> bool:
     return True  # editable / path: presence is enough
 
 
+# The uv-pip target environment, passed explicitly (--python) on every install
+# as the venv DIRECTORY — never the interpreter path, and never left to
+# discovery. Both alternatives failed on the CodeBuild CI runner with the seeded
+# venv (uv 0.12.x): discovery/VIRTUAL_ENV refused the venv outright ("No
+# virtual environment found"), and `--python .venv/bin/python3` canonicalized
+# the symlink chain (python3 -> python -> /usr/bin/python3) and silently
+# installed into the SYSTEM environment — 12 plugins into /usr while the
+# identity check read the venv (runs 31325649334/31326033361). The directory
+# form pins the env root with no interpreter probing. The venv location is a
+# stable contract (compose volume, entrypoint, uv project layout).
+_VENV_DIR = REPO_ROOT / ".venv"
+
+
+def _uv_pip_install() -> list[str]:
+    """The common ``uv pip install`` prefix targeting the project venv explicitly."""
+    return ["uv", "pip", "install", "--python", str(_VENV_DIR)]
+
+
 def _uv_install_args(entry: dict[str, Any]) -> list[str]:
     """Build the ``uv pip install`` argument list for one plugin source."""
     source = entry["source"]
     stype = source["type"]
     if stype == "git":
         spec = f"{dist_name_for_slug(entry['slug'])} @ git+{source['url']}@{source['rev']}"
-        return ["uv", "pip", "install", spec]
+        return [*_uv_pip_install(), spec]
     if stype == "editable":
-        return ["uv", "pip", "install", "--editable", str(REPO_ROOT / source["path"])]
+        return [*_uv_pip_install(), "--editable", str(REPO_ROOT / source["path"])]
     if stype == "path":
-        return ["uv", "pip", "install", str(REPO_ROOT / source["path"])]
+        return [*_uv_pip_install(), str(REPO_ROOT / source["path"])]
     if stype == "wheelhouse":
         # Offline / airgapped (req-plugin-arch-sources-6): install by version from a
         # mounted directory of pre-built wheels. --no-index forbids PyPI so a missing
@@ -252,7 +270,7 @@ def _uv_install_args(entry: dict[str, Any]) -> list[str]:
         # no network, no credential. The filesystem twin of the `index` path.
         find_links = _resolve_wheelhouse_dir(source["dir"])
         spec = f"{dist_name_for_slug(entry['slug'])}=={source['version']}"
-        return ["uv", "pip", "install", "--no-index", "--find-links", str(find_links), spec]
+        return [*_uv_pip_install(), "--no-index", "--find-links", str(find_links), spec]
     raise PrebootError(f"plugin '{entry['slug']}': unknown source type '{stype}'")
 
 
@@ -284,10 +302,16 @@ def _run_install(args: list[str], cred: GitCredential | None) -> subprocess.Comp
     The token is passed to the child through the askpass env overlay only — never in
     ``args`` (which preboot logs) and never in the URL (`req-plugin-arch-source-secret-4`).
     """
+    # Scrub uv-run leakage from the child env: on the CI runner `uv run` launches
+    # preboot WITHOUT activation env (no VIRTUAL_ENV, no venv-first PATH) while on
+    # dev machines it sets both — inheriting that inconsistency gave uv-pip a
+    # different environment-resolution starting point per machine. The child gets
+    # ONLY the explicit --python target (see _VENV_DIR).
+    child_env = {k: v for k, v in os.environ.items() if k not in ("VIRTUAL_ENV", "UV_RUN_RECURSION_DEPTH")}
     if cred is None:
-        return subprocess.run(args, cwd=str(REPO_ROOT), capture_output=True, text=True)
+        return subprocess.run(args, cwd=str(REPO_ROOT), capture_output=True, text=True, env=child_env)
     with git_askpass_env(cred) as overlay:
-        return subprocess.run(args, cwd=str(REPO_ROOT), capture_output=True, text=True, env={**os.environ, **overlay})
+        return subprocess.run(args, cwd=str(REPO_ROOT), capture_output=True, text=True, env={**child_env, **overlay})
 
 
 def _install_plugins(entries: list[dict[str, Any]]) -> None:
@@ -327,9 +351,22 @@ def discover_entry_points() -> dict[str, str]:
     """
     importlib.invalidate_caches()
     discovered: dict[str, str] = {}
-    for ep in importlib.metadata.entry_points(group=TAP_PLUGINS_ENTRY_POINT_GROUP):
-        discovered[ep.name] = ep.value.replace(":", ".")  # module:attr -> module.attr
+    # Scan the TARGET venv's site-packages explicitly (path=...) rather than this
+    # process's sys.path view: on the CodeBuild runner, `uv run` launches preboot
+    # without activation env, and installs are targeted at _VENV_DIR by flag — so
+    # the only trustworthy statement of "what is installed" is the filesystem of
+    # the environment we install into. distributions(path=...) builds fresh
+    # Distribution objects with no FastPath caching of a stale earlier scan.
+    for dist in importlib.metadata.distributions(path=_venv_site_packages()):
+        for ep in dist.entry_points:
+            if ep.group == TAP_PLUGINS_ENTRY_POINT_GROUP:
+                discovered[ep.name] = ep.value.replace(":", ".")  # module:attr -> module.attr
     return discovered
+
+
+def _venv_site_packages() -> list[str]:
+    """The target venv's site-packages dir(s), located on disk (never via sys.path)."""
+    return [str(p) for p in sorted(_VENV_DIR.glob("lib/python*/site-packages"))]
 
 
 def _resolve_tap_plugins(entries: list[dict[str, Any]], discovered: dict[str, str]) -> list[str]:
@@ -342,10 +379,16 @@ def _resolve_tap_plugins(entries: list[dict[str, Any]], discovered: dict[str, st
     for entry in entries:
         slug = entry["slug"]
         if slug not in discovered:
+            site_dirs = _venv_site_packages()
+            dist_infos = sorted(
+                p.name for d in site_dirs for p in Path(d).glob("*.dist-info")
+            )
             raise PrebootError(
                 f"plugin '{slug}' installed but exposes no '{TAP_PLUGINS_ENTRY_POINT_GROUP}' "
                 f"entry point whose key equals the slug (identity mismatch). "
-                f"Discovered keys: {sorted(discovered) or '(none)'}"
+                f"Discovered keys: {sorted(discovered) or '(none)'}. "
+                f"Scanned {site_dirs or '(no site-packages found)'}; "
+                f"dist-infos present: {dist_infos or '(none)'}"
             )
         app_configs.append(discovered[slug])
     return app_configs

@@ -1,0 +1,116 @@
+# Publish the built tap-web / tap-db images to GHCR on every main push
+# (req-cicd-build-once-artifact — registry decision: GHCR for the public dev/CI
+# artifact; ECR Public remains the base-image mirror).
+#
+# Consumers:
+#   * scripts/spawn-session.sh + scripts/stand-up.sh pull these instead of
+#     building (docker-compose.yml image: fields) — anonymous, no credential.
+#   * CI lanes borrow the :buildcache-<arch> refs via cache-from so a GHA-cache
+#     miss falls back to registry layers instead of a full rebuild.
+#
+# Architecture: one native build per arch (amd64 on ubuntu-latest, arm64 on the
+# free-for-public-repos arm runners — QEMU would crawl through the OpenSSL FIPS
+# + cryptography compiles), pushed as :latest-<arch>, then merged into the
+# multi-arch :latest + :sha-<short> manifests and attested (SLSA provenance via
+# the Sigstore public-good instance; verify with
+#   gh attestation verify oci://ghcr.io/unified-systems-com/tap-web:latest --owner unified-systems-com).
+#
+# Runs OFF the promote critical path: promote pushes main and moves on; this
+# fires behind it. Only TAP_FIPS=1 (the published posture) is built.
+name: publish-images
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+# Superseded publishes just waste runners — newest main wins.
+concurrency:
+  group: publish-images
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io
+  OWNER: unified-systems-com
+
+jobs:
+  build:
+    name: build ${{ matrix.image }} (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [tap-web, tap-db]
+        arch: [amd64, arm64]
+        include:
+          - image: tap-web
+            dockerfile: Dockerfile
+          - image: tap-db
+            dockerfile: docker/postgres/Dockerfile
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push (${{ matrix.arch }})
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/${{ matrix.arch }}
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.image }}:latest-${{ matrix.arch }}
+          build-args: |
+            TAP_FIPS=1
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.image }}:buildcache-${{ matrix.arch }}
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.image }}:buildcache-${{ matrix.arch }},mode=max
+
+  manifest:
+    name: manifest + attest ${{ matrix.image }}
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    strategy:
+      matrix:
+        image: [tap-web, tap-db]
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Merge per-arch images into multi-arch tags
+        id: merge
+        run: |
+          ref="${REGISTRY}/${OWNER}/${{ matrix.image }}"
+          docker buildx imagetools create \
+            -t "${ref}:latest" \
+            -t "${ref}:sha-${GITHUB_SHA::7}" \
+            "${ref}:latest-amd64" "${ref}:latest-arm64"
+          digest="$(docker buildx imagetools inspect "${ref}:latest" --format '{{json .Manifest}}' | jq -r .digest)"
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.image }}
+          subject-digest: ${{ steps.merge.outputs.digest }}
+          push-to-registry: true
