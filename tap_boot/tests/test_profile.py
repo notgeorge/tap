@@ -24,17 +24,12 @@ def boot_dir(tmp_path, monkeypatch):
     return tmp_path
 
 
-def test_load_real_samsite_profile_parses_steps():
-    profile = load_profile("samsite")
-    assert profile.version == 1
-    assert profile.on_failure == "abort"
-    seeds = [s for s in profile.steps if isinstance(s, SeedPluginStep)]
-    fires = [s for s in profile.steps if isinstance(s, FireCollectorStep)]
-    assert len(seeds) == 6
-    assert len(fires) == 4
-    # Declared order is preserved: all seeds precede all fires in samsite.
-    assert profile.steps[:6] == tuple(seeds)
-    assert profile.has_population
+# The real-samsite-profile parse test moved with the record: the samsite profile
+# re-homed into tap-plugin-samsite (req-boot-bootstrap-samsite-rehome), and its
+# parse/resolve coverage now lives in that plugin's shipped suite
+# (tap_plugin/samsite/tests/test_boot_record_resolves.py). Mixed seed+fire
+# parsing stays covered here synthetically (the fixture-driven tests below), and
+# on a real shipped file by test_test_all_profile_is_seed_only.
 
 
 def test_test_all_profile_is_seed_only():

@@ -357,9 +357,13 @@ def test_build_baked_matches_installed_apps() -> None:
 
 
 def test_shipped_profiles_exist() -> None:
-    """Sanity: the enumeration found the real boot/ profiles (not an empty glob)."""
+    """Sanity: the enumeration found the real boot/ profiles (not an empty glob).
+
+    samsite is deliberately absent: its record ships inside tap-plugin-samsite
+    (req-boot-bootstrap-samsite-rehome); the plugin's own suite covers it.
+    """
     assert "test_all" in _SHIPPED_PROFILE_IDS
-    assert "samsite" in _SHIPPED_PROFILE_IDS
+    assert "samsite" not in _SHIPPED_PROFILE_IDS
 
 
 @pytest.mark.parametrize("profile_id", _SHIPPED_PROFILE_IDS)

@@ -189,7 +189,8 @@ INSTALLED_APPS = [
     # the demo integration surface (projection of the live AWS cross-deployment
     # of samaydlette.com). Loads via TAP_PLUGINS_APPS from the profile `install`
     # section; depends on sigstore_core/github_core/roscale/aws_core at import
-    # time, installed before it (see boot/samsite.boot.json).
+    # time, installed before it (see the samsite record in tap-plugin-samsite,
+    # tap_plugin/samsite/boot/samsite.boot.json — req-boot-bootstrap-samsite-rehome).
     # FedRAMP 20x KSI plugin — migrated to package-mode 2026-07-01 (first namespaced
     # plugin: tap_plugin.fedramp_20x_ksi). No longer build-baked here; it loads via
     # TAP_PLUGINS_APPS below after the pre-boot stage uv-installs it from the profile

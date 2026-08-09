@@ -23,9 +23,14 @@ from tap_boot.profile import BootProfile, FireCollectorStep, profile_ids
 
 
 def test_shipped_profiles_discovered():
-    """The house profiles are present, so the guard is non-empty."""
+    """The house profiles are present, so the guard is non-empty.
+
+    samsite is deliberately absent: its record re-homed into tap-plugin-samsite
+    (req-boot-bootstrap-samsite-rehome) and its resolve coverage now lives in that
+    plugin's shipped suite (test_boot_record_resolves), run by plugin CI.
+    """
     ids = set(profile_ids())
-    assert {"test_all", "samsite"} <= ids, f"expected the test_all + samsite profiles; found {sorted(ids)}"
+    assert "test_all" in ids, f"expected the test_all profile; found {sorted(ids)}"
 
 
 def test_guard_has_teeth_rotted_collector_key_fails():
