@@ -90,7 +90,11 @@ dev = [
     # Type Checking
     # Mypy catches type errors before runtime
     # django-stubs provides type hints for Django's internals
-    "mypy>=1.13",
+    # <2: a mypy MAJOR changes the emitted error set and trips the baseline
+    # ratchet (mypy 2.3.0 via lockfile maintenance = 6 new items, PR #20,
+    # 2026-08-09). Majors arrive as their own deliberate Renovate PR with a
+    # baseline triage, never inside a routine lockfile refresh.
+    "mypy>=1.13,<2",
     "django-stubs>=5.1",
     # Testing
     # pytest is the modern Python test framework
