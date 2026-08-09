@@ -25,7 +25,14 @@ name: renovate
 on:
   schedule:
     - cron: "45 5 * * *"   # daily 05:45 UTC — ahead of the 09:30 trivy-nightly sweep
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      logLevel:
+        description: "Renovate log level (debug for troubleshooting)"
+        required: false
+        default: "info"
+        type: choice
+        options: [info, debug]
 
 permissions:
   contents: read
@@ -54,4 +61,4 @@ jobs:
           # renovate.json5 is committed; no onboarding PR dance.
           RENOVATE_ONBOARDING: "false"
           RENOVATE_REQUIRE_CONFIG: "required"
-          LOG_LEVEL: info
+          LOG_LEVEL: ${{ inputs.logLevel || 'info' }}

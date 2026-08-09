@@ -49,5 +49,9 @@
   ],
   lockFileMaintenance: {
     enabled: true,
+    // config:recommended ships a built-in Monday-4am schedule for lockfile
+    // maintenance; override it explicitly (the 2026-08-09 lesson: an inherited
+    // schedule defers PR creation invisibly).
+    schedule: ["at any time"],
   },
 }
