@@ -25,6 +25,8 @@ Identify the failed session's **compose project** (`tap_<name>`) and where its w
 
 ## Step 1 — Read container state (which step died)
 
+**Read the boot record first** (req-boot-obs-record): `<worktree>/logs/boot/latest.boot-record.json` holds the last boot's structured outcome — phases, per-step status + durations, boot-variable provenance, and on abort the failing step + its failing self-test checks (e.g. the 401 that names a dead credential). A stale `"outcome": "running"` means the boot process was killed mid-run. The spawn transcript (`<worktree>/logs/spawn.log`) is the raw-output companion. Then:
+
 ```
 docker compose -p tap_<name> ps          # container states + exit codes
 docker compose -p tap_<name> logs --tail 300 web
@@ -48,6 +50,7 @@ Match the `web` log against these signatures — most-common first:
 - **Pre-boot gate abort.** A `[hex]` `pre-boot … gate` line at ERROR: identity/reconciliation/dependency/coherence mismatch (e.g. `installed != declared`, a collector-scope drift, an undeclared cross-plugin import edge). Root cause is a manifest ↔ install ↔ code disagreement; the message names the mismatch. (See the collector-identity / validate_plugin work.)
 - **Migration drift / failure.** `makemigrations --check` would flag model drift; a `migrate` traceback names the failing migration/SQL. Fix: generate + commit the migration, or repair the bad one.
 - **Boot population abort.** `BootError` naming an unknown plugin/collector/bundle, or a seed bundle exception. Root cause is the profile referencing something the install set / registry doesn't provide, or bad GRIFT.
+- **Fire-collector external-credential failure.** A `fire-collector` step FAILED with an auth-shaped summary (e.g. github_core's `GitHub API unreachable or PAT auth failed`) while the container log is otherwise clean. Note Step 6 runs via `scripts/dc exec` from the *host*, so its output lands in the spawn terminal and the captured transcript at `<worktree>/logs/spawn.log` (req-boot-obs-spawn-presentation), not `logs web` — read that transcript first; re-running `scripts/dc exec -T web uv run python manage.py boot --profile <id>` is the fallback when no transcript exists. Then split credential-dead vs target-moved: probe the collector's own self-test path in a shell (resolve the secret, hit the provider's cheapest authed endpoint, e.g. GitHub `/rate_limit`, printing only status + token prefix/length — never the token). 401 ⇒ the stored credential is revoked/expired/rotated; 200 + per-resource 404 ⇒ the secret's target list (org/repo) is stale. Fix = re-mint/re-scope the credential via the `manage-secret` skill — and remember `~/tap-secrets` is shared host state: the fix (and the breakage) applies to every session at once.
 - **Health red.** Read the probe JSON: `docker compose -p tap_<name> exec -T web uv run python manage.py health --json`. `tap_cache` missing ⇒ createcachetable ordering; a secrets probe ⇒ a required secret absent under `TAP_SECRETS_ROOT`; db/queue ⇒ backend down.
 - **Infra, not app.** Port collision (Step 4): another stack holds the band — `docker ps --format '{{.Names}} {{.Ports}}' | grep <port>`. DB unhealthy: read `logs db`. Stale volume from a prior aborted run: a `_venv` / `_postgres_data` volume for the project lingering (`docker volume ls | grep tap_<name>`).
 

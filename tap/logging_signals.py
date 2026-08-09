@@ -94,7 +94,14 @@ def emit_signal(
     )
 
 
-def abort(logger: logging.Logger, domain: str, reason: str, *, exc_info: bool = False) -> None:
+def abort(
+    logger: logging.Logger,
+    domain: str,
+    reason: str,
+    *,
+    detail: dict[str, Any] | None = None,
+    exc_info: bool = False,
+) -> None:
     """Emit the reserved ABORT signal (``req-tap-logging-abort-signal``).
 
     A fatal, unrecoverable "give up" event that a watcher should act on. Emits
@@ -107,11 +114,21 @@ def abort(logger: logging.Logger, domain: str, reason: str, *, exc_info: bool = 
         domain: the failing subsystem/stage — ``preboot`` / ``migrate`` / ``boot`` /
             ``health`` / ``collector`` / … (extensible as consumers appear).
         reason: short, machine-and-human legible cause. Keep secret-free.
+        detail: optional structured cause context, nested under
+            ``message_data["detail"]`` so it can never collide with the stable
+            ``domain``/``reason`` keys. First consumer: boot attaches the failing
+            step + its failing collector self-test checks
+            (``req-boot-obs-abort-detail-2``). Must be JSON-safe and secret-free;
+            it rides only the structured record — the rendered console line stays
+            the one-line sentinel.
         exc_info: pass ``True`` inside an ``except`` to attach the traceback.
 
     Rendering (``req-tap-logging-format``): the ``console`` handler renders this as
     the greppable ``TAP-ABORT: <domain>: <reason>`` line every shell watcher tails.
     """
+    message_data: dict[str, Any] = {"domain": domain, "reason": reason}
+    if detail:
+        message_data["detail"] = detail
     emit_signal(
         logger,
         level=logging.ERROR,
@@ -119,7 +136,7 @@ def abort(logger: logging.Logger, domain: str, reason: str, *, exc_info: bool = 
         message_code=ABORT_MESSAGE_CODE,
         domain=domain,
         reason=reason,
-        message_data={"domain": domain, "reason": reason},
+        message_data=message_data,
         exc_info=exc_info,
     )
 

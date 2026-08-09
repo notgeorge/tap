@@ -61,6 +61,59 @@ with_timeout() {
   return 124
 }
 
+# --- Quiet-capture presentation (req-boot-obs-spawn-presentation) -----------
+# The noisy steps (docker build/up, manage.py boot, health --json) append their
+# full output to $SPAWN_LOG and the terminal shows one status line per step;
+# TAP_SPAWN_VERBOSE=1 restores full streaming. $SPAWN_LOG is initialized once
+# the worktree exists (Step 2) — the steps before it are one-line-per-action
+# already. Spec: specs/spec-tap-boot-observability.md.
+SPAWN_LOG=""
+
+# run_quiet <label> <cmd...> — run a long, noisy command with its output
+# captured to $SPAWN_LOG, showing `<label> ... <elapsed>s` while it runs and
+# `ok (Ns)` / `FAILED (Ns)` + the captured tail when it finishes. Falls back to
+# plain streaming under TAP_SPAWN_VERBOSE=1 or before $SPAWN_LOG exists.
+run_quiet() {
+  local label="$1"; shift
+  if [[ -n "${TAP_SPAWN_VERBOSE:-}" || -z "$SPAWN_LOG" ]]; then
+    info "$label ..."
+    "$@"
+    return
+  fi
+  printf '\n===> %s\n' "$label" >>"$SPAWN_LOG"
+  local t0=$SECONDS rc=0 pid
+  "$@" >>"$SPAWN_LOG" 2>&1 &
+  pid=$!
+  while kill -0 "$pid" 2>/dev/null; do
+    printf '\r    %s ... %ds ' "$label" "$(( SECONDS - t0 ))"
+    sleep 2
+  done
+  wait "$pid" || rc=$?
+  if (( rc == 0 )); then
+    printf '\r    %s ... \033[32mok\033[0m (%ds)    \n' "$label" "$(( SECONDS - t0 ))"
+  else
+    printf '\r    %s ... \033[31mFAILED\033[0m (%ds)\n' "$label" "$(( SECONDS - t0 ))"
+    printf '    last lines of the captured output (%s):\n' "$SPAWN_LOG"
+    tail -n 20 "$SPAWN_LOG" | sed 's/^/      | /'
+  fi
+  return $rc
+}
+
+# boot_status_filter — pass through only the bootloader's own section/step
+# status lines (phases, [seed-plugin]/[fire-collector] steps, OK/FAILED,
+# TAP-ABORT) so the operator watches population progress without the
+# migration/warning firehose. Pure bash so every line renders as it arrives.
+boot_status_filter() {
+  local line
+  while IFS= read -r line; do
+    case "$line" in
+      "Boot starting"*|"Boot complete"*|"boot complete"*|"Auth phase"*|"Grid-infra phase"*|"Population plan"*|"Population phase"*|"Population preflight"*|"  ["*|"    OK "*|"    FAILED "*|"      check "*|*TAP-ABORT*)
+        printf '    %s\n' "$line" ;;
+    esac
+  done
+  return 0
+}
+
 # Trap to give the user a one-line recovery command if anything goes sideways.
 SESSION_NAME=""
 on_failure() {
@@ -73,6 +126,10 @@ on_failure() {
     warn "Add --purge-image if you suspect a poisoned Docker image cache — that"
     warn "forces a no-cache rebuild on the next spawn. Runtime Python state is"
     warn "owned by per-project compose volumes and despawn removes it."
+    if [[ -n "$SPAWN_LOG" && -s "$SPAWN_LOG" ]]; then
+      warn ""
+      warn "Full standup transcript: $SPAWN_LOG"
+    fi
   fi
 }
 trap on_failure EXIT
@@ -501,6 +558,15 @@ git worktree add "$WORKTREE" -b "session/$SESSION_NAME" "$BASE_REF"
 cd "$WORKTREE"
 info "Created. Now on branch session/$SESSION_NAME (branched from $BASE_REF)."
 
+# Per-spawn captured transcript (req-boot-obs-spawn-presentation): from here on
+# the noisy steps append their full output to this file; the terminal shows
+# per-step status lines. logs/ is the visible runtime-log home (gitignored);
+# the file is overwritten by each spawn of this worktree.
+mkdir -p "$WORKTREE/logs"
+SPAWN_LOG="$WORKTREE/logs/spawn.log"
+: > "$SPAWN_LOG"
+info "Capturing verbose standup output to $SPAWN_LOG"
+
 # Point git at the tracked .githooks/ (post-merge/checkout/rewrite clear a stale
 # .mypy_cache — see .githooks/_clear_mypy_cache.sh). Idempotent: this writes the
 # SHARED config (worktrees share one common git dir), so all worktrees inherit it;
@@ -653,7 +719,7 @@ bold "Step 3.6: Wiring project-internal skills into .claude/skills/"
 # ============================================================================
 bold "Step 4: Building and starting Docker stack"
 info "First build pulls postgres:16-alpine and compiles the web image — typically 2-5 minutes."
-scripts/dc up -d --build
+run_quiet "Building images + starting containers" scripts/dc up -d --build
 
 # ============================================================================
 # Step 5: Wait for the entrypoint to finish initial setup
@@ -796,13 +862,31 @@ info "Booting with profile '$BOOT_PROFILE_EFFECTIVE'."
 # failure (req-boot-abort-signal). Guard the exec so that surfaces as a clean
 # fast-fail with the reason + diagnosis pointer, rather than a bare `set -e` death
 # into the generic recovery trap.
-if ! scripts/dc exec \
-  -e DJANGO_SUPERUSER_USERNAME=admin \
-  -e DJANGO_SUPERUSER_PASSWORD="$ADMIN_PASSWORD" \
-  -e DJANGO_SUPERUSER_EMAIL="$ADMIN_EMAIL" \
-  web uv run python manage.py boot --profile "$BOOT_PROFILE_EFFECTIVE"; then
+#
+# Presentation (req-boot-obs-spawn-presentation): the full boot output is
+# captured to $SPAWN_LOG; the terminal streams only boot's own section/step
+# status lines (phases, [seed-plugin]/[fire-collector] OK/FAILED) so failures —
+# including the load-bearing `FAILED —` line and TAP-ABORT — stay visible live.
+BOOT_CMD=(scripts/dc exec -T
+  -e DJANGO_SUPERUSER_USERNAME=admin
+  -e DJANGO_SUPERUSER_PASSWORD="$ADMIN_PASSWORD"
+  -e DJANGO_SUPERUSER_EMAIL="$ADMIN_EMAIL"
+  web uv run python manage.py boot --profile "$BOOT_PROFILE_EFFECTIVE")
+BOOT_RC=0
+if [[ -n "${TAP_SPAWN_VERBOSE:-}" ]]; then
+  "${BOOT_CMD[@]}" || BOOT_RC=$?
+else
+  printf '\n===> manage.py boot --profile %s\n' "$BOOT_PROFILE_EFFECTIVE" >>"$SPAWN_LOG"
+  # pipefail: the pipeline's status is boot's own exit code (tee and the filter
+  # both succeed), captured without tripping set -e.
+  "${BOOT_CMD[@]}" 2>&1 | tee -a "$SPAWN_LOG" | boot_status_filter || BOOT_RC=$?
+fi
+if (( BOOT_RC != 0 )); then
   abort_check   # surface the specific TAP-ABORT: boot reason if one was emitted
-  fail "manage.py boot failed (profile '$BOOT_PROFILE_EFFECTIVE') — see the output above, or scripts/dc logs web (in $WORKTREE). Diagnose: the /diagnose-failed-session-spawn skill."
+  fail "manage.py boot failed (profile '$BOOT_PROFILE_EFFECTIVE').
+    Boot record:  $WORKTREE/logs/boot/latest.boot-record.json (structured outcome + failing checks)
+    Transcript:   $SPAWN_LOG (also: scripts/dc logs web, in $WORKTREE)
+    Diagnose: the /diagnose-failed-session-spawn skill."
 fi
 
 info "Instance booted via manage.py boot. Credentials saved to $WORKTREE/.dev-credentials (gitignored)."
@@ -892,9 +976,17 @@ esac
 # specs/spec-tap-health-v0.md and docs/aar/2026-06-26-tap-cache-latent-provisioning.md.
 # ============================================================================
 bold "Step 6.5: Gating on instance health (manage.py health)"
-if scripts/dc exec -T web uv run python manage.py health --json; then
+# The probe JSON is captured to $SPAWN_LOG either way; it is printed to the
+# terminal only on failure (where it is the evidence naming the broken probe)
+# or under TAP_SPAWN_VERBOSE=1.
+HEALTH_RC=0
+HEALTH_JSON="$(scripts/dc exec -T web uv run python manage.py health --json 2>>"$SPAWN_LOG")" || HEALTH_RC=$?
+printf '\n===> manage.py health --json\n%s\n' "$HEALTH_JSON" >>"$SPAWN_LOG"
+if (( HEALTH_RC == 0 )); then
+  if [[ -n "${TAP_SPAWN_VERBOSE:-}" ]]; then printf '%s\n' "$HEALTH_JSON"; fi
   info "Instance is healthy (db + cache + queue + secrets probes passed)."
 else
+  printf '%s\n' "$HEALTH_JSON"
   fail "Instance booted but health is UNHEALTHY — a critical backend (db/cache/secrets) is broken.
     The report JSON above names the failing probe (status + code). Inspect logs:
       scripts/dc logs web
@@ -936,6 +1028,9 @@ info "  Username:  admin"
 info "  Password:  (saved to .dev-credentials — never printed to stdout)"
 info "  File:      $WORKTREE/.dev-credentials"
 info "  Read with: cat '$WORKTREE/.dev-credentials'"
+echo
+info "Standup transcript"
+info "  Captured:  $WORKTREE/logs/spawn.log (full docker/boot/health output; TAP_SPAWN_VERBOSE=1 streams instead)"
 echo
 info "Secrets mount (tap-cares runtime secrets)"
 if [[ -L "$WORKTREE/tap_secrets" ]]; then

@@ -21,29 +21,29 @@ _SHIPPED_PROFILE_IDS = sorted(p.stem.replace(".boot", "") for p in preboot._boot
 # --- Variable resolution (req-boot-variable-resolution) ----------------------
 
 
-def test_env_var_name_mapping() -> None:
-    assert preboot._env_var_name("install", "snapshot_before_migrate") == ("TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE")
+def testenv_var_name_mapping() -> None:
+    assert preboot.env_var_name("install", "snapshot_before_migrate") == ("TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE")
 
 
-def test_resolve_var_precedence_env_over_profile_over_default(monkeypatch: pytest.MonkeyPatch) -> None:
+def testresolve_var_precedence_env_over_profile_over_default(monkeypatch: pytest.MonkeyPatch) -> None:
     section = {"snapshot_before_migrate": True}
     # default wins when neither env nor profile present
     monkeypatch.delenv("TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE", raising=False)
-    r = preboot._resolve_var("install", "missing_key", profile_section=section, default=False, is_bool=True)
+    r = preboot.resolve_var("install", "missing_key", profile_section=section, default=False, is_bool=True)
     assert (r.value, r.source) == (False, "default")
     # profile wins over default
-    r = preboot._resolve_var("install", "snapshot_before_migrate", profile_section=section, default=False, is_bool=True)
+    r = preboot.resolve_var("install", "snapshot_before_migrate", profile_section=section, default=False, is_bool=True)
     assert (r.value, r.source) == (True, "profile")
     # env wins over profile
     monkeypatch.setenv("TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE", "false")
-    r = preboot._resolve_var("install", "snapshot_before_migrate", profile_section=section, default=False, is_bool=True)
+    r = preboot.resolve_var("install", "snapshot_before_migrate", profile_section=section, default=False, is_bool=True)
     assert (r.value, r.source) == (False, "env")
 
 
-def test_resolve_var_empty_env_treated_as_absent(monkeypatch: pytest.MonkeyPatch) -> None:
+def testresolve_var_empty_env_treated_as_absent(monkeypatch: pytest.MonkeyPatch) -> None:
     # docker-compose materializes an unmapped ${VAR:-} as "" — must NOT read as False.
     monkeypatch.setenv("TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE", "")
-    r = preboot._resolve_var("install", "snapshot_before_migrate", profile_section={}, default=True, is_bool=True)
+    r = preboot.resolve_var("install", "snapshot_before_migrate", profile_section={}, default=True, is_bool=True)
     assert (r.value, r.source) == (True, "default")
 
 
@@ -52,7 +52,7 @@ def test_resolve_var_empty_env_treated_as_absent(monkeypatch: pytest.MonkeyPatch
 )
 def test_bool_coercion(monkeypatch: pytest.MonkeyPatch, raw: str, expected: bool) -> None:
     monkeypatch.setenv("TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE", raw)
-    r = preboot._resolve_var("install", "snapshot_before_migrate", profile_section=None, default=None, is_bool=True)
+    r = preboot.resolve_var("install", "snapshot_before_migrate", profile_section=None, default=None, is_bool=True)
     assert r.value is expected
 
 

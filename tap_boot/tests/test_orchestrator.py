@@ -7,6 +7,7 @@ session `sync_auth` baseline runs first; each `run_boot` then converges it again
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import pytest
 from django.core.management.base import BaseCommand
@@ -29,20 +30,55 @@ from tap_boot.profile import BootProfile, FireCollectorStep, SeedPluginStep
 _TEST_COLLECTOR = "grid_fixtures:canary"
 
 
-def _profile(*steps, on_failure="abort") -> BootProfile:
+def _profile(*steps, on_failure="abort", collector_preflight=None) -> BootProfile:
     return BootProfile(
         profile_id="test",
         version=1,
         description="test",
         on_failure=on_failure,
         steps=tuple(steps),
+        collector_preflight=collector_preflight,
     )
 
 
 class _FakeJob:
-    def __init__(self, status: str = "successful", summary: str = "ok") -> None:
+    def __init__(
+        self, status: str = "successful", summary: str = "ok", self_test: dict[str, Any] | None = None
+    ) -> None:
         self.status = status
         self.summary = summary
+        self.self_test = self_test or {}
+        self.entity_id = None
+
+
+_FAILING_SELF_TEST = {
+    "checks": [
+        {"code": "SECRET_VALID", "status": "pass", "message": "secret resolves"},
+        {"code": "API_REACHABLE", "status": "fail", "message": "/rate_limit failed: status=401 body=Bad credentials"},
+    ]
+}
+
+
+def _mode_aware_fire(self_test_ok: bool = True, full_ok: bool = True):
+    """A fake fire_collector_and_await distinguishing preflight from real fires.
+
+    The preflight (req-boot-obs-preflight) self-tests via run_mode="self_test_only"
+    before any fire; a failing job carries the persisted self-test checks the
+    abort-detail path reads (req-boot-obs-abort-detail).
+    """
+    calls: list[dict[str, Any]] = []
+
+    def fake_fire(collector, **kwargs):
+        calls.append(kwargs)
+        if kwargs["run_mode"] == "self_test_only":
+            if self_test_ok:
+                return True, _FakeJob(summary="ready")
+            return False, _FakeJob(status="FAILED", summary="self-test failed", self_test=_FAILING_SELF_TEST)
+        if full_ok:
+            return True, _FakeJob()
+        return False, _FakeJob(status="FAILED", summary="boom", self_test=_FAILING_SELF_TEST)
+
+    return fake_fire, calls
 
 
 @pytest.mark.django_db
@@ -119,60 +155,50 @@ def test_disabled_unknown_key_does_not_abort():
 
 @pytest.mark.django_db
 def test_fire_collector_step_success(monkeypatch):
-    calls = []
-
-    def fake_fire(collector, **kwargs):
-        calls.append(kwargs)
-        return True, _FakeJob()
-
+    fake_fire, calls = _mode_aware_fire()
     monkeypatch.setattr("tap_cares.services.fire_collector_and_await", fake_fire)
     run_boot(_profile(FireCollectorStep(key=_TEST_COLLECTOR, enabled=True, run_mode="full")))
-    assert len(calls) == 1
-    assert calls[0]["run_mode"] == "full"
-    # No per-step timeout declared -> bootloader default (90s).
-    assert calls[0]["timeout_seconds"] == 90.0
+    # Preflight self-test first (req-boot-obs-preflight-1), then the real fire.
+    assert [c["run_mode"] for c in calls] == ["self_test_only", "full"]
+    # No per-step timeout declared -> bootloader default (90s) for the fire;
+    # the preflight uses its own await bound, not the step's.
+    assert calls[1]["timeout_seconds"] == 90.0
 
 
 @pytest.mark.django_db
 def test_fire_collector_step_uses_declared_timeout(monkeypatch):
-    calls = []
-
-    def fake_fire(collector, **kwargs):
-        calls.append(kwargs)
-        return True, _FakeJob()
-
+    fake_fire, calls = _mode_aware_fire()
     monkeypatch.setattr("tap_cares.services.fire_collector_and_await", fake_fire)
     run_boot(_profile(FireCollectorStep(key=_TEST_COLLECTOR, enabled=True, timeout_seconds=222)))
-    assert calls[0]["timeout_seconds"] == 222
+    assert calls[1]["run_mode"] == "full"
+    assert calls[1]["timeout_seconds"] == 222
 
 
 @pytest.mark.django_db
-def test_fire_collector_abort_on_first_failure(monkeypatch):
-    calls = []
-
-    def fake_fire(collector, **kwargs):
-        calls.append(kwargs)
-        return False, _FakeJob(status="failed", summary="boom")
-
+def test_fire_collector_abort_on_fire_failure(monkeypatch):
+    # Preflight passes; the real fire fails — the abort carries the failing checks.
+    fake_fire, calls = _mode_aware_fire(self_test_ok=True, full_ok=False)
     monkeypatch.setattr("tap_cares.services.fire_collector_and_await", fake_fire)
     profile = _profile(
         FireCollectorStep(key=_TEST_COLLECTOR, enabled=True),
         FireCollectorStep(key=_TEST_COLLECTOR, enabled=True),
         on_failure="abort",
     )
-    with pytest.raises(BootError, match="on_failure=abort"):
+    with pytest.raises(BootError, match="on_failure=abort") as excinfo:
         run_boot(profile)
-    assert len(calls) == 1  # stopped after the first failure
+    # 1 preflight (unique key) + 1 fire; stopped after the first fire failure.
+    assert [c["run_mode"] for c in calls] == ["self_test_only", "full"]
+    # Abort detail names the step and the failing checks (req-boot-obs-abort-detail).
+    detail = excinfo.value.detail
+    assert detail["failed_step"] == f"fire-collector:{_TEST_COLLECTOR}"
+    assert detail["failing_checks"][0]["code"] == "API_REACHABLE"
+    assert detail["failing_checks"][0]["collector"] == _TEST_COLLECTOR
+    assert "401" in detail["failing_checks"][0]["message"]
 
 
 @pytest.mark.django_db
 def test_fire_collector_continue_collects_all_failures(monkeypatch):
-    calls = []
-
-    def fake_fire(collector, **kwargs):
-        calls.append(kwargs)
-        return False, _FakeJob(status="failed", summary="boom")
-
+    fake_fire, calls = _mode_aware_fire(self_test_ok=True, full_ok=False)
     monkeypatch.setattr("tap_cares.services.fire_collector_and_await", fake_fire)
     profile = _profile(
         FireCollectorStep(key=_TEST_COLLECTOR, enabled=True),
@@ -181,7 +207,76 @@ def test_fire_collector_continue_collects_all_failures(monkeypatch):
     )
     with pytest.raises(BootError, match="2 failed step"):
         run_boot(profile)
-    assert len(calls) == 2  # both attempted under on_failure=continue
+    # 1 preflight + both fires attempted under on_failure=continue.
+    assert [c["run_mode"] for c in calls] == ["self_test_only", "full", "full"]
+
+
+@pytest.mark.django_db
+def test_preflight_failure_aborts_before_any_seed(monkeypatch):
+    # The batch verdict fires BEFORE the first seed-plugin step mutates the grid
+    # (req-boot-obs-preflight-1/-2): a dead credential costs seconds, not minutes.
+    fake_fire, calls = _mode_aware_fire(self_test_ok=False)
+    monkeypatch.setattr("tap_cares.services.fire_collector_and_await", fake_fire)
+    seeded: list[str] = []
+
+    def _fake_seed(config: Any, **kw: Any) -> list[Any]:
+        seeded.append(config.slug)
+        return []
+
+    monkeypatch.setattr("tap_plugins.seeding.seed_plugin", _fake_seed)
+    profile = _profile(
+        SeedPluginStep(plugin="grid_fixtures", enabled=True),
+        FireCollectorStep(key=_TEST_COLLECTOR, enabled=True),
+        on_failure="abort",
+    )
+    with pytest.raises(BootError, match="Collector preflight failed") as excinfo:
+        run_boot(profile)
+    assert seeded == []  # no seed ran
+    assert [c["run_mode"] for c in calls] == ["self_test_only"]
+    assert excinfo.value.detail["failed_step"] == "preflight"
+    assert excinfo.value.detail["failing_checks"][0]["code"] == "API_REACHABLE"
+
+
+@pytest.mark.django_db
+def test_preflight_failure_under_continue_skips_the_fire(monkeypatch):
+    # An unready collector's fire step is skipped, not fired (req-boot-obs-preflight-5).
+    fake_fire, calls = _mode_aware_fire(self_test_ok=False)
+    monkeypatch.setattr("tap_cares.services.fire_collector_and_await", fake_fire)
+    profile = _profile(FireCollectorStep(key=_TEST_COLLECTOR, enabled=True), on_failure="continue")
+    with pytest.raises(BootError, match="1 failed step"):
+        run_boot(profile)
+    assert [c["run_mode"] for c in calls] == ["self_test_only"]  # never fired full
+
+
+@pytest.mark.django_db
+def test_preflight_disabled_by_env_is_loud(monkeypatch, caplog):
+    monkeypatch.setenv("TAP_BOOT_POPULATION__COLLECTOR_PREFLIGHT", "false")
+    fake_fire, calls = _mode_aware_fire()
+    monkeypatch.setattr("tap_cares.services.fire_collector_and_await", fake_fire)
+    with caplog.at_level(logging.WARNING):
+        run_boot(_profile(FireCollectorStep(key=_TEST_COLLECTOR, enabled=True)))
+    assert [c["run_mode"] for c in calls] == ["full"]  # no self-test ran
+    assert any("preflight DISABLED" in r.getMessage() for r in caplog.records)  # req-boot-obs-preflight-4
+
+
+@pytest.mark.django_db
+def test_preflight_disabled_by_profile_field(monkeypatch):
+    fake_fire, calls = _mode_aware_fire()
+    monkeypatch.setattr("tap_cares.services.fire_collector_and_await", fake_fire)
+    run_boot(_profile(FireCollectorStep(key=_TEST_COLLECTOR, enabled=True), collector_preflight=False))
+    assert [c["run_mode"] for c in calls] == ["full"]
+
+
+@pytest.mark.django_db
+def test_failing_checks_echoed(monkeypatch):
+    # The check detail — not just the summary — reaches the operator's output
+    # (req-boot-obs-abort-detail-1).
+    fake_fire, _calls = _mode_aware_fire(self_test_ok=False)
+    monkeypatch.setattr("tap_cares.services.fire_collector_and_await", fake_fire)
+    lines: list[str] = []
+    with pytest.raises(BootError):
+        run_boot(_profile(FireCollectorStep(key=_TEST_COLLECTOR, enabled=True)), echo=lines.append)
+    assert any("check API_REACHABLE" in line and "401" in line for line in lines)
 
 
 @pytest.mark.django_db

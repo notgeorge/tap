@@ -72,6 +72,15 @@ def test_on_failure_defaults_to_abort(boot_dir):
     assert load_profile("p").on_failure == "abort"
 
 
+def test_collector_preflight_parses_and_defaults_to_undeclared(boot_dir):
+    # Undeclared -> None (the orchestrator's variable ladder then defaults it true,
+    # req-boot-obs-preflight-4); a declared false parses through.
+    _write(boot_dir, "p", {"version": 1, "population": {"steps": []}})
+    assert load_profile("p").collector_preflight is None
+    _write(boot_dir, "q", {"version": 1, "population": {"collector_preflight": False, "steps": []}})
+    assert load_profile("q").collector_preflight is False
+
+
 def test_no_population_is_auth_only(boot_dir):
     _write(boot_dir, "p", {"version": 1})
     profile = load_profile("p")

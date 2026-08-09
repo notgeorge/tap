@@ -88,6 +88,10 @@ class BootProfile:
     description: str
     on_failure: str
     steps: tuple[PopulationStep, ...]
+    # Raw `population.collector_preflight` value, when the profile declares one.
+    # None = not declared; the orchestrator resolves the effective value via the
+    # boot-variable ladder (env > profile > default true, req-boot-obs-preflight-4).
+    collector_preflight: bool | None = None
     # Raw auth section (req-tap-auth-boot). tap_auth owns its schema fragment and
     # validates it strictly in the boot auth phase; the bootloader only carries it.
     auth: dict[str, Any] | None = None
@@ -196,6 +200,7 @@ def _parse(profile_id: str, data: dict[str, Any]) -> BootProfile:
         description=data.get("description", ""),
         on_failure=population.get("on_failure", DEFAULT_ON_FAILURE),
         steps=tuple(steps),
+        collector_preflight=population.get("collector_preflight"),
         auth=data.get("auth"),
         profile_kind=data.get("profile_kind"),
     )
