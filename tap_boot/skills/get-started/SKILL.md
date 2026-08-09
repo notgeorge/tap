@@ -36,8 +36,9 @@ Detect the platform (`uname`). Then:
   v2 plugin, docker-group membership, `lsof`, free ports. Warn about the
   root-owned bind-mount papercut *before* it bites (relief valve:
   `sudo chown -R "$USER" .`). That section is canonical; don't restate it from memory.
-- **Both**: ~10 GB free disk for the image build; network access for the base
-  image and the OpenSSL source. Spawn's own battery re-checks the toolchain and
+- **Both**: ~10 GB free disk for the images; network access to GHCR for the
+  anonymous pull (the offline fallback builds locally from source instead).
+  Spawn's own battery re-checks the toolchain and
   gives the fix for anything missed — you are smoothing, not gatekeeping.
 
 ## Step 2 — The canonical layout (one stanza, non-negotiable)
@@ -62,9 +63,10 @@ work is already in the clone.
    no credentials needed, the right first boot). `core` is the zero-plugin baseline;
    `samsite` is the full demo and needs AWS/GitHub credentials plus per-deployment
    config (a later session's work — see the samsite plugin README).
-3. **FIPS** (default ON — leave it unless asked). First build compiles the validated
-   OpenSSL provider: 10–20 minutes, once; later spawns reuse the cache.
-   `TAP_FIPS=0` is the explicit dev-only escape hatch.
+3. **FIPS** (default ON — leave it unless asked). The published images carry the
+   validated OpenSSL provider pre-built; only the offline/unpublished local-build
+   fallback compiles it from source (10–20 minutes, once). `TAP_FIPS=0` is the
+   explicit dev-only escape hatch on that fallback path.
 4. **Admin password**: macOS offers a one-time Keychain stash (stable across
    sessions); otherwise random-per-session, written to the worktree's
    `.dev-credentials`. A stable non-Keychain password: export

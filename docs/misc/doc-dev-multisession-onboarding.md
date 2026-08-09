@@ -40,8 +40,9 @@ scripts/spawn-session.sh
 
 Already cloned somewhere else? Run the script anyway — its layout seatbelt fails
 with the exact adoption commands for your situation (re-clone vs `mv`). First spawn
-on a host also compiles the FIPS OpenSSL provider during the image build (10–20
-minutes, once); later spawns reuse the cache. There is no separate first-boot
+on a host pulls the published tap-web/tap-db images (anonymous GHCR pull; FIPS
+OpenSSL and a pre-built venv are baked in) — the 10–20-minute from-source build
+only happens as the offline/unpublished fallback. There is no separate first-boot
 script: first boot and the Nth session are the same command.
 
 The script is the canonical procedure. It implements [req-dev-multisession-spawn-script](../../specs/spec-dev-multisession.md#spawn-script) and [req-dev-multisession-admin-bootstrap](../../specs/spec-dev-multisession.md#admin-user-bootstrap); each block in the script carries inline comments pointing at the requirement that defines its behavior. To understand *what* the script does or *why*, read those requirements — not a parallel description here, which would only drift.
