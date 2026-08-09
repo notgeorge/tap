@@ -1,16 +1,19 @@
 # TAP — The Analogy Platform
 
-TAP is a systems-mastery platform: it models a real system — cloud infrastructure, a
-deploy pipeline, a compliance program — as a live, queryable, visual graph, built for
-humans and AI assistants working together. The graph lives in ordinary PostgreSQL (an
-entity spine + first-class edges, with per-field history and provenance), queried
-through **Gryphon** (TAP's graph query language), interchanged as **GRIFT** (its JSON
-graph format), and extended entirely through **plugins** that bring their own types,
-collectors, pages, and dashboards.
+TAP is a general-purpose platform for mastering the systems you are responsible
+for — cloud accounts, deploy pipelines, device fleets, data flows, the organization
+itself — by modeling each as a live, queryable, visual graph called **the grid**:
+nodes and edges fused with dimensions, batches, history, and field-level provenance,
+so the model stays explainable as it changes. Built for humans and AI assistants
+working together. The grid lives in ordinary PostgreSQL, is queried through
+**Gryphon** (TAP's graph query language), interchanged as **GRIFT** (its JSON graph
+format), and extended entirely through **plugins** — core speaks no domain language;
+every vocabulary arrives as a plugin. [TAP in two pages](docs/doc-tap-intro.md) is
+the fastest way in.
 
-**Rampart** is the first product built on TAP — a security/compliance assessment
-surface with a FedRAMP 20x story. The UI badges itself `RAMPART` by default; you are
-running TAP either way (`TAP_PRODUCT_NAME` controls the label).
+**Rampart** is the first product built on TAP, and its badge is the default: the UI
+says `RAMPART` out of the box (`TAP_PRODUCT_NAME` controls the label) — you are
+running TAP either way.
 
 > **Early access.** You're here before the polish. The system works — it is used
 > daily against real infrastructure — but you will find rough edges, and reporting
@@ -54,7 +57,7 @@ Boot profiles (`boot/*.boot.json`) declare which plugins an instance runs and wh
 they install from.
 
 The reference deployment is **samsite** — a real, deployed website whose AWS
-infrastructure, GitHub pipeline, and signed compliance artifacts all land on the
+infrastructure, GitHub pipeline, and published signed artifacts all land on the
 grid. Its plugin README documents what it takes to point that machinery at your own
 deployment, credentials included.
 
@@ -62,7 +65,8 @@ deployment, credentials included.
 
 | Where | What |
 | --- | --- |
-| `architecture.md` | The system in one read — start here |
+| [`docs/doc-tap-intro.md`](docs/doc-tap-intro.md) | TAP in two pages — start here |
+| `architecture.md` | The architectural contract behind it |
 | `AGENTS.md` / `CLAUDE.md` | Orientation for AI assistants working in this repo |
 | `specs/`, `<app>/specs/` | Behavior contracts — the canonical source of truth |
 | `tap_grid/` | The graph core: entity spine, edges, service layer, Gryphon, GRIFT |
