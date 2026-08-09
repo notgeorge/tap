@@ -873,7 +873,12 @@ while true; do
   if scripts/dc exec -T web python -c "
 import urllib.request, sys
 try:
-    urllib.request.urlopen('http://localhost:8000/admin/', timeout=2)
+    # timeout=10, NOT 2: a timeout counts as 'not listening', and under heavy
+    # host load (multiple stacks + CI lanes on one machine) a HEALTHY dev
+    # server can exceed 2s per request — observed 2026-08-09: two lean-boot
+    # gate reds with a fully-booted container failing this probe for 600s.
+    # Responsiveness is governed by the 3s poll cadence, not this ceiling.
+    urllib.request.urlopen('http://localhost:8000/admin/', timeout=10)
     sys.exit(0)
 except urllib.error.HTTPError:
     sys.exit(0)  # 4xx/5xx from a real server is still 'listening'
