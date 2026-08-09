@@ -106,9 +106,9 @@ class TestProvisionedRoleEnforcement:
         # CREATE ROLE fails with one of the two faces below and must retry into the
         # ALTER path, not abort the boot (req-grid-db-role-concurrency.sec — the
         # 2026-08-09 cloud-lane failure).
-        import tap_grid.search_role as sr
+        from django.db import transaction as db_transaction
 
-        real_atomic = sr.transaction.atomic
+        real_atomic = db_transaction.atomic
         calls = {"n": 0}
 
         def losing_first_attempt(*args, **kwargs):
@@ -117,7 +117,7 @@ class TestProvisionedRoleEnforcement:
                 raise exc
             return real_atomic(*args, **kwargs)
 
-        monkeypatch.setattr(sr.transaction, "atomic", losing_first_attempt)
+        monkeypatch.setattr("tap_grid.search_role.transaction.atomic", losing_first_attempt)
         with caplog.at_level(logging.WARNING):
             tables = _provision()
         assert tables  # provisioning completed on the retry
