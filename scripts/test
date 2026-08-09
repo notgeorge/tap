@@ -84,7 +84,13 @@ else
   fi
 fi
 
-pytest_args=(-n auto)
+# TAP_TEST_JOBS caps xdist parallelism (default: auto). The pressure valve for a
+# host running several TAP stacks at once: -n auto sizes workers by CPU count and
+# ignores memory, and on a multi-stack Docker VM the OOM killer then reaps workers
+# mid-run — the "node down: Not properly terminated" + cross-worker collection
+# mismatch signature (observed 2026-08-09, five stacks / 7.75GiB VM). Resolved
+# host-side, so it works through `dc exec` without env propagation.
+pytest_args=(-n "${TAP_TEST_JOBS:-auto}")
 [[ "$run_gryphon" -eq 0 ]] && pytest_args+=("--ignore=$GRYPHON_CORPUS")
 
 # Allocate a TTY when run interactively (colours, live output); use -T when piped
