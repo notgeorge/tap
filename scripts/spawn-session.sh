@@ -653,7 +653,7 @@ bold "Step 3.6: Wiring project-internal skills into .claude/skills/"
 # ============================================================================
 bold "Step 4: Pulling images and starting Docker stack"
 info "Pull-first: the published tap-web/tap-db images (GHCR, anonymous) carry the toolchain"
-info "and a pre-built venv seed, so no local compile. Falls back to a local build when the"
+info "and a pre-compiled wheel cache, so no local compile. Falls back to a local build when the"
 info "pull fails (offline, or the image is not yet published)."
 scripts/dc pull web db || info "Pull failed — compose will build locally (slow path)."
 scripts/dc up -d

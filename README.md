@@ -34,9 +34,11 @@ git clone <this repository> tap && cd tap
 scripts/stand-up.sh
 ```
 
-That's the whole procedure. The script checks your host, builds the image (the first
-build compiles the FIPS-validated OpenSSL provider — 10–20 minutes once (it's worth the wait), 
-boots the instance, and prints your URL and admin credentials.
+That's the whole procedure. The script checks your host, pulls the published TAP images
+(multi-arch, FIPS provider and pre-compiled Python wheels baked in — first boot is a few
+minutes, not a compile), boots the instance, and prints your URL and admin credentials.
+Offline or building from a modified Dockerfile? It falls back to a local build, which
+compiles the FIPS-validated OpenSSL provider from source (10–20 minutes, once).
 Sign in with the password from `.dev-credentials`, then enroll a passkey from your
 session if you want one.
 
@@ -52,7 +54,7 @@ Day to day:
 -  `scripts/dc down`
 -  `scripts/dc logs -f web`.
   
-To update: `git pull && scripts/dc up -d --build` (migrations run on start).
+To update: `git pull && scripts/dc pull web db && scripts/dc up -d` (migrations run on start; `scripts/dc build web` only if you've modified the Dockerfile).
 
 ## Build your own plugin
 

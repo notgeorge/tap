@@ -7,8 +7,11 @@ automated fail-closed gate before `main` advances, cloud CI on AWS CodeBuild, an
 parallelized promote (`~8 min`, gryphon corpus deferred to the cloud). Measured against
 professional git/build/deploy practice, the **integration and testing** halves are
 pro-grade to ahead of the field. What is missing is **enforcement** (the gate is a
-client-side convention, not a server-enforced invariant) and the entire **deploy** half
-(no artifacts, no environments, no continuous delivery, no supply-chain provenance).
+client-side convention, not a server-enforced invariant) and most of the **deploy** half —
+though no longer all of it: as of 2026-08-09 TAP publishes immutable, SLSA-attested
+multi-arch images to GHCR on every main push (`req-cicd-build-once-artifact` /
+`req-cicd-supply-chain-provenance`, both Partial). Still absent: environments, continuous
+delivery, and the promote-the-same-bytes deploy discipline those images will feed.
 
 This spec is a standing **doctrine + backlog**, in the same spirit as
 [spec-security-posture.md](spec-security-posture.md): it states the guiding principles for
@@ -120,7 +123,9 @@ already exhausted at push time → `429 Too Many Requests` on the manifest HEAD 
 in ~25s → the promote aborts. This is a **nondeterministic single point of failure on the
 critical path to shipping anything** — not specific to any one change (it blocked a passkey
 promote three times running, 2026-07-09), with no backpressure we control. Two base images
-were exposed: `python:3.14-slim` (`Dockerfile`) and `postgres:16-alpine` (`docker-compose.yml`).
+were exposed at the time: `python:3.14-slim` (`Dockerfile`) and `postgres:16-alpine`
+(`docker-compose.yml`); both were later replaced by digest-pinned `cgr.dev/chainguard/wolfi-base`
+(the 2026-07-21 Wolfi cutover + the 2026-08-09 digest pins), which is not a Docker Hub pull at all.
 
 **Fix (the cheap, foundational edge):** resolve Docker Official Images through **AWS's public
 ECR mirror** (`public.ecr.aws/docker/library/<image>`) — a credential-free mirror not subject
@@ -131,7 +136,7 @@ cheap-edge play: near-zero marginal cost now, removes a class of availability fa
 
 | RID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-cicd-base-image-sourcing-1 | No anonymous Docker Hub base pulls | Implemented | No build/dev/CI base image is pulled anonymously from `docker.io`; all Docker Official Images resolve via `public.ecr.aws/docker/library/*`. | `Dockerfile` (`python:3.14-slim`) + `docker-compose.yml` (`postgres:16-alpine`). |
+| req-cicd-base-image-sourcing-1 | No anonymous Docker Hub base pulls | Implemented | No build/dev/CI base image is pulled anonymously from `docker.io`; all Docker Official Images resolve via `public.ecr.aws/docker/library/*`. | Originally `Dockerfile` (`python:3.14-slim`) + `docker-compose.yml` (`postgres:16-alpine`); since the Wolfi cutover both bases are digest-pinned `cgr.dev` pulls, satisfying this by construction. |
 | req-cicd-base-image-sourcing-2 | Rate-limit-free promote gate | Implemented | The promote gate's image build no longer depends on Docker Hub's anonymous quota, so a shared-runner IP exhaustion cannot red the gate. | Removes the observed `429` SPOF. |
 
 **Named residual (deferred, not hidden):** we still trust AWS's mirror rather than a copy we
@@ -215,7 +220,7 @@ which indexes `-5`/`-6` in its FIPS Requirement Map.
 
 **Named residuals + triggers (deferred, not hidden):**
 - We own the **rebuild cadence + break-glass** when an auto-patch PR reds (the price of not buying an SLA).
-- Until `-3` graduates to self-built apko, we trust `cgr.dev`'s `wolfi-base` (mutable tag → digest-pin via `-1`).
+- Until `-3` graduates to self-built apko, we trust `cgr.dev`'s `wolfi-base` (digest-pinned since 2026-08-09; `-1`'s remaining half is Renovate-driven bumps — until then, bumps are manual per the procedure at the Dockerfile pins).
 - **FIPS is decided** (`-5`/`-6`): self-built OpenSSL 3.0 #4282 provider, no vendor module, **on by default**. **OE vendor-affirmed portability is an ACCEPTED, OWNED risk (George, 2026-07-09)** — not a blocker. It is cheap to be wrong about because every fallback is a **base-image swap, not a rewrite** (the payoff of staying in the Wolfi family). Ladder, cheapest first: (1) swap to **Chainguard's validated FIPS image** — same family, our `fips.so`/`fipsinstall` steps fall away, `--no-binary cryptography` + the fail-closed boot assertion still mandatory, near-zero switching cost; (2) evaluate **DHI's free `3.14-fips`** (`dhi.io`, $0 — **UNVERIFIED**: 401 on pull, FIPS activation model unconfirmed); (3) last resort **UBI + host-derived FIPS** (already-proven `ubi-micro` + `dnf --installroot`; RHEL 9 *is* a tested OE, but the deployment host must run `fips=1`, which we cannot guarantee on customer infrastructure). Full analysis: [doc-fips-assessment-record](../docs/misc/doc-fips-assessment-record.md) § 7.1.
 - **`fips=yes` vs non-approved primitives — audited, not assumed** (spike `spikes/fips/` + a full call-site sweep, 2026-07-09). Under a strict `fips`+`base` provider set with **no `default` provider**:
   - **SHA-1 is FIPS-approved as a hash** and is served by the `fips` provider. `hashlib.sha1()` works. Only MD5 hard-fails.
@@ -352,9 +357,11 @@ load-bearing once there is a delivery cadence to improve.
 
 ## Accepted Risk (deliberately deferred, not hidden)
 
-- **The deploy half** (`req-cicd-continuous-delivery`, `req-cicd-supply-chain-provenance`,
-  `req-cicd-build-once-artifact`) is parked pre-launch — no customers, no environments to
-  deliver to yet. Right call; tracked for launch-time.
+- **The deploy half's remainder** (`req-cicd-continuous-delivery`, plus the deploy-side
+  halves of `req-cicd-supply-chain-provenance` and `req-cicd-build-once-artifact` — both
+  Partial since 2026-08-09: images published + attested, but no environments to promote
+  them through) is parked pre-launch — no customers, no environments to deliver to yet.
+  Right call; tracked for launch-time.
 - **Client-side orchestration** remains the model for now (Goal 6). Its bypassability is
   mitigated the moment `req-cicd-branch-protection` lands; its convergence lag (per-session
   script copies) is accepted for a solo flow.

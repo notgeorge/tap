@@ -41,7 +41,10 @@ requirements. Written up so it does not live only in a chat log.
    instance with **no transparency log**, whereas public repos use the Sigstore Public
    Good Instance **with** a public immutable log. So the private path costs $21/user/mo
    for the strictly *weaker* provenance artifact. Signing is blocked on the
-   **public/private decision**, not on the org and not on money.
+   **public/private decision**, not on the org and not on money. *(Resolved: repos went
+   public 2026-08; SLSA attestations on the published container images went live
+   2026-08-09 via `publish-images.yml` on the Sigstore Public Good Instance —
+   `req-cicd-supply-chain-provenance` is Partial.)*
 5. **External developers arrive ~Aug 1.** On a personal account every external dev is a
    collaborator on personal repos. An org gives scoped teams and a boundary between "our
    plugins" and "theirs" — and avoids onboarding devs under a credential model we then

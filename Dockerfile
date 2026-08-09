@@ -130,7 +130,7 @@ FROM base AS deps-warm
 RUN uv sync --frozen --all-packages
 
 # ============================================================================
-# app — source + entrypoint on top of base; carries the venv seed
+# app — source + entrypoint on top of base; carries the wheel-cache seed
 # ============================================================================
 FROM base AS app
 

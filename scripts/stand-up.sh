@@ -189,7 +189,7 @@ info "Install id: $TAP_GRID_ID"
 # ============================================================================
 bold "Step 4: Pulling images and starting the stack"
 info "Pulls the published tap-web/tap-db images from GHCR (anonymous, multi-arch) —"
-info "toolchain, FIPS-validated OpenSSL provider, and a pre-built Python venv are"
+info "toolchain, FIPS-validated OpenSSL provider, and pre-compiled Python wheels are"
 info "all baked in, so first boot is minutes, not a from-source compile. If the"
 info "pull fails (offline/unpublished), compose builds locally instead — that slow"
 info "path compiles OpenSSL + the Python closure and can take 10–20 minutes."

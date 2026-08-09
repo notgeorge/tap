@@ -2,7 +2,7 @@
 
 ## Philosophy
 
-A spawn (`scripts/spawn-session.sh`) — and the `scripts/gate-lean` throwaway that drives the same standup — stands an instance up through a fixed ordered sequence: build → pre-boot (install + gates + snapshot) → migrate → `manage.py boot` (auth + population) → health gate. When it fails, the failure is almost always at a **specific step**, and the web container's logs name it. Yet the read of that sequence has been done **by hand, dozens of times**, re-derived from scratch each occurrence.
+A spawn (`scripts/spawn-session.sh`) — and the `scripts/gate-lean` throwaway that drives the same standup — stands an instance up through a fixed ordered sequence: pull (published images; local build as fallback) → pre-boot (install + gates + snapshot) → migrate → `manage.py boot` (auth + population) → health gate. When it fails, the failure is almost always at a **specific step**, and the web container's logs name it. Yet the read of that sequence has been done **by hand, dozens of times**, re-derived from scratch each occurrence.
 
 The spawn script already prints *recovery* commands on failure (`req-dev-multisession-spawn-script-4` — the failure trap: "here is how to nuke the partial state"). What it does **not** do is say **why** it failed. That gap is the diagnosis, and this spec standardizes it as a single, repeatable, self-evolving procedure — implemented by the `/diagnose-failed-session-spawn` skill (`tap_boot/skills/`) — so a red spawn produces a **verdict** (failing step → root cause → the log line that proves it → the fix), not another manual excavation.
 
@@ -55,7 +55,7 @@ Given a session name, a compose project (`tap_<name>`), or a `gate-lean` `*-diag
 RID: `req-dev-multisession-diagnose-ordered-read`
 Status: `Implemented`
 
-The procedure reads container state (`compose ps`, `logs web`, `logs db`) and maps the last successful line to the failing spawn step. The failure-prone steps, in order: **build & start** (image build; port collision), **entrypoint** (uv sync → pre-boot → migrate → runserver — where most real failures land), **`manage.py boot`** (auth → population), **health gate** (`manage.py health --json`).
+The procedure reads container state (`compose ps`, `logs web`, `logs db`) and maps the last successful line to the failing spawn step. The failure-prone steps, in order: **pull & start** (image pull failure or fallback-build error; port collision), **entrypoint** (cache-seed + uv sync → pre-boot → migrate → runserver — where most real failures land), **`manage.py boot`** (auth → population), **health gate** (`manage.py health --json`).
 
 #### Acceptance Criteria
 

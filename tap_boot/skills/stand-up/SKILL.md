@@ -10,7 +10,8 @@ argument-hint: [boot-profile]  (default: core — the zero-plugin baseline)
 > **Skill source-of-truth.** Canonical location: `tap_boot/skills/stand-up/SKILL.md`. `.claude/skills/…` is a wiring symlink (`scripts/wire-skills.sh`). Edit the canonical.
 
 `scripts/stand-up.sh` is the **single canonical implementation** of first boot: host
-checks, install-identity mint, image build, entrypoint wait, `manage.py boot`, admin
+checks, install-identity mint, image pull (GHCR, anonymous — local build only as the
+offline/modified-Dockerfile fallback), entrypoint wait, `manage.py boot`, admin
 credentials, skill wiring. This skill is its conversational driver — you prepare the
 host, make the three choices with the human, invoke the script, and walk them in the
 door. **Re-implement nothing.** If the script's behavior looks wrong, fix the script;
@@ -43,8 +44,9 @@ Detect the platform (`uname`). Then:
   root-owned bind-mount papercut *before* it bites (the relief valve is
   `sudo chown -R "$USER" .`). That section is the canonical list; don't restate it
   from memory.
-- **Both**: expect ~10 GB free disk for the image build, and network access to pull
-  the base image and the OpenSSL source.
+- **Both**: expect ~10 GB free disk for the images, and network access to
+  `ghcr.io` (anonymous) for the published `tap-web`/`tap-db` pulls. Only the
+  local-build fallback additionally needs the base image + OpenSSL source.
 
 ## Step 2 — Three choices, made WITH the human
 
@@ -56,10 +58,12 @@ Detect the platform (`uname`). Then:
    org migration window some may not be). `samsite` additionally needs AWS
    credentials and per-deployment configuration — that is a second session's work,
    documented in the samsite plugin README, not a first boot.
-2. **FIPS** (default ON — leave it on unless asked). The first build compiles the
-   FIPS-validated OpenSSL provider: 10–20 minutes, once. Frame it honestly: they are
-   getting the published, FIPS-enforcing artifact for the cost of one coffee.
-   `TAP_FIPS=0 scripts/stand-up.sh` is the explicit dev-only escape hatch.
+2. **FIPS** (default ON — leave it on unless asked). The published image ships the
+   FIPS-validated OpenSSL provider pre-built and pre-activated — FIPS costs the
+   adopter nothing at stand-up time. Only the local-build fallback compiles it from
+   source (10–20 minutes, once). `TAP_FIPS=0 scripts/stand-up.sh` is the explicit
+   dev-only escape hatch (and forces a local build — the published artifact is
+   FIPS-on only).
 3. **Admin password**: default is random-per-install, written to `.dev-credentials`.
    If they want a stable one, have them export `TAP_DEV_ADMIN_PASSWORD` first —
    never type a password into the chat.
@@ -71,10 +75,11 @@ scripts/stand-up.sh            # or: scripts/stand-up.sh <profile>
 ```
 
 Narrate the phases as they pass (the script's `==>` banners): prereq checks are
-seconds; the image build is the long step; the entrypoint wait (uv sync + migrate)
-is 1–3 minutes; boot is seconds on `core`. The script fast-fails on a `TAP-ABORT`
-signal rather than hanging — silence with a progress counter is normal, a stall
-past ~5 minutes post-build is not.
+seconds; the image pull is the longest step on a cold machine (a few minutes of
+download; the local-build fallback is the 10–20 minute path); the entrypoint wait
+(cache-seeded uv sync + migrate) is under a minute; boot is seconds on `core`. The
+script fast-fails on a `TAP-ABORT` signal rather than hanging — silence with a
+progress counter is normal, a stall past ~5 minutes after the pull is not.
 
 ## Step 4 — If it fails
 
