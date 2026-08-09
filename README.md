@@ -39,7 +39,7 @@ scripts/spawn-session.sh dev        # any session name you like
 That's the whole procedure — first boot and every later session are the same
 command. The script checks your host, creates an isolated session worktree at
 `~/tap-sessions/dev`, pulls the published images (anonymous, multi-arch, with the
-FIPS-validated OpenSSL provider and a pre-built Python venv baked in — offline or
+FIPS-validated OpenSSL provider and pre-compiled Python wheels baked in — offline or
 unpublished it falls back to a local build, which compiles those from source in
 10–20 minutes), boots the instance, and prints your URL and admin credentials.
 Sign in with the password from the worktree's `.dev-credentials`, then enroll a

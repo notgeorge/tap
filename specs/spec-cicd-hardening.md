@@ -285,8 +285,11 @@ builds `tap-web` + `tap-db` (TAP_FIPS=1, multi-arch amd64+arm64 on native runner
 main push and publishes to **GHCR** as `latest` + `sha-<short>`, with SLSA provenance
 attestations and per-arch `buildcache-*` refs. Consumers: spawn/stand-up pull instead of
 building (compose `image:` fields, anonymous pulls); CI lanes use the registry cache as
-eviction fallback. The web image carries a pre-built venv seed (Dockerfile `deps-warm`
-stage) so first boot skips the cryptography/psycopg source compiles.
+eviction fallback. The web image carries a pre-compiled wheel cache (Dockerfile `deps-warm`
+stage → `/opt/uv-cache-seed`) so first boot creates the venv from built wheels in seconds
+instead of compiling cryptography/psycopg from source (the venv itself is always created at
+runtime by `uv sync` — deliberately, after a cp-seeded venv proved uv-hostile on the CI
+runner).
 
 **Registry decision: GHCR, not ECR** (this section previously said ECR): the repos went
 public 2026-08, making GHCR free with unlimited anonymous pulls and `GITHUB_TOKEN`-only

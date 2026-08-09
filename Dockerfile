@@ -112,16 +112,20 @@ COPY --from=ghcr.io/astral-sh/uv:0.12.3@sha256:2d890623d310b57771ce840f0da5eed5f
 COPY pyproject.toml uv.lock* ./
 
 # ============================================================================
-# deps-warm — pre-built venv seed (the req-cicd-build-once-artifact warm path)
+# deps-warm — pre-compiled wheel cache (the req-cicd-build-once-artifact warm path)
 # ============================================================================
 # Branches from base BEFORE any source COPY, so this layer is keyed on
 # pyproject.toml + uv.lock alone (the uv workspace is intentionally empty — the
 # lock holds only the core closure) and survives every source-only commit. The
 # expensive FIPS-mandated source compiles (cryptography --no-binary, psycopg[c])
 # happen here — once per lockfile change per publish, not once per developer
-# boot. This is NOT the accreting-local-state fossilization the compose comments
-# warn about: --frozen rebuilds the venv from scratch in a clean stage whenever
-# the lock changes.
+# boot. What ships is the resulting UV CACHE (built + downloaded wheels), NOT
+# the venv: the runtime venv is always created by `uv sync` in the container
+# (the long-proven path — a cp-seeded venv behaved differently under uv on the
+# CodeBuild runner; see tap/preboot.py _VENV_DIR history), which then installs
+# from this cache in seconds instead of compiling. Not the fossilization the
+# compose comments warn about: --frozen rebuilds this stage from scratch in a
+# clean layer whenever the lock changes.
 FROM base AS deps-warm
 RUN uv sync --frozen --all-packages
 
@@ -133,12 +137,11 @@ FROM base AS app
 # Copy the rest of the application code (frequently-changing layer, after deps).
 COPY . .
 
-# Pre-built venv seed. docker/entrypoint.sh copies it into the (named-volume)
-# /app/.venv on first boot when the volume is empty, then runs the normal
-# `uv sync` as a fast verifier. Seeded via an explicit entrypoint copy from /opt
-# (not baked at /app/.venv) on purpose: that avoids depending on Docker
-# volume-init semantics underneath the dev bind mount at /app.
-COPY --from=deps-warm /app/.venv /opt/venv-seed
+# Pre-compiled wheel cache. docker/entrypoint.sh copies it into the (named-
+# volume) uv cache on first boot when that volume is empty; `uv sync` then
+# creates the venv from cached wheels — no compile. Explicit entrypoint copy
+# from /opt on purpose: avoids depending on Docker volume-init semantics.
+COPY --from=deps-warm /root/.cache/uv /opt/uv-cache-seed
 
 # Note on tailwindcss: the image does NOT carry the binary. The /tailwind-rebuild skill
 # installs it on demand into the tailwind_bin volume; the committed

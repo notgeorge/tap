@@ -41,7 +41,7 @@ scripts/spawn-session.sh
 Already cloned somewhere else? Run the script anyway — its layout seatbelt fails
 with the exact adoption commands for your situation (re-clone vs `mv`). First spawn
 on a host pulls the published tap-web/tap-db images (anonymous GHCR pull; FIPS
-OpenSSL and a pre-built venv are baked in) — the 10–20-minute from-source build
+OpenSSL and pre-compiled wheels are baked in) — the 10–20-minute from-source build
 only happens as the offline/unpublished fallback. There is no separate first-boot
 script: first boot and the Nth session are the same command.
 

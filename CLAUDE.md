@@ -161,7 +161,7 @@ Development Environment
 
 Development Commands
     # Images: spawn/stand-up PULL the published ghcr.io/unified-systems-com/tap-web + tap-db
-    # (anonymous, multi-arch, pre-built venv seed inside — no local compile). Rebuild locally
+    # (anonymous, multi-arch, pre-compiled wheel cache inside — no local compile). Rebuild locally
     # only when changing the Dockerfiles: scripts/dc build web (this shadows the published
     # tag on your host until the next scripts/dc pull web). See publish-images.yml.
 
