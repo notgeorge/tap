@@ -36,7 +36,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5   # for .trivyignore
       - name: Scan published image
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ghcr.io/unified-systems-com/${{ matrix.image }}:latest
           format: sarif
