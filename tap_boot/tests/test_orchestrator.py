@@ -16,7 +16,7 @@ from tap.plugin_testing import requires_plugins
 from tap_auth.actors import BOOTLOADER
 from tap_auth.models import Capability
 from tap_boot.orchestrator import BootError, run_boot
-from tap_boot.profile import BootProfile, FireCollectorStep, SeedPluginStep
+from tap_boot.profile import BootProfile, FireCollectorStep, RequiredSecret, SeedPluginStep
 
 # A real registered collector key, fired with no credentials in these tests by mocking
 # the fire op. These are boot-ORCHESTRATOR tests (FireCollectorStep mechanics), not
@@ -30,7 +30,7 @@ from tap_boot.profile import BootProfile, FireCollectorStep, SeedPluginStep
 _TEST_COLLECTOR = "grid_fixtures:canary"
 
 
-def _profile(*steps, on_failure="abort", collector_preflight=None) -> BootProfile:
+def _profile(*steps, on_failure="abort", collector_preflight=None, required_secrets=()) -> BootProfile:
     return BootProfile(
         profile_id="test",
         version=1,
@@ -38,6 +38,7 @@ def _profile(*steps, on_failure="abort", collector_preflight=None) -> BootProfil
         on_failure=on_failure,
         steps=tuple(steps),
         collector_preflight=collector_preflight,
+        required_secrets=tuple(required_secrets),
     )
 
 
@@ -339,3 +340,92 @@ class TestBootInvocationSelfCheck:
         flaw_records = [r for r in caplog.records if getattr(r, "message_code", None) == "FLAW"]
         assert not flaw_records, "an allowed boot command must not trip the tripwire"
         assert Capability.objects.exists()
+
+
+_PAT_ENTRY = RequiredSecret(scope="github_core", key="collector", kind="github_pat", note="read-only PAT")
+
+
+class _FakeSecret:
+    def __init__(self, kind: str) -> None:
+        self.kind = kind
+
+
+def _secret_step(**kwargs: Any) -> FireCollectorStep:
+    return FireCollectorStep(key=_TEST_COLLECTOR, enabled=True, secrets=("github_core:collector",), **kwargs)
+
+
+@pytest.mark.django_db
+def test_missing_required_secret_aborts_offline_before_any_live_call(monkeypatch):
+    # The offline lane (req-boot-obs-preflight-6 / req-boot-required-secrets-5):
+    # an absent declared secret fails the batch verdict before seeding AND before
+    # any live self-test network call for the blocked collector.
+    from tap_cares.exceptions import SecretNotFoundError
+
+    fake_fire, calls = _mode_aware_fire()
+    monkeypatch.setattr("tap_cares.services.fire_collector_and_await", fake_fire)
+
+    def missing(ref):
+        raise SecretNotFoundError(f"no secret for {ref.qualified!r}")
+
+    monkeypatch.setattr("tap_cares.secrets.resolve_secret", missing)
+    seeded: list[str] = []
+
+    def _fake_seed(config: Any, **kw: Any) -> list[Any]:
+        seeded.append(config.slug)
+        return []
+
+    monkeypatch.setattr("tap_plugins.seeding.seed_plugin", _fake_seed)
+    profile = _profile(
+        SeedPluginStep(plugin="grid_fixtures", enabled=True),
+        _secret_step(),
+        required_secrets=[_PAT_ENTRY],
+    )
+    with pytest.raises(BootError, match="required secret") as excinfo:
+        run_boot(profile)
+    assert seeded == []  # aborted before any seed mutated
+    assert calls == []  # the blocked collector's live self-test never ran
+    missing_entry = excinfo.value.detail["missing_secrets"][0]
+    assert missing_entry["ref"] == "github_core:collector"
+    assert missing_entry["kind"] == "github_pat"
+    assert missing_entry["problem"] == "missing"
+    assert "read-only PAT" in missing_entry["note"]
+
+
+@pytest.mark.django_db
+def test_kind_mismatched_secret_fails_offline(monkeypatch):
+    fake_fire, calls = _mode_aware_fire()
+    monkeypatch.setattr("tap_cares.services.fire_collector_and_await", fake_fire)
+    monkeypatch.setattr("tap_cares.secrets.resolve_secret", lambda ref: _FakeSecret(kind="aws_static_access_key"))
+    profile = _profile(_secret_step(), required_secrets=[_PAT_ENTRY])
+    with pytest.raises(BootError, match="missing/mismatched") as excinfo:
+        run_boot(profile)
+    assert calls == []
+    problem = excinfo.value.detail["missing_secrets"][0]["problem"]
+    assert "kind mismatch" in problem and "aws_static_access_key" in problem
+
+
+@pytest.mark.django_db
+def test_present_matching_secret_proceeds_to_live_lane(monkeypatch):
+    fake_fire, calls = _mode_aware_fire()
+    monkeypatch.setattr("tap_cares.services.fire_collector_and_await", fake_fire)
+    monkeypatch.setattr("tap_cares.secrets.resolve_secret", lambda ref: _FakeSecret(kind="github_pat"))
+    run_boot(_profile(_secret_step(), required_secrets=[_PAT_ENTRY]))
+    # Offline check passed; live self-test then real fire both ran.
+    assert [c["run_mode"] for c in calls] == ["self_test_only", "full"]
+
+
+@pytest.mark.django_db
+def test_missing_secret_under_continue_skips_the_fire(monkeypatch):
+    from tap_cares.exceptions import SecretNotFoundError
+
+    fake_fire, calls = _mode_aware_fire()
+    monkeypatch.setattr("tap_cares.services.fire_collector_and_await", fake_fire)
+
+    def missing(ref):
+        raise SecretNotFoundError("absent")
+
+    monkeypatch.setattr("tap_cares.secrets.resolve_secret", missing)
+    profile = _profile(_secret_step(), required_secrets=[_PAT_ENTRY], on_failure="continue")
+    with pytest.raises(BootError, match="1 failed step"):
+        run_boot(profile)
+    assert calls == []  # neither self-tested nor fired (req-boot-obs-preflight-5)

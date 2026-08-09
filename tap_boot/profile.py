@@ -29,6 +29,7 @@ __all__ = [
     "BootProfileError",
     "SeedPluginStep",
     "FireCollectorStep",
+    "RequiredSecret",
     "BootProfile",
     "PopulationStep",
     "DEFAULT_ON_FAILURE",
@@ -63,6 +64,25 @@ class SeedPluginStep:
 
 
 @dataclass(frozen=True)
+class RequiredSecret:
+    """One declared secret requirement (req-boot-required-secrets-1).
+
+    Exactly the envelope identity — scope/key/kind — plus the least-privilege
+    `note`. References only, never values (req-boot-secrets).
+    """
+
+    scope: str
+    key: str
+    kind: str
+    note: str
+
+    @property
+    def ref(self) -> str:
+        """The bare ``scope:key`` form population steps reference this entry by."""
+        return f"{self.scope}:{self.key}"
+
+
+@dataclass(frozen=True)
 class FireCollectorStep:
     """A `fire-collector` population step (req-boot-population-2)."""
 
@@ -74,6 +94,9 @@ class FireCollectorStep:
     # (a full cloud pull) declare a higher value here.
     timeout_seconds: int | None = None
     note: str = ""
+    # Bare "scope:key" references into the profile's required_secrets manifest
+    # (req-boot-required-secrets-2). Strings, not objects, by design.
+    secrets: tuple[str, ...] = ()
 
     type: str = "fire-collector"
 
@@ -99,6 +122,9 @@ class BootProfile:
     # Fail-closed guards (e.g. the dev-passkey import gate, req-tap-auth-passkey-dev-bootstrap-4)
     # allowlist off an EXPLICIT value; it only tightens, never the DEBUG posture selector.
     profile_kind: str | None = None
+    # Declared secret requirements (req-boot-required-secrets). Kept coherent with
+    # the steps' `secrets` refs by _validate_secret_coherence at load.
+    required_secrets: tuple[RequiredSecret, ...] = ()
 
     @property
     def has_population(self) -> bool:
@@ -191,10 +217,11 @@ def _parse(profile_id: str, data: dict[str, Any]) -> BootProfile:
                     run_mode=raw.get("run_mode", "full"),
                     timeout_seconds=raw.get("timeout_seconds"),
                     note=raw.get("note", ""),
+                    secrets=tuple(raw.get("secrets", [])),
                 )
             )
 
-    return BootProfile(
+    profile = BootProfile(
         profile_id=profile_id,
         version=data["version"],
         description=data.get("description", ""),
@@ -203,4 +230,59 @@ def _parse(profile_id: str, data: dict[str, Any]) -> BootProfile:
         collector_preflight=population.get("collector_preflight"),
         auth=data.get("auth"),
         profile_kind=data.get("profile_kind"),
+        required_secrets=tuple(
+            RequiredSecret(scope=e["scope"], key=e["key"], kind=e["kind"], note=e["note"])
+            for e in data.get("required_secrets", [])
+        ),
     )
+    _validate_secret_coherence(profile)
+    return profile
+
+
+def _validate_secret_coherence(profile: BootProfile) -> None:
+    """The two fail-loud rules keeping the dual declaration a checksum, not a drift point.
+
+    Rule A (req-boot-required-secrets-3): every ENABLED step's secret ref resolves to a
+    ``required_secrets`` entry. Enabled-scoped deliberately: rule B forces removing the
+    entry when its last consuming step is disabled, so the disabled step's dangling ref
+    must not itself invalidate the profile — re-enabling the step is what re-demands the
+    entry (and fails loud until it is restored).
+
+    Rule B (req-boot-required-secrets-4): every entry is referenced by ≥1 enabled step —
+    a stale entry (nothing enabled consumes it) invalidates the profile, so disabling a
+    step mechanically drops its requirement.
+    """
+    declared = {entry.ref for entry in profile.required_secrets}
+    if len(declared) != len(profile.required_secrets):
+        dupes = sorted(
+            {e.ref for e in profile.required_secrets if sum(x.ref == e.ref for x in profile.required_secrets) > 1}
+        )
+        raise BootProfileError(
+            f"Boot profile '{profile.profile_id}': duplicate required_secrets entr(y/ies): {', '.join(dupes)}."
+        )
+
+    referenced: set[str] = set()
+    for step in profile.enabled_steps:
+        refs = getattr(step, "secrets", ())
+        for ref in refs:
+            referenced.add(ref)
+            if ref not in declared:
+                raise BootProfileError(
+                    f"Boot profile '{profile.profile_id}': step '{_step_name(step)}' references secret "
+                    f"'{ref}' but required_secrets declares no such entry (req-boot-required-secrets-3). "
+                    "Add the entry (scope/key/kind + least-privilege note)."
+                )
+
+    stale = sorted(declared - referenced)
+    if stale:
+        raise BootProfileError(
+            f"Boot profile '{profile.profile_id}': required_secrets entr(y/ies) referenced by no enabled "
+            f"step: {', '.join(stale)} (req-boot-required-secrets-4). Remove the stale entr(y/ies) — "
+            "disabling a step drops its requirement."
+        )
+
+
+def _step_name(step: PopulationStep) -> str:
+    if isinstance(step, FireCollectorStep):
+        return f"fire-collector:{step.key}"
+    return f"seed-plugin:{step.plugin}"

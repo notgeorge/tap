@@ -1,6 +1,20 @@
 {
   "version": 1,
   "profile_kind": "dev_local",
+  "required_secrets": [
+    {
+      "scope": "aws_core",
+      "key": "boto_collector",
+      "kind": "aws_static_access_key",
+      "note": "Read-only AWS credentials for the boto3 collector (SecurityAudit-level, config metadata only, no writes) with region scope on the envelope. The reference deployment uses static keys in its own account; a cross-account deployment swaps this entry's kind to aws_assumed_role (see the samsite plugin README + aws_core's handoff kit)."
+    },
+    {
+      "scope": "github_core",
+      "key": "collector",
+      "kind": "github_pat",
+      "note": "Fine-grained GitHub PAT, read-only (Metadata + Contents + Actions), scoped to only the signing repo(s) listed in the envelope's repos field. Administration read only if runner nodes are wanted."
+    }
+  ],
   "description": "Samsite demo \u2014 stand a fresh session up end-to-end: seed the plugin GRIFT (AWS/GitHub/KSI/samsite pages + schedules), then fire the collectors that pull the live world in. INSTALL SOURCES (eviction complete, 2026-07-09): the 8 evicted substrate/domain plugins install from their OWN repos at pinned immutable tags (type:git; all repos public since 2026-08-08 so installs are anonymous — a private fork names a credential per req-plugin-arch-source-secret-5) \u2014 identity_core/compliance_core @ v0.1.0 (new substrate repos), computing_core/roscale/aws_core/sigstore_core/github_core/fedramp_20x_ksi @ v0.2.0 (re-released with the substrate refactor). administrivia/lotr/samsite/grid_fixtures stay editable from the monorepo (samsite is evict-last; lotr + grid_fixtures are core-suite test vocabulary retained editable for test_all; administrivia is TAP admin). Seed order is INSTALLED_APPS order; collector order matters: samsite-compliance reads aws_account nodes (boto3) AND content-matches github_workflow nodes (github_core), so both must run before it. Install order lists substrate (identity_core, compliance_core) before its consumers so git-sourced dependency resolution finds them already installed, not on an index.",
   "install": {
     "plugins": [
@@ -170,6 +184,7 @@
         "type": "fire-collector",
         "key": "aws_core:boto3",
         "enabled": true,
+        "secrets": ["aws_core:boto_collector"],
         "timeout_seconds": 300,
         "note": "AWS resource graph (Route53/CloudFront/S3/Lambda/IAM/...) + the aws_account node the boundary membership depends on. A full multi-region pull can run well past the 90s default."
       },
@@ -177,6 +192,7 @@
         "type": "fire-collector",
         "key": "github_core:github_core",
         "enabled": true,
+        "secrets": ["github_core:collector"],
         "timeout_seconds": 180,
         "note": "GitHub repository / Actions data behind the repo landing page."
       },
