@@ -34,7 +34,7 @@ jobs:
       matrix:
         image: [tap-web, tap-db]
     steps:
-      - uses: actions/checkout@v5   # for .trivyignore
+      - uses: actions/checkout@v7   # for .trivyignore
       - name: Scan published image
         uses: aquasecurity/trivy-action@v0.36.0
         with:
