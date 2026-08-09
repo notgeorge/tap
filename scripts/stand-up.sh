@@ -222,7 +222,9 @@ web_container_dead_check() {
   esac
 }
 
-WAIT_TIMEOUT=300
+# 10 minutes — an adopter first boot is ALWAYS cold-cache, so it always pays the
+# cryptography --no-binary source compile (~4m30s alone; whole entrypoint ~6-7 min).
+WAIT_TIMEOUT=600
 WAIT_START=$(date +%s)
 while true; do
   abort_check
