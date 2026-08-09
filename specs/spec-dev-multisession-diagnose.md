@@ -129,7 +129,7 @@ Diagnosis (above) produces a **verdict**; repair acts on it. A `/fix-spawn-sessi
 
 The intent is to recover the *common, safe, idempotent* cases without a full despawn/respawn: e.g. re-provision a missing cache table and re-run the health gate; re-run `migrate` after a transient DB hiccup; re-run `manage.py boot` population after a fixed profile/GRIFT; rebuild with `--purge-image` on a poisoned image cache; free a colliding port. It is **bounded** — it only applies recoveries that are safe and idempotent, and **escalates rather than guesses** on ambiguous state (a code-level import leak, a real migration conflict, unpushed work) where the right action is a human fix or a clean respawn, never a blind retry loop. It never destroys uncommitted work (it honours the same teardown hard-stop as despawn).
 
-Sequenced **behind** the fast-fail ABORT signal (`req-boot-abort-signal`, spec-tap-boot-v0.md): repair is far more tractable once a fatal standup failure is a clean, categorized signal rather than a 300s-timeout black box.
+Sequenced **behind** the fast-fail ABORT signal (`req-boot-abort-signal`, spec-tap-boot-v0.md): repair is far more tractable once a fatal standup failure is a clean, categorized signal rather than a readiness-timeout black box.
 
 #### Acceptance Criteria (Backlog — shape, not yet built)
 
@@ -145,4 +145,4 @@ Sequenced **behind** the fast-fail ABORT signal (`req-boot-abort-signal`, spec-t
 ## Out Of Scope
 
 - **Automated remediation in *this* procedure.** Diagnosis diagnoses and recommends; it does not auto-apply fixes. Proactive repair is a **separate** skill, tracked as `req-dev-multisession-fix-spawn` (Backlog, above), strictly downstream of the verdict.
-- **Live-crash fast-fail in the spawn.** That a fatal standup failure currently surfaces via the spawn's 300s readiness timeout rather than an immediate abort is tracked as `req-boot-abort-signal` (spec-tap-boot-v0.md — the standard `TAP-ABORT:` sentinel the spawn tails and fast-fails on). Not this spec's concern — diagnosis reads whatever the spawn produced.
+- **Live-crash fast-fail in the spawn.** That a fatal standup failure currently surfaces via the spawn's readiness timeout (`WAIT_TIMEOUT`) rather than an immediate abort is tracked as `req-boot-abort-signal` (spec-tap-boot-v0.md — the standard `TAP-ABORT:` sentinel the spawn tails and fast-fails on). Not this spec's concern — diagnosis reads whatever the spawn produced.

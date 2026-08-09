@@ -770,7 +770,10 @@ web_container_dead_check() {
 
 bold "Step 5: Waiting for entrypoint (uv sync + migrate + runserver)"
 info "First-time uv sync downloads ~50MB of wheels — typically 1-3 minutes."
-WAIT_TIMEOUT=300   # 5 minutes — the backstop; a fatal standup fast-fails long before it.
+WAIT_TIMEOUT=600   # 10 minutes — the backstop; a fatal standup fast-fails long before it.
+                   # Sized for the COLD-cache first boot: the FIPS-mandated cryptography
+                   # --no-binary source build alone runs ~4m30s (observed 2026-08-09), whole
+                   # entrypoint ~6-7 min. Any cryptography/psycopg bump re-pays that compile.
 WAIT_START=$(date +%s)
 while true; do
   # Fatal-standup fast-paths (before the readiness probe, which would otherwise
