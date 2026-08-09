@@ -116,7 +116,9 @@ jobs:
           context: .
           load: true
           tags: tap-web:ci
-          cache-from: type=gha
+          cache-from: |
+            type=gha
+            type=registry,ref=ghcr.io/unified-systems-com/tap-web:buildcache-amd64
           cache-to: type=gha,mode=max
 
       # Entrypoint chain: uv sync --all-packages -> pre-boot (installs the test_all
@@ -210,7 +212,9 @@ jobs:
           context: .
           load: true
           tags: tap-web:ci
-          cache-from: type=gha
+          cache-from: |
+            type=gha
+            type=registry,ref=ghcr.io/unified-systems-com/tap-web:buildcache-amd64
           cache-to: type=gha,mode=max
       - name: Boot the test_all union
         env:

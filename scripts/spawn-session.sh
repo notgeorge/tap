@@ -788,16 +788,21 @@ bold "Step 3.6: Wiring project-internal skills into .claude/skills/"
 #       (not bare docker compose) so .env.local is layered correctly and the
 #       per-session port band actually takes effect.
 # ============================================================================
-bold "Step 4: Building and starting Docker stack"
+bold "Step 4: Pulling images and starting Docker stack"
+info "Pull-first: the published tap-web/tap-db images (GHCR, anonymous) carry the toolchain"
+info "and a pre-built venv seed, so no local compile. Falls back to a local build when the"
+info "pull fails (offline, or the image is not yet published)."
 if [[ "$FIRST_RUN" -eq 1 ]]; then
-  info "First spawn on this host: the build compiles the FIPS-validated OpenSSL provider"
-  info "from source — expect 10-20 minutes, once. Every later spawn reuses the layer"
-  info "cache and takes 2-5 minutes. (TAP_FIPS=0 skips the FIPS build — an explicit"
-  info "dev-only escape hatch, not the published posture.)"
-else
-  info "First build pulls postgres:16-alpine and compiles the web image — typically 2-5 minutes."
+  info "First spawn on this host: the image download is the long-ish step (one-time; later"
+  info "spawns reuse it). The offline/unpublished fallback builds locally instead — that"
+  info "slow path compiles FIPS OpenSSL + the Python closure and can take 10-20 minutes."
 fi
-run_quiet "Building images + starting containers" scripts/dc up -d --build
+PULL_OK=1
+run_quiet "Pulling published images (GHCR)" scripts/dc pull web db || PULL_OK=0
+if [[ "$PULL_OK" -eq 0 ]]; then
+  warn "Pull failed — compose will build locally (the slow path)."
+fi
+run_quiet "Starting containers" scripts/dc up -d
 
 # ============================================================================
 # Step 5: Wait for the entrypoint to finish initial setup

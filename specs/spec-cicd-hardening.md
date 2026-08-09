@@ -101,10 +101,10 @@ cheap-edge doctrine; the rest are the larger deploy-half build, rightly deferred
 | req-cicd-base-image-sourcing | [Source Base Images Off Anonymous Docker Hub](#source-base-images-off-anonymous-docker-hub) | Implemented | Container base images resolve from AWS's credential-free public ECR mirror, not docker.io — removes the anonymous-pull `429` single point of failure on the promote gate. First cheap edge landed. |
 | req-cicd-base-image-lifecycle | [Self-Host Base-Image Currency + Minimization](#self-host-base-image-currency--minimization) | Proposed | **Wolfi is the standard base** (`-3`, decided 2026-07-09; spike: OS-CVEs 311→0), carrying exactly TAP's runtime binaries, plus a self-hosted auto-patch loop + CVE gate instead of a managed hardened catalog. **FIPS is on by default** (`-6`), via the self-built OpenSSL 3.0 #4282 provider (`-5`, spike-proven end-to-end 2026-07-09), selected by `ARG TAP_FIPS=1` and asserted fail-closed at boot. Alternatives (DHI, UBI-micro) are **parked, not eliminated**. Docs: [doc-hardened-base-image-landscape](../docs/misc/doc-hardened-base-image-landscape.md) (landscape) · [doc-fips-assessment-record](../docs/misc/doc-fips-assessment-record.md) (FIPS decisions, lessons, verification suite). |
 | req-cicd-branch-protection | [Enforce The Gate Server-Side](#enforce-the-gate-server-side) | Proposed | Protect `main` at the forge with a bypass for the promote identity; the gate stops being bypassable. Closes the biggest hole. |
-| req-cicd-security-scanning | [Shift-Left Security Scanning](#shift-left-security-scanning) | Proposed | SAST + dependency audit + secret scan + container scan as a standing CI layer. The table-stakes layer TAP conspicuously lacks. |
+| req-cicd-security-scanning | [Shift-Left Security Scanning](#shift-left-security-scanning) | Partial | SAST + dependency audit + secret scan + container scan as a standing CI layer. Secret scan (gitleaks), dep audit (Dependabot alerts) and SAST (CodeQL) live; container scan open. |
 | req-cicd-dep-automation | [Automate Dependency Updates](#automate-dependency-updates) | Proposed | Dependabot/Renovate on `uv.lock` — pinned deps rot without it. |
-| req-cicd-build-once-artifact | [Build Once, Promote The Artifact](#build-once-promote-the-artifact) | Proposed | Build one immutable, versioned image → registry (ECR); promote the same bytes. Foundation for the deploy half. |
-| req-cicd-supply-chain-provenance | [Sign Artifacts, Emit SBOM](#sign-artifacts-emit-sbom) | Proposed | Sigstore/cosign signing + CycloneDX/SPDX SBOM; connect the boot-record BOM to standard formats. |
+| req-cicd-build-once-artifact | [Build Once, Promote The Artifact](#build-once-promote-the-artifact) | Partial | Immutable multi-arch images published to GHCR on main push (publish-images.yml); dev + CI pull instead of rebuilding. Deploy-side promote-the-same-bytes open (no environments yet). |
+| req-cicd-supply-chain-provenance | [Sign Artifacts, Emit SBOM](#sign-artifacts-emit-sbom) | Partial | SLSA provenance attestations live on the published images; cosign signing, plugin-wheel attestations + CycloneDX/SPDX SBOM open. |
 | req-cicd-continuous-delivery | [Continuous Delivery](#continuous-delivery) | Proposed | Environments (staging/prod), progressive delivery, and a rollback path. The unbuilt deploy half. |
 | req-cicd-pipeline-observability | [Measure The Pipeline](#measure-the-pipeline) | Proposed | The four DORA metrics + systematic flaky-test tracking. |
 
@@ -200,7 +200,7 @@ which cuts against `req-cicd-base-image-sourcing`'s anonymous-pull property; the
 
 | RID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-cicd-base-image-lifecycle-1 | Digest-pinned auto-patch loop | Proposed | Base images are digest-pinned; **Renovate** (self-hosted GHA cron, not the Mend app — keeps repo-write in-house) opens digest + `uv.lock` bump PRs and **auto-merges on a green `test_all` lane**. | Composes `req-cicd-dep-automation`. **Depends on `req-cicd-branch-protection`**: bot auto-merge to `main` must be CI-gated server-side, else it bypasses the promote gate. Dependabot can't update `uv.lock` or track `cgr.dev` → Renovate. Keep Dependabot *Alerts* on for the native advisory feed. |
+| req-cicd-base-image-lifecycle-1 | Digest-pinned auto-patch loop | Partial | Base images are digest-pinned (2026-08-09 — both Dockerfiles, wolfi-base + uv, manual bump procedure documented at the pins); **Renovate** (self-hosted GHA cron, not the Mend app — keeps repo-write in-house) opens digest + `uv.lock` bump PRs and **auto-merges on a green `test_all` lane**. | Composes `req-cicd-dep-automation`. **Depends on `req-cicd-branch-protection`**: bot auto-merge to `main` must be CI-gated server-side, else it bypasses the promote gate. Dependabot can't update `uv.lock` or track `cgr.dev` → Renovate. Keep Dependabot *Alerts* on for the native advisory feed. |
 | req-cicd-base-image-lifecycle-2 | Image CVE gate | Proposed | A Trivy (or Grype) High/Critical OS+dep CVE gate runs in CI on the built image; optional Copacetic in-place patch for the upstream-lag window. | Realizes `req-cicd-security-scanning-4`. The spike's 311→0 is this gate's baseline signal. |
 | req-cicd-base-image-lifecycle-3 | Curated-minimal Wolfi base — **the standard base** | Proposed · **decided 2026-07-09** | The web **and** DB image bases become a curated-minimal **Wolfi** base carrying exactly TAP's runtime binaries (`python-3.14 git bash coreutils sed grep postgresql-client` + copied `uv`). **Wolfi is now the standard base; alternatives are parked** (see the corrected criterion above). Start: `wolfi-base` + `apk` (digest-pinned via `-1`). Graduate: self-built **apko/melange** image (reproducible, our registry, self-generated SBOM) — this is also the vendor-independence hedge, since the Wolfi feed is Apache-2.0 and free of any subscription. | `git`/`bash`/`curl` are **named, itemized attack-surface line-items**, present because the runtime-plugin-install architecture requires them and kept current by `-1`. `sed`/`grep` **must be present** — git's porcelain in `/usr/libexec/git-core` are shell scripts, and `uv pip install git+https://…` (which runs `git submodule update`) dies with `sed: command not found` without them (spike-found). **`wolfi-base` already satisfies this via busybox**, verified by a real from-git install; no extra `apk add` is needed. The requirement bites only on a *true* distroless runtime (`chainguard/python:latest`, which has no shell at all). The base need not ship a package manager at runtime (`spikes/distroless/`) — Wolfi is chosen on Python-3.14 currency, in-image FIPS, and CVE floor, not on `apk`. |
 | req-cicd-base-image-lifecycle-4 | Minimal-binary off-ramps | Proposed | Named levers to shrink the binary set when cost/benefit flips — **not now** (`git` = 0 CVEs on Wolfi today). (A) Watch **uv #12324** (embedded git via gitoxide): if it ships, delete `git` for free. (B) An `archive`-tarball plugin source type (`https://forge/.../archive/<sha>.tar.gz`, fetched by uv's own HTTPS, sha256-pinned like the boot record) drops **both `git` and `curl`** — take it when we adopt the bake-once variant. | End-state minimum runtime = `python + uv + app` (+ psql for snapshot, a POSIX-sh/Python entrypoint instead of bash). Off-ramps are byproducts of the bake-once move, not standalone chores. |
@@ -254,17 +254,17 @@ canonical branch-protection to-do.
 
 RID: `req-cicd-security-scanning`
 
-Confirmed: **zero** SAST / SCA / secret-scan / container-scan / SBOM tooling in the repo.
-For a project whose [CLAUDE.md](../CLAUDE.md) makes security a standing filter, this is the
-loud omission — the cheap, standard layer everyone runs. Each sub-requirement is roughly a
-half-day to wire and directly serves the [security posture](spec-security-posture.md).
+Three of the four sub-layers are now live (the 2026-08 wave: gitleaks gate, Dependabot
+alerts, CodeQL default setup); the container-image scan is the open item. Each remaining
+piece is roughly a half-day to wire and directly serves the
+[security posture](spec-security-posture.md).
 
 | RID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-cicd-security-scanning-1 | Secret scanning | Proposed | gitleaks/trufflehog in CI (and ideally pre-commit) — catch a committed credential before it is public. | Cheapest, highest-value. Complements the "no secrets in repo" discipline. |
-| req-cicd-security-scanning-2 | Dependency / vuln audit | Proposed | `pip-audit` (and/or GitHub Dependabot alerts) over `uv.lock`. | Pairs with `req-cicd-dep-automation`. |
-| req-cicd-security-scanning-3 | SAST | Proposed | CodeQL (free for this repo) or Semgrep/Bandit on the Python surface. | Shift-left static analysis. |
-| req-cicd-security-scanning-4 | Container image scan | Proposed | Trivy/Grype on the built web image. | Pairs with `req-cicd-build-once-artifact` once images are published. |
+| req-cicd-security-scanning-1 | Secret scanning | Implemented | gitleaks (pinned 8.30.1) runs as the `secret-scan` job gating every product-lines run; stdlib pre-commit staged scan + in-repo credential-pattern guards complement it. | Tree-scan (`gitleaks dir`) only — full-history scanning is GitHub secret scanning's job (free on public repos, org toggle). |
+| req-cicd-security-scanning-2 | Dependency / vuln audit | Implemented | GitHub Dependabot **alerts** enabled 2026-08-08 (all 25 initial alerts cleared same day). | Alerts only — update PRs are Renovate's job (`req-cicd-dep-automation`, Dependabot can't do `uv.lock`). |
+| req-cicd-security-scanning-3 | SAST | Implemented | CodeQL via GitHub default setup, enabled 2026-08-08; initial 15 alerts triaged (fixes + dismissed FPs). | Default setup is config-invisible in-repo; converting to advanced setup (reviewed `codeql.yml`) is a named follow-up. |
+| req-cicd-security-scanning-4 | Container image scan | Proposed | Trivy/Grype on the built web image. | Now unblocked: `req-cicd-build-once-artifact` publishes stable `ghcr.io/unified-systems-com/tap-web`/`tap-db` artifacts to scan. |
 
 ### Automate Dependency Updates
 
@@ -280,20 +280,36 @@ required checks.
 
 RID: `req-cicd-build-once-artifact`
 
-Confirmed: CI builds an image and throws it away; every environment rebuilds. The
-professional pattern is **build one immutable, versioned artifact → push to a registry
-(ECR) → promote that exact bytes through environments** (build-once-deploy-many). This is
-the foundation the whole deploy half sits on, and the natural home for the parked
-template-bake idea (bake the migrated DB into the image). Requires image versioning/tagging
-and a registry; ties to eventual product release versioning (semver for the app, not just
-plugins).
+**Implemented for the dev/CI artifact (2026-08-09).** `.github/workflows/publish-images.yml`
+builds `tap-web` + `tap-db` (TAP_FIPS=1, multi-arch amd64+arm64 on native runners) on every
+main push and publishes to **GHCR** as `latest` + `sha-<short>`, with SLSA provenance
+attestations and per-arch `buildcache-*` refs. Consumers: spawn/stand-up pull instead of
+building (compose `image:` fields, anonymous pulls); CI lanes use the registry cache as
+eviction fallback. The web image carries a pre-built venv seed (Dockerfile `deps-warm`
+stage) so first boot skips the cryptography/psycopg source compiles.
+
+**Registry decision: GHCR, not ECR** (this section previously said ECR): the repos went
+public 2026-08, making GHCR free with unlimited anonymous pulls and `GITHUB_TOKEN`-only
+push — no new credential, no pull-rate problem (the Docker Hub 429 lesson). ECR Public
+remains the base-image availability mirror (`req-cicd-base-image-sourcing`).
+
+Still open under this RID: promoting the *same bytes* through deploy environments
+(build-once-deploy-many is moot until there are environments), the parked template-bake
+idea (bake the migrated DB into the image), and product release versioning (semver for the
+app, not just plugins).
 
 ### Sign Artifacts, Emit SBOM
 
 RID: `req-cicd-supply-chain-provenance`
 
-No artifact signing (Sigstore/cosign — notable given a `sigstore_core` plugin exists), no
-SLSA provenance, no SBOM (CycloneDX/SPDX). TAP's **boot-record-as-BOM** is conceptually
+**First slice implemented (2026-08-09):** the published `tap-web`/`tap-db` images carry
+SLSA Build L2 provenance via `actions/attest-build-provenance` (Sigstore public-good
+instance; verify: `gh attestation verify oci://ghcr.io/unified-systems-com/tap-web:latest
+--owner unified-systems-com`). Still open: plugin-wheel attestations, cosign-style
+signatures, and SBOM emission.
+
+Beyond that slice: no other artifact signing (Sigstore/cosign — notable given a
+`sigstore_core` plugin exists), no SBOM (CycloneDX/SPDX). TAP's **boot-record-as-BOM** is conceptually
 ahead — it is a declarative, verified bill of materials — but it is not yet connected to the
 standard formats and signing the ecosystem consumes. Grafana signing every plugin is the
 nearest-neighbor precedent. Sequenced after `req-cicd-build-once-artifact` (you sign and

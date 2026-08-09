@@ -10,7 +10,10 @@
 # /app/.venv and /root/.cache/uv are named volumes mounted at runtime —
 # anything we install at build time is hidden at runtime. Doing it in the
 # entrypoint means the install lands in the per-project container venv and
-# uv cache volumes, which is what we actually want to use.
+# uv cache volumes, which is what we actually want to use. The image ships a
+# pre-built venv at /opt/venv-seed (Dockerfile deps-warm stage) that this
+# script copies into an empty venv volume first, so the sync is normally a
+# fast no-op verifier rather than a from-source build.
 #
 # Exit immediately if any command failsals
 set -e
@@ -21,6 +24,17 @@ set -e
 # tails the container log for this exact `TAP-ABORT:` prefix and fast-fails the
 # instant it appears, instead of waiting out its readiness timeout.
 emit_abort() { echo "TAP-ABORT: $1: $2" >&2; }
+
+# Seed an EMPTY venv volume from the image's pre-built venv (/opt/venv-seed,
+# Dockerfile deps-warm stage) before syncing. Turns the first-boot sync from a
+# ~5-minute source compile (cryptography --no-binary, psycopg[c]) into a
+# seconds-long verification when the seed matches uv.lock. Only fires on an
+# empty volume — an existing session's venv is never touched — and a stale or
+# absent seed degrades cleanly: the sync below installs whatever is missing.
+if [[ ! -e /app/.venv/bin/python && -d /opt/venv-seed ]]; then
+  echo "==> Seeding venv from image (/opt/venv-seed -> /app/.venv)..."
+  cp -a /opt/venv-seed/. /app/.venv/
+fi
 
 echo "==> Syncing Python dependencies (uv sync --all-packages)..."
 # --all-packages installs every workspace member and its deps into the venv,
