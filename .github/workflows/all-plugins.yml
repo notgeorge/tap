@@ -97,7 +97,7 @@ jobs:
     env:
       COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # All plugin repos are public (2026-08-08) — git-install is anonymous, no PAT.
       # (Replaces the host tap_secrets symlink, a broken link on a runner.)
@@ -110,9 +110,9 @@ jobs:
       # (base image, uv deps, apt) don't rebuild every run. Each shard runs on its own
       # runner and rebuilds from the shared warm cache (~24s); concurrent cache writes
       # to identical layer keys are idempotent, so per-shard build needs no registry.
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       - name: Build web image (GHA layer cache)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           load: true
@@ -199,16 +199,16 @@ jobs:
     env:
       COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       # All plugin repos are public (2026-08-08) — git-install is anonymous, no PAT.
       # (Replaces the host tap_secrets symlink, a broken link on a runner.)
       - name: Provide empty secrets root
         run: |
           rm -f tap_secrets
           mkdir -p tap_secrets
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       - name: Build web image (GHA layer cache)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           load: true
@@ -242,7 +242,7 @@ jobs:
       # runner workspace directly — upload-artifact picks it up with no docker cp.
       - name: Full lane + store durations (unsharded)
         run: docker compose --env-file .env exec -T web sh -c 'cd /app && uv run pytest -n 4 --store-durations --durations-path /app/.test_durations'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: test-durations
           path: .test_durations
