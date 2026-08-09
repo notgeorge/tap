@@ -29,6 +29,7 @@ from tap.logging import abort
 from tap_auth.sync import AuthSyncError
 from tap_boot.orchestrator import BootError, check_profile, run_boot
 from tap_boot.profile import BootProfileError, load_profile
+from tap_boot.record import maybe_boot_record
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,9 @@ class Command(BaseCommand):
             try:
                 profile = load_profile(profile_id)
             except BootProfileError as exc:
+                # Even a run that dies at profile load leaves its record
+                # (req-boot-obs-record-1) — the evidence must exist when things broke.
+                maybe_boot_record(profile_id).finish_aborted("boot", f"profile load failed: {exc}")
                 abort(logger, "boot", f"profile load failed: {exc}")
                 raise CommandError(str(exc)) from exc
         elif not options["allow_empty"]:
@@ -85,10 +89,16 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS("boot --check ok (profile resolves)"))
             return
 
+        # The durable per-run boot record (req-boot-obs-record): run_boot finalizes
+        # it on both the success and abort paths.
+        record = maybe_boot_record(profile.profile_id if profile else None)
         try:
-            run_boot(profile, echo=self.stdout.write)
+            run_boot(profile, echo=self.stdout.write, record=record)
         except (BootError, AuthSyncError) as exc:
-            abort(logger, "boot", str(exc))
+            # The ABORT signal's structured data carries the failing step + its
+            # failing self-test checks (req-boot-obs-abort-detail-2); the rendered
+            # TAP-ABORT console line stays the one-line sentinel.
+            abort(logger, "boot", str(exc), detail=getattr(exc, "detail", None) or None)
             raise CommandError(str(exc)) from exc
 
         self.stdout.write(self.style.SUCCESS("boot complete"))

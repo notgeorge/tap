@@ -7,8 +7,13 @@
 # it does, read the linked requirement — not a parallel description elsewhere
 # (those would just drift).
 #
+# THE single entry point: first boot on a fresh machine and the Nth concurrent
+# session are the same command (scripts/stand-up.sh retired 2026-08-09 — its host
+# checks are Step 0.1 below; its conversational driver is the get-started skill).
+#
 # Top-level requirements implemented here:
 #   req-dev-multisession-spawn-script      — overall flow, registry validation, failure trap
+#   req-dev-multisession-host-readiness    — Step 0.1 toolchain checks + layout seatbelt
 #   req-dev-multisession-admin-bootstrap   — Django admin user creation + .dev-credentials
 #
 # Top-level requirements depended on:
@@ -61,6 +66,59 @@ with_timeout() {
   return 124
 }
 
+# --- Quiet-capture presentation (req-boot-obs-spawn-presentation) -----------
+# The noisy steps (docker build/up, manage.py boot, health --json) append their
+# full output to $SPAWN_LOG and the terminal shows one status line per step;
+# TAP_SPAWN_VERBOSE=1 restores full streaming. $SPAWN_LOG is initialized once
+# the worktree exists (Step 2) — the steps before it are one-line-per-action
+# already. Spec: specs/spec-tap-boot-observability.md.
+SPAWN_LOG=""
+
+# run_quiet <label> <cmd...> — run a long, noisy command with its output
+# captured to $SPAWN_LOG, showing `<label> ... <elapsed>s` while it runs and
+# `ok (Ns)` / `FAILED (Ns)` + the captured tail when it finishes. Falls back to
+# plain streaming under TAP_SPAWN_VERBOSE=1 or before $SPAWN_LOG exists.
+run_quiet() {
+  local label="$1"; shift
+  if [[ -n "${TAP_SPAWN_VERBOSE:-}" || -z "$SPAWN_LOG" ]]; then
+    info "$label ..."
+    "$@"
+    return
+  fi
+  printf '\n===> %s\n' "$label" >>"$SPAWN_LOG"
+  local t0=$SECONDS rc=0 pid
+  "$@" >>"$SPAWN_LOG" 2>&1 &
+  pid=$!
+  while kill -0 "$pid" 2>/dev/null; do
+    printf '\r    %s ... %ds ' "$label" "$(( SECONDS - t0 ))"
+    sleep 2
+  done
+  wait "$pid" || rc=$?
+  if (( rc == 0 )); then
+    printf '\r    %s ... \033[32mok\033[0m (%ds)    \n' "$label" "$(( SECONDS - t0 ))"
+  else
+    printf '\r    %s ... \033[31mFAILED\033[0m (%ds)\n' "$label" "$(( SECONDS - t0 ))"
+    printf '    last lines of the captured output (%s):\n' "$SPAWN_LOG"
+    tail -n 20 "$SPAWN_LOG" | sed 's/^/      | /'
+  fi
+  return $rc
+}
+
+# boot_status_filter — pass through only the bootloader's own section/step
+# status lines (phases, [seed-plugin]/[fire-collector] steps, OK/FAILED,
+# TAP-ABORT) so the operator watches population progress without the
+# migration/warning firehose. Pure bash so every line renders as it arrives.
+boot_status_filter() {
+  local line
+  while IFS= read -r line; do
+    case "$line" in
+      "Boot starting"*|"Boot complete"*|"boot complete"*|"Auth phase"*|"Grid-infra phase"*|"Population plan"*|"Population phase"*|"Population preflight"*|"  ["*|"    OK "*|"    FAILED "*|"      check "*|*TAP-ABORT*)
+        printf '    %s\n' "$line" ;;
+    esac
+  done
+  return 0
+}
+
 # Trap to give the user a one-line recovery command if anything goes sideways.
 SESSION_NAME=""
 on_failure() {
@@ -73,6 +131,10 @@ on_failure() {
     warn "Add --purge-image if you suspect a poisoned Docker image cache — that"
     warn "forces a no-cache rebuild on the next spawn. Runtime Python state is"
     warn "owned by per-project compose volumes and despawn removes it."
+    if [[ -n "$SPAWN_LOG" && -s "$SPAWN_LOG" ]]; then
+      warn ""
+      warn "Full standup transcript: $SPAWN_LOG"
+    fi
   fi
 }
 trap on_failure EXIT
@@ -280,6 +342,73 @@ fi
 cd "$REPO"
 
 # ============================================================================
+# Step 0.1: Host readiness (req-dev-multisession-host-readiness)
+#
+# The first-run gate and the every-run seatbelt, absorbed from the retired
+# scripts/stand-up.sh: spawn is the single entry point for a fresh clone AND
+# the Nth session, so the host checks that used to live in a separate script
+# run here — cheaply, idempotently, on every spawn. Each failure names its
+# platform-specific fix; nothing in this step mutates the host.
+# ============================================================================
+bold "Step 0.1: Host readiness"
+
+command -v git >/dev/null 2>&1 || fail "git not found on PATH."
+command -v python3 >/dev/null 2>&1 || fail "python3 not found on PATH (spawn uses it to mint ids and passwords)."
+command -v docker >/dev/null 2>&1 || fail "docker not found on PATH.
+    macOS: install Docker Desktop. Linux: install Docker Engine + the Compose v2 plugin.
+    See 'Host prerequisites' in docs/misc/doc-dev-multisession-onboarding.md."
+docker compose version >/dev/null 2>&1 || fail "'docker compose' (the v2 plugin) is not available.
+    The retired v1 'docker-compose' binary is not supported. Linux: apt install docker-compose-plugin."
+# The port-band probe (Step 1) reads nothing when lsof is absent and would
+# silently allocate a busy band — so a missing lsof fails HERE, loudly.
+command -v lsof >/dev/null 2>&1 || fail "lsof not found — the port-band probe depends on it. Install it (e.g. apt install lsof) and re-run."
+
+if ! with_timeout 8 docker info >/dev/null 2>&1; then
+  if with_timeout 8 sh -c 'docker info 2>&1' | grep -qi "permission denied"; then
+    fail "Docker daemon refused the connection: permission denied.
+    Linux: add yourself to the docker group (sudo usermod -aG docker \$USER), then log out and back in."
+  fi
+  fail "Docker daemon is not responding.
+    Start Docker Desktop (macOS) or the engine (Linux: systemctl start docker) and re-run."
+fi
+info "Toolchain OK: docker + compose v2 + lsof + python3."
+
+# Layout seatbelt: the primary clone lives at ~/tap-sessions/main — the layout
+# the registry, promote, and despawn lifecycles standardize on. Derived from git
+# itself (the first `git worktree list` entry is the primary working copy, no
+# matter which session worktree invoked us), compared physically so symlinked
+# homes don't false-positive. Skipped when WORKTREE_BASE is overridden — a
+# throwaway consumer (gate-lean) is not part of the durable layout.
+CANONICAL_MAIN="$HOME/tap-sessions/main"
+if [[ -z "${WORKTREE_BASE:-}" ]]; then
+  PRIMARY_CLONE="$(git -C "$REPO" worktree list --porcelain | head -n 1 | cut -d' ' -f2-)"
+  PRIMARY_PHYS="$(cd "$PRIMARY_CLONE" 2>/dev/null && pwd -P || echo "$PRIMARY_CLONE")"
+  CANONICAL_PHYS="$(cd "$CANONICAL_MAIN" 2>/dev/null && pwd -P || echo "$CANONICAL_MAIN")"
+  if [[ "$PRIMARY_PHYS" != "$CANONICAL_PHYS" ]]; then
+    fail "The primary clone lives at $PRIMARY_CLONE — the multi-session layout standardizes on $CANONICAL_MAIN.
+    Fresh clone (nothing to keep):  git clone \$(git -C '$PRIMARY_CLONE' remote get-url origin) $CANONICAL_MAIN
+                                    (then delete $PRIMARY_CLONE)
+    Existing work in this clone:    mkdir -p \$HOME/tap-sessions && mv '$PRIMARY_CLONE' $CANONICAL_MAIN
+                                    (git does not care where the repo directory lives; mv preserves everything)
+    Then: cd $CANONICAL_MAIN && scripts/spawn-session.sh"
+  fi
+  info "Layout OK: primary clone at $CANONICAL_MAIN."
+fi
+
+# First-spawn detection (no registry yet = fresh host): only changes messaging —
+# the one-time published-image download is the long-ish step; only the offline/
+# unpublished local-build fallback compiles FIPS OpenSSL from source.
+FIRST_RUN=0
+[[ -f "$HOME/tap-sessions/.registry" ]] || FIRST_RUN=1
+
+# Soft checks: warn, never block. Identity resolves in the repo's context (repo-local
+# config counts — session worktrees share it), not the invoking shell's cwd.
+if ! git -C "$REPO" config user.email >/dev/null 2>&1 || ! git -C "$REPO" config user.name >/dev/null 2>&1; then
+  warn "git identity is unset — commits from sessions will carry an auto-derived name/email."
+  warn "  Fix: git config --global user.name 'Your Name' && git config --global user.email you@example.com"
+fi
+
+# ============================================================================
 # Step 0: macOS Keychain admin password (one-time per Mac)
 #
 # Spec: req-dev-multisession-admin-bootstrap (Password resolution order, source #3).
@@ -378,8 +507,7 @@ fi
 # The probe needs lsof, and a missing lsof must fail LOUDLY: with it absent the
 # pipeline below quietly returns "not in use" for every port, the guard reads
 # nothing and passes, and spawn allocates a band something else is listening on.
-# Ubiquitous on macOS; minimal Linux installs may lack it (apt install lsof).
-command -v lsof >/dev/null 2>&1 || fail "lsof not found — the port-band probe depends on it. Install it (e.g. apt install lsof) and re-run."
+# Enforced up front in the Step 0.1 host-readiness battery.
 port_in_use() {
   lsof -iTCP:"$1" -sTCP:LISTEN -P -n 2>/dev/null | grep -q LISTEN
 }
@@ -500,6 +628,15 @@ BASE_REF="${TAP_SPAWN_BASE_REF:-main}"
 git worktree add "$WORKTREE" -b "session/$SESSION_NAME" "$BASE_REF"
 cd "$WORKTREE"
 info "Created. Now on branch session/$SESSION_NAME (branched from $BASE_REF)."
+
+# Per-spawn captured transcript (req-boot-obs-spawn-presentation): from here on
+# the noisy steps append their full output to this file; the terminal shows
+# per-step status lines. logs/ is the visible runtime-log home (gitignored);
+# the file is overwritten by each spawn of this worktree.
+mkdir -p "$WORKTREE/logs"
+SPAWN_LOG="$WORKTREE/logs/spawn.log"
+: > "$SPAWN_LOG"
+info "Capturing verbose standup output to $SPAWN_LOG"
 
 # Point git at the tracked .githooks/ (post-merge/checkout/rewrite clear a stale
 # .mypy_cache — see .githooks/_clear_mypy_cache.sh). Idempotent: this writes the
@@ -655,8 +792,17 @@ bold "Step 4: Pulling images and starting Docker stack"
 info "Pull-first: the published tap-web/tap-db images (GHCR, anonymous) carry the toolchain"
 info "and a pre-compiled wheel cache, so no local compile. Falls back to a local build when the"
 info "pull fails (offline, or the image is not yet published)."
-scripts/dc pull web db || info "Pull failed — compose will build locally (slow path)."
-scripts/dc up -d
+if [[ "$FIRST_RUN" -eq 1 ]]; then
+  info "First spawn on this host: the image download is the long-ish step (one-time; later"
+  info "spawns reuse it). The offline/unpublished fallback builds locally instead — that"
+  info "slow path compiles FIPS OpenSSL + the Python closure and can take 10-20 minutes."
+fi
+PULL_OK=1
+run_quiet "Pulling published images (GHCR)" scripts/dc pull web db || PULL_OK=0
+if [[ "$PULL_OK" -eq 0 ]]; then
+  warn "Pull failed — compose will build locally (the slow path)."
+fi
+run_quiet "Starting containers" scripts/dc up -d
 
 # ============================================================================
 # Step 5: Wait for the entrypoint to finish initial setup
@@ -802,13 +948,31 @@ info "Booting with profile '$BOOT_PROFILE_EFFECTIVE'."
 # failure (req-boot-abort-signal). Guard the exec so that surfaces as a clean
 # fast-fail with the reason + diagnosis pointer, rather than a bare `set -e` death
 # into the generic recovery trap.
-if ! scripts/dc exec \
-  -e DJANGO_SUPERUSER_USERNAME=admin \
-  -e DJANGO_SUPERUSER_PASSWORD="$ADMIN_PASSWORD" \
-  -e DJANGO_SUPERUSER_EMAIL="$ADMIN_EMAIL" \
-  web uv run python manage.py boot --profile "$BOOT_PROFILE_EFFECTIVE"; then
+#
+# Presentation (req-boot-obs-spawn-presentation): the full boot output is
+# captured to $SPAWN_LOG; the terminal streams only boot's own section/step
+# status lines (phases, [seed-plugin]/[fire-collector] OK/FAILED) so failures —
+# including the load-bearing `FAILED —` line and TAP-ABORT — stay visible live.
+BOOT_CMD=(scripts/dc exec -T
+  -e DJANGO_SUPERUSER_USERNAME=admin
+  -e DJANGO_SUPERUSER_PASSWORD="$ADMIN_PASSWORD"
+  -e DJANGO_SUPERUSER_EMAIL="$ADMIN_EMAIL"
+  web uv run python manage.py boot --profile "$BOOT_PROFILE_EFFECTIVE")
+BOOT_RC=0
+if [[ -n "${TAP_SPAWN_VERBOSE:-}" ]]; then
+  "${BOOT_CMD[@]}" || BOOT_RC=$?
+else
+  printf '\n===> manage.py boot --profile %s\n' "$BOOT_PROFILE_EFFECTIVE" >>"$SPAWN_LOG"
+  # pipefail: the pipeline's status is boot's own exit code (tee and the filter
+  # both succeed), captured without tripping set -e.
+  "${BOOT_CMD[@]}" 2>&1 | tee -a "$SPAWN_LOG" | boot_status_filter || BOOT_RC=$?
+fi
+if (( BOOT_RC != 0 )); then
   abort_check   # surface the specific TAP-ABORT: boot reason if one was emitted
-  fail "manage.py boot failed (profile '$BOOT_PROFILE_EFFECTIVE') — see the output above, or scripts/dc logs web (in $WORKTREE). Diagnose: the /diagnose-failed-session-spawn skill."
+  fail "manage.py boot failed (profile '$BOOT_PROFILE_EFFECTIVE').
+    Boot record:  $WORKTREE/logs/boot/latest.boot-record.json (structured outcome + failing checks)
+    Transcript:   $SPAWN_LOG (also: scripts/dc logs web, in $WORKTREE)
+    Diagnose: the /diagnose-failed-session-spawn skill."
 fi
 
 info "Instance booted via manage.py boot. Credentials saved to $WORKTREE/.dev-credentials (gitignored)."
@@ -898,9 +1062,17 @@ esac
 # specs/spec-tap-health-v0.md and docs/aar/2026-06-26-tap-cache-latent-provisioning.md.
 # ============================================================================
 bold "Step 6.5: Gating on instance health (manage.py health)"
-if scripts/dc exec -T web uv run python manage.py health --json; then
+# The probe JSON is captured to $SPAWN_LOG either way; it is printed to the
+# terminal only on failure (where it is the evidence naming the broken probe)
+# or under TAP_SPAWN_VERBOSE=1.
+HEALTH_RC=0
+HEALTH_JSON="$(scripts/dc exec -T web uv run python manage.py health --json 2>>"$SPAWN_LOG")" || HEALTH_RC=$?
+printf '\n===> manage.py health --json\n%s\n' "$HEALTH_JSON" >>"$SPAWN_LOG"
+if (( HEALTH_RC == 0 )); then
+  if [[ -n "${TAP_SPAWN_VERBOSE:-}" ]]; then printf '%s\n' "$HEALTH_JSON"; fi
   info "Instance is healthy (db + cache + queue + secrets probes passed)."
 else
+  printf '%s\n' "$HEALTH_JSON"
   fail "Instance booted but health is UNHEALTHY — a critical backend (db/cache/secrets) is broken.
     The report JSON above names the failing probe (status + code). Inspect logs:
       scripts/dc logs web
@@ -942,6 +1114,9 @@ info "  Username:  admin"
 info "  Password:  (saved to .dev-credentials — never printed to stdout)"
 info "  File:      $WORKTREE/.dev-credentials"
 info "  Read with: cat '$WORKTREE/.dev-credentials'"
+echo
+info "Standup transcript"
+info "  Captured:  $WORKTREE/logs/spawn.log (full docker/boot/health output; TAP_SPAWN_VERBOSE=1 streams instead)"
 echo
 info "Secrets mount (tap-cares runtime secrets)"
 if [[ -L "$WORKTREE/tap_secrets" ]]; then

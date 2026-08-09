@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TAP boot record",
+  "description": "One manage.py boot run's durable, machine-legible outcome record (req-boot-obs-record, specs/spec-tap-boot-observability.md). Written incrementally under logs/boot/ — a per-run file plus a stable latest.boot-record.json pointer — so an aborted or killed boot still leaves the record through its last completed boundary. Named consumers: the /diagnose-failed-session-spawn skill, the spawn presenter, and integrated AI assistants (spec-ai-integration). The record carries no secret values (req-boot-obs-record-5).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["record_version", "run_id", "grid_id", "profile", "started_at", "finished_at", "outcome", "abort", "variables", "phases", "steps"],
+  "properties": {
+    "record_version": {
+      "description": "Schema version of this record document; bumped on breaking shape changes.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "run_id": {
+      "description": "UUIDv7 minted for this boot run; also the per-run filename stem (<run_id>.boot-record.json).",
+      "type": "string",
+      "minLength": 36
+    },
+    "grid_id": {
+      "description": "The instance's TAP_GRID_ID (empty string when unset), tying the record to the grid it stood up.",
+      "type": "string"
+    },
+    "profile": {
+      "description": "Boot profile id applied by this run (boot/<id>.boot.json), or null for an intentional auth-only --allow-empty standup.",
+      "type": ["string", "null"]
+    },
+    "started_at": {
+      "description": "UTC ISO-8601 instant the run started.",
+      "type": "string"
+    },
+    "finished_at": {
+      "description": "UTC ISO-8601 instant the run reached a terminal outcome; null while running (or if the process was killed before finalizing).",
+      "type": ["string", "null"]
+    },
+    "outcome": {
+      "description": "Terminal outcome of the run. 'running' persists only when the process died before finalizing — treat a stale 'running' as a crash.",
+      "type": "string",
+      "enum": ["running", "ok", "aborted"]
+    },
+    "abort": {
+      "description": "Present only when outcome is 'aborted': the ABORT signal's domain + reason (req-boot-abort-signal) plus optional structured detail — failed_step (the population step label) and failing_checks (the failing collector self-test checks, req-boot-obs-abort-detail).",
+      "type": ["object", "null"],
+      "required": ["domain", "reason"],
+      "properties": {
+        "domain": {
+          "description": "Failing subsystem/stage, matching the ABORT signal's domain (e.g. 'boot').",
+          "type": "string"
+        },
+        "reason": {
+          "description": "Short, secret-free cause line, matching the rendered TAP-ABORT reason.",
+          "type": "string"
+        },
+        "failed_step": {
+          "description": "Label of the population step that failed (e.g. 'fire-collector:github_core:github_core', or 'preflight').",
+          "type": "string"
+        },
+        "failing_checks": {
+          "description": "Failing collector self-test checks (CollectorSelfTestCheck.to_dict() payloads, redaction-safe per req-tap-cares-collector-self-test-13), each tagged with the collector key it came from.",
+          "type": "array",
+          "items": {"type": "object"}
+        }
+      },
+      "additionalProperties": true
+    },
+    "variables": {
+      "description": "Resolved boot variables with provenance — the report surface req-boot-variable-resolution-3 promised. One entry per resolve, in resolution order.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["section", "key", "value", "source"],
+        "properties": {
+          "section": {"description": "Profile section the variable belongs to (e.g. 'population').", "type": "string"},
+          "key": {"description": "Variable key within its section (e.g. 'collector_preflight').", "type": "string"},
+          "value": {"description": "The effective value that won the precedence ladder."},
+          "source": {"description": "Where the winning value came from: flag (reserved) / env / profile / default.", "type": "string", "enum": ["flag", "env", "profile", "default"]}
+        }
+      }
+    },
+    "phases": {
+      "description": "Boot phases in execution order (auth, grid_infra, population), each bracketed with start/finish and outcome.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["phase", "status", "started_at", "finished_at"],
+        "properties": {
+          "phase": {"description": "Phase name (auth | grid_infra | population).", "type": "string"},
+          "status": {"description": "'running' until the phase closes; then 'ok' or 'failed'.", "type": "string", "enum": ["running", "ok", "failed"]},
+          "started_at": {"description": "UTC ISO-8601 phase start.", "type": "string"},
+          "finished_at": {"description": "UTC ISO-8601 phase end; null while running.", "type": ["string", "null"]}
+        }
+      }
+    },
+    "steps": {
+      "description": "Population work in execution order: collector readiness preflights (type 'preflight', req-boot-obs-preflight) then the profile's seed-plugin / fire-collector steps. Each entry carries its outcome, duration, and — for collector entries — the CollectionJob id, summary, and (on failure) failing self-test checks.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "status"],
+        "properties": {
+          "type": {"description": "Entry kind: 'preflight', 'seed-plugin', or 'fire-collector'.", "type": "string", "enum": ["preflight", "seed-plugin", "fire-collector"]},
+          "status": {"description": "Outcome: ok / failed / skipped (skipped = preflight disabled, or a fire step whose preflight failed under non-abort semantics, req-boot-obs-preflight-5).", "type": "string", "enum": ["ok", "failed", "skipped"]},
+          "plugin": {"description": "seed-plugin entries: the plugin slug seeded.", "type": "string"},
+          "key": {"description": "preflight / fire-collector entries: the collector registry key.", "type": "string"},
+          "duration_seconds": {"description": "Wall-clock duration of the entry.", "type": "number"},
+          "job_id": {"description": "Collector entries: the CollectionJob entity id this entry created (its self_test field holds the full readiness payload).", "type": ["string", "null"]},
+          "summary": {"description": "Collector entries: the job's at-a-glance summary line.", "type": ["string", "null"]},
+          "bundles_seeded": {"description": "seed-plugin entries: how many GRIFT bundles imported.", "type": "integer"},
+          "failed_bundles": {"description": "seed-plugin entries: how many GRIFT bundles failed to import.", "type": "integer"},
+          "failing_checks": {"description": "Failed collector entries: the failing self-test checks (redaction-safe payloads).", "type": "array", "items": {"type": "object"}},
+          "note": {"description": "Free-text context (e.g. why an entry was skipped).", "type": "string"}
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}

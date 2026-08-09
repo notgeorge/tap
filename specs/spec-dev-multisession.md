@@ -25,7 +25,8 @@ The Playwright MCP server is stateless per call and remains shared across sessio
 | req-dev-multisession-env-cascade | [Env File Cascade](#env-file-cascade) | Implemented | Phase 1 |
 | req-dev-multisession-port-registry | [Per-Machine Session Registry](#per-machine-session-registry) | Implemented | Phase 1 |
 | req-dev-multisession-browser-disambiguation | [Browser Disambiguation](#browser-disambiguation) | Implemented | Phase 1 |
-| req-dev-multisession-spawn-script | [Spawn Script](#spawn-script) | Implemented | Phase 2; interactive |
+| req-dev-multisession-spawn-script | [Spawn Script](#spawn-script) | Implemented | Phase 2; interactive. The SINGLE entry point: first boot on a fresh machine and the Nth session are the same command (stand-up.sh retired 2026-08-09) |
+| req-dev-multisession-host-readiness | [Host Readiness Battery](#host-readiness-battery) | Implemented | Spawn Step 0.1: toolchain checks + the `~/tap-sessions/main` layout seatbelt, absorbed from the retired stand-up.sh; runs on every spawn |
 | req-dev-multisession-admin-bootstrap | [Admin User Bootstrap](#admin-user-bootstrap) | Implemented | Phase 2, sub-feature of spawn |
 | req-dev-multisession-spawn-import-strict | [Granular Grift Import Failure Mode](#granular-grift-import-failure-mode) | Backlog | Phase 3 polish on top of fail-fast |
 | req-dev-multisession-push-workflow | [Session → Main Push Workflow](#session-→-main-push-workflow) | Implemented | Always-on discipline; codifies how session worktrees advance origin/main and keep the local main worktree current |
@@ -56,8 +57,8 @@ Status: `Implemented`
 - A checked-in `.env` carries the defaults so `docker compose up` works out of the box in the primary checkout.
 - Container-internal ports (`8000`, `5432`) stay fixed; only host-side mappings move.
 - **The container virtualenv lives in a per-project named volume** (`venv:/app/.venv`) mounted over the worktree's `.venv` path. This is a deliberate host/container isolation choice: macOS host tools and the Linux container cannot safely share one Python virtualenv because interpreter paths, scripts, and binary wheels are platform-specific. The container owns `/app/.venv`; host-side tools that need Python should use a separate environment such as `.venv-host` via `UV_PROJECT_ENVIRONMENT=.venv-host`.
-- **uv cache lives in a per-project named volume** (`uv_cache:/root/.cache/uv`). Per-project named volumes mean (a) cache corruption can't leak between sessions and (b) `dc down -v` (already part of despawn) clears it. The published image ships a pre-compiled wheel cache at `/opt/uv-cache-seed` (Dockerfile `deps-warm` stage) that the entrypoint copies into an EMPTY cache volume on first boot — this is distinct from the 2026-04-27 fossilization problem (incrementally-accreted cache state trapped in local Docker build layers and replayed across rebuilds): the seed is rebuilt from scratch by `uv sync --frozen` in a clean stage keyed on `pyproject.toml`+`uv.lock` whenever the lock changes, and an existing volume is never touched.
-- **Dependency sync runs in the entrypoint, not the Dockerfile.** Because both `/app/.venv` and `/root/.cache/uv` are runtime named volumes that hide image content, build-time `uv sync` is wasted work — anything installed lands in image layers nobody can read at runtime. `docker/entrypoint.sh` runs `uv sync` on first container start; subsequent starts are near-instant no-ops because the venv and cache persist in their respective mounts.
+- **uv cache lives in a per-project named volume** (`uv_cache:/root/.cache/uv`). Per-project named volumes mean (a) cache corruption can't leak between sessions and (b) `dc down -v` (already part of despawn) clears it. The published image ships a pre-compiled wheel cache at `/opt/uv-cache-seed` (Dockerfile `deps-warm` stage) that the entrypoint copies into an EMPTY cache volume on first boot — distinct from the 2026-04-27 fossilization problem (incrementally-accreted cache state trapped in local Docker build layers and replayed across rebuilds): the seed is rebuilt from scratch by `uv sync --frozen` in a clean stage keyed on `pyproject.toml`+`uv.lock` whenever the lock changes, and an existing volume is never touched.
+- **Dependency sync runs in the entrypoint, not the Dockerfile.** Both `/app/.venv` and `/root/.cache/uv` are runtime named volumes that hide image content at their mount paths, so the venv the containers actually use is always created by `docker/entrypoint.sh`'s `uv sync` on first container start (normally in seconds, from the seeded wheel cache); subsequent starts are near-instant no-ops because the venv and cache persist in their respective mounts. The `deps-warm` build-time sync exists only to produce the wheel-cache seed at a non-mounted path — its venv is discarded, deliberately: a cp-seeded venv proved uv-hostile on the CI runner (2026-08-09), while a sync-created one is the long-proven path.
 
 #### Future
 If we add Redis, mailcatcher, or other host-exposed services, follow the same pattern: add `<SERVICE>_PORT` variable with a default, allocate it a fixed offset in the port registry.
@@ -181,17 +182,18 @@ The two mechanisms are independent and complementary — the URL labels the addr
 RID: `req-dev-multisession-spawn-script`
 Status: `Implemented`
 
-`scripts/spawn-session.sh` provisions a new isolated environment interactively. The script prompts only for decisions the developer must make (Keychain setup if missing, session name) and runs everything else automatically:
+`scripts/spawn-session.sh` provisions a new isolated environment interactively — and it is the **single entry point**: first boot on a fresh machine and the Nth concurrent session are the same command (the separate `scripts/stand-up.sh` adopter path was retired 2026-08-09; its host checks became Step 0.1, [Host Readiness Battery](#host-readiness-battery), and its conversational driver became the `get-started` skill). The script prompts only for decisions the developer must make (Keychain setup if missing, session name) and runs everything else automatically:
 
-1. **Step 0 — Keychain check.** If `tap-dev-default` is missing, offers to set it. macOS-only; non-Darwin platforms skip this step and fall back to env var or random per session.
-2. **Step 1 — Session name and band allocation.** Displays the current live sessions from `~/tap-sessions/.registry` (initializing the file with a header on first use). Prompts for a name; validates against `^[a-z][a-z0-9_-]*$` and rejects `default` (reserved for the primary stack). Rejects names already in the registry. Allocates the smallest free band (per [Per-Machine Session Registry](#per-machine-session-registry)) and computes web/db ports. Also runs the stale-Docker pre-check so leftover state from a prior failed spawn (volumes or containers under `tap_<name>`, including `postgres_data`, `venv`, and `uv_cache`) aborts the run cleanly with a "remove this first" message.
-3. **Step 2 — Worktree.** Creates the worktree at `~/tap-sessions/<name>` on a new branch `session/<name>`. Aborts if the worktree path already exists. All plugins live in-tree under `plugins/` (no submodules), so no additional worktree setup is needed.
-4. **Step 3 — `.env.local`.** Generates fresh `TAP_GRID_ID` via Python's `uuid.uuid7()`. Writes `COMPOSE_PROJECT_NAME`, `WEB_PORT`, `POSTGRES_PORT`, `TAP_GRID_ID`, `TAP_SESSION_LABEL`.
-5. **Step 4 — Pull + start.** `scripts/dc pull web db` (the published `ghcr.io/unified-systems-com/tap-web`/`tap-db` images — anonymous, multi-arch), then `scripts/dc up -d`. A failed pull (offline, unpublished tag) degrades to the local `build:` fallback in compose.
-6. **Step 5 — Migrate.** `scripts/dc exec web uv run python manage.py migrate`.
-7. **Step 6 — Seed.** `scripts/dc exec web uv run python manage.py import_plugin_grift --all`.
-8. **Step 7 — Admin user.** Implements [req-dev-multisession-admin-bootstrap](#admin-user-bootstrap): resolves password (env var → Keychain → random), writes `.dev-credentials`, runs `createsuperuser --noinput`.
-9. **Done.** Prints labeled URL, direct URL, admin URL, admin credentials, credentials-file path, and how to attach Claude Code.
+1. **Step 0.1 — Host readiness.** The toolchain/layout battery ([req-dev-multisession-host-readiness](#host-readiness-battery)); also detects a first spawn (no registry yet) to set honest expectations: the one-time published-image download is the long-ish step, and only the offline/unpublished local-build fallback compiles FIPS OpenSSL from source (10–20 minutes).
+2. **Step 0 — Keychain check.** If `tap-dev-default` is missing, offers to set it. macOS-only; non-Darwin platforms skip this step and fall back to env var or random per session.
+3. **Step 1 — Session name and band allocation.** Displays the current live sessions from `~/tap-sessions/.registry` (initializing the file with a header on first use). Prompts for a name; validates against `^[a-z][a-z0-9_-]*$` and rejects `default` (reserved for the primary stack). Rejects names already in the registry. Allocates the smallest free band (per [Per-Machine Session Registry](#per-machine-session-registry)) and computes web/db ports. Also runs the stale-Docker pre-check so leftover state from a prior failed spawn aborts cleanly with a "remove this first" message.
+4. **Step 1.5 — Refresh local main.** `git -C ~/tap-sessions/main pull --ff-only origin main`, so the new session branches from current code (see [Session → Main Push Workflow](#session-→-main-push-workflow)). The layout seatbelt in Step 0.1 guarantees the main worktree location.
+5. **Step 2 — Worktree.** Creates the worktree at `~/tap-sessions/<name>` (or `$WORKTREE_BASE/<name>` for throwaway consumers) on a new branch `session/<name>` from `main`. Aborts if the worktree path already exists. Initializes the captured standup transcript at `logs/spawn.log` (`req-boot-obs-spawn-presentation`).
+6. **Step 3 / 3.5 / 3.6 — `.env.local`, secrets mount, skills.** Generates a fresh `TAP_GRID_ID`; writes `COMPOSE_PROJECT_NAME`, `WEB_PORT`, `POSTGRES_PORT`, `TAP_GRID_ID`, `TAP_SESSION_LABEL`, `TAP_BOOT_PROFILE`; provisions the `tap_secrets/` bind-mount target (shared `~/tap-secrets` symlink when present); wires `.claude/skills/` via `scripts/wire-skills.sh`.
+7. **Step 4 — Pull + start.** Pull-first: `scripts/dc pull web db` fetches the published GHCR images (toolchain + FIPS OpenSSL + pre-compiled wheel cache baked in; `spec-cicd-hardening.md` build-once artifact), falling back loudly to a local compose build when the pull fails (offline/unpublished — the 10–20-minute from-source path); then `scripts/dc up -d`. Both quiet-captured with a live elapsed counter.
+8. **Step 5 — Entrypoint wait.** Polls readiness; fast-fails on the `TAP-ABORT` signal or a dead container (`req-boot-abort-signal`).
+9. **Step 6 / 6.4 / 6.5 — Boot, passkey, health.** Resolves the admin password ([req-dev-multisession-admin-bootstrap](#admin-user-bootstrap)), writes `.dev-credentials`, runs `manage.py boot --profile <id>` (`req-boot-spawn-bridge`; boot's own observability is `spec-tap-boot-observability.md`), bootstraps the dev passkey, then gates on `manage.py health`.
+10. **Done.** Appends the registry row and prints labeled URL, direct URL, admin URL, admin credentials, credentials-file path, transcript location, and how to attach Claude Code.
 
 The script wires a failure trap that, on any non-zero exit, prints recovery commands for the partial state (despawn + worktree-remove + branch-delete). This isolates the developer from "where did spawn fail and what do I do now" guesswork. That trap covers the *recovery*; the *root-cause read* ("why did it fail") is standardized separately in [spec-dev-multisession-diagnose.md](spec-dev-multisession-diagnose.md).
 
@@ -209,6 +211,30 @@ A `--non-interactive` mode (taking `--name`, `--admin-password` flags) would mak
 | req-dev-multisession-spawn-script-2 | Idempotent failure | Proposed | Re-running spawn for a session with an existing worktree aborts before any mutation. | |
 | req-dev-multisession-spawn-script-3 | Registry collision rejection | Proposed | Names already present in `~/tap-sessions/.registry` are rejected with a clear error pointing at despawn. | |
 | req-dev-multisession-spawn-script-4 | Failure trap recovery | Proposed | On non-zero exit during spawn, the script prints recovery commands for the partial state. | |
+
+### Host Readiness Battery
+----
+RID: `req-dev-multisession-host-readiness`
+Status: `Implemented`
+
+Spawn's Step 0.1 verifies, on **every** run, that the host can actually carry a spawn — the first-run gate for a fresh machine and the every-run seatbelt against drift. Absorbed from the retired `scripts/stand-up.sh` so there is exactly one entry point and one implementation of the checks (the copy-drift between the two scripts — stand-up had silently lost the health gate — is the motivating scar).
+
+#### Implementation
+
+- **Toolchain (fail with the fix):** `git`, `python3`, `docker` on PATH; Compose v2 present (the retired v1 binary is named as unsupported); `lsof` (the port-band probe reads nothing without it and would silently allocate a busy band — fail-loud belongs up front); daemon responsiveness within a bounded probe, with **distinct** messages for not-installed, not-running, and the Linux permission/docker-group case.
+- **Layout seatbelt:** the primary clone must live at `~/tap-sessions/main`. Derived from git itself (`git worktree list --porcelain`, first entry — correct no matter which session worktree invoked spawn), compared physically (`pwd -P`) so symlinked homes don't false-positive. The failure message carries both repair paths: fresh re-clone into place, or `mv` an existing clone (git is location-independent). **Skipped when `WORKTREE_BASE` is overridden** — throwaway consumers (`scripts/gate-lean`) are not part of the durable layout.
+- **First-spawn detection:** no `~/tap-sessions/.registry` yet ⇒ first run on this host; used only for honest messaging (the one-time published-image download, and the 10–20-minute from-source FIPS build that only the offline/unpublished fallback takes — `spec-cicd-hardening.md` build-once artifact).
+- **Soft checks (warn, never block):** unset git identity (commits would carry an auto-derived name/email).
+- Nothing in the battery mutates the host; it is read-only and idempotent by construction.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-dev-multisession-host-readiness-1 | Toolchain Named Fixes | Implemented | Missing docker / compose v2 / lsof / python3 fail with the platform-specific install fix; daemon not-running vs permission-denied get distinct messages. | |
+| req-dev-multisession-host-readiness-2 | Layout Seatbelt | Implemented | A primary clone not at `~/tap-sessions/main` fails with both repair paths (re-clone vs `mv`); derived via git, compared physically; correct when invoked from a session worktree. | |
+| req-dev-multisession-host-readiness-3 | Throwaway Exemption | Implemented | The layout check is skipped when `WORKTREE_BASE` is overridden; toolchain checks still run. | gate-lean |
+| req-dev-multisession-host-readiness-4 | Read-Only Battery | Implemented | The battery mutates nothing; soft checks warn without blocking. | |
 
 ### Granular Grift Import Failure Mode
 ----

@@ -54,11 +54,17 @@ logger = logging.getLogger(__name__)
 # external module genuinely imports (settings → discover_entry_points; tap_plugins →
 # dist_name_for_slug / NAMESPACE_PACKAGE / TAP_PLUGINS_ENTRY_POINT_GROUP) plus the CLI
 # orchestration entry (run_preboot / main) and the fatal-condition contract
-# (PrebootError). Every other helper — install, is-satisfied, uv-install-args, the
+# (PrebootError), plus the boot-variable resolver trio (ResolvedVar / env_var_name /
+# resolve_var) — the shape req-boot-variable-resolution-4 reserved for post-Django
+# reuse, consumed by tap_boot's collector-preflight toggle (req-boot-obs-preflight).
+# Every other helper — install, is-satisfied, uv-install-args, the
 # identity / reconciliation / dependency / coherence guards, snapshot — is `_`-sealed.
 # Leaked surface is zero; the ceiling ratchet holds it there.
 __all__ = [
     "PrebootError",
+    "ResolvedVar",
+    "env_var_name",
+    "resolve_var",
     "NAMESPACE_PACKAGE",
     "TAP_PLUGINS_ENTRY_POINT_GROUP",
     "dist_name_for_slug",
@@ -101,14 +107,14 @@ class PrebootError(Exception):
 
 
 @dataclass(frozen=True)
-class _ResolvedVar:
+class ResolvedVar:
     """A resolved boot variable plus the provenance of the winning value."""
 
     value: Any
     source: str  # "env" | "profile" | "default"  (flag layer reserved)
 
 
-def _env_var_name(section: str, key: str) -> str:
+def env_var_name(section: str, key: str) -> str:
     """Systematic env mapping ``TAP_BOOT_<SECTION>__<KEY>`` (`req-boot-variable-resolution-2`)."""
     return f"TAP_BOOT_{section.upper()}__{key.upper()}"
 
@@ -117,14 +123,14 @@ def _coerce_bool(raw: str) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _resolve_var(
+def resolve_var(
     section: str,
     key: str,
     *,
     profile_section: dict[str, Any] | None,
     default: Any,
     is_bool: bool = False,
-) -> _ResolvedVar:
+) -> ResolvedVar:
     """Resolve a boot variable by the precedence ladder (`req-boot-variable-resolution-1`).
 
     Precedence: flag > env > profile > default. The flag layer is reserved for the
@@ -132,7 +138,7 @@ def _resolve_var(
     Resolve-once: this returns a single effective value plus its source so the caller
     records it (no silent profile divergence, `req-boot-variable-resolution-3`).
     """
-    env_name = _env_var_name(section, key)
+    env_name = env_var_name(section, key)
     raw_env = os.environ.get(env_name)
     # An empty/whitespace-only env value means "unset" — docker-compose materializes
     # an unmapped ${VAR:-} as "" in the container, and that must NOT read as a real
@@ -140,12 +146,12 @@ def _resolve_var(
     # and silently disable the snapshot). Fall through to profile/default.
     if raw_env is not None and raw_env.strip() != "":
         value = _coerce_bool(raw_env) if is_bool else raw_env
-        return _ResolvedVar(value, "env")
+        return ResolvedVar(value, "env")
 
     if profile_section is not None and key in profile_section:
-        return _ResolvedVar(profile_section[key], "profile")
+        return ResolvedVar(profile_section[key], "profile")
 
-    return _ResolvedVar(default, "default")
+    return ResolvedVar(default, "default")
 
 
 # =============================================================================
@@ -741,7 +747,7 @@ def _maybe_snapshot(profile: dict[str, Any]) -> Path | None:
     loud (WARNING) — a disabled safety net must announce itself.
     """
     install_section = profile.get("install") or {}
-    resolved = _resolve_var(
+    resolved = resolve_var(
         "install",
         "snapshot_before_migrate",
         profile_section=install_section,

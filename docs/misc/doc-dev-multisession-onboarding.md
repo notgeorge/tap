@@ -6,6 +6,7 @@ covers:
   - ../../specs/spec-dev-multisession-smoketest.md
   - ../../specs/spec-dev-multisession-teardown.md
   - req-dev-multisession-spawn-script
+  - req-dev-multisession-host-readiness
   - req-dev-multisession-admin-bootstrap
 update-triggers:
   - scripts/spawn-session.sh invocation, prompts, or output
@@ -25,12 +26,24 @@ provides: |
 
 Spec: [spec-dev-multisession-onboarding-doc.md](../../specs/spec-dev-multisession-onboarding-doc.md)
 
-Run the interactive spawn script and follow the prompts:
+The primary clone lives at `~/tap-sessions/main` — the layout every lifecycle script
+(spawn, despawn, promote) standardizes on, and which spawn's host-readiness battery
+enforces ([req-dev-multisession-host-readiness](../../specs/spec-dev-multisession.md#host-readiness-battery)).
+On a fresh machine:
 
 ```bash
-cd ~/Documents/code/tap
+mkdir -p ~/tap-sessions
+git clone git@github.com:unified-systems-com/tap.git ~/tap-sessions/main
+cd ~/tap-sessions/main
 scripts/spawn-session.sh
 ```
+
+Already cloned somewhere else? Run the script anyway — its layout seatbelt fails
+with the exact adoption commands for your situation (re-clone vs `mv`). First spawn
+on a host pulls the published tap-web/tap-db images (anonymous GHCR pull; FIPS
+OpenSSL and pre-compiled wheels are baked in) — the 10–20-minute from-source build
+only happens as the offline/unpublished fallback. There is no separate first-boot
+script: first boot and the Nth session are the same command.
 
 The script is the canonical procedure. It implements [req-dev-multisession-spawn-script](../../specs/spec-dev-multisession.md#spawn-script) and [req-dev-multisession-admin-bootstrap](../../specs/spec-dev-multisession.md#admin-user-bootstrap); each block in the script carries inline comments pointing at the requirement that defines its behavior. To understand *what* the script does or *why*, read those requirements — not a parallel description here, which would only drift.
 

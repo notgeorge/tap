@@ -288,7 +288,7 @@ RID: `req-cicd-build-once-artifact`
 **Implemented for the dev/CI artifact (2026-08-09).** `.github/workflows/publish-images.yml`
 builds `tap-web` + `tap-db` (TAP_FIPS=1, multi-arch amd64+arm64 on native runners) on every
 main push and publishes to **GHCR** as `latest` + `sha-<short>`, with SLSA provenance
-attestations and per-arch `buildcache-*` refs. Consumers: spawn/stand-up pull instead of
+attestations and per-arch `buildcache-*` refs. Consumers: spawn (the single dev/adopter entry point) pulls instead of
 building (compose `image:` fields, anonymous pulls); CI lanes use the registry cache as
 eviction fallback. The web image carries a pre-compiled wheel cache (Dockerfile `deps-warm`
 stage → `/opt/uv-cache-seed`) so first boot creates the venv from built wheels in seconds

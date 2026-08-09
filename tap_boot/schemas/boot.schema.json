@@ -152,6 +152,10 @@
           "type": "string",
           "enum": ["abort", "continue"]
         },
+        "collector_preflight": {
+          "description": "Whether boot self-tests every enabled fire-collector step's collector (run_mode=self_test_only) before the first seed-plugin step mutates the grid, so dead credentials / unreachable upstreams fail in seconds with a batch verdict (req-boot-obs-preflight, spec-tap-boot-observability.md). Default true. Env override: TAP_BOOT_POPULATION__COLLECTOR_PREFLIGHT (req-boot-variable-resolution). A skip logs loud (WARNING) and is recorded with provenance in the boot record.",
+          "type": "boolean"
+        },
         "steps": {
           "description": "Ordered list of population steps, applied strictly in array order, sequentially, with no overlap (req-boot-population-1). seed-plugin and fire-collector steps may interleave (req-boot-population-3).",
           "type": "array",
