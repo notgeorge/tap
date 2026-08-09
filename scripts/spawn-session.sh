@@ -163,7 +163,7 @@ Spawn a new isolated TAP dev session. The positional args, in order, are:
   <name>          session label (lowercase, e.g. cli, fix-arrangements).
                   If omitted, the script prompts for it interactively.
   <boot-profile>  which boot/<profile>.boot.json \`manage.py boot\` applies to
-                  this session (e.g. \`samsite\`). Optional — omit it and the
+                  this session (e.g. \`test_all\`). Optional — omit it and the
                   session boots the \`core_dev\` profile (core + grid_fixtures,
                   the minimal inner-loop baseline). What a profile declares and
                   how boot applies it lives in spec-tap-boot-v0.md, not here.
@@ -216,16 +216,17 @@ Examples:
   $0                              # interactive, plain boot, no auto-launch
   $0 fix-arrangements             # named, plain boot
   $0 fix-arrangements cli         # named + attach Claude, plain boot
-  $0 samsite-boot cli samsite     # named + Claude + fire the samsite collectors
-  $0 samsite-boot samsite         # named + fire the samsite collectors (no editor)
-  $0 compliance-dev cli samsite --dev-plugins compliance_core
-                                  # workspace: compliance_core editable over the samsite profile
-  $0 demo cli --boot samsite      # same, explicit-flag form
-  $0 aws-standalone --boot-file plugins/aws_core/standalone.boot.json
-                                  # boot a plugin's own profile from its directory
+  $0 samsite-demo cli --from \\
+     git+https://github.com/unified-systems-com/tap-plugin-samsite@v0.2.0#samsite
+                                  # the samsite demo: its record ships IN the plugin
+                                  # (req-boot-bootstrap-samsite-rehome) and boots by pointer
   $0 gryphon-soak cli --from \\
      git+https://github.com/unified-systems-com/tap-plugin-gryphon-playground@v0.1.0#soak
                                   # single-command boot from a git bootstrap pointer
+  $0 wsdev cli test_all --dev-plugins compliance_core
+                                  # workspace: compliance_core editable over a repo-local profile
+                                  # (--dev-plugins needs a repo-local base; --from is not yet
+                                  # composable with it — see spec-tap-boot-bootstrap.md)
 
 Spec: req-dev-multisession-spawn-script in specs/spec-dev-multisession.md
 EOF

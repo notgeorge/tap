@@ -86,7 +86,9 @@ they install from.
 
 The reference deployment is **samsite** — a real, deployed website whose AWS
 infrastructure, GitHub pipeline, and published signed artifacts all land on the
-grid. Its plugin README documents what it takes to point that machinery at your own
+grid. Its boot record ships inside the plugin and boots by pointer:
+`scripts/spawn-session.sh demo cli --from git+https://github.com/unified-systems-com/tap-plugin-samsite@v0.2.0#samsite`.
+Its plugin README documents what it takes to point that machinery at your own
 deployment, credentials included.
 
 ## Finding your way

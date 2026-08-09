@@ -51,6 +51,13 @@ Proven 2026-07-09: `spawn-session wsdev samsite --dev-plugins compliance_core` b
 `editable: true`) while `fedramp_20x_ksi` stayed git-pinned at `v0.2.0`, and both the conformance
 gate (12 plugins) and the compatibility gate fired at standup.
 
+**2026-08-09 caveat:** that exact invocation no longer works — the samsite record re-homed into
+`tap-plugin-samsite` (`req-boot-bootstrap-samsite-rehome`), and `--dev-plugins` requires a
+repo-local base profile while `--from` is mutually exclusive with it. A workspace over the samsite
+set currently uses a repo-local base (`test_all`) or a `--boot-file` copy of the staged record; the
+`--from`+`--dev-plugins` composition is a named open seam in `spec-tap-boot-bootstrap.md`, not
+solved by the re-home.
+
 A **plugin workspace** is the unit of plugin development. It is composed of:
 
 - **the harness** — a clone of the core TAP repo (a session worktree today; see

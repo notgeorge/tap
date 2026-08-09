@@ -146,6 +146,17 @@ jobs:
             type=registry,ref=ghcr.io/unified-systems-com/tap-web:buildcache-amd64
           cache-to: type=gha,mode=max
 
+      # The samsite record ships inside tap-plugin-samsite (req-boot-bootstrap-samsite-rehome);
+      # the lane fetches it by the same pointer operators use — one copy, no lane-local fork
+      # (rehome-5). Staged into boot/ it is thereafter an ordinary local profile. Lane is
+      # deprecation-slated with the 180731181784 retirement; keep this minimal.
+      - name: Stage the samsite record (bootstrap pointer)
+        if: matrix.line == 'samsite'
+        run: |
+          python3 -m tap.boot_pointer \
+            'git+https://github.com/unified-systems-com/tap-plugin-samsite@v0.2.0#samsite' \
+            --out boot
+
       # Boot THIS line's profile (preboot installs exactly that profile's plugins).
       - name: Boot the ${{ matrix.profile }} profile
         env:
