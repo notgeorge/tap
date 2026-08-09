@@ -1,0 +1,53 @@
+// Renovate config (req-cicd-base-image-lifecycle-1 / req-cicd-dep-automation).
+// Runs SELF-HOSTED via .github/workflows/renovate.yml (GHA cron + an org-owned
+// GitHub App token) — not the Mend-hosted app; repo-write stays in-house.
+//
+// PR-ONLY MODE: automerge is globally off. The flip to auto-merge-on-green is a
+// deliberate later step, now unblocked server-side by the `main-required-checks`
+// ruleset (a bot merge cannot land without a green `gate`). Until then a human
+// merges the PRs.
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  extends: [
+    "config:recommended",
+    ":dependencyDashboard", // rolling issue = the machine-legible worklist (Player-3-friendly)
+  ],
+  // Exactly the surfaces the spec names: Dockerfile digest pins, uv.lock via
+  // pyproject, pinned GitHub Action versions. Nothing else may write.
+  enabledManagers: ["dockerfile", "github-actions", "pep621"],
+  labels: ["renovate"],
+  automerge: false,
+  osvVulnerabilityAlerts: true,
+  vulnerabilityAlerts: {
+    labels: ["renovate", "security"],
+  },
+  packageRules: [
+    {
+      // Our own published images (compose image: fields) — never chase our own tags.
+      matchPackageNames: ["ghcr.io/unified-systems-com/**"],
+      enabled: false,
+    },
+    {
+      // wolfi-base rotates its digest daily; one rolling PR, refreshed daily,
+      // delivers Chainguard's patch stream as reviewable commits (this is the
+      // loop that makes the digest pins strictly better than :latest).
+      matchManagers: ["dockerfile"],
+      groupName: "base-image digests",
+      schedule: ["before 11am"],
+    },
+    {
+      matchManagers: ["github-actions"],
+      groupName: "github-actions",
+      schedule: ["before 11am on monday"],
+    },
+    {
+      matchManagers: ["pep621"],
+      groupName: "python dependencies (uv.lock)",
+      schedule: ["before 11am on monday"],
+    },
+  ],
+  lockFileMaintenance: {
+    enabled: true,
+    schedule: ["before 11am on monday"],
+  },
+}

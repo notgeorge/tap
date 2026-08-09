@@ -205,7 +205,7 @@ which cuts against `req-cicd-base-image-sourcing`'s anonymous-pull property; the
 
 | RID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-cicd-base-image-lifecycle-1 | Digest-pinned auto-patch loop | Partial | Base images are digest-pinned (2026-08-09 — both Dockerfiles, wolfi-base + uv, manual bump procedure documented at the pins); **Renovate** (self-hosted GHA cron, not the Mend app — keeps repo-write in-house) opens digest + `uv.lock` bump PRs and **auto-merges on a green `test_all` lane**. | Composes `req-cicd-dep-automation`. **Depends on `req-cicd-branch-protection`**: bot auto-merge to `main` must be CI-gated server-side, else it bypasses the promote gate. Dependabot can't update `uv.lock` or track `cgr.dev` → Renovate. Keep Dependabot *Alerts* on for the native advisory feed. |
+| req-cicd-base-image-lifecycle-1 | Digest-pinned auto-patch loop | Partial | Base images are digest-pinned (2026-08-09); **Renovate wired self-hosted** the same day (renovate.json5 + .github/workflows/renovate.yml, GHA daily cron, org-owned `tap-renovate` GitHub App token — not the Mend app; repo-write stays in-house): daily rolling digest-bump PR, weekly grouped `uv.lock` + action bumps, OSV vulnerability PRs. **PR-only**: auto-merge-on-green is the open tail, now unblocked server-side by `req-cicd-branch-protection` (the `main-required-checks` ruleset). | Composes `req-cicd-dep-automation`. Dependabot can't update `uv.lock` or track `cgr.dev` → Renovate. Keep Dependabot *Alerts* on for the native advisory feed. Credential: app id + PEM key as repo Actions secrets (manage-secret reviewed; scanner covers PEM armor). |
 | req-cicd-base-image-lifecycle-2 | Image CVE gate | Partial | Trivy scans the published images at publish time (publish-images.yml `scan` job) and nightly (trivy-nightly.yml), SARIF → code scanning; report-only. Open: flip to a pre-push gate (fail on High/Critical WITH a fix, after a week of signal); optional Copacetic stays deferred. | Realizes `req-cicd-security-scanning-4` (2026-08-09). The spike's 311→0 is this gate's baseline signal. Waivers: `.trivyignore`, mandatory reason per entry. |
 | req-cicd-base-image-lifecycle-3 | Curated-minimal Wolfi base — **the standard base** | Proposed · **decided 2026-07-09** | The web **and** DB image bases become a curated-minimal **Wolfi** base carrying exactly TAP's runtime binaries (`python-3.14 git bash coreutils sed grep postgresql-client` + copied `uv`). **Wolfi is now the standard base; alternatives are parked** (see the corrected criterion above). Start: `wolfi-base` + `apk` (digest-pinned via `-1`). Graduate: self-built **apko/melange** image (reproducible, our registry, self-generated SBOM) — this is also the vendor-independence hedge, since the Wolfi feed is Apache-2.0 and free of any subscription. | `git`/`bash`/`curl` are **named, itemized attack-surface line-items**, present because the runtime-plugin-install architecture requires them and kept current by `-1`. `sed`/`grep` **must be present** — git's porcelain in `/usr/libexec/git-core` are shell scripts, and `uv pip install git+https://…` (which runs `git submodule update`) dies with `sed: command not found` without them (spike-found). **`wolfi-base` already satisfies this via busybox**, verified by a real from-git install; no extra `apk add` is needed. The requirement bites only on a *true* distroless runtime (`chainguard/python:latest`, which has no shell at all). The base need not ship a package manager at runtime (`spikes/distroless/`) — Wolfi is chosen on Python-3.14 currency, in-image FIPS, and CVE floor, not on `apk`. |
 | req-cicd-base-image-lifecycle-4 | Minimal-binary off-ramps | Proposed | Named levers to shrink the binary set when cost/benefit flips — **not now** (`git` = 0 CVEs on Wolfi today). (A) Watch **uv #12324** (embedded git via gitoxide): if it ships, delete `git` for free. (B) An `archive`-tarball plugin source type (`https://forge/.../archive/<sha>.tar.gz`, fetched by uv's own HTTPS, sha256-pinned like the boot record) drops **both `git` and `curl`** — take it when we adopt the bake-once variant. | End-state minimum runtime = `python + uv + app` (+ psql for snapshot, a POSIX-sh/Python entrypoint instead of bash). Off-ramps are byproducts of the bake-once move, not standalone chores. |
@@ -235,12 +235,16 @@ which indexes `-5`/`-6` in its FIPS Requirement Map.
 
 RID: `req-cicd-branch-protection`
 
-`origin/main` is **not** branch-protected (confirmed: the GitHub API returns *"Branch not
-protected"*). TAP's entire safety story — tests, gates, atomic push — lives in
-`scripts/promote-to-main.sh`, so a direct `git push origin HEAD:main`, a buggy script, or a
-second contributor bypasses 100% of it. Add a forge **branch protection rule / ruleset** on
-`main`: no direct pushes, require the product-lines CI status check to pass, require linear
-history. This turns the gate from *"the way we do it"* into *"the only way it can be done."*
+**Implemented 2026-08-09 as two layered repository rulesets** on the default branch:
+`protect-default-branches` (pre-existing: deletion + force-push blocked for **everyone**,
+deliberately no bypass) and `main-required-checks` (id 20613528: the `gate` status check —
+product-lines' stable required-check job — must be green on pushed commits, with a
+**Repository-admin bypass** covering the promote flow's direct atomic pushes, whose fresh
+merge commits cannot yet carry check runs; the promote's own parallel gate remains their
+validation). Everything that is not an admin push — a rogue direct push, a future
+contributor, a bot merge — now needs a green `gate` server-side. Linear history is
+deliberately NOT required (promote's pre-push merge produces merge commits by design).
+`strict_required_status_checks_policy` is off (branch-up-to-date is the promote merge's job).
 
 This is also the **blocking half** of the guard meta-integrity contract
 ([spec-dev-validation.md](spec-dev-validation.md) `req-dev-validation-meta-integrity-2`): the
@@ -251,8 +255,8 @@ canonical branch-protection to-do.
 
 | RID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-cicd-branch-protection-1 | Protect main | Proposed | Ruleset on `main`: block direct pushes, require the CI check, require linear history / signed commits (optional). | Server-enforced floor for *everyone and everything* else. |
-| req-cicd-branch-protection-2 | Bypass for the promote identity | Proposed | The promote does a direct atomic push, which "require PR" would block. Grant a ruleset **bypass** to the promote/bot identity so the hand-rolled flow survives while the floor holds for all else. | Keeps the client-side flow; adds the server-side backstop. The alternative — adopt a PR/merge-queue flow — is the [Goal 6](#goals) decision, tracked but not forced here. |
+| req-cicd-branch-protection-1 | Protect main | Implemented | Layered rulesets: deletion + force-push blocked un-bypassably; the `gate` check required on `main` pushes (2026-08-09, ruleset `main-required-checks`). Linear history deliberately not required. | Server-enforced floor for *everyone and everything* else. |
+| req-cicd-branch-protection-2 | Bypass for the promote identity | Implemented | Repository-admin bypass on the required-check ruleset — the promote's direct atomic push survives; the un-bypassable deletion/force-push layer still applies to admins. | Keeps the client-side flow; adds the server-side backstop. The alternative — adopt a PR/merge-queue flow — is the [Goal 6](#goals) decision, tracked but not forced here. |
 | req-cicd-branch-protection-3 | Require code-owner review over machinery | Proposed | The ruleset also **requires review from Code Owners**, so a PR touching the guard/validation machinery (the `.github/CODEOWNERS` paths — harness, scanner engines, ratchet core, runner + meta-tests, CI/gate config) needs the code-owner's approval. This is the blocking half of `req-dev-validation-meta-integrity-2`; without it, CODEOWNERS is authored but does nothing. Confirm the code-owner handle resolves — GitHub silently ignores an unresolvable owner. | Makes disabling a gate a deliberate, reviewed act rather than a silent code push. |
 
 ### Shift-Left Security Scanning
@@ -278,10 +282,13 @@ the [security posture](spec-security-posture.md).
 RID: `req-cicd-dep-automation`
 
 TAP pins (`uv.lock`) but pinned dependencies rot — security patches do not land until
-someone notices. Enable **Dependabot or Renovate** to open update PRs (grouped, on a cadence).
-Composes with `req-cicd-security-scanning-2` (the audit tells you *what* is vulnerable; the
-bot *fixes* it) and, once server-side gating exists, the update PRs flow through the same
-required checks.
+someone notices. **Implemented 2026-08-09 (PR-only)**: self-hosted Renovate (see
+`req-cicd-base-image-lifecycle-1` for the full wiring) opens grouped update PRs across the
+three write surfaces — Dockerfile digest pins, `uv.lock` via pep621, pinned GitHub Action
+versions — plus immediate OSV-vulnerability PRs. Composes with
+`req-cicd-security-scanning-2` (the audit tells you *what* is vulnerable; the bot *fixes*
+it), and the update PRs flow through the `pull_request` product-lines gate, which the
+`main-required-checks` ruleset makes a server-side merge precondition.
 
 ### Build Once, Promote The Artifact
 
