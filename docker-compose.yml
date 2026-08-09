@@ -106,7 +106,7 @@ services:
     # declares its mode via the org.tap.fips label + TAP_FIPS_MODE env, and asserts it
     # fail-closed at boot (tap.fips, wired in docker/entrypoint.sh).
     # Published multi-arch image (publish-images.yml, anonymous pull) carrying the
-    # pre-built venv seed; build: below is the fallback + local-dev rebuild path
+    # pre-compiled wheel cache; build: below is the fallback + local-dev rebuild path
     # (`scripts/dc build web`; same tag-shadowing note as db above).
     image: ${TAP_WEB_IMAGE:-ghcr.io/unified-systems-com/tap-web:latest}
     build:

@@ -1,0 +1,16 @@
+# Trivy waiver ledger (req-cicd-security-scanning-4 / req-cicd-base-image-lifecycle-2).
+#
+# Every entry REQUIRES a reason comment directly above it: what the finding is,
+# why it does not apply (or is accepted), who accepted it, and when. An entry
+# without a reason is a review defect. This mirrors the FIPS waiver discipline
+# (declare-vs-decide-vs-waive): the scanner reports, the OPERATOR waives —
+# per-item, justified, in-repo where review sees it. Unfixed-upstream CVEs
+# should generally NOT be listed here; they are visible-but-not-blocking by
+# policy (the planned gate fails only on High/Critical WITH a fix available).
+#
+# Format: one CVE/GHSA id per line, e.g.
+#   # CVE-2026-XXXXX (libfoo): not reachable — TAP never invokes the vulnerable
+#   #   codec path; accepted <name>, <date>. Revisit on libfoo bump.
+#   CVE-2026-XXXXX
+#
+# (File intentionally has no active entries.)

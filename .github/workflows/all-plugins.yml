@@ -44,7 +44,8 @@
 #
 # PROVEN GREEN (unsharded v1) first run 2026-07-07 (~21 min: build → boot test_all →
 #   full lane). Image build is GHA-layer-cached (landed f051ba9e); each shard's
-#   `cache-from: type=gha` hits the same warm cache (~24s vs minutes cold).
+#   `cache-from: type=gha` hits the same warm cache (~24s vs minutes cold), with the
+#   GHCR `buildcache-amd64` registry ref as the eviction/day-one fallback (2026-08-09).
 #
 # OPEN:
 #   - cold-boot / lean-boot gates (they spawn extra stacks) folded in later.

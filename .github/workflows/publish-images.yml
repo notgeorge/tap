@@ -114,3 +114,40 @@ jobs:
           subject-name: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.image }}
           subject-digest: ${{ steps.merge.outputs.digest }}
           push-to-registry: true
+
+  # Trivy scan of the just-published image (req-cicd-security-scanning-4 /
+  # req-cicd-base-image-lifecycle-2). REPORT-ONLY for now: findings land as SARIF
+  # in code scanning (Security tab), never blocking the publish. The planned gate
+  # tightening (fail on High/Critical WITH a fix available, after a week of
+  # signal) belongs pre-push in the build legs — this job stays the reporting
+  # layer. Waivers: .trivyignore, every entry with a mandatory reason comment
+  # (the operator-waives discipline; see spec-cicd-hardening.md). The nightly
+  # sweep of :latest lives in trivy-nightly.yml (new CVEs land against images
+  # that haven't changed). One scan covers OS packages AND the Python closure —
+  # the deps-warm wheel cache means the scanned artifact carries both.
+  scan:
+    name: trivy scan ${{ matrix.image }}
+    needs: manifest
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [tap-web, tap-db]
+    steps:
+      - uses: actions/checkout@v5   # for .trivyignore
+      - name: Scan published image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.image }}:latest
+          format: sarif
+          output: trivy-${{ matrix.image }}.sarif
+          exit-code: "0"   # report-only — the gate flip changes this pre-push, not here
+      - name: Upload SARIF to code scanning
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-${{ matrix.image }}.sarif
+          category: trivy-${{ matrix.image }}
