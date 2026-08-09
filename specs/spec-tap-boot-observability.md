@@ -65,6 +65,7 @@ Before the population phase mutates anything, boot runs the self-test of **every
 - **Outbound honesty.** Self-tests make live network calls. This adds **no new outbound surface**: the profile already declared these exact collectors would fire this boot; the preflight reaches the same endpoints earlier, with cheaper calls (`/rate_limit`, `sts:GetCallerIdentity` class). This is deliberately *not* part of `req-boot-validate`'s offline validation — dry-run stays offline; preflight runs only when boot will actually fire.
 - **Duplication accepted.** The fire step's own phase-1 self-test still runs at fire time (the job contract; it stays authoritative for that run). The preflight is fail-early, not fail-authoritative; the double check costs seconds and keeps the cares contract untouched.
 - **Escape hatch.** A boot variable `population.collector_preflight` (default **true**; env `TAP_BOOT_POPULATION__COLLECTOR_PREFLIGHT` per `req-boot-variable-resolution`) disables it — for air-gapped rehearsal against a pre-populated DB, or a deliberately-degraded standup. A skip logs loud (WARNING), the same posture as the disabled snapshot.
+- **Declared-secret presence first (`req-boot-required-secrets`, built 2026-08-09).** When the profile declares `required_secrets` (`spec-tap-boot-v0.md`), the preflight opens by checking the effective set (entries referenced by enabled steps) for on-disk presence + kind match — offline, before any live self-test call, joining the same batch verdict. This splits the two failure classes the self-test alone conflates: absent-secret (a provisioning gap — mint it) vs dead-credential (a liveness gap — rotate it).
 
 #### Acceptance Criteria
 
@@ -75,6 +76,7 @@ Before the population phase mutates anything, boot runs the self-test of **every
 | req-boot-obs-preflight-3 | Persisted Via The Contract | Implemented | Readiness results persist on `CollectionJob.self_test` through `run_collection`; boot adds no parallel readiness store. | |
 | req-boot-obs-preflight-4 | Skip Is Loud | Implemented | `population.collector_preflight=false` skips with a WARNING and is recorded in the boot record with provenance. | |
 | req-boot-obs-preflight-5 | Unready Fire Skipped | Implemented | Under non-abort semantics, a collector whose preflight failed is not fired; the skip is recorded. | |
+| req-boot-obs-preflight-6 | Declared Secrets Checked First | Implemented | `required_secrets` entries referenced by enabled steps are checked (presence + kind, offline) at the head of the preflight batch, before live self-tests; failures join the batch verdict and name `scope:key` + expected kind, never values. | `req-boot-required-secrets-5`. |
 
 #### Future
 

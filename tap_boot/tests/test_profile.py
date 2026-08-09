@@ -115,3 +115,124 @@ def test_schema_rejects_bad_step_type(boot_dir):
     )
     with pytest.raises(BootProfileError, match="schema validation"):
         load_profile("bad")
+
+
+def test_required_secrets_parse_with_step_refs(boot_dir):
+    _write(
+        boot_dir,
+        "p",
+        {
+            "version": 1,
+            "required_secrets": [
+                {"scope": "github_core", "key": "collector", "kind": "github_pat", "note": "read-only PAT"}
+            ],
+            "population": {
+                "steps": [
+                    {
+                        "type": "fire-collector",
+                        "key": "github_core:github_core",
+                        "enabled": True,
+                        "secrets": ["github_core:collector"],
+                    }
+                ]
+            },
+        },
+    )
+    profile = load_profile("p")
+    assert profile.required_secrets[0].ref == "github_core:collector"
+    assert profile.required_secrets[0].kind == "github_pat"
+    step = profile.steps[0]
+    assert isinstance(step, FireCollectorStep)
+    assert step.secrets == ("github_core:collector",)
+
+
+def test_unresolved_step_secret_ref_fails_loud(boot_dir):
+    # Rule A (req-boot-required-secrets-3): an enabled step's ref must resolve.
+    _write(
+        boot_dir,
+        "p",
+        {
+            "version": 1,
+            "population": {
+                "steps": [
+                    {"type": "fire-collector", "key": "x:y", "enabled": True, "secrets": ["github_core:collector"]}
+                ]
+            },
+        },
+    )
+    with pytest.raises(BootProfileError, match="declares no such entry"):
+        load_profile("p")
+
+
+def test_stale_required_secret_entry_fails_loud(boot_dir):
+    # Rule B (req-boot-required-secrets-4): an entry no enabled step references is stale.
+    _write(
+        boot_dir,
+        "p",
+        {
+            "version": 1,
+            "required_secrets": [
+                {"scope": "github_core", "key": "collector", "kind": "github_pat", "note": "read-only PAT"}
+            ],
+            "population": {"steps": []},
+        },
+    )
+    with pytest.raises(BootProfileError, match="referenced by no enabled"):
+        load_profile("p")
+
+
+def test_disabled_step_ref_with_entry_removed_is_valid(boot_dir):
+    # The rules compose: disabling a step drops its requirement (rule B forces the
+    # entry's removal), and the disabled step's dangling ref must NOT invalidate the
+    # profile — rule A is enabled-scoped. Re-enabling fails loud until the entry returns.
+    _write(
+        boot_dir,
+        "p",
+        {
+            "version": 1,
+            "population": {
+                "steps": [
+                    {"type": "fire-collector", "key": "x:y", "enabled": False, "secrets": ["github_core:collector"]}
+                ]
+            },
+        },
+    )
+    load_profile("p")  # no raise
+
+
+def test_duplicate_required_secret_entries_fail_loud(boot_dir):
+    entry = {"scope": "github_core", "key": "collector", "kind": "github_pat", "note": "read-only PAT"}
+    _write(
+        boot_dir,
+        "p",
+        {
+            "version": 1,
+            "required_secrets": [entry, dict(entry)],
+            "population": {
+                "steps": [
+                    {"type": "fire-collector", "key": "x:y", "enabled": True, "secrets": ["github_core:collector"]}
+                ]
+            },
+        },
+    )
+    with pytest.raises(BootProfileError, match="duplicate required_secrets"):
+        load_profile("p")
+
+
+def test_schema_rejects_required_secret_missing_note(boot_dir):
+    # note is load-bearing guidance for the provisioning flow — schema-required.
+    _write(
+        boot_dir,
+        "bad",
+        {
+            "version": 1,
+            "required_secrets": [{"scope": "github_core", "key": "collector", "kind": "github_pat"}],
+            "population": {
+                "steps": [
+                    {"type": "fire-collector", "key": "x:y", "enabled": True, "secrets": ["github_core:collector"]}
+                ]
+            },
+        },
+    )
+    with pytest.raises(BootProfileError, match="schema"):
+        load_profile("bad")

@@ -93,6 +93,7 @@ For the plugin-refactor additions (pre-boot stage, install section, snapshot, va
 | req-boot-idempotent | [Idempotent Re-Apply](#idempotent-re-apply) | Implemented | **v0 principle** (ops are idempotent; seed + admin re-apply tested); formal convergence contract deferred |
 | req-boot-trust | [Config-As-Code Trust Model](#config-as-code-trust-model) | Implemented | **v0.** Boot config is code-level-trusted; guards are anti-footgun, not anti-operator |
 | req-boot-secrets | [Secret References Only](#secret-references-only) | Implemented | **v0.** Profiles reference `TAP_SECRETS_ROOT` keys / env, never embed secrets; missing secret fails loud at apply |
+| req-boot-required-secrets | [Required Secrets Declaration](#required-secrets-declaration) | Implemented | **Built 2026-08-09** (design locked same day). Top-level `required_secrets` manifest (envelope identity `scope`/`key`/`kind` + least-privilege `note`) plus bare `"scope:key"` consumption refs on population steps; two fail-loud coherence rules (every ref resolves; no entry orphaned by enabled steps) make the dual declaration a checked guard, not a drift point; presence + kind verified **offline** in the population preflight before the live self-tests (`req-boot-obs-preflight`). The host-/provisioning-readable half of the credential story — what the live self-test (in-container, network) cannot provide |
 | req-boot-spawn-bridge | [Spawn Bridge](#spawn-bridge) | Implemented | **v0.** `spawn-session.sh` calls the bootloader; dev == customer standup |
 | req-boot-report | [Boot Logging](#boot-logging) | Implemented | **v0.** Boot logs actions with secrets redacted; durable report deferred |
 | req-boot-abort-signal | [Standup Abort Signal](#standup-abort-signal) | Implemented | **Landed 2026-07-03.** Boot is the first consumer of the logging `ABORT` signal (`req-tap-logging-abort-signal`): preboot/migrate/boot fatal paths emit it and `spawn-session.sh` fast-fails on it (or on the container exiting) instead of the 300s readiness timeout |
@@ -664,6 +665,7 @@ Boot profiles reference secrets; they never contain them.
 - Secret values are never embedded in profile files and never persisted to the database (consistent with `req-tap-auth-providers` secret handling).
 - A reference to a missing secret fails loud at apply (and is surfaced by `--dry-run` where the check is offline-safe).
 - Boot logging redacts secret values (`req-boot-report`).
+- `req-boot-required-secrets` (Proposed) layers a declared requirements *manifest* on this rule: secret **identities** may be listed up front; values still never appear.
 
 #### Acceptance Criteria
 
@@ -671,6 +673,65 @@ Boot profiles reference secrets; they never contain them.
 | --- | --- | :---: | --- | --- |
 | req-boot-secrets-1 | References Only | Proposed | Profiles carry secret references under `TAP_SECRETS_ROOT`, never values. | |
 | req-boot-secrets-2 | Missing Secret Fails | Proposed | An unresolved secret reference fails loud at apply. | |
+
+---
+
+### Required Secrets Declaration
+----
+RID: `req-boot-required-secrets`  
+Status: `Implemented`
+
+> **Built 2026-08-09.** Schema: `required_secrets` + fire-collector `secrets` refs in `tap_boot/schemas/boot.schema.json` (every field described). Parsing + the two coherence rules: `tap_boot/profile.py` (`RequiredSecret`, `_validate_secret_coherence` — rule A enabled-scoped so the rules compose; see the docstring). Offline check: `tap_boot/orchestrator.py:_preflight_required_secrets`, resolving through the loaded envelope registry (`tap_cares.secrets.resolve_secret`) so the check cannot drift from what boot's collectors actually resolve; blocked collectors skip their live self-test and fail with the offline reason. First declaring profile: `boot/samsite.boot.json` (aws_core:boto_collector kind `aws_static_access_key` — the on-disk reality of the reference deployment, NOT `aws_assumed_role`; the note names the cross-account swap — plus github_core:collector kind `github_pat`). Profile sweep 2026-08-09: samsite is the only shipped profile firing collectors; core/core_dev/test_all/soak are seed-only, operator_sso consumes its OIDC secret via the auth section (outside this contract — see the auth-section boundary note below). Covered by `tap_boot/tests/test_profile.py` + `test_orchestrator.py`.
+
+A boot profile declares, in one top-level list, every secret its composition requires — so "what must be provisioned before this profile can stand up" is answerable by reading the profile, from a bare clone, without booting a container or touching the network.
+
+**The gap this closes.** The collector-readiness preflight (`req-boot-obs-preflight`) already catches a dead or absent credential in seconds, in-container, via live self-tests — but it answers *"is this credential alive?"*, not *"what must a fresh operator mint before first boot?"*. A fresh host discovers the requirements only by booting into the failure, and provisioning guidance (the get-started flow, a secrets walkthrough skill) has no machine-readable source to enumerate. The declaration is that source: the offline, host-readable half of the credential story, layered under the live self-test which stays authoritative for liveness.
+
+```json
+{
+  "required_secrets": [
+    { "scope": "aws_core", "key": "boto_collector", "kind": "aws_assumed_role",
+      "note": "Cross-account read-only role; mandatory External ID." },
+    { "scope": "github_core", "key": "collector", "kind": "github_pat",
+      "note": "Fine-grained PAT, read-only, scoped to the collected org." }
+  ],
+  "population": {
+    "steps": [
+      { "type": "fire-collector", "key": "github_core:github_core",
+        "secrets": ["github_core:collector"] }
+    ]
+  }
+}
+```
+
+#### Implementation
+
+- **Top-level manifest.** `required_secrets` entries carry exactly the envelope identity — `scope`, `key`, `kind` (`req-tap-cares-secrets-shape`) — plus a one-line least-privilege `note`. References only, never values (`req-boot-secrets`); never minting prose (the how-to-mint walkthrough lives with the kind's consumer-owned schema and the provisioning skill, `req-tap-cares-secrets-consumer-kinds`). Every schema field carries a description.
+- **Bare consumption refs.** A population step that resolves a secret at run time declares it as `secrets: ["<scope>:<key>"]` — bare strings, deliberately **not** objects: the ref is the entire step-level surface, so per-collector configuration cannot creep in through this door (that is its own future need, `req-boot-collector-criticality` territory). The install section's per-source `credential` key (`req-plugin-arch-source-secret-6`) remains its own pre-boot declaration and is untouched by this requirement.
+- **Coherence, checked not trusted.** The dual declaration is kept honest the same way `BUILD_BAKED_PLUGIN_SLUGS` is kept honest against `INSTALLED_APPS` — by a guard, making it a checksum rather than a drift point. Two fail-loud rules under the v0 validation posture (`req-boot-validate`: shape + unknown key fails loud): a step ref with no matching entry invalidates the profile; an entry referenced by no **enabled** step invalidates it as stale.
+- **Necessity follows the composition.** The effective required set is: entries referenced by at least one enabled step. Disabling a step drops its requirement (and the stale rule demands removing the orphaned entry) — no waiver mechanism, no per-secret conditional logic in the profile.
+- **Preflight placement.** Presence + kind-match of the effective set is checked at the head of the population preflight (`req-boot-obs-preflight-6`) — offline, before any live self-test call, joining the same batch verdict. The abort names every missing or kind-mismatched `scope:key` with its expected kind and `note`, never a value. Absent-secret (a provisioning gap, fix = mint it) is thereby distinguished from dead-credential (a liveness gap, fix = rotate it).
+- **Offline-safe by construction.** Unlike the live self-test — deliberately excluded from offline validation — this check reads only the profile and the envelope files, so it belongs to any future `--dry-run` (`req-boot-validate`) and to host-side pre-checks: spawn may verify `TAP_SECRETS_ROOT` before standing anything up, and provisioning tooling enumerates needs from a bare clone. Host-side checks are advisory; the in-container preflight is authoritative (the container's mount is what boot will actually resolve from).
+- **Doctrine fit.** This is *not* the static expected-secret list `req-tap-cares-secrets-conditional-validation` forbids: the forbidden shape is TAP itself keeping a global inventory (code-level or on-grid). A profile is one operator's config-as-code (`req-boot-trust`) declaring its own composition's dependencies — the same "the declaration IS the requirement" contract as the git source `credential` key (`req-plugin-arch-source-secret-5`) — with conditionality carried structurally by which steps are enabled. `tap_cares` stays necessity-agnostic; `tap_boot` owns and enforces this contract; health probes remain the runtime authority.
+- **Named AI/tooling consumers** (`spec-ai-integration.md`): the spawn host-check, the secrets-provisioning walkthrough skill, and the boot preflight all read this one declaration — no parallel inventory anywhere.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-boot-required-secrets-1 | Top-Level Declaration | Implemented | A profile may declare `required_secrets`; each entry carries envelope identity (`scope`, `key`, `kind`) plus a least-privilege `note`; references only, never values; every schema field described. | |
+| req-boot-required-secrets-2 | Bare Consumption Refs | Implemented | Population steps declare consumption as bare `"scope:key"` strings under `secrets`; no step-level secret configuration beyond the ref. | Anti-creep: per-collector config stays its own surface. |
+| req-boot-required-secrets-3 | Refs Resolve | Implemented | A step ref with no matching `required_secrets` entry fails profile validation loud. | |
+| req-boot-required-secrets-4 | No Stale Entries | Implemented | An entry referenced by no enabled step fails profile validation loud. | Disabling a step ⇒ remove its orphaned entry. |
+| req-boot-required-secrets-5 | Preflight Presence + Kind | Implemented | Before population mutates, every entry referenced by an enabled step must resolve to an on-disk envelope with matching `kind`; joins the collector preflight's batch verdict; abort names `scope:key` + expected kind, never values. | `req-boot-obs-preflight-6`. |
+| req-boot-required-secrets-6 | Offline-Checkable | Implemented | The declared check needs only the profile + envelope files: usable by dry-run validation and host-side pre-checks (spawn, provisioning tooling); the in-container check stays authoritative. | |
+
+#### Future
+
+- **Auth-section secrets are outside this contract (named boundary).** `required_secrets` entries must be referenced by an enabled *population step* (rule B), so a secret consumed by the auth phase (e.g. `operator_sso`'s OIDC client secret) cannot be declared here without reading as stale. Auth keeps its own validation path (`critical_for_boot` + the provider health probe, `req-tap-auth-providers`); extending the declaration to auth-consumed secrets is a future decision, not an accident of omission.
+- **Kind alternatives.** `kind` is single-valued, but an envelope slot may legitimately accept one of several kinds (aws_core's collector takes `aws_static_access_key` OR `aws_assumed_role`). The shipped samsite profile declares the reference deployment's actual kind and documents the swap in its `note`; if per-deployment kind-editing proves noisy, `kind` could become a one-of list — demand-gated.
+- **Manifest conformance cross-check** (`req-plugin-manifest-v0-secrets`, `spec-plugin-manifest-v0.md`, Backlog): once plugins declare the secret kinds their collectors consume, a conformance check compares a profile's consumption refs against the union of what its enabled steps' plugins declare — catching both gaps (step needs a secret the profile never listed) and stale entries mechanically, closing the last hand-maintenance seam.
+- Interplay with profile inheritance/composition (Backlog) when that lands: the coherence rules apply to the *effective* merged profile.
 
 ---
 

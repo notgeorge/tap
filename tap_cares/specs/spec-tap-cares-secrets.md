@@ -417,11 +417,13 @@ TAP already has that logic engine: the `tap_health` probe system (`spec-tap-heal
 
 The auth providers health probe (`spec-tap-auth-v0.md` `req-tap-auth-providers`) is the worked reference; collectors mirror it through the `CollectorBase` offline self-test.
 
+**Boot-profile declaration composes with this rule, not against it.** `req-boot-required-secrets` (`spec-tap-boot-v0.md`, Proposed) lets a boot profile declare the secrets its composition requires. That is not the static list this section forbids: the forbidden shape is **TAP itself** keeping a global expected-secret inventory (code-level or on-grid). A profile is one operator's config-as-code (`req-boot-trust`) declaring its own composition's dependencies — the same "the declaration IS the requirement" contract as the install path's per-source `credential` key (`req-plugin-arch-source-secret-5`) — with conditionality carried structurally by which population steps are enabled, not by a logic engine. `tap_cares` stays necessity-agnostic (this layer neither reads nor enforces the declaration); `tap_boot` owns that contract, and per-consumer probes/self-tests remain the runtime authority for conditional necessity and liveness.
+
 ### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-cares-secrets-conditional-validation-1 | Necessity Is Conditional | Implemented | Whether a secret is needed is a per-consumer predicate over config/state, not a static declaration; TAP keeps no static expected-secret list and no on-grid `SecretReference` in v0. | |
+| req-tap-cares-secrets-conditional-validation-1 | Necessity Is Conditional | Implemented | Whether a secret is needed is a per-consumer predicate over config/state, not a static declaration; TAP keeps no static expected-secret list and no on-grid `SecretReference` in v0. | Profile-declared `required_secrets` (`req-boot-required-secrets`) is one composition's config-as-code, not a TAP-kept list — see the composition note above. |
 | req-tap-cares-secrets-conditional-validation-2 | Probe Ownership | Implemented | The consuming app's health probe evaluates conditional necessity + presence + kind-shape, reusing its offline self-test as the single source of truth. | Auth is the reference; collectors mirror via `CollectorBase`. |
 | req-tap-cares-secrets-conditional-validation-3 | Generic Layer Stays Necessity-Agnostic | Implemented | `tap_cares`/`tap.runtime_secrets` own only discovery + format + present-but-malformed surfacing; they never opine on necessity. | |
 | req-tap-cares-secrets-conditional-validation-4 | required_for_boot Stays Narrow | Implemented | `required_for_boot` means "a present-but-broken file blocks boot," never "this file must exist." | Prevents conflation with conditional presence. |

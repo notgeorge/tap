@@ -102,7 +102,7 @@
           "type": {"description": "Entry kind: 'preflight', 'seed-plugin', or 'fire-collector'.", "type": "string", "enum": ["preflight", "seed-plugin", "fire-collector"]},
           "status": {"description": "Outcome: ok / failed / skipped (skipped = preflight disabled, or a fire step whose preflight failed under non-abort semantics, req-boot-obs-preflight-5).", "type": "string", "enum": ["ok", "failed", "skipped"]},
           "plugin": {"description": "seed-plugin entries: the plugin slug seeded.", "type": "string"},
-          "key": {"description": "preflight / fire-collector entries: the collector registry key.", "type": "string"},
+          "key": {"description": "preflight / fire-collector entries: the collector registry key — or, for the offline required-secret checks (req-boot-required-secrets-5), the bare 'scope:key' secret reference being verified.", "type": "string"},
           "duration_seconds": {"description": "Wall-clock duration of the entry.", "type": "number"},
           "job_id": {"description": "Collector entries: the CollectionJob entity id this entry created (its self_test field holds the full readiness payload).", "type": ["string", "null"]},
           "summary": {"description": "Collector entries: the job's at-a-glance summary line.", "type": ["string", "null"]},

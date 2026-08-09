@@ -141,6 +141,38 @@
         }
       }
     },
+    "required_secrets": {
+      "description": "Declared secret requirements for this profile's composition (req-boot-required-secrets): every secret its enabled population steps resolve at run time, so 'what must be provisioned before this profile can stand up' is answerable by reading the profile offline, from a bare clone. References only — envelope identity plus a least-privilege note; never values, never minting prose (the how-to lives with the kind's consumer-owned schema and the provisioning skill). Kept honest against the steps' secrets refs by two fail-loud coherence rules at profile load: every enabled step's ref must resolve here, and every entry must be referenced by at least one enabled step (req-boot-required-secrets-3/-4). This is one composition's config-as-code, not a TAP-kept secret inventory (doctrine: req-tap-cares-secrets-conditional-validation).",
+      "type": "array",
+      "items": {
+        "description": "One required secret, identified exactly as its envelope under TAP_SECRETS_ROOT: <scope>/<key>.secret.json with the declared kind.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["scope", "key", "kind", "note"],
+        "properties": {
+          "scope": {
+            "description": "The consuming plugin's slug — scope names the consumer, not the credential provider (req-tap-cares-secrets-consumer-scoping).",
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "key": {
+            "description": "Envelope key within the scope (the file basename: <key>.secret.json).",
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "kind": {
+            "description": "Expected secret kind (the envelope's 'kind' field, e.g. 'github_pat', 'aws_assumed_role'); the offline preflight fails a present-but-wrong-kind envelope loud (req-boot-required-secrets-5). Kind data schemas are consumer-owned (req-tap-cares-secrets-consumer-kinds).",
+            "type": "string",
+            "minLength": 1
+          },
+          "note": {
+            "description": "One-line least-privilege statement of what the credential should be able to do (e.g. 'Fine-grained PAT, read-only, scoped to the collected repos'). Guidance for the operator/provisioning skill — never a value, never step-by-step minting prose.",
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
     "population": {
       "description": "The population section: ordered steps that bring plugins online and populate them. Omit for a safe, no-outbound auth-only standup (req-boot-profile-4).",
       "type": "object",
@@ -207,6 +239,16 @@
                     "description": "'full' (default) runs self-test then collect; 'self_test_only' runs only the readiness probe.",
                     "type": "string",
                     "enum": ["full", "self_test_only"]
+                  },
+                  "secrets": {
+                    "description": "Secrets this step resolves at run time, as bare '<scope>:<key>' references into the top-level required_secrets manifest (req-boot-required-secrets-2). Deliberately strings, not objects — the ref is the entire step-level surface, so per-collector configuration cannot creep in here. Every ref must resolve to a required_secrets entry when the step is enabled (req-boot-required-secrets-3); fire-collector is the only step type with a runtime secret path, so only it carries this field.",
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "description": "One '<scope>:<key>' envelope reference — scope is the consuming plugin's slug, key the envelope basename (req-tap-cares-secrets-consumer-scoping).",
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9_]*:[a-z][a-z0-9_]*$"
+                    }
                   },
                   "timeout_seconds": {
                     "description": "Seconds to await this collector's job to a terminal state. Omit for the bootloader default (90s); set higher for slow collectors (a full cloud pull). Per-collector default timeouts are a backlog item (req-boot-collector-timeout).",

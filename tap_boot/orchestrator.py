@@ -337,24 +337,32 @@ def _phase_population(profile: BootProfile, bootloader: object, say: Echo, rec: 
 
 
 def _preflight_collectors(profile: BootProfile, plan: list[PopulationStep], say: Echo, rec: NullBootRecord) -> set[str]:
-    """Self-test every enabled fire-collector's collector before any seed mutates.
+    """Preflight every enabled fire-collector before any seed mutates: two lanes.
+
+    **Offline lane first** (req-boot-obs-preflight-6): presence + kind of every
+    declared required secret (req-boot-required-secrets-5) — no network, read from
+    the loaded envelope registry. **Live lane second**: each unique collector key
+    self-tested once via the cares contract's sanctioned path —
+    `run_collection(run_mode="self_test_only")` awaited to terminal — so readiness
+    persists on `CollectionJob.self_test` (req-boot-obs-preflight-3). A collector
+    whose declared secret failed offline skips its live self-test and fails with
+    the offline reason (provisioning gap vs liveness gap, named apart).
 
     Runs after the collector-node reconcile (the job path needs the Collector grid
-    nodes) and before the first `seed-plugin` step (req-boot-obs-preflight-1). Each
-    unique collector key is self-tested once via the cares contract's sanctioned
-    path — `run_collection(run_mode="self_test_only")` awaited to terminal — so
-    readiness persists on `CollectionJob.self_test` (req-boot-obs-preflight-3).
-
-    All preflights run before any verdict (the batch answer,
+    nodes) and before the first `seed-plugin` step (req-boot-obs-preflight-1).
+    Both lanes run to completion before any verdict (the batch answer,
     req-boot-obs-preflight-2). With `on_failure=abort` a failure raises, naming
-    every failing collector; otherwise the failing keys are returned so their fire
-    steps are skipped. The toggle resolves env > profile > default-true
-    (req-boot-obs-preflight-4); a skip is loud.
+    every failing collector and missing secret; otherwise the failing keys are
+    returned so their fire steps are skipped. The toggle resolves env > profile >
+    default-true (req-boot-obs-preflight-4); a skip is loud and covers both lanes.
     """
     fire_keys: list[str] = []
+    fire_steps: dict[str, list[FireCollectorStep]] = {}
     for step in plan:
-        if isinstance(step, FireCollectorStep) and step.key not in fire_keys:
-            fire_keys.append(step.key)
+        if isinstance(step, FireCollectorStep):
+            if step.key not in fire_keys:
+                fire_keys.append(step.key)
+            fire_steps.setdefault(step.key, []).append(step)
     if not fire_keys:
         return set()
 
@@ -375,6 +383,14 @@ def _preflight_collectors(profile: BootProfile, plan: list[PopulationStep], say:
         rec.record_step({"type": "preflight", "status": "skipped", "note": f"disabled (source: {resolved.source})"})
         return set()
 
+    # ---- Offline lane: declared secret presence + kind (req-boot-obs-preflight-6,
+    # req-boot-required-secrets-5). Reads only the profile + the loaded envelope
+    # registry — no network — and runs BEFORE any live self-test, so an absent
+    # secret (a provisioning gap: mint it) is distinguished from a dead credential
+    # (a liveness gap: rotate it). Coherence at load guarantees every ref resolves
+    # to a declared entry.
+    missing_secrets, blocked = _preflight_required_secrets(profile, fire_keys, fire_steps, say, rec)
+
     from tap_cares.models import Collector
     from tap_cares.services import fire_collector_and_await
 
@@ -383,6 +399,21 @@ def _preflight_collectors(profile: BootProfile, plan: list[PopulationStep], say:
 
     failures: list[tuple[str, list[dict[str, Any]], str]] = []
     for key in fire_keys:
+        if key in blocked:
+            # A collector whose declared secret is unavailable cannot pass its live
+            # self-test — skip the network call and fail it with the offline reason.
+            refs = ", ".join(blocked[key])
+            rec.record_step(
+                {
+                    "type": "preflight",
+                    "key": key,
+                    "status": "failed",
+                    "note": f"required secret(s) unavailable: {refs} — live self-test skipped",
+                }
+            )
+            failures.append((key, [], f"required secret(s) unavailable: {refs}"))
+            say(f"    FAILED — preflight {key}: required secret(s) unavailable ({refs}); live self-test skipped.")
+            continue
         collector = Collector.objects.get(collector_registry=key)
         t0 = time.monotonic()
         ok, job = fire_collector_and_await(
@@ -416,12 +447,95 @@ def _preflight_collectors(profile: BootProfile, plan: list[PopulationStep], say:
     failing_keys = [key for key, _checks, _summary in failures]
     if profile.on_failure == "abort":
         all_checks = [c for _key, checks, _summary in failures for c in checks]
+        parts = [f"Collector preflight failed for {len(failures)} collector(s): {', '.join(failing_keys)}"]
+        if missing_secrets:
+            refs = ", ".join(m["ref"] for m in missing_secrets)
+            parts.append(f"{len(missing_secrets)} required secret(s) missing/mismatched: {refs}")
+        detail: dict[str, Any] = {"failed_step": "preflight", "failing_checks": all_checks}
+        if missing_secrets:
+            detail["missing_secrets"] = missing_secrets
         raise BootError(
-            f"Collector preflight failed for {len(failures)} collector(s): {', '.join(failing_keys)}; "
-            "on_failure=abort — stopping before any seed step ran.",
-            detail={"failed_step": "preflight", "failing_checks": all_checks},
+            "; ".join(parts) + "; on_failure=abort — stopping before any seed step ran.",
+            detail=detail,
         )
     return set(failing_keys)
+
+
+def _preflight_required_secrets(
+    profile: BootProfile,
+    fire_keys: list[str],
+    fire_steps: dict[str, list[FireCollectorStep]],
+    say: Echo,
+    rec: NullBootRecord,
+) -> tuple[list[dict[str, Any]], dict[str, list[str]]]:
+    """Offline presence + kind check of the profile's declared secrets.
+
+    Returns ``(missing_secrets, blocked)``: the failing declarations (ref/kind/
+    note/problem — never values, req-boot-required-secrets-5) and the collector
+    keys whose declared secrets failed, mapped to the failing refs, so the live
+    lane skips them. Resolution goes through the loaded envelope registry
+    (``tap_cares.secrets.resolve_secret``) — the exact store boot's collectors
+    will resolve from, so the check cannot drift from runtime behavior.
+    """
+    entries_by_ref = {entry.ref: entry for entry in profile.required_secrets}
+    ref_order: list[str] = []
+    consumers: dict[str, list[str]] = {}
+    for key in fire_keys:
+        for step in fire_steps[key]:
+            for ref in step.secrets:
+                if ref not in ref_order:
+                    ref_order.append(ref)
+                if key not in consumers.setdefault(ref, []):
+                    consumers[ref].append(key)
+    if not ref_order:
+        return [], {}
+
+    from tap_cares.exceptions import SecretError, SecretNotFoundError
+    from tap_cares.secrets import SecretRef, resolve_secret
+
+    say(f"Population preflight: checking {len(ref_order)} required secret(s) (offline) ...")
+    logger.info("[8e7b] boot preflight: offline check of %d required secret(s)", len(ref_order))
+
+    missing_secrets: list[dict[str, Any]] = []
+    blocked: dict[str, list[str]] = {}
+    for ref in ref_order:
+        declared = entries_by_ref[ref]
+        scope, _, secret_key = ref.partition(":")
+        problem: str | None = None
+        try:
+            secret = resolve_secret(SecretRef(scope=scope, key=secret_key))
+        except SecretNotFoundError:
+            problem = "missing"
+        except SecretError as exc:
+            problem = f"unresolvable ({exc})"
+        else:
+            if secret.kind != declared.kind:
+                problem = f"kind mismatch (envelope kind '{secret.kind}', declared '{declared.kind}')"
+        if problem is None:
+            say(f"  [preflight] secret {ref} OK ({declared.kind})")
+            rec.record_step(
+                {
+                    "type": "preflight",
+                    "key": ref,
+                    "status": "ok",
+                    "note": f"required secret present, kind {declared.kind}",
+                }
+            )
+            continue
+        missing_secrets.append({"ref": ref, "kind": declared.kind, "note": declared.note, "problem": problem})
+        for consumer_key in consumers[ref]:
+            blocked.setdefault(consumer_key, []).append(ref)
+        logger.error("[dcb9] boot preflight: required secret %s %s (kind %s)", ref, problem, declared.kind)
+        say(f"    FAILED — required secret {ref} {problem}; kind {declared.kind}: {declared.note}")
+        rec.record_step(
+            {
+                "type": "preflight",
+                "key": ref,
+                "status": "failed",
+                "note": f"required secret {problem}; kind {declared.kind}: {declared.note}",
+            }
+        )
+    return missing_secrets, blocked
 
 
 def _resolve_steps(profile: BootProfile, say: Echo) -> list[PopulationStep]:
