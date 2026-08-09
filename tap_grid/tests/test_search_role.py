@@ -14,7 +14,7 @@ import logging
 
 import pytest
 from django.conf import settings
-from django.db import ProgrammingError, connections
+from django.db import IntegrityError, ProgrammingError, connections
 
 from tap_grid.registry import get_model_class, list_entity_types
 from tap_grid.search_role import _SPINE_TABLES, SEARCH_ROLE_NAME, provision_search_role, search_role_grant_tables
@@ -91,6 +91,37 @@ class TestProvisionedRoleEnforcement:
         first = _provision()
         second = _provision()
         assert first == second
+
+    @pytest.mark.parametrize(
+        "exc",
+        [
+            IntegrityError('duplicate key value violates unique constraint "pg_authid_rolname_index"'),
+            ProgrammingError('role "tap_gryphon_ro" already exists'),
+        ],
+        ids=["unique-violation", "duplicate-object"],
+    )
+    def test_provision_retries_when_losing_the_create_role_race(self, monkeypatch, caplog, exc):
+        # The check-then-CREATE race on the cluster-global role: under xdist, two
+        # workers' run_boot grid-infra phases both see the role absent; the loser's
+        # CREATE ROLE fails with one of the two faces below and must retry into the
+        # ALTER path, not abort the boot (req-grid-db-role-concurrency.sec — the
+        # 2026-08-09 cloud-lane failure).
+        import tap_grid.search_role as sr
+
+        real_atomic = sr.transaction.atomic
+        calls = {"n": 0}
+
+        def losing_first_attempt(*args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise exc
+            return real_atomic(*args, **kwargs)
+
+        monkeypatch.setattr(sr.transaction, "atomic", losing_first_attempt)
+        with caplog.at_level(logging.WARNING):
+            tables = _provision()
+        assert tables  # provisioning completed on the retry
+        assert any("lost the concurrent CREATE ROLE race" in r.getMessage() for r in caplog.records)
 
     def test_resource_gucs_are_role_pinned(self):
         """The resource bounds — including superuser-only temp_file_limit — are pinned on the role.

@@ -25,7 +25,7 @@ import re
 import time
 from typing import Any
 
-from django.db import InternalError, transaction
+from django.db import IntegrityError, InternalError, ProgrammingError, transaction
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +38,12 @@ SEARCH_ROLE_NAME = "tap_gryphon_ro"
 # conflict is benign and self-clearing, so provisioning retries (see req-grid-db-role-concurrency.sec).
 _ROLE_PROVISION_MAX_ATTEMPTS = 5
 _CONCURRENT_UPDATE_MARKER = "tuple concurrently updated"
+# The check-then-CREATE race's two faces (req-grid-db-role-concurrency.sec): both
+# provisioners see the cluster-global role absent; the loser's CREATE ROLE fails
+# with UniqueViolation on pg_authid (concurrent, uncommitted winner) or
+# DuplicateObject "role ... already exists" (committed winner). Either way the
+# retry's next pass sees the role and takes the ALTER path.
+_DUPLICATE_ROLE_MARKERS = ("pg_authid_rolname_index", "already exists")
 
 # Spine tables the executor always reads, independent of the registry: the Entity spine, the
 # EntityType catalog, the Edge table, and the Dimension table.
@@ -151,6 +157,21 @@ def provision_search_role(
             logger.warning(
                 "[8db6] search-role provisioning hit a concurrent cluster-global role update "
                 "(attempt %d/%d) — retrying (req-grid-db-role-concurrency.sec)",
+                attempt,
+                _ROLE_PROVISION_MAX_ATTEMPTS,
+            )
+            time.sleep(0.02 * attempt)
+        except (IntegrityError, ProgrammingError) as exc:
+            # The CREATE ROLE loser of the check-then-create race (see
+            # _DUPLICATE_ROLE_MARKERS). Anything else re-raises untouched.
+            if (
+                not any(marker in str(exc) for marker in _DUPLICATE_ROLE_MARKERS)
+                or attempt == _ROLE_PROVISION_MAX_ATTEMPTS
+            ):
+                raise
+            logger.warning(
+                "[95ec] search-role provisioning lost the concurrent CREATE ROLE race "
+                "(attempt %d/%d) — retrying via the ALTER path (req-grid-db-role-concurrency.sec)",
                 attempt,
                 _ROLE_PROVISION_MAX_ATTEMPTS,
             )

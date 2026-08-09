@@ -396,8 +396,8 @@ if [[ -z "${WORKTREE_BASE:-}" ]]; then
 fi
 
 # First-spawn detection (no registry yet = fresh host): only changes messaging —
-# the first image build compiles the FIPS OpenSSL provider and takes far longer
-# than the cached rebuilds every later spawn gets.
+# the one-time published-image download is the long-ish step; only the offline/
+# unpublished local-build fallback compiles FIPS OpenSSL from source.
 FIRST_RUN=0
 [[ -f "$HOME/tap-sessions/.registry" ]] || FIRST_RUN=1
 
