@@ -1,19 +1,20 @@
 # TAP — The Analogy Platform
 
 TAP is a general-purpose platform for mastering the systems you are responsible
-for — cloud accounts, deploy pipelines, device fleets, data flows, the organization
-itself — by modeling each as a live, queryable, visual graph called **the grid**:
+for — accounts, pipelines, fleets, data flows, the organization
+itself — by modeling each as a live, queryable, visual representatiion called **the grid**:
 nodes and edges fused with dimensions, batches, history, and field-level provenance,
-so the model stays explainable as it changes. Built for humans and AI assistants
-working together. The grid lives in ordinary PostgreSQL, is queried through
-**Gryphon** (TAP's graph query language), interchanged as **GRIFT** (its JSON graph
-format), and extended entirely through **plugins** — core speaks no domain language;
-every vocabulary arrives as a plugin. [TAP in two pages](docs/doc-tap-intro.md) is
-the fastest way in.
+so the model stays explainable as it changes.  
+  
+[TAP in two pages](docs/doc-tap-intro.md) is the fastest way in.
 
-**Rampart** is the first product built on TAP, and its badge is the default: the UI
-says `RAMPART` out of the box (`TAP_PRODUCT_NAME` controls the label) — you are
-running TAP either way.
+The grid is designed for humans and AI agents working together.  
+  
+The system lives in the battle-tested PostgreSQL database, is queried through
+**Gryphon** (TAP's grid query language), data is exchanged as **GRIFT** files (its JSON graph
+format), and functionality can be extended  through **plugins** — core speaks no domain language;
+every vocabulary arrives as a plugin. 
+
 
 > **Early access.** You're here before the polish. The system works — it is used
 > daily against real infrastructure — but you will find rough edges, and reporting
@@ -22,7 +23,9 @@ running TAP either way.
 ## Get it running
 
 You need **git**, **Docker** (Desktop on macOS; Engine + the Compose v2 plugin on
-Linux), and any **python3** on the host. Linux desks: read
+Linux), and any **python3** on the host. 
+  
+  Linux users: read
 [Host prerequisites (Linux)](docs/misc/doc-dev-multisession-onboarding.md#host-prerequisites-linux)
 first — it covers the docker group, ports, and two known papercuts.
 
@@ -32,19 +35,23 @@ scripts/stand-up.sh
 ```
 
 That's the whole procedure. The script checks your host, builds the image (the first
-build compiles the FIPS-validated OpenSSL provider — 10–20 minutes, once; every later
-start is seconds), boots the instance, and prints your URL and admin credentials.
+build compiles the FIPS-validated OpenSSL provider — 10–20 minutes once (it's worth the wait), 
+boots the instance, and prints your URL and admin credentials.
 Sign in with the password from `.dev-credentials`, then enroll a passkey from your
 session if you want one.
 
-**The better way: let your AI assistant drive.** Open an AI coding assistant in the
+**The easier way: let your AI assistant drive.** Open an AI coding assistant in the
 clone (Claude Code, or anything that reads this repo) and ask it to stand TAP up —
 the `/stand-up` skill walks it through host prep, the choices, the run, and the
 first login, and it can diagnose anything that goes wrong. This repo treats AI
 assistants as first-class operators: skills under `*/skills/` are step-by-step
 procedures written for them.
 
-Day to day: `scripts/dc up -d` / `scripts/dc down` / `scripts/dc logs -f web`.
+Day to day: 
+- `scripts/dc up -d`
+-  `scripts/dc down`
+-  `scripts/dc logs -f web`.
+  
 To update: `git pull && scripts/dc up -d --build` (migrations run on start).
 
 ## Build your own plugin
