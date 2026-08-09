@@ -6,6 +6,15 @@ default to parallel. `pytest-xdist` is added (dev group, commit `d4ffebe4`); the
 `-n auto` blocker is now **fixed** (see below); the default `addopts` is still
 serial pending the deliberate lane split (remaining task).
 
+> **2026-08-09 addendum — `TAP_TEST_JOBS`.** `-n auto` sizes workers by CPU count
+> and ignores memory. On a host running several TAP stacks in one Docker VM, the
+> OOM killer reaps workers mid-run — the signature is `node down: Not properly
+> terminated` plus a cross-worker "Different tests were collected" error, with a
+> spurious FAILED attributed to the reaped worker's in-flight test. `TAP_TEST_JOBS=4
+> scripts/test --fast` caps the worker count (resolved host-side in `scripts/test`,
+> so it flows through `dc exec` without env propagation); measured same-day: 4
+> workers cleared in 5:06 where 8 workers died twice.
+
 ## Why (the measured story)
 
 Profiling inside the compose image:

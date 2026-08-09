@@ -395,7 +395,12 @@ without taxing every unrelated local edit.
 #### Acceleration levers, ranked by ROI for this DB-bound suite
 
 1. **Parallelize first — `pytest-xdist -n auto`.** The single biggest win for a
-   DB-heavy Django suite, and low-effort. `pytest-django` gives each xdist worker its
+   DB-heavy Django suite, and low-effort. `TAP_TEST_JOBS` caps the worker count
+   (`scripts/test` resolves it host-side, default `auto`) — the pressure valve for a
+   host running several TAP stacks in one Docker VM, where `-n auto` sizes by CPU,
+   ignores memory, and the OOM killer then reaps workers mid-run ("node down: Not
+   properly terminated" + cross-worker collection mismatch; observed 2026-08-09,
+   five stacks / 7.75 GiB VM). `pytest-django` gives each xdist worker its
    *own* test database, so it does **not** violate the standing "run overlapping
    suites as one invocation or they deadlock the test DB" rule — that rule is about
    two separate pytest *processes* sharing *one* DB; xdist is one process, N workers,

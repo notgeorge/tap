@@ -55,7 +55,7 @@ Given a session name, a compose project (`tap_<name>`), or a `gate-lean` `*-diag
 RID: `req-dev-multisession-diagnose-ordered-read`
 Status: `Implemented`
 
-The procedure reads container state (`compose ps`, `logs web`, `logs db`) and maps the last successful line to the failing spawn step. The failure-prone steps, in order: **build & start** (image build; port collision), **entrypoint** (uv sync → pre-boot → migrate → runserver — where most real failures land), **`manage.py boot`** (auth → population), **health gate** (`manage.py health --json`).
+The procedure reads the **structured evidence first**: the boot record at `<worktree>/logs/boot/latest.boot-record.json` (`req-boot-obs-record` — phases, per-step status/durations, boot-variable provenance, and on abort the failing step + failing self-test checks; a stale `"outcome": "running"` means the boot process was killed) and the captured spawn transcript at `<worktree>/logs/spawn.log` (`req-boot-obs-spawn-presentation`). Then container state (`compose ps`, `logs web`, `logs db`), mapping the last successful line to the failing spawn step. The failure-prone steps, in order: **pull/build & start** (image pull or fallback build; port collision), **entrypoint** (wheel-cache seed → uv sync → pre-boot → migrate → runserver — where most real failures land), **`manage.py boot`** (auth → collector preflight → population), **health gate** (`manage.py health --json`).
 
 #### Acceptance Criteria
 
@@ -63,13 +63,14 @@ The procedure reads container state (`compose ps`, `logs web`, `logs db`) and ma
 | --- | --- | :---: | --- |
 | req-dev-multisession-diagnose-ordered-read-1 | Step localization | Implemented | The failing step is identified from the container logs, not guessed. |
 | req-dev-multisession-diagnose-ordered-read-2 | Both containers read | Implemented | `web` and `db` logs are both consulted (a `db`-unhealthy cause hides in `logs db`). |
+| req-dev-multisession-diagnose-ordered-read-3 | Record-first evidence | Implemented | When a boot record / spawn transcript exists, the procedure reads it before re-running anything; "re-run boot to reproduce" is the fallback for runs that predate the record. |
 
 ### Failure Signature Catalog
 ----
 RID: `req-dev-multisession-diagnose-signatures`
 Status: `Implemented`
 
-A maintained catalog of failure→root-cause signatures, ordered most-common-first, covering at least: **import leakage** (`ModuleNotFoundError` from a core module reaching a plugin-only dependency in a lean profile — the `req-dev-validation-lean-boot` class), **pre-boot gate abort** (identity/reconcile/dependency/coherence mismatch), **migration drift/failure**, **boot population abort** (unknown plugin/collector/bundle, bad GRIFT), **health red** (cache table, secret absent, backend down), and **infra** (port collision, unhealthy `db`, stale volume). Each signature names its proof line and its fix.
+A maintained catalog of failure→root-cause signatures, ordered most-common-first, covering at least: **backstop timeout on a healthy, still-progressing container** (slow cold-cache first boot, not a fault — do not nuke), **import leakage** (`ModuleNotFoundError` from a core module reaching a plugin-only dependency in a lean profile — the `req-dev-validation-lean-boot` class), **pre-boot gate abort** (identity/reconcile/dependency/coherence mismatch), **migration drift/failure**, **boot population abort** (unknown plugin/collector/bundle, bad GRIFT), **fire-collector external-credential failure** (auth-shaped collector summary with a clean container log; the persisted self-test checks split credential-dead from target-moved, and `~/tap-secrets` being shared host state means the breakage — and the fix — spans every session), **health red** (cache table, secret absent, backend down), and **infra** (port collision, unhealthy `db`, stale volume). Each signature names its proof line and its fix.
 
 #### Acceptance Criteria
 

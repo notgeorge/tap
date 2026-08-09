@@ -150,7 +150,7 @@ Status: `Implemented`
 
 #### Implementation
 
-- **Captured transcript.** A per-spawn log at `$WORKTREE/logs/spawn.log` (`logs/` is the visible, gitignored runtime-log home — deliberately not a dotfile: evidence should be findable, not hidden), initialized once the worktree exists. The noisy steps append their full output there: the Docker build/up (Step 4), the bootloader run (Step 6), and the health-gate JSON (Step 6.5). The container's own log (`scripts/dc logs web`) is unchanged and remains the entrypoint-side evidence.
+- **Captured transcript.** A per-spawn log at `$WORKTREE/logs/spawn.log` (`logs/` is the visible, gitignored runtime-log home — deliberately not a dotfile: evidence should be findable, not hidden), initialized once the worktree exists. The noisy steps append their full output there: the image pull / fallback build + container start (Step 4), the bootloader run (Step 6), and the health-gate JSON (Step 6.5). The container's own log (`scripts/dc logs web`) is unchanged and remains the entrypoint-side evidence.
 - **Per-step presentation.** Quiet-by-default: long-running captured steps render as `<label> ... ok (Ns)` with a live elapsed counter while running; failures render `FAILED (Ns)` plus the last lines of the captured log and the log path. The bootloader step streams boot's own **section/step status lines** live (`Boot starting`, `Auth phase:`, `[seed-plugin] … OK`, `[fire-collector] … FAILED`, `Boot complete.`) and captures the rest — the operator watches population progress without the migration/warning firehose.
 - **Fast-fail preserved.** The `TAP-ABORT` fast-fail and reason surfacing (`req-boot-abort-signal-3/-4`) are untouched: quiet capture never swallows the abort reason — on failure the reason, the failing step's `FAILED —` line, and the log path are printed.
 - **Escape hatch.** `TAP_SPAWN_VERBOSE=1` restores full streaming for every captured step (debugging the capture machinery itself, or CI archaeology).
@@ -160,7 +160,7 @@ Status: `Implemented`
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-boot-obs-spawn-presentation-1 | Quiet Capture | Implemented | Docker build/up, boot, and health-gate output append to `$WORKTREE/logs/spawn.log`; the terminal shows per-step status lines with durations. | |
+| req-boot-obs-spawn-presentation-1 | Quiet Capture | Implemented | Image pull/build + start, boot, and health-gate output append to `$WORKTREE/logs/spawn.log`; the terminal shows per-step status lines with durations. | |
 | req-boot-obs-spawn-presentation-2 | Boot Sections Streamed | Implemented | The boot step streams boot's section/step status lines live while capturing the full output. | |
 | req-boot-obs-spawn-presentation-3 | Failure Shows Evidence | Implemented | A failing captured step prints the abort reason / failing lines and the `logs/spawn.log` path; the ABORT fast-fail semantics are unchanged. | |
 | req-boot-obs-spawn-presentation-4 | Verbose Escape Hatch | Implemented | `TAP_SPAWN_VERBOSE=1` restores full streaming. | |
