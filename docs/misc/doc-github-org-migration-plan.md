@@ -63,7 +63,7 @@ requirements. Written up so it does not live only in a chat log.
 | --- | --- | --- |
 | Core | `tap` | yes |
 | Live plugins (in boot profiles) | `tap-plugin-` + `administrivia`, `computing-core`, `roscale`, `identity-core`, `aws-core`, `sigstore-core`, `github-core`, `compliance-core`, `fedramp-20x-ksi`, `samsite`, `grid-fixtures`, `gryphon-playground` (12) | yes |
-| Deferred but real | `tap-plugin-aws-secrets-source` (build-bake eviction still open) | yes |
+| Deferred but real | `tap-plugin-aws-secrets-source` (build-bake eviction still open) | yes — **RE-HOMED 2026-08-09**, see below |
 | Dead weight | `tap-plugin-aws`, `tap-plugin-genericom` (plugin deleted) | ~~yes~~ **no — REVERSED 2026-08-08** |
 | Stays behind | `tap-plugin-lotr` (already archived) | **no** — stays on `notgeorge` as the archaeology shelf |
 
@@ -71,6 +71,22 @@ Verified 2026-07-22: all three dead repos have **zero** references anywhere in t
 repo — no boot profile, no code, no config. Leaving any of them behind is free.
 `tap-plugin-lotr` in particular is already archived, and transferring an archived repo
 would mean unarchive → transfer → re-archive for no gain.
+
+**RE-HOMED 2026-08-09 — `aws_secrets_source` moved to `tap-build-dependencies`;
+`tap-plugin-aws-secrets-source` archived.** The nightly plugin matrix's first run
+flagged what the extraction commit had said all along (*"Not a grid plugin"*): the
+artifact is a **bootstrap-tier secret-source provider** — it installs at image build,
+below the plugin system, because in CI the credential that installs plugins can itself
+arrive through it — so a `tap-plugin-*` name promised a contract it was never meant to
+meet. It now lives in **`unified-systems-com/tap-build-dependencies`**: the loudly-named,
+hardened home for build-time dependencies that don't fit the plugin system (rulesets:
+no force-push/deletion, protected tags, linear history, secret push-protection;
+CODEOWNERS committed as the one-toggle path to required-review). Trust model: the
+load-bearing install-time controls are core's `_ALLOWED_SOURCE_DISTRIBUTIONS` allowlist
+plus consumers pinning exact revs; the repo gates are defense-in-depth over writes.
+Core's in-tree `plugins/aws_secrets_source/` copy (byte-identical at the move) remains
+the LIVE one until the build-bake eviction completes: wire image builds to install from
+`tap-build-dependencies` at a pinned rev, prove green, then delete the in-tree copy.
 
 **REVERSED 2026-08-08 — `tap-plugin-aws` and `tap-plugin-genericom` now stay behind too,
 so 14 repos migrate, not 16.** The 2026-07-22 decision to bring them was made when the end
