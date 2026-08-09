@@ -62,7 +62,9 @@ work is already in the clone.
 2. **Boot profile** (second positional): omit it → `core_dev` (core + test fixtures,
    no credentials needed, the right first boot). `core` is the zero-plugin baseline;
    `samsite` is the full demo and needs AWS/GitHub credentials plus per-deployment
-   config (a later session's work — see the samsite plugin README).
+   config — drive `/provision-secrets` first (it enumerates the profile's declared
+   `required_secrets` and walks the minting/placement), and see the samsite plugin
+   README for the per-deployment config.
 3. **FIPS** (default ON — leave it unless asked). The published images carry the
    validated OpenSSL provider pre-built; only the offline/unpublished local-build
    fallback compiles it from source (10–20 minutes, once). `TAP_FIPS=0` is the
