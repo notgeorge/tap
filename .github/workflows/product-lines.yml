@@ -180,6 +180,20 @@ jobs:
             docker compose --env-file .env logs web | tail -150; exit 1
           fi
 
+      # Cold-resolve the staged samsite record against the stack it just booted:
+      # schema + the required_secrets coherence rules + every seed slug/bundle and
+      # collector key checked against the live registries — offline, secrets-free,
+      # zero mutation (`boot --check`). This is the CORE-side half of the record-gate
+      # seam (req-boot-bootstrap-samsite-rehome-4): the record's own shipped suite
+      # runs in the plugin repo's CI on its cadence; this step catches the other
+      # direction — a core/plugin-registry change that rots the record — on tap's
+      # cadence. Population still never runs here (no collectors, empty secrets).
+      - name: Cold-resolve the samsite record (boot --check)
+        if: matrix.line == 'samsite'
+        run: |
+          docker compose --env-file .env exec -T web sh -c \
+            'cd /app && uv run python manage.py boot --profile samsite --check'
+
       # Build the per-profile template DB workers clone from. Honors the booted profile's
       # installed app set (entry-point discovery), so the template schema matches the run.
       - name: Build per-profile test-DB template
