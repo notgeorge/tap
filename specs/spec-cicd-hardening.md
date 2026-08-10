@@ -109,6 +109,7 @@ cheap-edge doctrine; the rest are the larger deploy-half build, rightly deferred
 | req-cicd-dep-automation | [Automate Dependency Updates](#automate-dependency-updates) | Proposed | Dependabot/Renovate on `uv.lock` — pinned deps rot without it. |
 | req-cicd-build-once-artifact | [Build Once, Promote The Artifact](#build-once-promote-the-artifact) | Partial | Immutable multi-arch images published to GHCR on main push (publish-images.yml); dev + CI pull instead of rebuilding. Deploy-side promote-the-same-bytes open (no environments yet). |
 | req-cicd-supply-chain-provenance | [Sign Artifacts, Emit SBOM](#sign-artifacts-emit-sbom) | Partial | SLSA provenance attestations live on the published images; cosign signing, plugin-wheel attestations + CycloneDX/SPDX SBOM open. |
+| req-cicd-product-releases | [Product Releases](#product-releases) | Proposed | Semver product releases carrying release notes; cutting the first release must update `SECURITY.md`'s supported-versions statement. |
 | req-cicd-continuous-delivery | [Continuous Delivery](#continuous-delivery) | Proposed | Environments (staging/prod), progressive delivery, and a rollback path. The unbuilt deploy half. |
 | req-cicd-pipeline-observability | [Measure The Pipeline](#measure-the-pipeline) | Proposed | The four DORA metrics + systematic flaky-test tracking. |
 
@@ -398,6 +399,24 @@ not built speculatively now; for the Aug-1 friendly-developer phase the trust bo
 (TAP-controlled org, repos, read-only PAT, known developers) is tight enough to defer
 enforcement. Grafana (signed plugins) and Terraform (GPG-verified provider tags) are the
 precedents for both faces — one signing story, two layers (image artifact + plugin tag).
+
+### Product Releases
+
+RID: `req-cicd-product-releases`
+
+TAP core has **no product-level releases**: plugins version and release
+(`release-plugin.sh`, semver tags, in-package boot records), but the platform itself ships
+as `main` plus the `latest`/`sha-<short>` GHCR images. That is the right pre-launch posture
+(release versioning is already named as an open tail under `req-cicd-build-once-artifact`),
+but the moment adopters pin versions, releases become a contract surface: what a version
+means, what it contains, and what is supported. The root `SECURITY.md` is a consumer of that
+contract — its supported-versions statement currently says "latest `main` only" *because*
+there are no releases, and it silently rots the day that stops being true.
+
+| RID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-cicd-product-releases-1 | Semver product releases with release notes | Proposed | Product-level releases are semver git tags published as GitHub Releases, each carrying human-readable release notes that summarize major changes and name any fixed vulnerabilities. | OpenSSF Best Practices `release_notes` criterion; legitimately N/A until the first release exists. |
+| req-cicd-product-releases-2 | SECURITY.md tracks the release model | Proposed | Cutting the first product release MUST update the root `SECURITY.md` supported-versions statement (today: latest `main` + latest published images, no backports) to name which releases receive security fixes. | The tripwire that keeps the published policy honest once a release cadence exists. |
 
 ### Continuous Delivery
 
