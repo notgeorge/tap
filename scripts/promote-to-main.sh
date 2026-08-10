@@ -296,13 +296,53 @@ conclusion='${CI_CONCLUSION:-<timeout/unknown>}') — aborting promote. origin/m
 fi
 
 # ---------------------------------------------------------------------------
+# Step 2.9: the push must pass the main ruleset on MERIT, not admin bypass
+# (req-cicd-branch-protection, ladder rungs 1-2). The ruleset requires a green
+# "gate" check on the pushed SHA. A cancelled earlier cloud attempt leaves a
+# FAILED duplicate "gate" check on the SAME commit (observed 2026-08-10:
+# attempt-1 cancel + attempt-2 green -> the server evaluated the duplicates as
+# a violation and the push landed only via the admin-role bypass). Assert the
+# LATEST "gate" check is green before pushing, while origin/main is untouched.
+# When the cloud gate was skipped (bootstrap / skip-hatch) no check exists and
+# bypass is the accepted, documented mechanism - the assertion is scoped out.
+# ---------------------------------------------------------------------------
+if [[ "${CLOUD_ACTIVE:-0}" == "1" && "$DRY_RUN" -ne 1 ]]; then
+  PUSH_SHA="$(git rev-parse "$BRANCH")"
+  LATEST_GATE="$(gh api "repos/{owner}/{repo}/commits/$PUSH_SHA/check-runs?check_name=gate&per_page=50" \
+    --jq '[.check_runs[]] | sort_by(.started_at) | last | (.conclusion // "pending")' 2>/dev/null || echo "unqueryable")"
+  case "$LATEST_GATE" in
+    success)
+      info "Ruleset preflight: latest 'gate' check on $PUSH_SHA is green — push passes on merit." ;;
+    unqueryable)
+      warn "Ruleset preflight: check-runs unqueryable (gh/API hiccup) — proceeding; watch for a 'Bypassed rule violations' line below." ;;
+    *)
+      fail "Ruleset preflight: latest 'gate' check on $PUSH_SHA is '$LATEST_GATE', not success — the push would land only via admin bypass. Re-run, or inspect: gh api repos/{owner}/{repo}/commits/$PUSH_SHA/check-runs" ;;
+  esac
+fi
+
+# ---------------------------------------------------------------------------
 # Step 3: atomic dual-refspec push (req-dev-multisession-push-workflow-3).
 # Without --atomic the server may apply each refspec independently — a non-FF
 # on one ref could still leave the other update applied. With --atomic, both
 # refs advance or neither does.
 # ---------------------------------------------------------------------------
 bold "Atomic push: origin/main and origin/$BRANCH"
-dry git push --atomic origin "$BRANCH:main" "$BRANCH:$BRANCH"
+if [[ "$DRY_RUN" -eq 1 ]]; then
+  dry git push --atomic origin "$BRANCH:main" "$BRANCH:$BRANCH"
+else
+  # Capture the remote's messages: a "Bypassed rule violations" line means the
+  # server-side gate did NOT pass on merit and the admin-role bypass carried the
+  # push. Loud, review-visible telemetry until the bypass list is shrunk to a
+  # dedicated promote identity (req-cicd-branch-protection ladder rung 3).
+  PUSH_OUT="$(git push --atomic origin "$BRANCH:main" "$BRANCH:$BRANCH" 2>&1)" \
+    || { printf '%s\n' "$PUSH_OUT"; fail "Atomic push failed."; }
+  printf '%s\n' "$PUSH_OUT"
+  if grep -q "Bypassed rule violations" <<<"$PUSH_OUT"; then
+    warn "ADMIN BYPASS: the push landed by bypassing the main ruleset (see remote messages above),"
+    warn "not by satisfying the required 'gate' check. Expected ONLY for bootstrap/skip-gate promotes;"
+    warn "otherwise investigate the gate check on the pushed SHA (req-cicd-branch-protection)."
+  fi
+fi
 
 # ---------------------------------------------------------------------------
 # Step 4: sync the primary worktree (req-dev-multisession-push-workflow-4).

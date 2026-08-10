@@ -104,6 +104,7 @@ cheap-edge doctrine; the rest are the larger deploy-half build, rightly deferred
 | req-cicd-base-image-sourcing | [Source Base Images Off Anonymous Docker Hub](#source-base-images-off-anonymous-docker-hub) | Implemented | Container base images resolve from AWS's credential-free public ECR mirror, not docker.io — removes the anonymous-pull `429` single point of failure on the promote gate. First cheap edge landed. |
 | req-cicd-base-image-lifecycle | [Self-Host Base-Image Currency + Minimization](#self-host-base-image-currency--minimization) | Proposed | **Wolfi is the standard base** (`-3`, decided 2026-07-09; spike: OS-CVEs 311→0), carrying exactly TAP's runtime binaries, plus a self-hosted auto-patch loop + CVE gate instead of a managed hardened catalog. **FIPS is on by default** (`-6`), via the self-built OpenSSL 3.0 #4282 provider (`-5`, spike-proven end-to-end 2026-07-09), selected by `ARG TAP_FIPS=1` and asserted fail-closed at boot. Alternatives (DHI, UBI-micro) are **parked, not eliminated**. Docs: [doc-hardened-base-image-landscape](../docs/misc/doc-hardened-base-image-landscape.md) (landscape) · [doc-fips-assessment-record](../docs/misc/doc-fips-assessment-record.md) (FIPS decisions, lessons, verification suite). |
 | req-cicd-branch-protection | [Enforce The Gate Server-Side](#enforce-the-gate-server-side) | Proposed | Protect `main` at the forge with a bypass for the promote identity; the gate stops being bypassable. Closes the biggest hole. |
+| req-cicd-runner-least-privilege | [Runner Least Privilege](#runner-least-privilege) | Partial | Job = token boundary: read-only default token, explicit per-workflow grants, write scopes job-level only, no unannotated third-party co-tenancy with a write token, third-party actions SHA-pinned. Enforcement guard Proposed. |
 | req-cicd-dco-signoff | [DCO Sign-Off Enforcement](#dco-sign-off-enforcement) | Partial | Auto-applied `Signed-off-by` trailer (versioned hook) + report-only trailer check on both roads to main; enforcement flips when CONTRIBUTING.md lands. |
 | req-cicd-security-scanning | [Shift-Left Security Scanning](#shift-left-security-scanning) | Partial | SAST + dependency audit + secret scan + container scan as a standing CI layer. All four live: gitleaks, Dependabot alerts, CodeQL, and Trivy (publish-time + nightly, report-only — the gate flip is the open tail). |
 | req-cicd-dep-automation | [Automate Dependency Updates](#automate-dependency-updates) | Proposed | Dependabot/Renovate on `uv.lock` — pinned deps rot without it. |
@@ -207,7 +208,7 @@ which cuts against `req-cicd-base-image-sourcing`'s anonymous-pull property; the
 
 | RID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-cicd-base-image-lifecycle-1 | Digest-pinned auto-patch loop | Partial | Base images are digest-pinned (2026-08-09); **Renovate LIVE self-hosted** the same day (renovate.json5 + .github/workflows/renovate.yml, GHA daily cron, org-owned `tap-renovate` GitHub App token — not the Mend app; repo-write stays in-house). First bot PR (#19, github-actions group) opened + server-side BLOCKED on the `gate` check — the ruleset + bot loop proven end-to-end. **PR-only**: auto-merge-on-green is the open tail. | Composes `req-cicd-dep-automation`. Dependabot can't update `uv.lock`/track `cgr.dev` → Renovate; keep Dependabot *Alerts* for the advisory feed. Credential: app id + PEM key as repo Actions secrets (manage-secret reviewed; scanner covers PEM armor). App perms (verify via `GET /orgs/<org>/installations` — a missed checkbox here presents as branches-with-no-PRs): contents/pull_requests/workflows/issues RW + checks/statuses/dependabot-alerts R. Standing config lessons: schedules defer PR creation INVISIBLY (none in PR-only mode; `config:recommended` ships its own lockFileMaintenance schedule needing an explicit override). Deferred tails: plugin-repo rollout (app installed org-wide; per-repo opt-in via a shared preset — natural tenant of the org `.github` repo — paired with plugin release automation, else bumps sit unreleased on plugin mains), and the `github-tags` lookup quirk under app tokens (renovate#20507, watching). |
+| req-cicd-base-image-lifecycle-1 | Digest-pinned auto-patch loop | Partial | Base images are digest-pinned (2026-08-09); **Renovate LIVE self-hosted** the same day (renovate.json5 + .github/workflows/renovate.yml, GHA daily cron, org-owned `tap-renovate` GitHub App token — not the Mend app; repo-write stays in-house). First bot PR (#19, github-actions group) opened + server-side BLOCKED on the `gate` check — the ruleset + bot loop proven end-to-end. **PR-only**: auto-merge-on-green is the open tail. | Composes `req-cicd-dep-automation`. Dependabot can't update `uv.lock`/track `cgr.dev` → Renovate; keep Dependabot *Alerts* for the advisory feed. Credential: app id + PEM key as repo Actions secrets (manage-secret reviewed; scanner covers PEM armor). App perms (verify via `GET /orgs/<org>/installations` — a missed checkbox here presents as branches-with-no-PRs): contents/pull_requests/workflows/issues RW + checks/statuses/dependabot-alerts R. Standing config lessons: schedules defer PR creation INVISIBLY (none in PR-only mode; `config:recommended` ships its own lockFileMaintenance schedule needing an explicit override). Deferred tails: plugin-repo rollout (app installed org-wide; per-repo opt-in via a shared preset — natural tenant of the org `.github` repo — paired with plugin release automation, else bumps sit unreleased on plugin mains), and the `github-tags` lookup quirk under app tokens — RESOLVED 2026-08-10: root cause was aquasecurity's org IP allow list rejecting App-token API reads (platform gap, community#178332, no consumer-side fix); trivy-action is hand-SHA-pinned + Renovate-ignored with the reason recorded in renovate.json5. |
 | req-cicd-base-image-lifecycle-2 | Image CVE gate | Partial | Trivy scans the published images at publish time (publish-images.yml `scan` job) and nightly (trivy-nightly.yml), SARIF → code scanning; report-only. Open: flip to a pre-push gate (fail on High/Critical WITH a fix, after a week of signal); optional Copacetic stays deferred. | Realizes `req-cicd-security-scanning-4` (2026-08-09). The spike's 311→0 is this gate's baseline signal. Waivers: `.trivyignore`, mandatory reason per entry. |
 | req-cicd-base-image-lifecycle-3 | Curated-minimal Wolfi base — **the standard base** | Proposed · **decided 2026-07-09** | The web **and** DB image bases become a curated-minimal **Wolfi** base carrying exactly TAP's runtime binaries (`python-3.14 git bash coreutils sed grep postgresql-client` + copied `uv`). **Wolfi is now the standard base; alternatives are parked** (see the corrected criterion above). Start: `wolfi-base` + `apk` (digest-pinned via `-1`). Graduate: self-built **apko/melange** image (reproducible, our registry, self-generated SBOM) — this is also the vendor-independence hedge, since the Wolfi feed is Apache-2.0 and free of any subscription. | `git`/`bash`/`curl` are **named, itemized attack-surface line-items**, present because the runtime-plugin-install architecture requires them and kept current by `-1`. `sed`/`grep` **must be present** — git's porcelain in `/usr/libexec/git-core` are shell scripts, and `uv pip install git+https://…` (which runs `git submodule update`) dies with `sed: command not found` without them (spike-found). **`wolfi-base` already satisfies this via busybox**, verified by a real from-git install; no extra `apk add` is needed. The requirement bites only on a *true* distroless runtime (`chainguard/python:latest`, which has no shell at all). The base need not ship a package manager at runtime (`spikes/distroless/`) — Wolfi is chosen on Python-3.14 currency, in-image FIPS, and CVE floor, not on `apk`. |
 | req-cicd-base-image-lifecycle-4 | Minimal-binary off-ramps | Proposed | Named levers to shrink the binary set when cost/benefit flips — **not now** (`git` = 0 CVEs on Wolfi today). (A) Watch **uv #12324** (embedded git via gitoxide): if it ships, delete `git` for free. (B) An `archive`-tarball plugin source type (`https://forge/.../archive/<sha>.tar.gz`, fetched by uv's own HTTPS, sha256-pinned like the boot record) drops **both `git` and `curl`** — take it when we adopt the bake-once variant. | End-state minimum runtime = `python + uv + app` (+ psql for snapshot, a POSIX-sh/Python entrypoint instead of bash). Off-ramps are byproducts of the bake-once move, not standalone chores. |
@@ -255,11 +256,66 @@ until this ruleset requires code-owner review. One settings action lands both �
 *and* require code-owner review over the machinery paths — so it is captured here as the single
 canonical branch-protection to-do.
 
+**Status detail (2026-08-10, observed on a live promote):** the `-2` rationale — fresh merge
+commits cannot carry check runs — is now known incomplete: the promote's cloud gate DOES
+attach a `gate` check to the merge SHA (it runs on the `_ci-gate/<session>` throwaway ref,
+same commit). What actually consumed the bypass was **duplicate-context evaluation**: a
+cancelled first cloud attempt left a FAILED `gate` check on the SHA alongside the second
+attempt's green one; the server evaluated the pair as a violation and the admin-role bypass
+silently carried the push. Client-side rungs landed the same day (`-4`); the remaining
+ladder: shrink `bypass_actors` from RepositoryRole-admin/always to a dedicated promote
+identity, then the PR-flow endgame with an empty bypass list (the `protect-default-branches`
+pattern).
+
 | RID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-cicd-branch-protection-1 | Protect main | Implemented | Layered rulesets: deletion + force-push blocked un-bypassably; the `gate` check required on `main` pushes (2026-08-09, ruleset `main-required-checks`). Linear history deliberately not required. | Server-enforced floor for *everyone and everything* else. |
 | req-cicd-branch-protection-2 | Bypass for the promote identity | Implemented | Repository-admin bypass on the required-check ruleset — the promote's direct atomic push survives; the un-bypassable deletion/force-push layer still applies to admins. | Keeps the client-side flow; adds the server-side backstop. The alternative — adopt a PR/merge-queue flow — is the [Goal 6](#goals) decision, tracked but not forced here. |
 | req-cicd-branch-protection-3 | Require code-owner review over machinery | Proposed | The ruleset also **requires review from Code Owners**, so a PR touching the guard/validation machinery (the `.github/CODEOWNERS` paths — harness, scanner engines, ratchet core, runner + meta-tests, CI/gate config) needs the code-owner's approval. This is the blocking half of `req-dev-validation-meta-integrity-2`; without it, CODEOWNERS is authored but does nothing. Confirm the code-owner handle resolves — GitHub silently ignores an unresolvable owner. | Makes disabling a gate a deliberate, reviewed act rather than a silent code push. |
+| req-cicd-branch-protection-4 | Push passes on merit; bypass is telemetry | Implemented | `promote-to-main.sh` asserts pre-push that the LATEST `gate` check on the pushed SHA is green (cancelled cloud attempts leave failed duplicate checks that flip evaluation to bypass), and hard-warns on any `Bypassed rule violations` remote message post-push. Scoped out when the cloud gate is skipped (bootstrap/skip-hatch), where bypass is the documented mechanism. | Ladder rungs 1–2; rungs 3–4 (dedicated bypass identity, PR flow) tracked above. |
+
+
+### Runner Least Privilege
+
+RID: `req-cicd-runner-least-privilege`
+
+**The job is the token boundary.** Every GitHub Actions job receives its own short-lived
+`GITHUB_TOKEN`; per-job `permissions:` blocks are therefore a real, enforced isolation
+seam — not a convention. This requirement pins the seam: the *validating* CI surface is
+structurally incapable of writing, and the few write operations (image publish, SARIF
+upload, Renovate's App-credentialed PRs) are isolated in jobs that contain nothing else.
+The 2026-03-19 trivy-action compromise (mutable tags retargeted to imposter commits
+carrying a credential stealer) is the demand signal for the SHA-pinning half; the token
+model is the co-tenancy half.
+
+Trust-delta doctrine (decided 2026-08-10, the watcher-paradox discussion): **prefer
+controls from parties already inside the trust boundary.** This is why runner *egress*
+control is a NAMED OPEN RISK (see `spec-security-posture.md`) rather than a third-party
+agent: a root-privileged vendor watcher defending against compromised third-party code is
+a trust-delta of one new root; GitHub's announced native egress firewall is a trust-delta
+of zero, and we wait for it.
+
+**Scope limits (named, so this requirement does not overclaim):** it governs `GITHUB_TOKEN`
+grants only — the `tap-renovate` App's power is invisible to workflow files and is covered
+by App-permission review + the main ruleset; it is static (declared grants + co-tenancy,
+not runtime data flow); it covers the core repo now — plugin repos' thin caller workflows
+join via the org-`.github`/shared-preset wave.
+
+The `# guard-allow: req-cicd-runner-least-privilege — <reason>` annotation, on the line(s)
+immediately above a step, is the review-visible escape hatch for *justified* co-tenancy
+(the `docker/*` steps that ARE a job's write; the trivy scanner whose job carries only
+`security-events: write` for a first-party upload step). The future guard enforces
+annotation presence, not zero exceptions.
+
+| RID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-cicd-runner-least-privilege-1 | Read-only default token | Implemented | Repo `default_workflow_permissions=read`, `can_approve_pull_request_reviews=false` (verified 2026-08-10). | The floor under everything else. |
+| req-cicd-runner-least-privilege-2 | Explicit per-workflow grants | Implemented | Every workflow declares a top-level `permissions:` block; top-level grants are read-only; write scopes appear only at job level (audited 2026-08-10: all seven workflows conform). | Inherited defaults are not a posture. |
+| req-cicd-runner-least-privilege-3 | No unannotated write-job co-tenancy | Implemented | In any job whose token carries a write scope, every third-party `uses:` is either the job's own write operation or carries the `guard-allow` annotation; scan/build-job checkouts set `persist-credentials: false` so the token is never left readable in `.git` config. | The practical leak path is persisted git credentials. |
+| req-cicd-runner-least-privilege-4 | Third-party actions SHA-pinned | Partial | `helpers:pinGitHubActionDigests` maintains `@<sha> # vX.Y.Z` pins; trivy-action hand-pinned (its org IP allow list blocks Renovate lookups), SHA verified an ancestor of upstream's default branch. Partial until the digest-sweep PR merges. | Bump hygiene: `compare` API, `ahead_by: 0` — imposter commits are not ancestors. |
+| req-cicd-runner-least-privilege-5 | Same-org refs: protected tags | Proposed | Same-org `uses:` refs stay tag-based (floating `v1` is the two-mains design); compensating control = a `v*` TAG RULESET (update/delete blocked, bypass = release identity only) — a tag-move is the SILENT write path (no commit, no PR, no gate), exactly the trivy attack mechanics. | Immutable per-version tags + plugin-repo Renovate bumps is the endgame alternative. |
+| req-cicd-runner-least-privilege-6 | Enforcement guard | Proposed | `tap/guards/workflow_least_privilege.py` in the fenced guard harness: explicit-permissions, co-tenancy/annotation, and SHA-pin predicates over `.github/workflows/*.yml`; PyYAML (dev group, `safe_load` only) as parser; zero-baseline fail-closed, landing after the digest sweep merges; Map row rides the guard registry. | CODEOWNERS-fenced; watched by the guard-integrity guard. |
+
 
 ### DCO Sign-Off Enforcement
 
