@@ -143,16 +143,23 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
     DeclaredSurface(
         surface="Cold-boot system cycle",
         rid="req-dev-validation-smoke-gate",
-        cadence="Pre-push (`scripts/gate`, wired into `promote-to-main.sh`)",
+        cadence="Pre-push (`scripts/gate`, wired into `promote-to-main.sh`) + CI (`product-lines.yml` `cold-boot` job, required via `gate`)",
         status="Gate-guarded",
         enforced_by="`tap_boot/management/commands/cold_boot_gate.py`",
     ),
     DeclaredSurface(
         surface="Lean-boot core independence (import-leakage class)",
         rid="req-dev-validation-lean-boot",
-        cadence="Pre-push (`scripts/gate-lean`, wired into `promote-to-main.sh`)",
+        cadence="Pre-push (`scripts/gate-lean`, wired into `promote-to-main.sh`) + CI (`product-lines.yml` `lean-boot` job, required via `gate`)",
         status="Gate-guarded",
         enforced_by="`scripts/gate-lean` (isolated `tap_leanboot` stack, core-only venv; catches core→plugin-dep imports the full-venv cold-boot gate cannot)",
+    ),
+    DeclaredSurface(
+        surface="Live-API property fuzz (schemathesis over the Ninja OpenAPI schema)",
+        rid="req-dev-validation-api-fuzz",
+        cadence="CI (`product-lines.yml` `api-fuzz` job; dedicated `core_dev` stack)",
+        status="Report-only (deliberately NOT in the `gate` aggregator until it has a track record)",
+        enforced_by="schemathesis (`uvx`, runner-side) against the live booted API — unauthenticated surface: no 5xx, schema-conformant responses; authenticated fuzz is the named next rung",
     ),
     DeclaredSurface(
         surface="DCO sign-off trailers (both roads to main)",
