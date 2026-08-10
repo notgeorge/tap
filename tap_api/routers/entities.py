@@ -1,7 +1,7 @@
 """Entity CRUD. All mutations delegate to tap_grid.services."""
 
 import uuid
-from typing import Any
+from typing import Annotated, Any
 
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
@@ -29,8 +29,8 @@ def list_entities(
     # Bounded (422 outside range, declared in OpenAPI): a negative slice raises in
     # the ORM (500 — found by the authenticated api-fuzz pass) and an unbounded
     # limit is a free memory-exhaustion lever on an unauthenticated-adjacent surface.
-    limit: int = Query(100, ge=0, le=1000),
-    offset: int = Query(0, ge=0),
+    limit: Annotated[int, Query(ge=0, le=1000)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[Entity]:
     # Direct read bypasses Search, so it carries its own grid.read gate (interim,
     # req-tap-auth-policy) until it migrates onto the Search dispatch chokepoint.
