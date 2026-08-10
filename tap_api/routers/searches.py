@@ -23,11 +23,12 @@ router = Router()
 
 class ExecuteSearchIn(Schema):
     inputs: dict[str, Any] | None = None
-    # Non-negative (422 otherwise): the same negative-slice 500 class the
-    # authenticated api-fuzz pass found on the list endpoints, closed here
-    # preemptively before it rides into execute_search.
-    limit: int | None = Field(default=None, ge=0)
-    offset: int | None = Field(default=None, ge=0)
+    # Bounded both ways (422 otherwise): the same 500 classes the authenticated
+    # api-fuzz pass found on the list endpoints — negative values crash the ORM
+    # slice, and values past bigint crash SQL OFFSET/LIMIT — closed here before
+    # they ride into execute_search.
+    limit: int | None = Field(default=None, ge=0, le=1000)
+    offset: int | None = Field(default=None, ge=0, le=1_000_000)
     layer: SubgraphLayer | None = None
 
 

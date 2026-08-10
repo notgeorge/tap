@@ -31,7 +31,7 @@ def list_edges(
     edge_type: str | None = None,
     # Bounded for the same reasons as list_entities (negative slice = ORM raise = 500).
     limit: Annotated[int, Query(ge=0, le=1000)] = 100,
-    offset: Annotated[int, Query(ge=0)] = 0,
+    offset: Annotated[int, Query(ge=0, le=1_000_000)] = 0,
 ) -> list[Edge]:
     # Direct read bypasses Search; interim grid.read gate (req-tap-auth-policy).
     policy.authorize(_caller_ctx(request), "grid.read", operation="list_edges")

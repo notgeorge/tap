@@ -42,6 +42,8 @@ class TestListEntities:
         assert logged_in_client.get("/api/v1/entities/?limit=-5").status_code == 422
         assert logged_in_client.get("/api/v1/entities/?offset=-5").status_code == 422
         assert logged_in_client.get("/api/v1/entities/?limit=1001").status_code == 422
+        # Past-bigint offset detonated as NumericValueOutOfRange in SQL (round-2 finding).
+        assert logged_in_client.get(f"/api/v1/entities/?offset={10**33}").status_code == 422
 
 
 @pytest.mark.django_db

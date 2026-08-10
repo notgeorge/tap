@@ -272,6 +272,15 @@ on the pull request itself, evaluation is natural, and the bypass list empties t
 API-posted statuses — that would make the gate forgeable by anything holding
 `statuses: write`.
 
+**Update (2026-08-10, later the same day): the PR-flow endgame is LIVE.** The promote
+script's default road is now the PR flow (pre-push merge → PR → server gate → auto-merge;
+proven on PRs #26–#28), and change-tier gating
+(`req-dev-validation-product-line-lanes-7`) makes it the *everyday* road for docs/specs
+diffs too — the admin direct push is bootstrap/skip-hatch only
+(`req-dev-multisession-push-workflow-7`). Consequence: **emptying the bypass list to match
+`protect-default-branches` is now an actionable settings step**, no longer blocked on flow
+rework; it rides naturally with the mandatory-PR flip and the `-3` code-owner-review rung.
+
 | RID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-cicd-branch-protection-1 | Protect main | Implemented | Layered rulesets: deletion + force-push blocked un-bypassably; the `gate` check required on `main` pushes (2026-08-09, ruleset `main-required-checks`). Linear history deliberately not required. | Server-enforced floor for *everyone and everything* else. |

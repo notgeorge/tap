@@ -30,7 +30,10 @@ def list_entities(
     # the ORM (500 — found by the authenticated api-fuzz pass) and an unbounded
     # limit is a free memory-exhaustion lever on an unauthenticated-adjacent surface.
     limit: Annotated[int, Query(ge=0, le=1000)] = 100,
-    offset: Annotated[int, Query(ge=0)] = 0,
+    # Ceiling as well as floor: SQL OFFSET is a bigint, so an unbounded offset
+    # detonates as NumericValueOutOfRange (the fuzz found 1e33). Deep-offset
+    # pagination past 1e6 rows is pathological on this endpoint anyway.
+    offset: Annotated[int, Query(ge=0, le=1_000_000)] = 0,
 ) -> list[Entity]:
     # Direct read bypasses Search, so it carries its own grid.read gate (interim,
     # req-tap-auth-policy) until it migrates onto the Search dispatch chokepoint.
