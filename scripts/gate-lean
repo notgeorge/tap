@@ -91,6 +91,14 @@ teardown() {
     info "diagnostics: $DIAG"
     info "post-mortem: run the /diagnose-failed-session-spawn skill"
   fi
+  # Linux CI: files the CONTAINER wrote into the bind-mounted worktree (logs/boot
+  # records) are root-owned on a Linux host — the invoking user cannot rm them, so
+  # teardown fails AFTER a green gate (observed on GHA runners 2026-08-10). Remove
+  # container-written paths from inside a container first; on macOS Docker Desktop
+  # uid-maps writes, so this is a harmless no-op. Uses the already-pulled published
+  # image; never fails the gate.
+  docker run --rm -v "$WORKTREE:/w" --entrypoint sh \
+    ghcr.io/unified-systems-com/tap-web:latest -c 'rm -rf /w/logs' >/dev/null 2>&1 || true
   bold "Tearing down throwaway '$NAME'"
   if ! WORKTREE_BASE="$WORKTREE_BASE" scripts/despawn-session.sh "$NAME" --yes >/dev/null 2>&1; then
     # despawn couldn't do it (e.g. spawn died before the worktree existed) — nuke by hand.

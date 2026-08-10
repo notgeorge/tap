@@ -356,17 +356,28 @@ jobs:
         run: |
           base="http://localhost:${WEB_PORT:-8000}"
           schema="$base/api/v1/openapi.json"
-          curl -fsS "$schema" -o /dev/null || { echo "::error::could not fetch $schema"; exit 1; }
+          # `manage.py health` probes the backends in-process, NOT the HTTP server —
+          # the runserver may still be warming when health first goes green (observed
+          # 2026-08-10: connection-reset on the first fetch). Poll HTTP itself.
+          ok=0
+          for i in $(seq 1 18); do
+            curl -fsS "$schema" -o /dev/null 2>/dev/null && { ok=1; break; }
+            sleep 10
+          done
+          if [ "$ok" != 1 ]; then
+            echo "::error::could not fetch $schema after 3 min"
+            docker compose --env-file .env logs web | tail -80
+            exit 1
+          fi
           uvx schemathesis run "$schema" \
             --checks not_a_server_error,response_schema_conformance \
-            --max-examples 20 --workers 2 \
-            --report schemathesis-report.tar.gz || true
-      - name: Upload fuzz report
+            --max-examples 20 --workers 2 2>&1 | tee schemathesis.log || true
+      - name: Upload fuzz log
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: schemathesis-report
-          path: schemathesis-report.tar.gz
+          name: schemathesis-log
+          path: schemathesis.log
           if-no-files-found: ignore
 
   # The single stable required-check target — rulesets point ONLY at this name.
