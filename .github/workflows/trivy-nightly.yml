@@ -34,7 +34,7 @@ jobs:
       matrix:
         image: [tap-web, tap-db]
     steps:
-      - uses: actions/checkout@v7   # for .trivyignore
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7   # for .trivyignore
         with:
           persist-credentials: false  # never leave the job token readable in .git config
       # guard-allow: req-cicd-runner-least-privilege — scanner needs no token; this job's
@@ -47,7 +47,7 @@ jobs:
           output: trivy-${{ matrix.image }}.sarif
           exit-code: "0"
       - name: Upload SARIF to code scanning
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
         with:
           sarif_file: trivy-${{ matrix.image }}.sarif
           category: trivy-${{ matrix.image }}
