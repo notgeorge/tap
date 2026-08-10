@@ -21,13 +21,14 @@ from typing import Any
 
 from django.conf import settings
 from django.contrib.auth import login as auth_login
+from django.core.exceptions import ImproperlyConfigured
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST
 
-from tap_auth.passkey import ceremony, challenge
+from tap_auth.passkey import ceremony, challenge, config
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,14 @@ def login_page(request: HttpRequest) -> HttpResponse:
     than no link. The fallback is allauth's already-mounted, already-rate-limited login
     view rather than a native one — see the requirement for why serving our own would
     mean rebuilding brute-force protection.
+
+    ``canonical_login_url`` is set exactly when this request arrived on an origin the
+    passkey ceremony will refuse (req-tap-auth-passkey-rollout-6). The ceremony origin
+    is pinned EXACTLY (scheme+host+port, req-tap-auth-passkey-webauthn-7), and dev
+    sessions are also reachable at the labeled ``<name>.tap.localhost`` alias — where
+    the browser rejects RP-ID ``localhost`` before any prompt appears. Detecting the
+    mismatch server-side lets the page say "sign in over there" BEFORE the click,
+    instead of a dead button and a post-hoc SecurityError message.
     """
     return render(
         request,
@@ -54,8 +63,28 @@ def login_page(request: HttpRequest) -> HttpResponse:
         {
             "next": _safe_next(request),
             "local_password_enabled": settings.TAP_LOCAL_PASSWORD_ENABLED,
+            "canonical_login_url": _canonical_login_url(request),
         },
     )
+
+
+def _canonical_login_url(request: HttpRequest) -> str | None:
+    """The same login URL on the pinned ceremony origin, or None if already there.
+
+    Comparison is exact-origin (scheme+host+port), mirroring the server-side assertion
+    check — if verify would reject this origin, the page should say so up front. When
+    ``TAP_PASSKEY_ORIGIN`` is unset the page renders no signpost and the ceremony
+    endpoints raise their own configuration error; a misconfigured instance must not
+    500 the login page itself.
+    """
+    try:
+        origins = config.expected_origins()
+    except ImproperlyConfigured:
+        return None
+    request_origin = f"{request.scheme}://{request.get_host()}"
+    if request_origin in origins:
+        return None
+    return origins[0].rstrip("/") + request.get_full_path()
 
 
 @require_POST

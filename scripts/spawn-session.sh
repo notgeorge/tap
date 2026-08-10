@@ -1151,7 +1151,11 @@ echo "$SESSION_NAME $WEB_PORT $POSTGRES_PORT session/$SESSION_NAME $SPAWNED_AT" 
 # Spec: req-dev-multisession-browser-disambiguation — the labeled URL uses the
 #       *.localhost subdomain pattern (RFC 6761 native browser resolution to
 #       127.0.0.1) so the address bar tells the developer which session they're
-#       in. The direct localhost:<port> URL is the unambiguous fallback.
+#       in. The direct localhost:<port> URL leads: it is the ONLY origin passkey
+#       sign-in works on — browsers refuse RP-ID "localhost" from a *.localhost
+#       subdomain, and the ceremony origin is pinned exactly
+#       (req-tap-auth-passkey-rollout-6). The labeled URL is an address-bar
+#       label, and its cookie realm is separate from Direct's.
 # ============================================================================
 trap - EXIT  # Disarm failure trap on success.
 
@@ -1159,9 +1163,9 @@ echo
 bold "Done — session '$SESSION_NAME' is ready."
 echo
 info "URLs"
-info "  Labeled:   http://$SESSION_NAME.tap.localhost:$WEB_PORT/"
-info "  Direct:    http://localhost:$WEB_PORT/"
-info "  Admin URL: http://$SESSION_NAME.tap.localhost:$WEB_PORT/admin/"
+info "  Direct:    http://localhost:$WEB_PORT/  <- sign in HERE (passkeys refuse other origins)"
+info "  Labeled:   http://$SESSION_NAME.tap.localhost:$WEB_PORT/  (address-bar label only)"
+info "  Admin URL: http://localhost:$WEB_PORT/admin/"
 echo
 info "Admin credentials"
 info "  Username:  admin"
@@ -1213,9 +1217,9 @@ case "$LAUNCH_TARGET" in
 TAP session '$SESSION_NAME' — access info (written by spawn-session.sh, $(date -u +%Y-%m-%dT%H:%M:%SZ))
 
 URLs
-  Labeled:   http://$SESSION_NAME.tap.localhost:$WEB_PORT/
-  Direct:    http://localhost:$WEB_PORT/
-  Admin URL: http://$SESSION_NAME.tap.localhost:$WEB_PORT/admin/
+  Direct:    http://localhost:$WEB_PORT/  <- sign in HERE (passkeys refuse other origins)
+  Labeled:   http://$SESSION_NAME.tap.localhost:$WEB_PORT/  (address-bar label only)
+  Admin URL: http://localhost:$WEB_PORT/admin/
 
 Admin credentials
   Username:  admin

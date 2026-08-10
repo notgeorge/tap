@@ -161,6 +161,8 @@ Two zero-infra mechanisms let the developer tell at a glance which session a bro
 
 The two mechanisms are independent and complementary — the URL labels the address bar, the badge labels the page chrome. Together they make tab-switching unambiguous without any new infrastructure.
 
+**The labeled URL is a label, not a sign-in origin.** Passkey login works only at the direct `http://localhost:<WEB_PORT>/` origin: browsers refuse RP-ID `localhost` from a `*.localhost` subdomain with a pre-prompt `SecurityError`, and the ceremony origin is pinned exactly on the server side regardless (req-tap-auth-passkey-webauthn-7). The labeled hostname is also a separate cookie realm — a session established on one origin does not carry to the other. Spawn's output and `/launch-ui` therefore lead with (and open) the direct URL, and the login page itself signposts the way out when reached on a refused origin (req-tap-auth-passkey-rollout-6).
+
 #### Implementation
 - `tap/settings.py`: `ALLOWED_HOSTS` default extended to include `.localhost`. New `TAP_SESSION_LABEL` setting reads `TAP_SESSION_LABEL` env var (empty default).
 - `tap_web/context_processors.py`: `branding` exposes `session_label` to all templates.
