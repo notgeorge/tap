@@ -104,6 +104,7 @@ cheap-edge doctrine; the rest are the larger deploy-half build, rightly deferred
 | req-cicd-base-image-sourcing | [Source Base Images Off Anonymous Docker Hub](#source-base-images-off-anonymous-docker-hub) | Implemented | Container base images resolve from AWS's credential-free public ECR mirror, not docker.io — removes the anonymous-pull `429` single point of failure on the promote gate. First cheap edge landed. |
 | req-cicd-base-image-lifecycle | [Self-Host Base-Image Currency + Minimization](#self-host-base-image-currency--minimization) | Proposed | **Wolfi is the standard base** (`-3`, decided 2026-07-09; spike: OS-CVEs 311→0), carrying exactly TAP's runtime binaries, plus a self-hosted auto-patch loop + CVE gate instead of a managed hardened catalog. **FIPS is on by default** (`-6`), via the self-built OpenSSL 3.0 #4282 provider (`-5`, spike-proven end-to-end 2026-07-09), selected by `ARG TAP_FIPS=1` and asserted fail-closed at boot. Alternatives (DHI, UBI-micro) are **parked, not eliminated**. Docs: [doc-hardened-base-image-landscape](../docs/misc/doc-hardened-base-image-landscape.md) (landscape) · [doc-fips-assessment-record](../docs/misc/doc-fips-assessment-record.md) (FIPS decisions, lessons, verification suite). |
 | req-cicd-branch-protection | [Enforce The Gate Server-Side](#enforce-the-gate-server-side) | Proposed | Protect `main` at the forge with a bypass for the promote identity; the gate stops being bypassable. Closes the biggest hole. |
+| req-cicd-dco-signoff | [DCO Sign-Off Enforcement](#dco-sign-off-enforcement) | Partial | Auto-applied `Signed-off-by` trailer (versioned hook) + report-only trailer check on both roads to main; enforcement flips when CONTRIBUTING.md lands. |
 | req-cicd-security-scanning | [Shift-Left Security Scanning](#shift-left-security-scanning) | Partial | SAST + dependency audit + secret scan + container scan as a standing CI layer. All four live: gitleaks, Dependabot alerts, CodeQL, and Trivy (publish-time + nightly, report-only — the gate flip is the open tail). |
 | req-cicd-dep-automation | [Automate Dependency Updates](#automate-dependency-updates) | Proposed | Dependabot/Renovate on `uv.lock` — pinned deps rot without it. |
 | req-cicd-build-once-artifact | [Build Once, Promote The Artifact](#build-once-promote-the-artifact) | Partial | Immutable multi-arch images published to GHCR on main push (publish-images.yml); dev + CI pull instead of rebuilding. Deploy-side promote-the-same-bytes open (no environments yet). |
@@ -259,6 +260,26 @@ canonical branch-protection to-do.
 | req-cicd-branch-protection-1 | Protect main | Implemented | Layered rulesets: deletion + force-push blocked un-bypassably; the `gate` check required on `main` pushes (2026-08-09, ruleset `main-required-checks`). Linear history deliberately not required. | Server-enforced floor for *everyone and everything* else. |
 | req-cicd-branch-protection-2 | Bypass for the promote identity | Implemented | Repository-admin bypass on the required-check ruleset — the promote's direct atomic push survives; the un-bypassable deletion/force-push layer still applies to admins. | Keeps the client-side flow; adds the server-side backstop. The alternative — adopt a PR/merge-queue flow — is the [Goal 6](#goals) decision, tracked but not forced here. |
 | req-cicd-branch-protection-3 | Require code-owner review over machinery | Proposed | The ruleset also **requires review from Code Owners**, so a PR touching the guard/validation machinery (the `.github/CODEOWNERS` paths — harness, scanner engines, ratchet core, runner + meta-tests, CI/gate config) needs the code-owner's approval. This is the blocking half of `req-dev-validation-meta-integrity-2`; without it, CODEOWNERS is authored but does nothing. Confirm the code-owner handle resolves — GitHub silently ignores an unresolvable owner. | Makes disabling a gate a deliberate, reviewed act rather than a silent code push. |
+
+### DCO Sign-Off Enforcement
+
+RID: `req-cicd-dco-signoff`
+
+CONTRIBUTING.md (in legal review as of 2026-08-10) requires a DCO `Signed-off-by` trailer
+on every commit, with two policy-stated exemptions: merge commits (DCO convention) and
+commits authored by automated dependency-update tooling, which a maintainer certifies at
+merge — normally by squash-merging with their own sign-off. A published policy without
+mechanics is a latent lie the day it lands, so the mechanics land **first, report-only**,
+and flip to enforcing in the same change that lands CONTRIBUTING.md + the DCO text at the
+repo root. The certification act is review-and-submit, not the mechanical trailer — the
+tooling below applies trailers; humans certify by submitting (this is CONTRIBUTING's own
+framing, and it puts maintainer and contributor on the identical path).
+
+| RID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-cicd-dco-signoff-1 | Sign-off applied automatically | Implemented | `.githooks/prepare-commit-msg` appends the committer's `Signed-off-by` trailer to every non-merge commit, from the committer's git identity. | Lives in the versioned `.githooks/` dir `spawn-session.sh` wires via `core.hooksPath`, so every contributor session gets it — no per-machine setup, no maintainer special case. |
+| req-cicd-dco-signoff-2 | Trailer check on both roads to main | Implemented (report-only) | `scripts/check-dco` verifies every non-merge, non-bot commit added over `origin/main` carries the trailer; wired into the promote's local gates and the `dco` job in `product-lines.yml` (the PR road + the promote's dispatched cloud gate). | ONE artifact, MANY invokers (the `scripts/gate` pattern). Bot exemption: `renovate`/`dependabot`/`github-actions` `[bot]` authors. |
+| req-cicd-dco-signoff-3 | Enforcement flips with the policy | Proposed | The change that lands CONTRIBUTING.md + `DCO` at the repo root sets `TAP_DCO_ENFORCE=1` in both invokers; a missing trailer then reds the gate and blocks the promote/PR. | Report-only until then — the policy is not law before the doc is. Composes with `req-cicd-branch-protection`: under mandatory PRs the `dco` job becomes a required check. |
 
 ### Shift-Left Security Scanning
 
