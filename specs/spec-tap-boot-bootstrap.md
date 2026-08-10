@@ -423,6 +423,10 @@ Every package manager avoids this the same way, and the prior art keyed to *our*
   layer up**, in the package `tap-plugin.toml`'s `[[boot.records]]` table (the same table that
   enumerates records for `req-boot-bootstrap-discovery`), never inside the record file. The digest is
   **regenerated through its derivation** by `scripts/boot-record-hash --refresh`, never hand-typed.
+  The derivation sweeps both plugin layouts — in-tree `plugins/*/` and plugin-workspace dev checkouts
+  at `_dev-plugins/*/` (`spec-dev-plugin-workspace.md`) — so a fork author editing their checkout's
+  in-package record (the adopter cutover flow: repoint the record at your own repos, refresh, release)
+  can actually run the mandatory tool; `--root <path>` serves any other layout.
 - **Two integrity layers, two jobs.** (a) The shipped wheel already hashes every boot record in its
   standard `RECORD` file, free at build time — post-build / transit / at-rest integrity. (b) The
   `tap-plugin.toml` digest is the **source-side declared baseline** (catches unintended edits in the

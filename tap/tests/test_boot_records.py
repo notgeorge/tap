@@ -26,7 +26,9 @@ def test_repo_boot_records_are_coherent() -> None:
 # --- fixtures ---------------------------------------------------------------
 
 
-def _make_plugin(root: Path, slug: str, records: dict[str, dict[str, object]], *, declare: dict[str, str] | None) -> Path:
+def _make_plugin(
+    root: Path, slug: str, records: dict[str, dict[str, object]], *, declare: dict[str, str] | None
+) -> Path:
     """Create plugins/<slug>/tap_plugin/<slug>/boot/*.boot.json + a tap-plugin.toml.
 
     ``records`` maps record name -> record JSON body. ``declare`` maps record name ->
@@ -59,9 +61,7 @@ def test_canonical_digest_is_reformat_stable(tmp_path: Path) -> None:
 
 def test_check_clean_when_declared_matches(tmp_path: Path) -> None:
     body = {"version": 1, "install": {"plugins": []}}
-    digest = boot_records.canonical_digest(
-        _write_tmp_record(tmp_path, body)
-    )
+    digest = boot_records.canonical_digest(_write_tmp_record(tmp_path, body))
     _make_plugin(tmp_path, "foo", {"only": body}, declare={"only": digest})
     assert boot_records.check(tmp_path) == []
 
@@ -116,3 +116,55 @@ def test_refresh_populates_and_then_checks_clean(tmp_path: Path) -> None:
     assert boot_records.check(tmp_path) == []
     # Idempotent: a second refresh changes nothing.
     assert boot_records.refresh(tmp_path) == []
+
+
+def _make_dev_plugin(
+    root: Path, slug: str, records: dict[str, dict[str, object]], *, declare: dict[str, str] | None
+) -> Path:
+    """Like _make_plugin but under _dev-plugins/<slug>/ — a plugin-workspace dev checkout."""
+    boot_dir = root / "_dev-plugins" / slug / "tap_plugin" / slug / "boot"
+    boot_dir.mkdir(parents=True)
+    for name, body in records.items():
+        (boot_dir / f"{name}{boot_records.RECORD_SUFFIX}").write_text(json.dumps(body), encoding="utf-8")
+    toml_path = boot_dir.parent / "tap-plugin.toml"
+    lines = [f'slug = "{slug}"\n']
+    if declare is not None:
+        for name, sha in declare.items():
+            lines += ["\n[[boot.records]]\n", f'name = "{name}"\n', f'description = "d"\n', f'sha256 = "{sha}"\n']
+    toml_path.write_text("".join(lines), encoding="utf-8")
+    return toml_path
+
+
+def test_dev_plugins_checkout_is_discovered_and_refreshable(tmp_path: Path) -> None:
+    """The fork-cutover flow: an adopter edits their _dev-plugins checkout's in-package
+    record and MUST be able to run the digest derivation against it — the toml says
+    'never hand-edit' and points at this tool, so invisibility was a contradiction."""
+    body = {"version": 1, "install": {"plugins": [{"slug": "samsite"}]}}
+    toml_path = _make_dev_plugin(tmp_path, "samsite", {"samsite": body}, declare={"samsite": ""})
+
+    # Discovered alongside the monorepo layout, refresh rewrites the checkout's toml.
+    assert [m.slug for m in boot_records.discover(tmp_path)] == ["samsite"]
+    assert boot_records.refresh(tmp_path) == [toml_path]
+    assert boot_records.check(tmp_path) == []
+
+    # Drift in the checkout is flagged, same as a shipped record.
+    record = tmp_path / "_dev-plugins" / "samsite" / "tap_plugin" / "samsite" / "boot" / "samsite.boot.json"
+    record.write_text(json.dumps({**body, "description": "edited"}), encoding="utf-8")
+    assert any("content changed" in p for p in boot_records.check(tmp_path))
+
+
+def test_both_layouts_discovered_together(tmp_path: Path) -> None:
+    body: dict[str, object] = {"version": 1}
+    _make_plugin(tmp_path, "shipped", {"a": body}, declare={"a": ""})
+    _make_dev_plugin(tmp_path, "checkout", {"b": body}, declare={"b": ""})
+    assert sorted(m.slug for m in boot_records.discover(tmp_path)) == ["checkout", "shipped"]
+    assert len(boot_records.refresh(tmp_path)) == 2
+
+
+def test_no_dev_plugins_dir_behaves_identically(tmp_path: Path) -> None:
+    """A worktree without _dev-plugins (every CI checkout) is unaffected by the sweep."""
+    body: dict[str, object] = {"version": 1}
+    _make_plugin(tmp_path, "only", {"a": body}, declare={"a": ""})
+    assert [m.slug for m in boot_records.discover(tmp_path)] == ["only"]
+    assert len(boot_records.refresh(tmp_path)) == 1
+    assert boot_records.check(tmp_path) == []
