@@ -174,7 +174,7 @@ This keeps query logic discoverable, reusable, and consistent across panels and 
 | req-viz-system-search-backed-3 | No Viz-Specific Search Engine | Proposed | The spec does not define a parallel viz-only query execution system. | |
 
 #### Future
-If layouts later compose searches more richly, that composition should still be expressed in terms of Search entities and layout pipeline steps.
+If layouts later compose searches more richly, that composition should still be expressed in terms of Search entities and layout pipeline steps. When that binding is built, step-to-search references validate via a `USES_SEARCH` hotlink on the Layout model — the same pattern `req-viz-layout-dual-mode` proves with `USES_ARRANGEMENT` — not via role-name edge properties. (The v0 `search-id`/`layout-id` edge-property binding keys were deleted as unread remnants, 2026-08-10; see `req-grid-edge-schema-required` in spec-grid-edge.md.)
 
 
 ### Display Hints

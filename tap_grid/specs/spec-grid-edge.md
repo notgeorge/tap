@@ -391,13 +391,17 @@ not a guard-building exercise:
    are hotlink-only — covered by the hotlink machinery, nothing to author. What remains:
    `TRUSTS_ISSUER__identity_core` + `FEDERATES_VIA__github_core` (the shared
    `{link_rule, matched_value}` provenance shape — one schema constant owned by
-   identity_core, referenced by github_core), `SCOPED_TO_COMPLIANCE_BOUNDARY__compliance_core`
-   (formalize or schema the v0 `kludge` membership marker), `USES_SEARCH` (decide:
-   migrate `search-id` to a hotlink, or schema it), and `USES_LAYOUT`'s 2 legacy
-   `layout-id` rows (migrate to hotlink shape). Derive schemas from writer code plus
-   observed rows, so the flip does not strand live data behind a stricter-than-reality
-   schema (existing rows stay readable — enforcement is on writes — but *updates* must
-   validate).
+   identity_core, referenced by github_core) and `SCOPED_TO_COMPLIANCE_BOUNDARY__compliance_core`
+   (formalize or schema the v0 `kludge` membership marker). `USES_SEARCH`'s `search-id`
+   and `USES_LAYOUT`'s 2 legacy `layout-id` rows are **deleted, not schema'd**
+   (investigated 2026-08-10): they are v0 layout-definition binding remnants — read by
+   no code, binding into a steps pipeline superseded by the v1 dual-mode definition whose
+   reference binding rides hotlink (`req-viz-layout-dual-mode`; future step-to-search
+   composition binds the same way, see spec-viz-system.md). Remove from the
+   `tap_web/data/*.grift.json` seeds and clean existing rows by data migration. Derive
+   the remaining schemas from writer code plus observed rows, so the flip does not strand
+   live data behind a stricter-than-reality schema (existing rows stay readable —
+   enforcement is on writes — but *updates* must validate).
 2. **Flip runtime enforcement in core** once all 9 are schema'd. Ordering is enforced by
    the existing pin flow: the plugin releases must precede the core flip, and the
    `requires_tap` floor on those releases plus the test_all pin bumps make the sequence
