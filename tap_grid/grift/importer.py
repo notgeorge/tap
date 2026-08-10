@@ -612,8 +612,19 @@ def _validate_node_payload(
 
     replace_schema = model_cls.SERVICE_CRUD_SCHEMA.get("replace", {})
     if replace_schema:
+        # Mirror the service write path's null semantics BEFORE validating
+        # (req-grid-service-write-observation-2): an explicit null on a known
+        # non-null field is dropped — treated as absent — exactly as
+        # _prepare_null_payload will do again at write time. Validating the raw
+        # payload here rejected batches the service layer itself would accept
+        # (a collector's graceful-missing None, e.g. an AWS response field the
+        # API omitted). Null on a null-permitting field and null on an UNKNOWN
+        # field are preserved, so clears still earn FLIP and
+        # additionalProperties:false still rejects strangers.
+        from tap_grid.services._impl import _prepare_null_payload
+
         try:
-            jsonschema.validate(instance=payload, schema=replace_schema)
+            jsonschema.validate(instance=_prepare_null_payload(payload, replace_schema), schema=replace_schema)
         except jsonschema.ValidationError as exc:
             issues.append(
                 _issue(
