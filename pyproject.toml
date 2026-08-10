@@ -159,6 +159,15 @@ no-binary-package = ["cryptography"]
 # Major-bound for key TRANSITIVES (same policy as the direct-deps block above;
 # constraint-dependencies bounds without declaring a direct dependency).
 constraint-dependencies = ["pydantic<3"]
+# Floor the BUILD backends uv fetches when compiling sdists (the --no-binary FIPS
+# builds above). These land in the image's wheel-cache seed, so a vulnerable build
+# backend there is a Trivy finding on the published artifact even though it is not
+# a runtime dependency. wheel>=0.46.2 clears CVE-2026-24049. A setuptools>=83 floor
+# (CVE-2026-59890 + vendored jaraco.context CVE-2026-23949) is NOT applicable:
+# psycopg-c 3.3.4 (latest) hard-pins `setuptools == 80.3.1` in build-system.requires,
+# making any floor above it unsatisfiable — risk stays open, build-time-only exposure,
+# until psycopg-c lifts the pin. Re-add the floor when it does.
+build-constraint-dependencies = ["wheel>=0.46.2"]
 
 [tool.uv.workspace]
 members = []
