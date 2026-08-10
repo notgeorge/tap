@@ -277,6 +277,16 @@
         e.preventDefault();
         openPalette();
       });
+      // The template's ⌘K hint is the no-JS default; non-Mac platforms trigger
+      // via ctrlKey, so relabel to the shortcut those users actually press.
+      const isMac = /mac|iphone|ipad|ipod/i.test(
+        (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || ""
+      );
+      if (!isMac) {
+        btn.title = "Search pages (Ctrl+K)";
+        const kbd = btn.querySelector(".tap-palette-affordance-kbd");
+        if (kbd) kbd.textContent = "Ctrl+K";
+      }
     }
   }
 

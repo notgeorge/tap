@@ -100,7 +100,7 @@
         "source": {
           "type": "git",
           "url": "https://github.com/unified-systems-com/tap-plugin-samsite",
-          "rev": "v0.2.1"
+          "rev": "v0.2.2"
         },
         "note": "Package-mode (tap_plugin.samsite). The demo integration surface; seeded in population. DEPENDS ON roscale/sigstore_core/github_core (import time) + aws_core nodes \u2014 listed last so its cross-plugin deps install first. Its collectors are NOT fired in base (base reaches out to nothing)."
       },
