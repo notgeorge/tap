@@ -51,12 +51,18 @@ Proven 2026-07-09: `spawn-session wsdev samsite --dev-plugins compliance_core` b
 `editable: true`) while `fedramp_20x_ksi` stayed git-pinned at `v0.2.0`, and both the conformance
 gate (12 plugins) and the compatibility gate fired at standup.
 
-**2026-08-09 caveat:** that exact invocation no longer works — the samsite record re-homed into
-`tap-plugin-samsite` (`req-boot-bootstrap-samsite-rehome`), and `--dev-plugins` requires a
-repo-local base profile while `--from` is mutually exclusive with it. A workspace over the samsite
-set currently uses a repo-local base (`test_all`) or a `--boot-file` copy of the staged record; the
-`--from`+`--dev-plugins` composition is a named open seam in `spec-tap-boot-bootstrap.md`, not
-solved by the re-home.
+**2026-08-09 (later the same day):** the samsite record re-homed into `tap-plugin-samsite`
+(`req-boot-bootstrap-samsite-rehome`), which briefly left `--dev-plugins` requiring a repo-local
+base while `--from` was mutually exclusive with it. That seam is now closed: `--from` composes
+with `--dev-plugins` (`req-dev-workspace-spawn-6`) — the pointer's stage-0-staged record becomes
+the base profile the workspace derivation overrides, so the external-adopter dev flow is one
+command:
+
+```
+scripts/spawn-session.sh sam-dev cli \
+  --from git+https://github.com/unified-systems-com/tap-plugin-samsite@v0.2.0#samsite \
+  --dev-plugins samsite
+```
 
 A **plugin workspace** is the unit of plugin development. It is composed of:
 
@@ -96,7 +102,9 @@ Status: `Implemented`
 Implemented as `tap/dev_workspace.py` (pure stdlib, host-runnable venv-free, reusing
 `tap.boot_pointer`'s credential + `GIT_ASKPASS` helpers) + `spawn-session.sh --dev-plugins`
 wiring (mirrors `--from`). Unit-tested (`tap/tests/test_dev_workspace.py`) and proven by a real
-spawn (see `req-dev-workspace-model` Status Details).
+spawn (see `req-dev-workspace-model` Status Details). Since 2026-08-09 the base may also be a
+`--from` pointer (`req-dev-workspace-spawn-6`): spawn stages the pointer's record before the
+derivation runs, so the staged record IS the base profile — no change to the derivation itself.
 
 `spawn-session.sh` gains a `--dev-plugins <slug[,slug...]>` option that stands up a workspace
 in one command, extending the existing spawn lifecycle (`req-dev-multisession-spawn-script`).
@@ -134,9 +142,17 @@ A dev plugin's tests are gated where they belong: its own repo CI, and `release-
 pre-release gate (`pytest --pyargs tap_plugin.<slug>`), which is why that gate requires tests to
 live IN the package.
 
-`--dev-plugins` composes with a base `--profile`/positional profile: the base names the full
-plugin set and pinned revs; `--dev-plugins` overrides the named subset to editable. The default
-base for a bare `--dev-plugins` is the minimal inner-loop profile (`core_dev` + `grid_fixtures`).
+`--dev-plugins` composes with a base that names the full plugin set and pinned revs;
+`--dev-plugins` overrides the named subset to editable. The base is either a **repo-local
+profile** (positional/`--boot`) or a **`--from` bootstrap pointer** (`spec-tap-boot-bootstrap.md`):
+spawn stages the pointer's record into the worktree's `boot/` first (stage-0 fetch +
+digest verification), then runs the same derivation over the staged record — the derivation
+code reads `boot/<id>.boot.json` by id and never knows whether the base was committed or
+staged. The trust decision, stated once: the pointer's digest verification happens at fetch
+time against the record **as shipped**; the derived `__dev` workspace profile is a
+post-verification **local mutation**, identical in kind to what the repo-local flow already
+does. Nothing new is trusted. A bare `--dev-plugins` with no base at all is an error (there
+is no install list to select from), matching the slug-absent fail-closed posture.
 
 #### Acceptance Criteria
 
@@ -146,7 +162,8 @@ base for a bare `--dev-plugins` is the minimal inner-loop profile (`core_dev` + 
 | req-dev-workspace-spawn-2 | Editable Checkout Ensured | Proposed | Each named plugin is cloned as an editable checkout at `_dev-plugins/<slug>/` under the harness worktree (gitignored); despawn removes it with the worktree. | |
 | req-dev-workspace-spawn-5 | Profile Is The Source Authority | Proposed | The slug resolves against the base profile's git install entry for the authoritative `url`/`rev`/`credential`; the slug is never used to *derive* a URL. A slug absent from the base profile is an error, not a guessed clone. | Handles forks, renames, and cross-org product repos. |
 | req-dev-workspace-spawn-3 | Rest Stay Pinned | Proposed | Non-named plugins in the base profile remain git-pinned at their tags. | The override is the named subset only. |
-| req-dev-workspace-spawn-4 | Composes With A Base Profile | Proposed | `--dev-plugins` overrides a base profile's named subset to editable; bare use defaults to the minimal inner-loop profile. | |
+| req-dev-workspace-spawn-4 | Composes With A Base Profile | Proposed | `--dev-plugins` overrides a base profile's named subset to editable; bare use (no base at all) is an error, not a silent default. | |
+| req-dev-workspace-spawn-6 | Composes With A Pointer Base | Implemented | `--dev-plugins` composes with `--from <pointer>`: the stage-0-staged (digest-verified) record is the base profile; the derivation runs over it unchanged, and a slug absent from the pointed-at record fails with the same slug-absent error. | Built 2026-08-09; closes the samsite-rehome residual. |
 
 ### The Inner Loop
 ----

@@ -204,13 +204,14 @@ TAP_SECRETS_ROOT / ~/tap-secrets) or a full path to a *.secret.json. Mutually
 exclusive with --boot / --boot-file / the positional boot-profile.
 
 \`--dev-plugins <slug[,slug...]>\` stands up a PLUGIN WORKSPACE
-(spec-dev-plugin-workspace.md) over a named base profile: each slug is resolved
+(spec-dev-plugin-workspace.md) over a base profile: each slug is resolved
 against that profile's git install entry (its url/rev/credential), cloned editable
 into \`_dev-plugins/<slug>/\` in the worktree, and its source flipped git->editable;
-every other plugin stays git-pinned. Requires a base profile (positional/--boot);
-the slug must already be a plugin in that profile. Use it to develop one or more
-plugins live against the rest of a real profile. For a COUPLED change, name both:
-\`--dev-plugins compliance_core,fedramp_20x_ksi\`.
+every other plugin stays git-pinned. Requires a base: a repo-local profile
+(positional/--boot) or a \`--from\` pointer (the stage-0-staged record becomes the
+base); the slug must already be a plugin in that base. Use it to develop one or
+more plugins live against the rest of a real profile. For a COUPLED change, name
+both: \`--dev-plugins compliance_core,fedramp_20x_ksi\`.
 
 Examples:
   $0                              # interactive, plain boot, no auto-launch
@@ -225,8 +226,13 @@ Examples:
                                   # single-command boot from a git bootstrap pointer
   $0 wsdev cli test_all --dev-plugins compliance_core
                                   # workspace: compliance_core editable over a repo-local profile
-                                  # (--dev-plugins needs a repo-local base; --from is not yet
-                                  # composable with it — see spec-tap-boot-bootstrap.md)
+  $0 sam-dev cli --from \\
+     git+https://github.com/unified-systems-com/tap-plugin-samsite@v0.2.0#samsite \\
+     --dev-plugins samsite
+                                  # workspace over a POINTER: the samsite record is stage-0
+                                  # fetched from the plugin repo, then the samsite plugin is
+                                  # checked out editable over it — the external-adopter dev flow
+                                  # (spec-dev-plugin-workspace.md)
 
 Spec: req-dev-multisession-spawn-script in specs/spec-dev-multisession.md
 EOF
@@ -331,13 +337,15 @@ fi
 [[ -z "$FROM_CREDENTIAL" || -n "$FROM_POINTER" ]] || fail "--credential requires --from."
 
 # --dev-plugins: the plugin workspace (spec-dev-plugin-workspace.md). It OVERRIDES a subset of a
-# NAMED base profile's plugins to editable, so it needs a base profile (positional/--boot) and is
-# exclusive with --boot-file/--from (which name their own self-contained record). The derivation +
+# base profile's plugins to editable, so it needs SOME base: a repo-local profile
+# (positional/--boot) OR a --from pointer (whose staged record becomes the base — Step 2 stages
+# the record first, then derives over it, so the derivation code never knows the difference).
+# Still exclusive with --boot-file (subsumed by the pointer's local-path arm). The derivation +
 # authed clone is deferred to Step 2 (once the worktree exists), mirroring --from.
 if [[ -n "$DEV_PLUGINS" ]]; then
-  [[ -n "$BOOT_PROFILE" ]] || fail "--dev-plugins requires a base boot profile (positional or --boot) to override."
+  [[ -n "$BOOT_PROFILE" || -n "$FROM_POINTER" ]] \
+    || fail "--dev-plugins requires a base boot profile (positional, --boot, or --from <pointer>) to override."
   [[ -z "$BOOT_FILE" ]] || fail "--dev-plugins and --boot-file are mutually exclusive."
-  [[ -z "$FROM_POINTER" ]] || fail "--dev-plugins and --from are mutually exclusive."
 fi
 
 cd "$REPO"
@@ -667,18 +675,27 @@ if [[ -n "$FROM_POINTER" ]]; then
   cred_args=()
   [[ -n "$FROM_CREDENTIAL" ]] && cred_args=(--credential "$FROM_CREDENTIAL")
   info "Resolving --from pointer (stage-0 fetch): $FROM_POINTER"
-  if ! STAGED_RECORD="$(cd "$REPO" && python3 -m tap.boot_pointer "$FROM_POINTER" "${cred_args[@]}" --out "$WORKTREE/boot")"; then
+  # ${cred_args[@]+…}: bash 3.2 (stock macOS) treats an EMPTY array expansion as unbound
+  # under `set -u` and aborts — the +-guard expands to nothing instead of erroring.
+  if ! STAGED_RECORD="$(cd "$REPO" && python3 -m tap.boot_pointer "$FROM_POINTER" ${cred_args[@]+"${cred_args[@]}"} --out "$WORKTREE/boot")"; then
     fail "--from: stage-0 fetch failed for pointer '$FROM_POINTER' (see boot-pointer error above)."
   fi
   BOOT_PROFILE="$(basename "$STAGED_RECORD" .boot.json)"
   info "Staged --from -> boot/$BOOT_PROFILE.boot.json; booting profile '$BOOT_PROFILE'."
 fi
 
-# --dev-plugins: derive a mixed editable+git workspace profile from the named base profile.
+# --dev-plugins: derive a mixed editable+git workspace profile from the base profile.
 # tap.dev_workspace (pure stdlib, host-runnable venv-free like tap.boot_pointer) resolves each
 # named slug against the base profile's git install entry (the url/rev/credential authority),
 # clones it editable into $WORKTREE/_dev-plugins/<slug>, flips that entry git->editable, and writes
 # boot/<base>__dev.boot.json. We then boot that derived profile. See spec-dev-plugin-workspace.md.
+#
+# ORDERING (the --from composition): this block runs AFTER the --from staging above, so when both
+# flags are given, $BOOT_PROFILE is already the pointer's staged record id and the derivation
+# reads $WORKTREE/boot/<record>.boot.json exactly as it reads a repo-local profile. Trust
+# boundary: the pointer's digest verification happened at fetch time against the record as
+# shipped; the derived __dev profile is a post-verification LOCAL mutation — identical in kind
+# to the repo-local flow. Nothing new is trusted (req-dev-workspace-spawn-6).
 if [[ -n "$DEV_PLUGINS" ]]; then
   info "Deriving dev workspace: editable [$DEV_PLUGINS] over base profile '$BOOT_PROFILE'"
   if ! STAGED_DEV="$(cd "$REPO" && python3 -m tap.dev_workspace \

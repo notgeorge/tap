@@ -32,7 +32,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from tap.boot_pointer import _git_askpass, _resolve_token
+from tap.boot_pointer import BootPointerError, _git_askpass, _resolve_token
 from tap.boot_records import RECORD_SUFFIX
 
 #: Nested location (under the harness worktree, gitignored) for editable dev-plugin
@@ -165,7 +165,7 @@ def main(argv: list[str] | None = None) -> int:
         derived, specs = derive_profile(profile, dev_slugs)
         for spec in specs:
             clone_editable(spec, worktree, args.secrets_root)
-    except (DevWorkspaceError, ValueError, OSError) as exc:
+    except (DevWorkspaceError, BootPointerError, ValueError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 

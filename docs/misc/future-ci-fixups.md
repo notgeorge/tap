@@ -55,15 +55,15 @@ smoke needs an actor bound around its service calls (compare how boot binds
 `tap_bootloader` for population). Until fixed, `--strict --level loads` is the honest
 maximum for release gating; the samsite v0.2.0 gate was run at that level.
 
-## 6. `--dev-plugins` / `--from` mutual exclusion
+## 6. `--dev-plugins` / `--from` mutual exclusion — RESOLVED 2026-08-09
 
-Spawn's arg contract: `--dev-plugins` requires a base *profile* and is mutually
-exclusive with `--from`. Post-rehome, a record-shipping plugin (samsite today, more
-later) has no repo-local profile — so the editable-checkout path ("point samsite at
-your own deployment", the plugin-workspace flow) has **no clean invocation**. Needs a
-deliberate design: probably teaching the dev-workspace derivation to take a staged
-record as its base. Flagged in the samsite plugin README's Known Limitation and the
-rehome spec's Status Details (`req-boot-bootstrap-samsite-rehome`).
+Closed the same day it was named: `--from` now composes with `--dev-plugins`
+(`req-dev-workspace-spawn-6`, `spec-dev-plugin-workspace.md`) — spawn stages the
+pointer's record first, then the existing workspace derivation runs over the staged
+record as its base. The external-adopter invocation:
+`spawn-session.sh sam-dev cli --from git+…tap-plugin-samsite@v0.2.0#samsite --dev-plugins samsite`.
+Remaining tail (not this item): the samsite plugin README's Known Limitation blurb
+should be refreshed at the plugin's next release.
 
 ## 7. Release-sweep blindness to in-package records
 
