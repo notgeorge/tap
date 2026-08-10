@@ -1,5 +1,7 @@
 # TAP — The Analogy Platform
 
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14019/badge)](https://www.bestpractices.dev/projects/14019)
+
 TAP is a general-purpose platform for mastering the systems you are responsible
 for — accounts, pipelines, fleets, data flows, the organization
 itself — by modeling each as a live, queryable, visual representation called **the grid**:
