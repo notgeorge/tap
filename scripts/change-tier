@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# scripts/change-tier — classify the diff BASE..HEAD into a validation tier (ONE
+# artifact, MANY invokers).
+#
+#   docs   Every changed path is inert documentation (docs/, plan/, root *.md,
+#          LICENSE/NOTICE). Markdown there is parsed by nothing: it cannot red
+#          pytest and cannot affect boot, so the always-on cheap CI jobs
+#          (secret-scan, dco) are sufficient validation.
+#   specs  Docs plus anything under a specs/ directory. Spec markdown is NOT
+#          inert — tests parse it (the Validation Map sync test, RID resolution),
+#          so the full `test_all` pytest lane must run. Specs still cannot affect
+#          boot, so the boot gates and non-core lanes may skip.
+#   full   Anything else: the whole battery.
+#
+# FAIL-CLOSED: an empty diff, a missing base, or any path outside the allowlists
+# is `full`. The tier only ever reduces validation when the diff provably permits.
+#
+# Invokers: product-lines.yml `setup` (job gating + the `gate` aggregator's
+# skip-justification) and promote-to-main.sh (local fast-lane shortcut).
+# Spec: specs/spec-dev-validation.md (req-dev-validation-product-line-lanes-7).
+#
+# Usage: scripts/change-tier [<base-ref>]   # default origin/main; prints docs|specs|full
+
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+BASE_REF="${1:-origin/main}"
+
+git rev-parse --verify --quiet "$BASE_REF" >/dev/null || { echo full; exit 0; }
+BASE="$(git merge-base "$BASE_REF" HEAD 2>/dev/null)" || { echo full; exit 0; }
+FILES="$(git diff --name-only "$BASE" HEAD)"
+[ -n "$FILES" ] || { echo full; exit 0; }
+
+tier=docs
+while IFS= read -r f; do
+  case "$f" in
+    docs/*|plan/*|LICENSE|NOTICE) : ;;
+    README.md|CLAUDE.md|AGENTS.md|SECURITY.md|Misc.md) : ;;
+    specs/*|*/specs/*) tier=specs ;;
+    *) echo full; exit 0 ;;
+  esac
+done <<< "$FILES"
+
+echo "$tier"
