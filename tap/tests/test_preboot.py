@@ -12,11 +12,40 @@ req-boot-variable-resolution, req-boot-snapshot).
 
 from __future__ import annotations
 
+import subprocess
+
 import pytest
 
 from tap import preboot
 
 _SHIPPED_PROFILE_IDS = sorted(p.stem.replace(".boot", "") for p in preboot._boot_dir().glob("*.boot.json"))
+
+
+def _tracked_boot_ids() -> set[str] | None:
+    """Profile ids of the git-TRACKED boot/*.boot.json files, or None when git can't answer.
+
+    The boot/ glob sees staged records too — a live session migrated per
+    req-boot-bootstrap-samsite-rehome legitimately stages the samsite record into
+    boot/ (uncommitted), so "what does the REPO ship" is a question only git can
+    answer. In a worktree session the container has no resolvable .git (the gitdir
+    pointer targets an unmounted host path) — return None and let the caller skip
+    the repo-shipping assertion rather than false-alarm on the documented flow.
+    """
+    boot_dir = preboot._boot_dir()
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "*.boot.json"],
+            cwd=boot_dir,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except OSError, subprocess.TimeoutExpired:
+        return None
+    if result.returncode != 0:
+        return None
+    return {line.rsplit("/", 1)[-1].removesuffix(".boot.json") for line in result.stdout.splitlines() if line.strip()}
+
 
 # --- Variable resolution (req-boot-variable-resolution) ----------------------
 
@@ -359,11 +388,19 @@ def test_build_baked_matches_installed_apps() -> None:
 def test_shipped_profiles_exist() -> None:
     """Sanity: the enumeration found the real boot/ profiles (not an empty glob).
 
-    samsite is deliberately absent: its record ships inside tap-plugin-samsite
-    (req-boot-bootstrap-samsite-rehome); the plugin's own suite covers it.
+    samsite is deliberately absent from the TRACKED set: its record ships inside
+    tap-plugin-samsite (req-boot-bootstrap-samsite-rehome); the plugin's own suite
+    covers it. The negative assert consults git, not the glob — a migrated live
+    session legitimately STAGES the samsite record into boot/ (uncommitted), and
+    that documented flow must not red the suite. Where git cannot answer (worktree
+    sessions in-container), the repo-shipping half is skipped; CI's real-clone
+    checkout enforces it.
     """
     assert "test_all" in _SHIPPED_PROFILE_IDS
-    assert "samsite" not in _SHIPPED_PROFILE_IDS
+    tracked = _tracked_boot_ids()
+    if tracked is None:
+        pytest.skip("git unavailable — cannot distinguish staged from tracked boot records")
+    assert "samsite" not in tracked
 
 
 @pytest.mark.parametrize("profile_id", _SHIPPED_PROFILE_IDS)
