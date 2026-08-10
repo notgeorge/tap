@@ -4,10 +4,12 @@ Pure-function coverage of the profile derivation: the slug is a selector into th
 profile's install list, and the git entry's url/rev/credential are the clone authority.
 No network — the actual clone (clone_editable) is exercised by a separate host smoke.
 
-The ``main()`` tests cover the spawn seam (req-dev-workspace-spawn-6): the base profile
-is resolved as ``<worktree>/boot/<id>.boot.json`` by id, with no committed-vs-staged
-distinction — which is exactly what makes the ``--from`` + ``--dev-plugins`` composition
-work (spawn stages the pointer's record there first, then derives over it).
+The ``main()`` tests cover the spawn seam (req-dev-workspace-spawn-6/-7): the base
+profile is resolved as ``<worktree>/boot/<id>.boot.json`` by id, with no
+committed-vs-staged distinction — which is exactly what makes BOTH compositions work:
+``--from`` + ``--dev-plugins`` (pointer record staged first) and ``--boot-file`` +
+``--dev-plugins`` (local file staged under its basename id first); the derivation then
+runs over the staged record either way.
 """
 
 from __future__ import annotations
@@ -179,3 +181,34 @@ def test_main_unresolvable_credential_is_a_clean_error(tmp_path: Path, capsys: p
     err = capsys.readouterr().err
     assert err.startswith("error: ")
     assert "credential 'github-plugins-ro' not found" in err
+
+
+def test_clone_editable_resolves_a_branch_rev(tmp_path: Path) -> None:
+    """The fork-cutover dev flow pins rev to a BRANCH, not a tag — clone_editable's
+    blobless clone + `checkout <rev>` must resolve branch names (and track the tip,
+    which is the point of a dev branch pin)."""
+    import subprocess
+
+    origin = tmp_path / "origin"
+    origin.mkdir()
+    env_id = ["-c", "user.name=t", "-c", "user.email=t@t"]
+
+    def git(*args: str, cwd: Path = origin) -> None:
+        subprocess.run(["git", *env_id, *args], cwd=cwd, check=True, capture_output=True)
+
+    git("init", "-q", "-b", "main")
+    (origin / "f.txt").write_text("v1", encoding="utf-8")
+    git("add", "f.txt")
+    git("commit", "-q", "-m", "one")
+    git("checkout", "-q", "-b", "sam-dev-branch")
+    (origin / "f.txt").write_text("branch-tip", encoding="utf-8")
+    git("commit", "-q", "-am", "two")
+    git("checkout", "-q", "main")  # origin HEAD elsewhere: checkout must find the branch
+
+    worktree = tmp_path / "wt"
+    worktree.mkdir()
+    spec = dev_workspace.CloneSpec(slug="samsite", url=str(origin), rev="sam-dev-branch", credential=None)
+    dest = dev_workspace.clone_editable(spec, worktree, None)
+
+    assert dest == worktree / "_dev-plugins" / "samsite"
+    assert (dest / "f.txt").read_text(encoding="utf-8") == "branch-tip"

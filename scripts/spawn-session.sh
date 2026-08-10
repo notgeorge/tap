@@ -187,9 +187,12 @@ specs/spec-tap-boot-v0.md.
 \`--boot-file <path>\` boots an arbitrary \`*.boot.json\` file that need NOT live in
 the repo's boot/ dir — it is staged into the new worktree's boot/ under its
 basename id and booted. Use it to stand up a profile that lives anywhere: a
-plugin's own standalone-test profile (\`plugins/<slug>/<name>.boot.json\`), or a
-scratch/experimental profile, without committing it to boot/. Mutually
-exclusive with --boot / the positional boot-profile.
+plugin's own standalone-test profile (\`plugins/<slug>/<name>.boot.json\`), a
+fork's edited in-package record, or a scratch/experimental profile, without
+committing it to boot/. The trusted-local-file tier: no pointer fetch, no
+digest ceremony. Composes with --dev-plugins (the staged record becomes the
+workspace base). Mutually exclusive with --boot / the positional boot-profile
+/ --from.
 
 \`--from <pointer> [--credential <ref>]\` boots from a BOOTSTRAP POINTER
 (spec-tap-boot-bootstrap.md): \`<source-ref>#<record>\` names a versioned plugin
@@ -207,11 +210,13 @@ exclusive with --boot / --boot-file / the positional boot-profile.
 (spec-dev-plugin-workspace.md) over a base profile: each slug is resolved
 against that profile's git install entry (its url/rev/credential), cloned editable
 into \`_dev-plugins/<slug>/\` in the worktree, and its source flipped git->editable;
-every other plugin stays git-pinned. Requires a base: a repo-local profile
-(positional/--boot) or a \`--from\` pointer (the stage-0-staged record becomes the
-base); the slug must already be a plugin in that base. Use it to develop one or
-more plugins live against the rest of a real profile. For a COUPLED change, name
-both: \`--dev-plugins compliance_core,fedramp_20x_ksi\`.
+every other plugin stays git-pinned. Requires a base, in any of three forms: a
+repo-local profile (positional/--boot), a \`--from\` pointer (stage-0-staged +
+digest-verified — the durable/versioned tier), or a \`--boot-file\` path (staged
+as-is — the everyday fork/dev tier); the slug must already be a plugin in that
+base. Use it to develop one or more plugins live against the rest of a real
+profile. For a COUPLED change, name both:
+\`--dev-plugins compliance_core,fedramp_20x_ksi\`.
 
 Examples:
   $0                              # interactive, plain boot, no auto-launch
@@ -233,6 +238,13 @@ Examples:
                                   # fetched from the plugin repo, then the samsite plugin is
                                   # checked out editable over it — the external-adopter dev flow
                                   # (spec-dev-plugin-workspace.md)
+  $0 sam-dev2 cli \\
+     --boot-file ~/my-fork/tap_plugin/samsite/boot/samsite.boot.json \\
+     --dev-plugins samsite
+                                  # workspace over a LOCAL FILE — the fork-cutover dev flow:
+                                  # edit your fork's in-package record (your repo URLs, rev may
+                                  # be a BRANCH), stage it as-is, samsite editable over it.
+                                  # No digest ceremony; --from is the versioned tier.
 
 Spec: req-dev-multisession-spawn-script in specs/spec-dev-multisession.md
 EOF
@@ -337,15 +349,16 @@ fi
 [[ -z "$FROM_CREDENTIAL" || -n "$FROM_POINTER" ]] || fail "--credential requires --from."
 
 # --dev-plugins: the plugin workspace (spec-dev-plugin-workspace.md). It OVERRIDES a subset of a
-# base profile's plugins to editable, so it needs SOME base: a repo-local profile
-# (positional/--boot) OR a --from pointer (whose staged record becomes the base — Step 2 stages
-# the record first, then derives over it, so the derivation code never knows the difference).
-# Still exclusive with --boot-file (subsumed by the pointer's local-path arm). The derivation +
-# authed clone is deferred to Step 2 (once the worktree exists), mirroring --from.
+# base profile's plugins to editable, so it needs SOME base — any of the three base forms:
+#   a repo-local profile (positional/--boot),
+#   a --from pointer (stage-0 fetched + digest-verified, the durable/versioned tier), or
+#   a --boot-file path (staged as-is, the trusted-local-file tier — the fork-cutover dev flow:
+#   point it at YOUR checkout's edited in-package record, rev-as-branch and all).
+# Step 2 stages whichever base was given BEFORE the derivation runs, so the derivation code
+# reads boot/<id>.boot.json by id and never knows which form supplied it.
 if [[ -n "$DEV_PLUGINS" ]]; then
-  [[ -n "$BOOT_PROFILE" || -n "$FROM_POINTER" ]] \
-    || fail "--dev-plugins requires a base boot profile (positional, --boot, or --from <pointer>) to override."
-  [[ -z "$BOOT_FILE" ]] || fail "--dev-plugins and --boot-file are mutually exclusive."
+  [[ -n "$BOOT_PROFILE" || -n "$FROM_POINTER" || -n "$BOOT_FILE" ]] \
+    || fail "--dev-plugins requires a base boot profile (positional, --boot, --from <pointer>, or --boot-file <path>) to override."
 fi
 
 cd "$REPO"
@@ -690,12 +703,13 @@ fi
 # clones it editable into $WORKTREE/_dev-plugins/<slug>, flips that entry git->editable, and writes
 # boot/<base>__dev.boot.json. We then boot that derived profile. See spec-dev-plugin-workspace.md.
 #
-# ORDERING (the --from composition): this block runs AFTER the --from staging above, so when both
-# flags are given, $BOOT_PROFILE is already the pointer's staged record id and the derivation
-# reads $WORKTREE/boot/<record>.boot.json exactly as it reads a repo-local profile. Trust
-# boundary: the pointer's digest verification happened at fetch time against the record as
-# shipped; the derived __dev profile is a post-verification LOCAL mutation — identical in kind
-# to the repo-local flow. Nothing new is trusted (req-dev-workspace-spawn-6).
+# ORDERING (the --from / --boot-file compositions): this block runs AFTER both staging blocks
+# above, so when a composition is given, $BOOT_PROFILE is already the staged record's id and the
+# derivation reads $WORKTREE/boot/<id>.boot.json exactly as it reads a repo-local profile. Trust
+# boundary: --from's digest verification happened at fetch time against the record as shipped;
+# --boot-file is the trusted-local-file tier by its existing contract (no ceremony to bypass).
+# Either way the derived __dev profile is a post-verification LOCAL mutation — identical in kind
+# to the repo-local flow. Nothing new is trusted (req-dev-workspace-spawn-6/-7).
 if [[ -n "$DEV_PLUGINS" ]]; then
   info "Deriving dev workspace: editable [$DEV_PLUGINS] over base profile '$BOOT_PROFILE'"
   if ! STAGED_DEV="$(cd "$REPO" && python3 -m tap.dev_workspace \
