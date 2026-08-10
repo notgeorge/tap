@@ -231,8 +231,27 @@ Multi-session worktrees
     before the atomic push; red aborts the promote. spec-dev-validation.md is the center of
     gravity for validation tracking — its Validation Map is the authoritative inventory of
     every validation surface + honest guard status; adding a validation surface anywhere
-    requires adding its Map row in the same change. The gate is Proposed (not yet built):
-    today it is the contract being worked toward, not a callable script.
+    requires adding its Map row in the same change. The gate is LIVE server-side (2026-08-10):
+    cold-boot + lean-boot run as REQUIRED CI jobs under the `gate` check (product-lines.yml);
+    the promote's local boot-gate runs are optional fast feedback (TAP_PROMOTE_LOCAL_BOOT_GATES=1,
+    automatic when the server gate is inactive).
+
+Contribution & security policy (DCO, SECURITY.md, OpenSSF — 2026-08-10 wave)
+    SECURITY.md (repo root) is the published vulnerability policy: private reporting via GitHub
+    PVR, 7-day ack / 14-day assessment, coordinated disclosure. The org-wide default lives in
+    unified-systems-com/.github; PVR is enabled on every active org repo. The first product
+    release MUST update its supported-versions statement (req-cicd-product-releases-2).
+    DCO sign-off: .githooks/prepare-commit-msg auto-appends the committer's Signed-off-by to
+    every non-merge commit (hooksPath is wired at spawn). Leave the trailer in place; merge
+    commits are exempt; never hand-author a sign-off for someone else — it certifies the human
+    committer. scripts/check-dco verifies trailers (REPORT-ONLY today) in the promote's local
+    gates and the product-lines `dco` CI job; bot-authored dependency commits (renovate/
+    dependabot) are exempt — a maintainer certifies those at squash-merge. Enforcement
+    (TAP_DCO_ENFORCE=1 in both invokers) flips in the SAME change that lands CONTRIBUTING.md +
+    the DCO file at repo root (in legal review as of 2026-08-10). Do not flip it early.
+    OpenSSF Best Practices: bestpractices.dev project 14019, badge in the README. The criteria
+    decisions are spec canon — req-cicd-dco-signoff, req-cicd-product-releases,
+    req-tap-test-accompaniment — keep them aligned when touching those surfaces.
 
 Developer token tools (use these instead of hand-rolling identifiers)
     scripts/uuid7 [N]          — mint UUIDv7(s) (e.g. record_* call-site IDs, entity IDs)
