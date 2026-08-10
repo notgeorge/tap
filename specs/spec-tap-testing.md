@@ -26,6 +26,7 @@ In v0 all tests are developer-facing. User-facing verification and self-test cap
 | req-tap-test-layout | [Test Layout By Application](#test-layout-by-application) | In Development | Where tests live and what they cover |
 | req-tap-test-fixtures | [Shared Fixtures](#shared-fixtures) | In Development | Root conftest and application-level conftest patterns |
 | req-tap-test-conventions | [Test Conventions](#test-conventions) | In Development | Naming, style, and structural conventions |
+| req-tap-test-accompaniment | [Tests Accompany Change](#tests-accompany-change) | Implemented | Standing policy: behavior changes ship with tests; warnings fixed, never accumulated (OpenSSF `test_policy`/`warnings`) |
 | req-tap-test-spec-linkage | [Spec Linkage](#spec-linkage) | In Development | Connecting tests to acceptance criteria |
 | req-tap-test-plugins | [Plugin Test Integration](#plugin-test-integration) | In Development | How plugin tests fit into the overall suite |
 | req-tap-test-hermetic-plugins | [Plugin Tests Are Hermetic](#plugin-tests-are-hermetic) | Proposed | Plugins must be self-contained for testing; cross-plugin dependencies require explicit approval |
@@ -211,6 +212,31 @@ Tests follow consistent naming, style, and structural conventions.
 
 #### Future
 Linting or custom pytest plugins may enforce naming conventions automatically.
+
+### Tests Accompany Change
+----
+RID: `req-tap-test-accompaniment`
+Status: `Implemented`
+
+The project's standing test-and-quality policy (the OpenSSF Best Practices `test_policy`
+and `warnings` criteria): changes that add or modify behavior include tests for that
+behavior, and bug fixes include a regression test where the behavior is well-defined. The
+full suite (`scripts/test`) must be green before a change reaches `main`, and code returns
+clean from the formatters, linters, and type checker (`black`, `ruff`, `mypy`) — warnings
+are fixed, not accumulated, and any suppression (`# noqa`, `# type: ignore`) carries a
+justification at the line. Baseline ratchets (`spec-dev-validation.md`) may hold
+pre-existing debt, but only ever ratchet down.
+
+CLAUDE.md states this policy operationally for in-repo development; CONTRIBUTING.md (in
+legal review as of 2026-08-10) states it for external contributors; the promote gate and
+CI lanes enforce it.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-test-accompaniment-1 | Tests accompany behavior change | Implemented | New or changed behavior lands with tests; recent history evidences the policy in practice. | OpenSSF `test_policy` / `tests_are_added`. |
+| req-tap-test-accompaniment-2 | Warnings addressed, never accumulated | Implemented | Lint/type/format gates run in CI; suppressions are justified in-line; baselines only ratchet down. | OpenSSF `warnings` / `warnings_fixed` / `warnings_strict`. |
 
 ### Spec Linkage
 ----

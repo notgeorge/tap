@@ -35,6 +35,14 @@ class TestListEntities:
         data = logged_in_client.get("/api/v1/entities/?limit=2&offset=2").json()
         assert len(data) == 2
 
+    def test_pagination_bounds_rejected(self, logged_in_client):
+        """A negative limit/offset rode into the ORM slice and 500'd, and an
+        unbounded limit was a free memory lever (authenticated api-fuzz finding,
+        2026-08-10). Out-of-range values are a 422 at the schema edge."""
+        assert logged_in_client.get("/api/v1/entities/?limit=-5").status_code == 422
+        assert logged_in_client.get("/api/v1/entities/?offset=-5").status_code == 422
+        assert logged_in_client.get("/api/v1/entities/?limit=1001").status_code == 422
+
 
 @pytest.mark.django_db
 class TestGetEntity:
@@ -91,6 +99,21 @@ class TestUpdateEntity:
             content_type="application/json",
         )
         assert response.status_code == 404
+
+    def test_explicit_null_rejected(self, logged_in_client):
+        """PATCH {"entity_type": null} rode setattr into a not-null column and
+        500'd as an IntegrityError (authenticated api-fuzz finding, 2026-08-10).
+        Explicit null is a 422; omitting the field still means untouched."""
+        entity = create_entity("concept", name="Keep")
+        for body in ({"entity_type": None}, {"name": None}):
+            response = logged_in_client.patch(
+                f"/api/v1/entities/{entity.pk}/",
+                data=body,
+                content_type="application/json",
+            )
+            assert response.status_code == 422
+        entity.refresh_from_db()
+        assert entity.name == "Keep"
 
     def test_no_op_patch(self, logged_in_client):
         entity = create_entity("concept", name="Same")

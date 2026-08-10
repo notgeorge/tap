@@ -43,3 +43,4 @@ secret-leak
 secret-pattern
 service-boundary-coverage
 service-boundary-import-encapsulation
+workflow-least-privilege

@@ -119,7 +119,7 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
     DeclaredSurface(
         surface="Per-product-line CI lanes (CodeBuild)",
         rid="req-dev-validation-product-line-lanes",
-        cadence="Pre-push (promote-triggered `test_all` union) + CI (every line on PR)",
+        cadence="Pre-push (promote-triggered `test_all` union) + CI (every line on PR; tier-gated — docs-tier diffs skip the lanes, specs-tier runs `test_all` only, req-dev-validation-product-line-lanes-7)",
         status="Gate-guarded — both lanes (`test_all`, `samsite`) PROVEN GREEN on AWS CodeBuild; the `test_all` union lane is the promote gate (option B); bootstrap-skips the one promote that first lands product-lines.yml on main",
         enforced_by=(
             "`.github/workflows/product-lines.yml` (per-line CodeBuild runners: `test_all` union + `samsite`); "
@@ -143,16 +143,38 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
     DeclaredSurface(
         surface="Cold-boot system cycle",
         rid="req-dev-validation-smoke-gate",
-        cadence="Pre-push (`scripts/gate`, wired into `promote-to-main.sh`)",
+        cadence="CI (`product-lines.yml` `cold-boot` job, REQUIRED via `gate`; tier-gated — docs/specs-tier diffs skip it, req-dev-validation-product-line-lanes-7) + optional local pre-push (`TAP_PROMOTE_LOCAL_BOOT_GATES=1`; automatic when the server gate is inactive)",
         status="Gate-guarded",
         enforced_by="`tap_boot/management/commands/cold_boot_gate.py`",
     ),
     DeclaredSurface(
         surface="Lean-boot core independence (import-leakage class)",
         rid="req-dev-validation-lean-boot",
-        cadence="Pre-push (`scripts/gate-lean`, wired into `promote-to-main.sh`)",
+        cadence="CI (`product-lines.yml` `lean-boot` job, REQUIRED via `gate`; tier-gated — docs/specs-tier diffs skip it, req-dev-validation-product-line-lanes-7) + optional local pre-push (`TAP_PROMOTE_LOCAL_BOOT_GATES=1`; automatic when the server gate is inactive)",
         status="Gate-guarded",
         enforced_by="`scripts/gate-lean` (isolated `tap_leanboot` stack, core-only venv; catches core→plugin-dep imports the full-venv cold-boot gate cannot)",
+    ),
+    DeclaredSurface(
+        surface="Live-API property fuzz (schemathesis over the Ninja OpenAPI schema)",
+        rid="req-dev-validation-api-fuzz",
+        cadence="CI (`product-lines.yml` `api-fuzz` job; dedicated `core_dev` stack)",
+        status="Report-only (deliberately NOT in the `gate` aggregator until it has a track record)",
+        enforced_by=(
+            "schemathesis (pinned, `uvx`, runner-side) against the live booted API — two passes, "
+            "no-5xx + schema-conformance: unauthenticated (the auth wall must reject, never crash) "
+            "and authenticated (in-job boot auth phase + minted DB session + CSRF pair, "
+            "200-canary fail-closed); viewer-role differential is the named next rung"
+        ),
+    ),
+    DeclaredSurface(
+        surface="DCO sign-off trailers (both roads to main)",
+        rid="req-cicd-dco-signoff",
+        cadence="Pre-push (`scripts/check-dco`, wired into `promote-to-main.sh`) + CI (`product-lines.yml` `dco` job)",
+        status="Report-only — flips to Gate-guarded in the change that lands CONTRIBUTING.md (TAP_DCO_ENFORCE=1 in both invokers)",
+        enforced_by=(
+            "`scripts/check-dco` (every non-merge, non-bot commit added over origin/main carries "
+            "`Signed-off-by`); the trailer itself is applied by `.githooks/prepare-commit-msg`"
+        ),
     ),
     DeclaredSurface(
         surface="FIPS mode enforcement (declared vs actual)",

@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# scripts/check-dco — DCO Signed-off-by trailer check (ONE artifact, MANY invokers).
+#
+# Verifies every commit this branch would add to the base ref carries a
+# `Signed-off-by:` trailer (CONTRIBUTING "Sign-Off"). Exempt, per that policy:
+#   * merge commits (DCO convention; the promote's pre-push merges stay clean)
+#   * commits authored by automated dependency-update tooling (renovate,
+#     dependabot, github-actions) — a maintainer certifies those at merge,
+#     normally by squash-merging with their own sign-off
+#
+# REPORT-ONLY by default until CONTRIBUTING.md lands as repo policy: violations
+# are listed but the exit stays 0. Enforcement is TAP_DCO_ENFORCE=1 — flipping
+# the two invokers is the one-line change that makes the policy law
+# (req-cicd-dco-signoff-3).
+#
+# Invokers: scripts/promote-to-main.sh (local gates) and the `dco` job in
+# .github/workflows/product-lines.yml (the PR road + the promote's dispatched
+# cloud gate). The trailer itself is applied by .githooks/prepare-commit-msg.
+#
+# Spec: specs/spec-cicd-hardening.md (req-cicd-dco-signoff).
+#
+# Usage:
+#   scripts/check-dco                    # check merge-base(origin/main, HEAD)..HEAD
+#   scripts/check-dco <base-ref>         # explicit base ref
+#   TAP_DCO_ENFORCE=1 scripts/check-dco  # enforcing: non-zero exit on violation
+
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+info() { printf "    %s\n" "$1"; }
+warn() { printf "\033[33m    WARN: %s\033[0m\n" "$1" >&2; }
+fail() { printf "\033[31m    ERROR: %s\033[0m\n" "$1" >&2; exit 1; }
+
+BASE_REF="${1:-origin/main}"
+
+git rev-parse --verify --quiet "$BASE_REF" >/dev/null \
+  || fail "Base ref '$BASE_REF' not found (shallow clone? fetch first: git fetch origin main)."
+
+RANGE="$(git merge-base "$BASE_REF" HEAD)..HEAD"
+
+# Bot authors exempt from sign-off (CONTRIBUTING "Sign-Off": an automated system
+# must not certify the DCO; the merging maintainer certifies instead).
+BOT_AUTHOR_RE='(renovate|dependabot|github-actions)\[bot\]'
+
+violations=0
+checked=0
+while read -r sha; do
+  [ -n "$sha" ] || continue
+  author="$(git log -1 --format='%an <%ae>' "$sha")"
+  if printf '%s' "$author" | grep -qiE "$BOT_AUTHOR_RE"; then
+    continue
+  fi
+  checked=$((checked + 1))
+  if ! git log -1 --format='%(trailers:key=Signed-off-by,valueonly)' "$sha" | grep -q .; then
+    warn "missing Signed-off-by: $(git log -1 --format='%h %s (%an)' "$sha")"
+    violations=$((violations + 1))
+  fi
+done < <(git rev-list --no-merges "$RANGE")
+
+if [ "$violations" -eq 0 ]; then
+  info "DCO check GREEN — $checked commit(s) checked, all signed (merge + bot commits exempt)."
+  exit 0
+fi
+
+if [ "${TAP_DCO_ENFORCE:-0}" = "1" ]; then
+  fail "DCO check RED — $violations of $checked commit(s) missing Signed-off-by. Sign with 'git commit -s --amend' (or an interactive rebase adding trailers); see CONTRIBUTING."
+fi
+
+warn "DCO report-only: $violations of $checked commit(s) missing Signed-off-by. Enforcement flips with CONTRIBUTING.md (TAP_DCO_ENFORCE=1)."
+exit 0

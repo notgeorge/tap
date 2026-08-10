@@ -26,6 +26,24 @@ class TestExecuteSearch:
         )
         assert response.status_code == 404
 
+    def test_negative_pagination_rejected(self, logged_in_client):
+        """Same negative-slice 500 class the authenticated api-fuzz pass found on
+        the list endpoints, closed at the schema edge before it can ride into
+        execute_search. Schema validation runs before the view, so this is 422
+        even for a nonexistent search id."""
+        response = logged_in_client.post(
+            f"/api/v1/searches/{uuid.uuid4()}/execute",
+            data={"limit": -1},
+            content_type="application/json",
+        )
+        assert response.status_code == 422
+        response = logged_in_client.post(
+            f"/api/v1/searches/{uuid.uuid4()}/execute",
+            data={"offset": -1},
+            content_type="application/json",
+        )
+        assert response.status_code == 422
+
     def test_happy_path_empty(self, logged_in_client):
         search = _orm_character_search()
         response = logged_in_client.post(

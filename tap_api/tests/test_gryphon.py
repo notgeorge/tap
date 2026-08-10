@@ -40,3 +40,18 @@ class TestGryphonReadGate:
         body = response.json()
         assert "nodes" in body
         assert "edges" in body
+
+
+@pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
+class TestGryphonMalformedQuery:
+    def test_garbage_query_is_422_not_500(self, logged_in_client):
+        """A non-parsing query crashed through to a 500 (authenticated api-fuzz
+        finding, 2026-08-10): GryphonParseError escaped the executor's documented
+        SearchExecutionError contract. A malformed query is the caller's error."""
+        response = logged_in_client.post(
+            _EXECUTE_URL,
+            data=json.dumps({"query": "\x13ì", "inputs": {}}),
+            content_type="application/json",
+        )
+        assert response.status_code == 422
+        assert response.json()["error"] == "gryphon_execution_failed"

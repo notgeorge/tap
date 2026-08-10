@@ -63,8 +63,11 @@ cycle so "time to major" stops being bottlenecked on human legwork:
 - Dependabot-alerts read permission was added to the `tap-renovate` app late on
   2026-08-09 — confirm the next run's dashboard no longer shows the
   vulnerability-alerts WARN, and that OSV PRs actually appear when an alert exists.
-- The `aquasecurity/trivy-action` github-tags lookup WARN (renovate#20507 class) is
-  cosmetic but watch that it doesn't block the trivy-action's own updates.
+- The `aquasecurity/trivy-action` github-tags lookup WARN — RESOLVED 2026-08-10: root cause
+  is aquasecurity's org IP allow list rejecting App-token API reads (platform gap, no
+  consumer-side fix). trivy-action is hand-SHA-pinned (ancestor-verified) and deliberately
+  Renovate-disabled with the reason in renovate.json5; its updates are a quarterly manual
+  check against upstream releases, not a bot lane (req-cicd-runner-least-privilege-4).
 - AUTOMERGE FLIP (the end state): after ~a week of quiet signal, enable automerge
   for digest pins + patch updates only; reintroduce schedules THEN (they manage
   automerge noise; in PR-only mode they only ever deferred PRs invisibly — the

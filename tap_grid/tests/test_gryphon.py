@@ -223,6 +223,16 @@ class TestGryphonParser:
 
 @pytest.mark.django_db(transaction=True, databases=["default", "search_readonly"])
 class TestGryphonExecutor:
+    def test_malformed_query_is_a_caller_error_not_a_crash(self):
+        """The documented contract of every execute_* entry point is that a
+        malformed query raises SearchExecutionError — but GryphonParseError
+        escaped the parse call and surfaced as an API 500 (authenticated
+        api-fuzz finding, 2026-08-10). Pin the normalization at the chokepoint."""
+        from tap_grid.gryphon.executor import execute_gryphon_raw
+
+        with pytest.raises(SearchExecutionError, match="parse error"):
+            execute_gryphon_raw("\x13ì", {})
+
     def test_hub_spoke_returns_hub_and_neighbors(self):
         """Hub-and-spoke traversal returns hub + one-hop neighbors and edges."""
         import uuid

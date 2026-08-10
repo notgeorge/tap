@@ -129,6 +129,7 @@ dev = [
     # Branch-coverage measurement for the Gryphon executor ratchet
     # (scripts/gryphon-coverage-ratchet, req-gridkin-executor-branch-coverage)
     "coverage>=7.14.3",
+    "pyyaml>=6,<7",
 ]
 
 # -----------------------------------------------------------------------------

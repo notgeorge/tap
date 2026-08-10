@@ -4,6 +4,7 @@ import uuid
 from typing import Any
 
 from ninja import ModelSchema, Schema
+from pydantic import field_validator
 
 from tap_grid.models import Edge, Entity, EntityType
 
@@ -27,10 +28,21 @@ class EntityIn(Schema):
 
 
 class EntityUpdate(Schema):
-    """Partial update. All fields optional."""
+    """Partial update. All fields optional — omitted means untouched, but an
+    EXPLICIT null is rejected (422): both columns are non-nullable, so letting
+    null through surfaces as an IntegrityError 500 at save time (found by the
+    authenticated api-fuzz pass). Validators do not run for defaulted (absent)
+    fields, so this only fires on nulls the caller actually sent."""
 
     name: str | None = None
     entity_type: str | None = None
+
+    @field_validator("name", "entity_type")
+    @classmethod
+    def _reject_explicit_null(cls, value: str | None) -> str:
+        if value is None:
+            raise ValueError("may be omitted, but not null (the field is non-nullable)")
+        return value
 
 
 class EntityOut(ModelSchema):
