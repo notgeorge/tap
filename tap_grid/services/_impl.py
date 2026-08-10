@@ -34,6 +34,7 @@ from tap_grid.exceptions import (
     ServiceVersionConflictError,
 )
 from tap_grid.models import Edge, Entity
+from tap_grid.null_semantics import prepare_null_payload, schema_permits_null
 from tap_grid.service_types import (
     ServiceError,
     WriteOperation,
@@ -74,30 +75,12 @@ def _deep_merge(base: dict[str, Any], update: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def _schema_permits_null(prop_schema: dict[str, Any]) -> bool:
-    """True if a per-field verb schema permits a null value (`type` includes "null")."""
-    type_decl = prop_schema.get("type")
-    if isinstance(type_decl, list):
-        return "null" in type_decl
-    return type_decl == "null"
-
-
-def _prepare_null_payload(payload: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
-    """Drop an explicit null only on a known field that does not permit null.
-
-    Preserves explicit null on null-permitting fields (so it clears the field and
-    stamps FLIP, req-grid-service-write-observation-1) and on unknown fields (so
-    additionalProperties:False still rejects them). A null on a known non-null field
-    is dropped — treated as absent — preserving lenient behavior
-    (req-grid-service-write-observation-2).
-    """
-    props: dict[str, Any] = schema.get("properties", {})
-    prepared: dict[str, Any] = {}
-    for field_name, value in payload.items():
-        if value is None and field_name in props and not _schema_permits_null(props[field_name]):
-            continue
-        prepared[field_name] = value
-    return prepared
+# Null-preparation now lives in tap_grid.null_semantics — shared with the GRIFT
+# importer's pre-validation, which must apply the SAME lenient rule
+# (req-grid-service-write-observation-2) without importing this gated module.
+# Aliased here so the write path and its tests keep their names.
+_schema_permits_null = schema_permits_null
+_prepare_null_payload = prepare_null_payload
 
 
 def _flip_touched_for_verb(verb: str, payload: dict[str, Any]) -> list[str] | None:
