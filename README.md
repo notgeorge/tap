@@ -86,6 +86,20 @@ they install from; a plugin can also ship its own boot records and be stood up
 directly from its repository with `spawn-session.sh --from <pointer>` — each such
 plugin's README is the front door for running it.
 
+## Interfaces
+
+Each of TAP's external interfaces carries reference documentation:
+
+- **HTTP API** — the interactive OpenAPI reference is generated from the code and
+  served by every running instance at `/api/v1/docs` (machine-readable spec at
+  `/api/v1/openapi.json`).
+- **GRIFT**, the JSON graph exchange format — defined by its JSON Schema,
+  [`tap_grid/schemas/grift-document.schema.json`](tap_grid/schemas/grift-document.schema.json),
+  with behavior contracts in `tap_grid/specs/spec-grift-*.md`.
+- **Gryphon**, the grid query language — the formal grammar is
+  [`tap_grid/gryphon/grammar.lark`](tap_grid/gryphon/grammar.lark); its behavior
+  contracts live in `tap_grid/specs/`.
+
 ## Finding your way
 
 | Where | What |
