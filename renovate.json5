@@ -11,6 +11,12 @@
   extends: [
     "config:recommended",
     ":dependencyDashboard", // rolling issue = the machine-legible worklist (Player-3-friendly)
+    // Convert every `uses:` to an immutable commit-SHA pin (`@<sha> # vX.Y.Z`) and
+    // maintain it. Mutable tag pins are the exact vector of the 2026-03-19
+    // trivy-action compromise (imposter commits + moved tags shipping a credential
+    // stealer): a SHA pin makes an upstream tag-move a no-op here, and every bump
+    // arrives as a reviewable, gate-checked PR instead of a silent retarget.
+    "helpers:pinGitHubActionDigests",
   ],
   // Exactly the surfaces the spec names: Dockerfile digest pins, uv.lock via
   // pyproject, pinned GitHub Action versions. Nothing else may write.
@@ -29,6 +35,21 @@
     {
       // Our own published images (compose image: fields) — never chase our own tags.
       matchPackageNames: ["ghcr.io/unified-systems-com/**"],
+      enabled: false,
+    },
+    {
+      // aquasecurity's org-level IP allow list (their lockdown after the
+      // 2026-03-19 trivy-action compromise) rejects GitHub-App-token API lookups
+      // from Actions runners even for public repos — a known platform gap
+      // (github.com/orgs/community/discussions/178332) with no consumer-side fix,
+      // so every Renovate run WARNs "no-result" on this lookup. Disabled to keep
+      // the dashboard's Problems section meaningful. The pin is a hand-verified
+      // commit SHA (ancestor of their master, not an imposter commit) in
+      // publish-images.yml + trivy-nightly.yml; scan freshness is unaffected
+      // (trivy pulls its vuln DB at run time). REVISIT: check
+      // github.com/aquasecurity/trivy-action/releases quarterly, and re-enable if
+      // they ever drop the allow list.
+      matchPackageNames: ["aquasecurity/trivy-action"],
       enabled: false,
     },
     {
