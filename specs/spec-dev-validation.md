@@ -26,7 +26,7 @@ The discipline running through every requirement here is honest coverage account
 | req-dev-validation-smoke-gate | [Cold-Boot Smoke Gate](#cold-boot-smoke-gate) | Implemented | Ordered cold-boot-one-cycle, halt-on-failure (`manage.py cold_boot_gate` / `scripts/gate`). Since 2026-08-10 a REQUIRED CI job (`product-lines.yml` `cold-boot`) — no boot authority exists only on a laptop; the promote's local run is optional fast feedback (`TAP_PROMOTE_LOCAL_BOOT_GATES=1`, or automatic when the server gate is inactive). |
 | req-dev-validation-real-backend | [Real-Backend Fidelity](#real-backend-fidelity) | Implemented | Gate runs the real task backend, never `ImmediateBackend` |
 | req-dev-validation-lean-boot | [Lean-Boot Independence Gate](#lean-boot-independence-gate) | Implemented | Fresh, isolated, lean-installed stack boots `core`; catches core→plugin-dep import leakage (`scripts/gate-lean`). Since 2026-08-10 a REQUIRED CI job (`product-lines.yml` `lean-boot`); local run optional (`TAP_PROMOTE_LOCAL_BOOT_GATES=1`, or automatic when the server gate is inactive). |
-| req-dev-validation-api-fuzz | [Live-API Property Fuzz](#live-api-property-fuzz) | Partial | schemathesis derives property tests from the live Ninja OpenAPI schema on a dedicated CI stack; report-only v0 (unauthenticated surface), gate flip + authenticated fuzz are the open tail |
+| req-dev-validation-api-fuzz | [Live-API Property Fuzz](#live-api-property-fuzz) | Partial | schemathesis derives property tests from the live Ninja OpenAPI schema on a dedicated CI stack; report-only, unauthenticated + authenticated (minted-session) passes; gate flip + viewer-role differential are the open tail |
 | req-dev-validation-canary-tier | [Canary Test Tier](#canary-test-tier) | Proposed | `-m smoke` blast-radius subset; does not substitute for the gate |
 | req-dev-validation-known-broken | [Known-Broken Manifest](#known-broken-manifest) | Implemented | In-repo, ratchets down; named here as the house convention |
 | req-dev-validation-collection-complete | [Collection Completeness](#collection-completeness) | Implemented | Every test file on disk is collected by the gate run; discovery not an allow-list; validates the validator |
@@ -94,7 +94,7 @@ block. Rich per-surface rationale lives in each owning spec and in each guard's
 | Guard-system integrity | `req-dev-validation-meta-integrity-3` | Per-commit (`pytest`) | CI-guarded | `tap.guards.guard_integrity` (via `tap/tests/test_guards.py`) |
 | JSON-file naming | `req-tap-json-naming` | Per-commit (`pytest`) | CI-guarded | `tap.guards.json_naming` (via `tap/tests/test_guards.py`) |
 | Lean-boot core independence (import-leakage class) | `req-dev-validation-lean-boot` | CI (`product-lines.yml` `lean-boot` job, REQUIRED via `gate`) + optional local pre-push (`TAP_PROMOTE_LOCAL_BOOT_GATES=1`; automatic when the server gate is inactive) | Gate-guarded | `scripts/gate-lean` (isolated `tap_leanboot` stack, core-only venv; catches core→plugin-dep imports the full-venv cold-boot gate cannot) |
-| Live-API property fuzz (schemathesis over the Ninja OpenAPI schema) | `req-dev-validation-api-fuzz` | CI (`product-lines.yml` `api-fuzz` job; dedicated `core_dev` stack) | Report-only (deliberately NOT in the `gate` aggregator until it has a track record) | schemathesis (`uvx`, runner-side) against the live booted API — unauthenticated surface: no 5xx, schema-conformant responses; authenticated fuzz is the named next rung |
+| Live-API property fuzz (schemathesis over the Ninja OpenAPI schema) | `req-dev-validation-api-fuzz` | CI (`product-lines.yml` `api-fuzz` job; dedicated `core_dev` stack) | Report-only (deliberately NOT in the `gate` aggregator until it has a track record) | schemathesis (pinned, `uvx`, runner-side) against the live booted API — two passes, no-5xx + schema-conformance: unauthenticated (the auth wall must reject, never crash) and authenticated (in-job boot auth phase + minted DB session + CSRF pair, 200-canary fail-closed); viewer-role differential is the named next rung |
 | Log-site tokens | `req-tap-logging-site-id-scanner` | Per-commit (`pytest`) | CI-guarded | `tap.guards.log_site_baseline`, `tap.guards.log_site_format`, `tap.guards.log_site_uniqueness` (via `tap/tests/test_guards.py`) |
 | Migration completeness (`makemigrations --check`) | `req-dev-validation-smoke-gate` | Pre-push (`cold_boot_gate` step `schema:makemigrations`) | Gate-guarded | `cold_boot_gate` step `schema:makemigrations` |
 | Per-plugin crypto posture (conformance) | `req-fips-crypto-bom-conformance` | Per-plugin (`validate_plugin`; `--strict` in conformance CI) | Conformance-guarded (warn; strict→fail) | `tap_plugins.validate` `crypto-providers` check → `tap.crypto_bom.scan_plugin`: reports a plugin's shipped/declared crypto providers so a leak is visible at authoring time |
@@ -484,21 +484,36 @@ second-engine-oracle pattern as the Gryphon differential fuzzer, pointed at the 
 
 **As built (v0, report-only):** the `product-lines.yml` `api-fuzz` job boots a dedicated
 `core_dev` stack (fast, secrets-free), fetches `/api/v1/openapi.json`, and runs
-schemathesis over the UNAUTHENTICATED surface with two checks: no input may produce a
-5xx (the auth wall must reject, never crash), and every response must match its declared
-schema. Report-only: the job is `continue-on-error` and deliberately NOT in the `gate`
-aggregator until it has a flake-free track record; findings land as a run artifact.
+schemathesis (version-PINNED in the job; bumps are deliberate diffs) in TWO passes with
+the same two checks — no input may produce a 5xx, and every response must match its
+declared schema. **Unauthenticated pass:** the auth wall must reject, never crash.
+**Authenticated pass** (design record: `docs/misc/doc-api-fuzz-auth-design.md`): the job
+runs `manage.py boot --profile core_dev` with per-run-random `DJANGO_SUPERUSER_*` env
+(the same canonical auth-phase path spawn uses — no credential ever lives in a boot
+profile, `req-boot-secrets`), mints a real DB session via the DEBUG-fail-closed
+drive-browser `mint_session.py`, pairs it with the `csrftoken` cookie + `X-CSRFToken`
+header (ninja's `django_auth` is `APIKeyCookie(csrf=True)` — without the CSRF pair every
+write op collapses to 403), and fuzzes the surface BEHIND the wall as `tap_admin`
+(highest-capability actor = maximal reachable surface; the service layer stays fully
+engaged). A **200-canary** on `GET /api/v1/entities/` fails the step loudly if the
+minted session doesn't actually authenticate — an "authenticated" pass that silently
+fuzzes 401s is the failure mode this requirement exists to forbid. Report-only: the job
+is `continue-on-error` and deliberately NOT in the `gate` aggregator until it has a
+flake-free track record; both passes' findings land as run artifacts.
 
-**Named open tail:** (1) the gate flip once trusted; (2) AUTHENTICATED fuzz — mint a
-session/credential on the throwaway stack and probe the authorized surface (the
-spawn-minted admin credential pattern is the path); (3) richer surface under `test_all`
-(plugin API routers) once runtime cost is measured; (4) stateful/link-following mode.
+**Named open tail:** (1) the gate flip once trusted; (2) a `tap_viewer`-role
+DIFFERENTIAL pass — viewer writes must 403, never 500 or succeed (authz-differential
+correctness is NOT covered by the admin-only pass; deliberately deferred 2026-08-10);
+(3) richer surface under `test_all` (plugin API routers) once runtime cost is measured;
+(4) stateful/link-following mode; (5) if the job ever joins the `gate`, promote
+`mint_session.py` to a `manage.py` command with a log line (the minted session bypasses
+the login audit path — accepted on a discarded CI stack, named here).
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-dev-validation-api-fuzz-1 | Unauthenticated fuzz runs in CI | Implemented | schemathesis over the live schema, no-5xx + schema-conformance checks, report artifact uploaded. | Report-only. |
 | req-dev-validation-api-fuzz-2 | Gate flip | Proposed | Join the `gate` aggregator after a track record (no flakes, stable runtime). | |
-| req-dev-validation-api-fuzz-3 | Authenticated surface | Proposed | Fuzz behind session auth with a throwaway credential. | |
+| req-dev-validation-api-fuzz-3 | Authenticated surface | Implemented | Fuzz behind session auth with a throwaway credential: in-job boot auth phase + minted DB session + CSRF pair, 200-canary fail-closed, admin-role pass report-only. | Viewer-role differential deferred to the open tail. |
 
 ### Promote-Path Enforcement
 ----
