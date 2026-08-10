@@ -159,7 +159,12 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
         rid="req-dev-validation-api-fuzz",
         cadence="CI (`product-lines.yml` `api-fuzz` job; dedicated `core_dev` stack)",
         status="Report-only (deliberately NOT in the `gate` aggregator until it has a track record)",
-        enforced_by="schemathesis (`uvx`, runner-side) against the live booted API — unauthenticated surface: no 5xx, schema-conformant responses; authenticated fuzz is the named next rung",
+        enforced_by=(
+            "schemathesis (pinned, `uvx`, runner-side) against the live booted API — two passes, "
+            "no-5xx + schema-conformance: unauthenticated (the auth wall must reject, never crash) "
+            "and authenticated (in-job boot auth phase + minted DB session + CSRF pair, "
+            "200-canary fail-closed); viewer-role differential is the named next rung"
+        ),
     ),
     DeclaredSurface(
         surface="DCO sign-off trailers (both roads to main)",

@@ -305,10 +305,13 @@ jobs:
         run: scripts/gate-lean
 
   # Report-only (v0): schemathesis property-fuzz of the LIVE API from its own
-  # OpenAPI schema (Django Ninja generates it) — the unauthenticated surface first:
+  # OpenAPI schema (Django Ninja generates it) — two passes. Unauthenticated:
   # the auth wall must never 5xx and responses must match their declared schema.
+  # Authenticated (req-dev-validation-api-fuzz-3): a throwaway admin minted through
+  # the real boot auth phase + a DB session, so the fuzz reaches BEHIND the wall;
+  # a 200-canary refuses to run if "authenticated" would silently mean fuzzing 401s.
   # Deliberately NOT in the gate aggregator until it has a track record
-  # (req-dev-validation-api-fuzz). Authenticated fuzz is the named next rung.
+  # (req-dev-validation-api-fuzz).
   api-fuzz:
     needs: [setup, secret-scan]
     runs-on: ubuntu-latest
@@ -351,6 +354,19 @@ jobs:
             sleep 10
           done
           [ "$ok" = 1 ] || { echo "::error::web not healthy in time"; docker compose --env-file .env logs web | tail -100; exit 1; }
+      - name: Run boot with a throwaway admin (auth phase)
+        # The entrypoint migrates + serves but never runs `manage.py boot`, so the
+        # stack has ZERO users until this step. The DJANGO_SUPERUSER_* env path is
+        # the same canonical route spawn uses (ensure_initial_admin, req-boot-secrets:
+        # credentials never live in boot profiles). The password is per-run garbage —
+        # never echoed, never persisted, dies with the runner.
+        run: |
+          PW="ci-fuzz-$(openssl rand -hex 16)"
+          docker compose --env-file .env exec -T \
+            -e DJANGO_SUPERUSER_USERNAME=admin \
+            -e DJANGO_SUPERUSER_PASSWORD="$PW" \
+            -e DJANGO_SUPERUSER_EMAIL=admin@ci-fuzz.tap.localhost \
+            web sh -c 'cd /app && uv run python manage.py boot --profile core_dev'
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
       - name: Schemathesis — unauthenticated surface (report-only)
         run: |
@@ -369,15 +385,44 @@ jobs:
             docker compose --env-file .env logs web | tail -80
             exit 1
           fi
-          uvx schemathesis run "$schema" \
+          # Pinned (supply-chain + CLI-drift): bump deliberately, in its own diff.
+          uvx schemathesis@4.24.3 run "$schema" \
             --checks not_a_server_error,response_schema_conformance \
             --max-examples 20 --workers 2 2>&1 | tee schemathesis.log || true
-      - name: Upload fuzz log
+      - name: Schemathesis — authenticated surface (report-only)
+        # Auth carrier: a real DB session minted by the DEBUG-fail-closed
+        # tap_web/skills/drive-browser/mint_session.py (the drive-browser mechanism),
+        # plus the csrftoken cookie from the login page — ninja's django_auth is
+        # APIKeyCookie(csrf=True), so without the CSRF pair every write op would
+        # collapse to 403 and the pass would be authenticated in name only.
+        # The canary makes that failure mode loud instead of silent.
+        run: |
+          base="http://localhost:${WEB_PORT:-8000}"
+          schema="$base/api/v1/openapi.json"
+          key="$(docker compose --env-file .env exec -T web sh -c 'cd /app && uv run python manage.py shell' \
+            < tap_web/skills/drive-browser/mint_session.py | sed -n 's/^SESSIONKEY=//p')"
+          [ -n "$key" ] || { echo "::error::session mint failed (no SESSIONKEY in shell output)"; exit 1; }
+          echo "::add-mask::$key"
+          tok="$(curl -fsS -c - -o /dev/null "$base/auth/passkey/login/" | awk '$6 == "csrftoken" { print $7 }')"
+          [ -n "$tok" ] || { echo "::error::no csrftoken cookie from $base/auth/passkey/login/"; exit 1; }
+          code="$(curl -s -o /dev/null -w '%{http_code}' -H "Cookie: sessionid=$key" "$base/api/v1/entities/")"
+          if [ "$code" != "200" ]; then
+            echo "::error::authenticated canary GET /api/v1/entities/ returned $code, not 200 — refusing to fuzz what would silently be the 401 surface"
+            exit 1
+          fi
+          uvx schemathesis@4.24.3 run "$schema" \
+            --checks not_a_server_error,response_schema_conformance \
+            --max-examples 20 --workers 2 \
+            -H "Cookie: sessionid=$key; csrftoken=$tok" \
+            -H "X-CSRFToken: $tok" 2>&1 | tee schemathesis-auth.log || true
+      - name: Upload fuzz logs
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: schemathesis-log
-          path: schemathesis.log
+          path: |
+            schemathesis.log
+            schemathesis-auth.log
           if-no-files-found: ignore
 
   # The single stable required-check target — rulesets point ONLY at this name.
