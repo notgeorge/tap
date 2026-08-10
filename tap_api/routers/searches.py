@@ -9,6 +9,7 @@ from django.core.exceptions import ValidationError
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Router, Schema
+from pydantic import Field
 
 from tap_auth import policy
 from tap_grid.caller_context import get_caller_context
@@ -22,8 +23,11 @@ router = Router()
 
 class ExecuteSearchIn(Schema):
     inputs: dict[str, Any] | None = None
-    limit: int | None = None
-    offset: int | None = None
+    # Non-negative (422 otherwise): the same negative-slice 500 class the
+    # authenticated api-fuzz pass found on the list endpoints, closed here
+    # preemptively before it rides into execute_search.
+    limit: int | None = Field(default=None, ge=0)
+    offset: int | None = Field(default=None, ge=0)
     layer: SubgraphLayer | None = None
 
 

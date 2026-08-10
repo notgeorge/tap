@@ -1,10 +1,11 @@
 """Edge CRUD (no update in v0). All mutations delegate to tap_grid.services."""
 
 import uuid
+from typing import Annotated
 
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
-from ninja import Router
+from ninja import Query, Router
 
 from tap_api.schemas import EdgeIn, EdgeOut, ErrorOut
 from tap_auth import policy
@@ -28,8 +29,9 @@ def list_edges(
     from_entity_id: uuid.UUID | None = None,
     to_entity_id: uuid.UUID | None = None,
     edge_type: str | None = None,
-    limit: int = 100,
-    offset: int = 0,
+    # Bounded for the same reasons as list_entities (negative slice = ORM raise = 500).
+    limit: Annotated[int, Query(ge=0, le=1000)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[Edge]:
     # Direct read bypasses Search; interim grid.read gate (req-tap-auth-policy).
     policy.authorize(_caller_ctx(request), "grid.read", operation="list_edges")

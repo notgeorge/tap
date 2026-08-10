@@ -74,7 +74,7 @@ from tap_grid.gryphon.ast_nodes import (
     ReturnItem,
 )
 from tap_grid.gryphon.capture import capture_sql, gryphon_stage
-from tap_grid.gryphon.parser import parse_gryphon
+from tap_grid.gryphon.parser import GryphonParseError, parse_gryphon
 
 if TYPE_CHECKING:
     from tap_grid.models import Search
@@ -176,7 +176,15 @@ def _execute_gryphon_raw_impl(
     if not query:
         raise SearchExecutionError("Gryphon query string is empty.")
 
-    ast = parse_gryphon(query)
+    # The documented contract of every execute_* entry point is "malformed query
+    # raises SearchExecutionError" — but parse_gryphon raises GryphonParseError,
+    # which escaped here as an unhandled exception (a 500 at the API, found by the
+    # authenticated api-fuzz pass). Normalize at this chokepoint so every consumer
+    # (API, panels, arrangements, batch_counts) sees a caller error, not a crash.
+    try:
+        ast = parse_gryphon(query)
+    except GryphonParseError as exc:
+        raise SearchExecutionError(str(exc)) from exc
 
     # Validate that all required $var names are present in inputs.
     required = ast.required_params()
