@@ -4,6 +4,7 @@ requires-python = ">=3.14"
 
 [manifest]
 constraints = [{ name = "pydantic", specifier = "<3" }]
+build-constraints = [{ name = "wheel", specifier = ">=0.46.2" }]
 
 [[package]]
 name = "annotated-types"

@@ -73,6 +73,12 @@ on:
         description: "Read-only GitHub PAT for git-installing private sibling plugins during boot."
         required: false
 
+# Least-privilege GITHUB_TOKEN: both jobs only check out + build (no registry push,
+# no artifact/SARIF upload). For cross-repo callers this can only narrow, never widen,
+# the caller's own grant.
+permissions:
+  contents: read
+
 jobs:
   # ---------------------------------------------------------------------------
   # Conformance — the always-on admission gate. Django-free structure validation
