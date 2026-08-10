@@ -56,12 +56,27 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.pick.outputs.matrix }}
+      # Validation tier of this diff vs origin/main (scripts/change-tier —
+      # req-dev-validation-product-line-lanes-7): docs | specs | full. Jobs gate
+      # on it; the `gate` aggregator accepts a skip ONLY when the tier justifies
+      # it. Fail-closed: empty/unknown diffs are `full` (so a dispatch on a ref
+      # equal to main runs everything — "prove the world green" stays honest).
+      tier: ${{ steps.pick.outputs.tier }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # change-tier walks back to the merge-base with origin/main.
+          fetch-depth: 0
+          persist-credentials: false
       - id: pick
         env:
           EVENT: ${{ github.event_name }}
           LINE: ${{ github.event.inputs.line }}
         run: |
+          git fetch origin main --quiet || true
+          tier="$(scripts/change-tier origin/main)"
+          echo "tier=$tier" >> "$GITHUB_OUTPUT"
+          echo "change tier: $tier"
           test_all='{"line":"test_all","profile":"test_all"}'
           samsite='{"line":"samsite","profile":"samsite"}'
           if [ "$EVENT" = "workflow_dispatch" ] && [ "$LINE" != "all" ]; then
@@ -73,6 +88,10 @@ jobs:
           else
             inc="$test_all,$samsite"
           fi
+          # specs tier: every spec-consuming test (Map sync, RID resolution) lives
+          # in the test_all union suite; the samsite lane adds no spec coverage.
+          # docs tier skips `line` entirely via its job-level if.
+          if [ "$tier" = "specs" ]; then inc="$test_all"; fi
           echo "matrix={\"include\":[$inc]}" >> "$GITHUB_OUTPUT"
 
   # Broad credential scan — the complement to the in-repo `secret-pattern` guard
@@ -136,6 +155,10 @@ jobs:
   line:
     # secret-scan gates the expensive lanes: it is ~30s, the CodeBuild lanes are ~25min,
     # and there is no value in testing a tree that is leaking a credential.
+    # Tier-gated (req-dev-validation-product-line-lanes-7): a docs-tier diff (inert
+    # documentation only) cannot red pytest — skip; the gate aggregator accepts the
+    # skip only when the tier justifies it. specs-tier runs test_all only (see setup).
+    if: needs.setup.outputs.tier != 'docs'
     needs: [setup, secret-scan]
     strategy:
       fail-fast: false
@@ -239,6 +262,10 @@ jobs:
   # authority. These jobs are REQUIRED via the gate aggregator: with them, no
   # validation authority exists only on a laptop.
   cold-boot:
+    # Tier-gated (req-dev-validation-product-line-lanes-7): markdown cannot affect
+    # boot — docs/specs-tier diffs skip both boot gates; the gate aggregator
+    # accepts the skip only when the tier justifies it.
+    if: needs.setup.outputs.tier == 'full'
     needs: [setup, secret-scan]
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -290,6 +317,8 @@ jobs:
         run: docker compose --env-file .env logs web | tail -200
 
   lean-boot:
+    # Tier-gated: markdown cannot affect boot (see cold-boot).
+    if: needs.setup.outputs.tier == 'full'
     needs: [setup, secret-scan]
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -313,6 +342,8 @@ jobs:
   # Deliberately NOT in the gate aggregator until it has a track record
   # (req-dev-validation-api-fuzz).
   api-fuzz:
+    # Tier-gated: markdown cannot change the API surface (report-only job anyway).
+    if: needs.setup.outputs.tier == 'full'
     needs: [setup, secret-scan]
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -438,11 +469,38 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Every required job must have actually succeeded
+      # A skip is acceptable ONLY where the change tier justifies it
+      # (req-dev-validation-product-line-lanes-7): docs-tier may skip the lanes,
+      # docs/specs-tier may skip the boot gates. Everything else — including a
+      # skip with an empty/failed setup, a cancelled job, or a skip the tier does
+      # not explain — fails. setup and secret-scan are unconditionally required
+      # (docs leak credentials too, and the tier itself comes from setup).
+      - name: Required jobs succeeded, or skipped only where the tier permits
         env:
-          RESULTS: ${{ join(needs.*.result, ' ') }}
+          TIER: ${{ needs.setup.outputs.tier }}
+          R_SETUP: ${{ needs.setup.result }}
+          R_SECRET: ${{ needs.secret-scan.result }}
+          R_LINE: ${{ needs.line.result }}
+          R_COLD: ${{ needs.cold-boot.result }}
+          R_LEAN: ${{ needs.lean-boot.result }}
         run: |
-          echo "results: $RESULTS"
-          for r in $RESULTS; do
-            [ "$r" = "success" ] || { echo "::error::a required job finished '$r' (skipped counts as failure here)"; exit 1; }
-          done
+          echo "tier=$TIER setup=$R_SETUP secret-scan=$R_SECRET line=$R_LINE cold-boot=$R_COLD lean-boot=$R_LEAN"
+          die() { echo "::error::$1"; exit 1; }
+          [ "$R_SETUP" = "success" ] || die "setup finished '$R_SETUP'"
+          [ "$R_SECRET" = "success" ] || die "secret-scan finished '$R_SECRET' (always required)"
+          case "$R_LINE" in
+            success) : ;;
+            skipped) [ "$TIER" = "docs" ] || die "line skipped without a docs-tier justification (tier='$TIER')" ;;
+            *) die "line finished '$R_LINE'" ;;
+          esac
+          case "$R_COLD" in
+            success) : ;;
+            skipped) { [ "$TIER" = "docs" ] || [ "$TIER" = "specs" ]; } || die "cold-boot skipped on a full-tier diff" ;;
+            *) die "cold-boot finished '$R_COLD'" ;;
+          esac
+          case "$R_LEAN" in
+            success) : ;;
+            skipped) { [ "$TIER" = "docs" ] || [ "$TIER" = "specs" ]; } || die "lean-boot skipped on a full-tier diff" ;;
+            *) die "lean-boot finished '$R_LEAN'" ;;
+          esac
+          echo "gate GREEN (tier: $TIER)"

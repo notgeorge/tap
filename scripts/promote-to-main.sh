@@ -165,6 +165,15 @@ run_local_gates() {
   # `dco` job. Merge + bot commits exempt (the promote's pre-push merge stays clean).
   info "DCO sign-off trailer check (scripts/check-dco; report-only until CONTRIBUTING lands) ..."
   scripts/check-dco || return 1
+  # Change-tier shortcut (req-dev-validation-product-line-lanes-7): a docs-tier
+  # diff (scripts/change-tier — inert documentation only) cannot red pytest or
+  # boot, and the server gate applies the same tier logic to its own jobs. The
+  # shortcut applies ONLY in `fast` mode — when the cloud gate is inactive
+  # (`full`), local is the sole authority and runs everything regardless of tier.
+  if [[ "$mode" == "fast" && "$(scripts/change-tier origin/main)" == "docs" ]]; then
+    info "Docs-tier diff — local pytest + boot gates skipped (the server gate mirrors the tier; check-dco ran above, secret-scan + dco run on the PR)."
+    return 0
+  fi
   if ! scripts/dc ps --status running --services 2>/dev/null | grep -qx web; then
     warn "Validation gate requires this session's stack to be up (scripts/dc up -d)."
     return 1
