@@ -217,7 +217,7 @@ Multi-session worktrees
     Lifecycle scripts (canonical implementations of the multi-session workflow):
         scripts/spawn-session.sh          — create a new session worktree + Compose stack
         scripts/despawn-session.sh        — tear it down
-        scripts/promote-to-main.sh        — push this session into origin/main (pre-push merge + atomic dual-refspec push + main sync)
+        scripts/promote-to-main.sh        — promote this session via PR (pre-push merge + local fast lane + PR + server gate incl. CI boot gates + auto-merge + main sync); direct atomic push survives only as the bootstrap/skip-hatch path
         scripts/promote-all-sessions.sh   — run promote-to-main.sh across every session in the registry
     When the user says "consolidate sessions", "ship the sessions", or otherwise asks to advance
     origin/main from session branches, run the promote scripts rather than retyping the git steps.

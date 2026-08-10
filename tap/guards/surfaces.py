@@ -143,14 +143,14 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
     DeclaredSurface(
         surface="Cold-boot system cycle",
         rid="req-dev-validation-smoke-gate",
-        cadence="Pre-push (`scripts/gate`, wired into `promote-to-main.sh`) + CI (`product-lines.yml` `cold-boot` job, required via `gate`)",
+        cadence="CI (`product-lines.yml` `cold-boot` job, REQUIRED via `gate`) + optional local pre-push (`TAP_PROMOTE_LOCAL_BOOT_GATES=1`; automatic when the server gate is inactive)",
         status="Gate-guarded",
         enforced_by="`tap_boot/management/commands/cold_boot_gate.py`",
     ),
     DeclaredSurface(
         surface="Lean-boot core independence (import-leakage class)",
         rid="req-dev-validation-lean-boot",
-        cadence="Pre-push (`scripts/gate-lean`, wired into `promote-to-main.sh`) + CI (`product-lines.yml` `lean-boot` job, required via `gate`)",
+        cadence="CI (`product-lines.yml` `lean-boot` job, REQUIRED via `gate`) + optional local pre-push (`TAP_PROMOTE_LOCAL_BOOT_GATES=1`; automatic when the server gate is inactive)",
         status="Gate-guarded",
         enforced_by="`scripts/gate-lean` (isolated `tap_leanboot` stack, core-only venv; catches core→plugin-dep imports the full-venv cold-boot gate cannot)",
     ),
