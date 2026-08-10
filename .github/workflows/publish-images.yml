@@ -60,6 +60,10 @@ jobs:
             runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false  # build needs the tree, not a token in .git config
+      # guard-allow: req-cicd-runner-least-privilege — the docker/* steps ARE the write this
+      # job exists for (verified-creator tier); nothing else shares the job's packages:write.
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
         with:
@@ -139,6 +143,10 @@ jobs:
         image: [tap-web, tap-db]
     steps:
       - uses: actions/checkout@v7   # for .trivyignore
+        with:
+          persist-credentials: false  # never leave the job token readable in .git config
+      # guard-allow: req-cicd-runner-least-privilege — scanner needs no token; this job's
+      # only write scope is security-events, consumed by the first-party SARIF upload step.
       - name: Scan published image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:

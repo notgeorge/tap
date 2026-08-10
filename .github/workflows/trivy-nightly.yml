@@ -35,6 +35,10 @@ jobs:
         image: [tap-web, tap-db]
     steps:
       - uses: actions/checkout@v7   # for .trivyignore
+        with:
+          persist-credentials: false  # never leave the job token readable in .git config
+      # guard-allow: req-cicd-runner-least-privilege — scanner needs no token; this job's
+      # only write scope is security-events, consumed by the first-party SARIF upload step.
       - name: Scan published image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
