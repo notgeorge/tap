@@ -57,6 +57,13 @@ class TestListEdges:
         found = [e for e in data if e["entity_id"] == str(edge.entity_id)]
         assert len(found) == 1
 
+    def test_pagination_bounds_rejected(self, logged_in_client):
+        """Same negative-slice 500 class as list_entities (authenticated
+        api-fuzz finding, 2026-08-10); out-of-range values are a 422."""
+        assert logged_in_client.get("/api/v1/edges/?limit=-5").status_code == 422
+        assert logged_in_client.get("/api/v1/edges/?offset=-5").status_code == 422
+        assert logged_in_client.get("/api/v1/edges/?limit=1001").status_code == 422
+
 
 @pytest.mark.django_db
 class TestGetEdge:
