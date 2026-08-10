@@ -119,7 +119,7 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
     DeclaredSurface(
         surface="Per-product-line CI lanes (CodeBuild)",
         rid="req-dev-validation-product-line-lanes",
-        cadence="Pre-push (promote-triggered `test_all` union) + CI (every line on PR)",
+        cadence="Pre-push (promote-triggered `test_all` union) + CI (every line on PR; tier-gated — docs-tier diffs skip the lanes, specs-tier runs `test_all` only, req-dev-validation-product-line-lanes-7)",
         status="Gate-guarded — both lanes (`test_all`, `samsite`) PROVEN GREEN on AWS CodeBuild; the `test_all` union lane is the promote gate (option B); bootstrap-skips the one promote that first lands product-lines.yml on main",
         enforced_by=(
             "`.github/workflows/product-lines.yml` (per-line CodeBuild runners: `test_all` union + `samsite`); "
@@ -143,14 +143,14 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
     DeclaredSurface(
         surface="Cold-boot system cycle",
         rid="req-dev-validation-smoke-gate",
-        cadence="CI (`product-lines.yml` `cold-boot` job, REQUIRED via `gate`) + optional local pre-push (`TAP_PROMOTE_LOCAL_BOOT_GATES=1`; automatic when the server gate is inactive)",
+        cadence="CI (`product-lines.yml` `cold-boot` job, REQUIRED via `gate`; tier-gated — docs/specs-tier diffs skip it, req-dev-validation-product-line-lanes-7) + optional local pre-push (`TAP_PROMOTE_LOCAL_BOOT_GATES=1`; automatic when the server gate is inactive)",
         status="Gate-guarded",
         enforced_by="`tap_boot/management/commands/cold_boot_gate.py`",
     ),
     DeclaredSurface(
         surface="Lean-boot core independence (import-leakage class)",
         rid="req-dev-validation-lean-boot",
-        cadence="CI (`product-lines.yml` `lean-boot` job, REQUIRED via `gate`) + optional local pre-push (`TAP_PROMOTE_LOCAL_BOOT_GATES=1`; automatic when the server gate is inactive)",
+        cadence="CI (`product-lines.yml` `lean-boot` job, REQUIRED via `gate`; tier-gated — docs/specs-tier diffs skip it, req-dev-validation-product-line-lanes-7) + optional local pre-push (`TAP_PROMOTE_LOCAL_BOOT_GATES=1`; automatic when the server gate is inactive)",
         status="Gate-guarded",
         enforced_by="`scripts/gate-lean` (isolated `tap_leanboot` stack, core-only venv; catches core→plugin-dep imports the full-venv cold-boot gate cannot)",
     ),
