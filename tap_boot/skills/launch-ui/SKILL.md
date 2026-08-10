@@ -24,9 +24,13 @@ Read `.env.local` in the worktree root for `WEB_PORT` and `TAP_SESSION_LABEL`.
 
 The URLs are then:
 
+- Direct: `http://localhost:<WEB_PORT>/` — **the sign-in origin.** Passkey login works
+  ONLY here: the ceremony origin is pinned exactly and browsers refuse RP-ID
+  `localhost` from a `*.localhost` subdomain (`req-tap-auth-passkey-rollout-6`).
 - Labeled: `http://<TAP_SESSION_LABEL>.tap.localhost:<WEB_PORT>/` (the address bar
-  names the session — `req-dev-multisession-browser-disambiguation`)
-- Direct fallback: `http://localhost:<WEB_PORT>/`
+  names the session — `req-dev-multisession-browser-disambiguation`). Identification
+  alias only; it is also a separate cookie realm from Direct, so a login on one does
+  not carry to the other.
 
 ## Step 2 — Verify the stack is actually up (never silently start it)
 
@@ -46,9 +50,10 @@ The URLs are then:
 **Always print both URLs first** — that is the headless-safe core of this skill and
 must happen even when a browser open follows (or fails).
 
-Then open the labeled URL in the platform browser:
+Then open the **Direct** URL in the platform browser — never the labeled one (the
+login page it lands on cannot complete a passkey ceremony there):
 
-- macOS: `open 'http://<label>.tap.localhost:<port>/'`
+- macOS: `open 'http://localhost:<port>/'`
 - Linux: `xdg-open '…'` when available
 - Neither works (headless, SSH, no DISPLAY, command missing) → the printed URLs ARE
   the deliverable; say the human can paste them into any local browser. No error
