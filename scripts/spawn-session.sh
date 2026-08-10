@@ -7,8 +7,13 @@
 # it does, read the linked requirement — not a parallel description elsewhere
 # (those would just drift).
 #
+# THE single entry point: first boot on a fresh machine and the Nth concurrent
+# session are the same command (scripts/stand-up.sh retired 2026-08-09 — its host
+# checks are Step 0.1 below; its conversational driver is the get-started skill).
+#
 # Top-level requirements implemented here:
 #   req-dev-multisession-spawn-script      — overall flow, registry validation, failure trap
+#   req-dev-multisession-host-readiness    — Step 0.1 toolchain checks + layout seatbelt
 #   req-dev-multisession-admin-bootstrap   — Django admin user creation + .dev-credentials
 #
 # Top-level requirements depended on:
@@ -61,6 +66,59 @@ with_timeout() {
   return 124
 }
 
+# --- Quiet-capture presentation (req-boot-obs-spawn-presentation) -----------
+# The noisy steps (docker build/up, manage.py boot, health --json) append their
+# full output to $SPAWN_LOG and the terminal shows one status line per step;
+# TAP_SPAWN_VERBOSE=1 restores full streaming. $SPAWN_LOG is initialized once
+# the worktree exists (Step 2) — the steps before it are one-line-per-action
+# already. Spec: specs/spec-tap-boot-observability.md.
+SPAWN_LOG=""
+
+# run_quiet <label> <cmd...> — run a long, noisy command with its output
+# captured to $SPAWN_LOG, showing `<label> ... <elapsed>s` while it runs and
+# `ok (Ns)` / `FAILED (Ns)` + the captured tail when it finishes. Falls back to
+# plain streaming under TAP_SPAWN_VERBOSE=1 or before $SPAWN_LOG exists.
+run_quiet() {
+  local label="$1"; shift
+  if [[ -n "${TAP_SPAWN_VERBOSE:-}" || -z "$SPAWN_LOG" ]]; then
+    info "$label ..."
+    "$@"
+    return
+  fi
+  printf '\n===> %s\n' "$label" >>"$SPAWN_LOG"
+  local t0=$SECONDS rc=0 pid
+  "$@" >>"$SPAWN_LOG" 2>&1 &
+  pid=$!
+  while kill -0 "$pid" 2>/dev/null; do
+    printf '\r    %s ... %ds ' "$label" "$(( SECONDS - t0 ))"
+    sleep 2
+  done
+  wait "$pid" || rc=$?
+  if (( rc == 0 )); then
+    printf '\r    %s ... \033[32mok\033[0m (%ds)    \n' "$label" "$(( SECONDS - t0 ))"
+  else
+    printf '\r    %s ... \033[31mFAILED\033[0m (%ds)\n' "$label" "$(( SECONDS - t0 ))"
+    printf '    last lines of the captured output (%s):\n' "$SPAWN_LOG"
+    tail -n 20 "$SPAWN_LOG" | sed 's/^/      | /'
+  fi
+  return $rc
+}
+
+# boot_status_filter — pass through only the bootloader's own section/step
+# status lines (phases, [seed-plugin]/[fire-collector] steps, OK/FAILED,
+# TAP-ABORT) so the operator watches population progress without the
+# migration/warning firehose. Pure bash so every line renders as it arrives.
+boot_status_filter() {
+  local line
+  while IFS= read -r line; do
+    case "$line" in
+      "Boot starting"*|"Boot complete"*|"boot complete"*|"Auth phase"*|"Grid-infra phase"*|"Population plan"*|"Population phase"*|"Population preflight"*|"  ["*|"    OK "*|"    FAILED "*|"      check "*|*TAP-ABORT*)
+        printf '    %s\n' "$line" ;;
+    esac
+  done
+  return 0
+}
+
 # Trap to give the user a one-line recovery command if anything goes sideways.
 SESSION_NAME=""
 on_failure() {
@@ -73,6 +131,10 @@ on_failure() {
     warn "Add --purge-image if you suspect a poisoned Docker image cache — that"
     warn "forces a no-cache rebuild on the next spawn. Runtime Python state is"
     warn "owned by per-project compose volumes and despawn removes it."
+    if [[ -n "$SPAWN_LOG" && -s "$SPAWN_LOG" ]]; then
+      warn ""
+      warn "Full standup transcript: $SPAWN_LOG"
+    fi
   fi
 }
 trap on_failure EXIT
@@ -101,7 +163,7 @@ Spawn a new isolated TAP dev session. The positional args, in order, are:
   <name>          session label (lowercase, e.g. cli, fix-arrangements).
                   If omitted, the script prompts for it interactively.
   <boot-profile>  which boot/<profile>.boot.json \`manage.py boot\` applies to
-                  this session (e.g. \`samsite\`). Optional — omit it and the
+                  this session (e.g. \`test_all\`). Optional — omit it and the
                   session boots the \`core_dev\` profile (core + grid_fixtures,
                   the minimal inner-loop baseline). What a profile declares and
                   how boot applies it lives in spec-tap-boot-v0.md, not here.
@@ -125,9 +187,12 @@ specs/spec-tap-boot-v0.md.
 \`--boot-file <path>\` boots an arbitrary \`*.boot.json\` file that need NOT live in
 the repo's boot/ dir — it is staged into the new worktree's boot/ under its
 basename id and booted. Use it to stand up a profile that lives anywhere: a
-plugin's own standalone-test profile (\`plugins/<slug>/<name>.boot.json\`), or a
-scratch/experimental profile, without committing it to boot/. Mutually
-exclusive with --boot / the positional boot-profile.
+plugin's own standalone-test profile (\`plugins/<slug>/<name>.boot.json\`), a
+fork's edited in-package record, or a scratch/experimental profile, without
+committing it to boot/. The trusted-local-file tier: no pointer fetch, no
+digest ceremony. Composes with --dev-plugins (the staged record becomes the
+workspace base). Mutually exclusive with --boot / the positional boot-profile
+/ --from.
 
 \`--from <pointer> [--credential <ref>]\` boots from a BOOTSTRAP POINTER
 (spec-tap-boot-bootstrap.md): \`<source-ref>#<record>\` names a versioned plugin
@@ -142,28 +207,44 @@ TAP_SECRETS_ROOT / ~/tap-secrets) or a full path to a *.secret.json. Mutually
 exclusive with --boot / --boot-file / the positional boot-profile.
 
 \`--dev-plugins <slug[,slug...]>\` stands up a PLUGIN WORKSPACE
-(spec-dev-plugin-workspace.md) over a named base profile: each slug is resolved
+(spec-dev-plugin-workspace.md) over a base profile: each slug is resolved
 against that profile's git install entry (its url/rev/credential), cloned editable
 into \`_dev-plugins/<slug>/\` in the worktree, and its source flipped git->editable;
-every other plugin stays git-pinned. Requires a base profile (positional/--boot);
-the slug must already be a plugin in that profile. Use it to develop one or more
-plugins live against the rest of a real profile. For a COUPLED change, name both:
+every other plugin stays git-pinned. Requires a base, in any of three forms: a
+repo-local profile (positional/--boot), a \`--from\` pointer (stage-0-staged +
+digest-verified — the durable/versioned tier), or a \`--boot-file\` path (staged
+as-is — the everyday fork/dev tier); the slug must already be a plugin in that
+base. Use it to develop one or more plugins live against the rest of a real
+profile. For a COUPLED change, name both:
 \`--dev-plugins compliance_core,fedramp_20x_ksi\`.
 
 Examples:
   $0                              # interactive, plain boot, no auto-launch
   $0 fix-arrangements             # named, plain boot
   $0 fix-arrangements cli         # named + attach Claude, plain boot
-  $0 samsite-boot cli samsite     # named + Claude + fire the samsite collectors
-  $0 samsite-boot samsite         # named + fire the samsite collectors (no editor)
-  $0 compliance-dev cli samsite --dev-plugins compliance_core
-                                  # workspace: compliance_core editable over the samsite profile
-  $0 demo cli --boot samsite      # same, explicit-flag form
-  $0 aws-standalone --boot-file plugins/aws_core/standalone.boot.json
-                                  # boot a plugin's own profile from its directory
+  $0 samsite-demo cli --from \\
+     git+https://github.com/unified-systems-com/tap-plugin-samsite@v0.2.0#samsite
+                                  # the samsite demo: its record ships IN the plugin
+                                  # (req-boot-bootstrap-samsite-rehome) and boots by pointer
   $0 gryphon-soak cli --from \\
      git+https://github.com/unified-systems-com/tap-plugin-gryphon-playground@v0.1.0#soak
                                   # single-command boot from a git bootstrap pointer
+  $0 wsdev cli test_all --dev-plugins compliance_core
+                                  # workspace: compliance_core editable over a repo-local profile
+  $0 sam-dev cli --from \\
+     git+https://github.com/unified-systems-com/tap-plugin-samsite@v0.2.0#samsite \\
+     --dev-plugins samsite
+                                  # workspace over a POINTER: the samsite record is stage-0
+                                  # fetched from the plugin repo, then the samsite plugin is
+                                  # checked out editable over it — the external-adopter dev flow
+                                  # (spec-dev-plugin-workspace.md)
+  $0 sam-dev2 cli \\
+     --boot-file ~/my-fork/tap_plugin/samsite/boot/samsite.boot.json \\
+     --dev-plugins samsite
+                                  # workspace over a LOCAL FILE — the fork-cutover dev flow:
+                                  # edit your fork's in-package record (your repo URLs, rev may
+                                  # be a BRANCH), stage it as-is, samsite editable over it.
+                                  # No digest ceremony; --from is the versioned tier.
 
 Spec: req-dev-multisession-spawn-script in specs/spec-dev-multisession.md
 EOF
@@ -268,16 +349,86 @@ fi
 [[ -z "$FROM_CREDENTIAL" || -n "$FROM_POINTER" ]] || fail "--credential requires --from."
 
 # --dev-plugins: the plugin workspace (spec-dev-plugin-workspace.md). It OVERRIDES a subset of a
-# NAMED base profile's plugins to editable, so it needs a base profile (positional/--boot) and is
-# exclusive with --boot-file/--from (which name their own self-contained record). The derivation +
-# authed clone is deferred to Step 2 (once the worktree exists), mirroring --from.
+# base profile's plugins to editable, so it needs SOME base — any of the three base forms:
+#   a repo-local profile (positional/--boot),
+#   a --from pointer (stage-0 fetched + digest-verified, the durable/versioned tier), or
+#   a --boot-file path (staged as-is, the trusted-local-file tier — the fork-cutover dev flow:
+#   point it at YOUR checkout's edited in-package record, rev-as-branch and all).
+# Step 2 stages whichever base was given BEFORE the derivation runs, so the derivation code
+# reads boot/<id>.boot.json by id and never knows which form supplied it.
 if [[ -n "$DEV_PLUGINS" ]]; then
-  [[ -n "$BOOT_PROFILE" ]] || fail "--dev-plugins requires a base boot profile (positional or --boot) to override."
-  [[ -z "$BOOT_FILE" ]] || fail "--dev-plugins and --boot-file are mutually exclusive."
-  [[ -z "$FROM_POINTER" ]] || fail "--dev-plugins and --from are mutually exclusive."
+  [[ -n "$BOOT_PROFILE" || -n "$FROM_POINTER" || -n "$BOOT_FILE" ]] \
+    || fail "--dev-plugins requires a base boot profile (positional, --boot, --from <pointer>, or --boot-file <path>) to override."
 fi
 
 cd "$REPO"
+
+# ============================================================================
+# Step 0.1: Host readiness (req-dev-multisession-host-readiness)
+#
+# The first-run gate and the every-run seatbelt, absorbed from the retired
+# scripts/stand-up.sh: spawn is the single entry point for a fresh clone AND
+# the Nth session, so the host checks that used to live in a separate script
+# run here — cheaply, idempotently, on every spawn. Each failure names its
+# platform-specific fix; nothing in this step mutates the host.
+# ============================================================================
+bold "Step 0.1: Host readiness"
+
+command -v git >/dev/null 2>&1 || fail "git not found on PATH."
+command -v python3 >/dev/null 2>&1 || fail "python3 not found on PATH (spawn uses it to mint ids and passwords)."
+command -v docker >/dev/null 2>&1 || fail "docker not found on PATH.
+    macOS: install Docker Desktop. Linux: install Docker Engine + the Compose v2 plugin.
+    See 'Host prerequisites' in docs/misc/doc-dev-multisession-onboarding.md."
+docker compose version >/dev/null 2>&1 || fail "'docker compose' (the v2 plugin) is not available.
+    The retired v1 'docker-compose' binary is not supported. Linux: apt install docker-compose-plugin."
+# The port-band probe (Step 1) reads nothing when lsof is absent and would
+# silently allocate a busy band — so a missing lsof fails HERE, loudly.
+command -v lsof >/dev/null 2>&1 || fail "lsof not found — the port-band probe depends on it. Install it (e.g. apt install lsof) and re-run."
+
+if ! with_timeout 8 docker info >/dev/null 2>&1; then
+  if with_timeout 8 sh -c 'docker info 2>&1' | grep -qi "permission denied"; then
+    fail "Docker daemon refused the connection: permission denied.
+    Linux: add yourself to the docker group (sudo usermod -aG docker \$USER), then log out and back in."
+  fi
+  fail "Docker daemon is not responding.
+    Start Docker Desktop (macOS) or the engine (Linux: systemctl start docker) and re-run."
+fi
+info "Toolchain OK: docker + compose v2 + lsof + python3."
+
+# Layout seatbelt: the primary clone lives at ~/tap-sessions/main — the layout
+# the registry, promote, and despawn lifecycles standardize on. Derived from git
+# itself (the first `git worktree list` entry is the primary working copy, no
+# matter which session worktree invoked us), compared physically so symlinked
+# homes don't false-positive. Skipped when WORKTREE_BASE is overridden — a
+# throwaway consumer (gate-lean) is not part of the durable layout.
+CANONICAL_MAIN="$HOME/tap-sessions/main"
+if [[ -z "${WORKTREE_BASE:-}" ]]; then
+  PRIMARY_CLONE="$(git -C "$REPO" worktree list --porcelain | head -n 1 | cut -d' ' -f2-)"
+  PRIMARY_PHYS="$(cd "$PRIMARY_CLONE" 2>/dev/null && pwd -P || echo "$PRIMARY_CLONE")"
+  CANONICAL_PHYS="$(cd "$CANONICAL_MAIN" 2>/dev/null && pwd -P || echo "$CANONICAL_MAIN")"
+  if [[ "$PRIMARY_PHYS" != "$CANONICAL_PHYS" ]]; then
+    fail "The primary clone lives at $PRIMARY_CLONE — the multi-session layout standardizes on $CANONICAL_MAIN.
+    Fresh clone (nothing to keep):  git clone \$(git -C '$PRIMARY_CLONE' remote get-url origin) $CANONICAL_MAIN
+                                    (then delete $PRIMARY_CLONE)
+    Existing work in this clone:    mkdir -p \$HOME/tap-sessions && mv '$PRIMARY_CLONE' $CANONICAL_MAIN
+                                    (git does not care where the repo directory lives; mv preserves everything)
+    Then: cd $CANONICAL_MAIN && scripts/spawn-session.sh"
+  fi
+  info "Layout OK: primary clone at $CANONICAL_MAIN."
+fi
+
+# First-spawn detection (no registry yet = fresh host): only changes messaging —
+# the one-time published-image download is the long-ish step; only the offline/
+# unpublished local-build fallback compiles FIPS OpenSSL from source.
+FIRST_RUN=0
+[[ -f "$HOME/tap-sessions/.registry" ]] || FIRST_RUN=1
+
+# Soft checks: warn, never block. Identity resolves in the repo's context (repo-local
+# config counts — session worktrees share it), not the invoking shell's cwd.
+if ! git -C "$REPO" config user.email >/dev/null 2>&1 || ! git -C "$REPO" config user.name >/dev/null 2>&1; then
+  warn "git identity is unset — commits from sessions will carry an auto-derived name/email."
+  warn "  Fix: git config --global user.name 'Your Name' && git config --global user.email you@example.com"
+fi
 
 # ============================================================================
 # Step 0: macOS Keychain admin password (one-time per Mac)
@@ -378,8 +529,7 @@ fi
 # The probe needs lsof, and a missing lsof must fail LOUDLY: with it absent the
 # pipeline below quietly returns "not in use" for every port, the guard reads
 # nothing and passes, and spawn allocates a band something else is listening on.
-# Ubiquitous on macOS; minimal Linux installs may lack it (apt install lsof).
-command -v lsof >/dev/null 2>&1 || fail "lsof not found — the port-band probe depends on it. Install it (e.g. apt install lsof) and re-run."
+# Enforced up front in the Step 0.1 host-readiness battery.
 port_in_use() {
   lsof -iTCP:"$1" -sTCP:LISTEN -P -n 2>/dev/null | grep -q LISTEN
 }
@@ -501,6 +651,15 @@ git worktree add "$WORKTREE" -b "session/$SESSION_NAME" "$BASE_REF"
 cd "$WORKTREE"
 info "Created. Now on branch session/$SESSION_NAME (branched from $BASE_REF)."
 
+# Per-spawn captured transcript (req-boot-obs-spawn-presentation): from here on
+# the noisy steps append their full output to this file; the terminal shows
+# per-step status lines. logs/ is the visible runtime-log home (gitignored);
+# the file is overwritten by each spawn of this worktree.
+mkdir -p "$WORKTREE/logs"
+SPAWN_LOG="$WORKTREE/logs/spawn.log"
+: > "$SPAWN_LOG"
+info "Capturing verbose standup output to $SPAWN_LOG"
+
 # Point git at the tracked .githooks/ (post-merge/checkout/rewrite clear a stale
 # .mypy_cache — see .githooks/_clear_mypy_cache.sh). Idempotent: this writes the
 # SHARED config (worktrees share one common git dir), so all worktrees inherit it;
@@ -529,18 +688,28 @@ if [[ -n "$FROM_POINTER" ]]; then
   cred_args=()
   [[ -n "$FROM_CREDENTIAL" ]] && cred_args=(--credential "$FROM_CREDENTIAL")
   info "Resolving --from pointer (stage-0 fetch): $FROM_POINTER"
-  if ! STAGED_RECORD="$(cd "$REPO" && python3 -m tap.boot_pointer "$FROM_POINTER" "${cred_args[@]}" --out "$WORKTREE/boot")"; then
+  # ${cred_args[@]+…}: bash 3.2 (stock macOS) treats an EMPTY array expansion as unbound
+  # under `set -u` and aborts — the +-guard expands to nothing instead of erroring.
+  if ! STAGED_RECORD="$(cd "$REPO" && python3 -m tap.boot_pointer "$FROM_POINTER" ${cred_args[@]+"${cred_args[@]}"} --out "$WORKTREE/boot")"; then
     fail "--from: stage-0 fetch failed for pointer '$FROM_POINTER' (see boot-pointer error above)."
   fi
   BOOT_PROFILE="$(basename "$STAGED_RECORD" .boot.json)"
   info "Staged --from -> boot/$BOOT_PROFILE.boot.json; booting profile '$BOOT_PROFILE'."
 fi
 
-# --dev-plugins: derive a mixed editable+git workspace profile from the named base profile.
+# --dev-plugins: derive a mixed editable+git workspace profile from the base profile.
 # tap.dev_workspace (pure stdlib, host-runnable venv-free like tap.boot_pointer) resolves each
 # named slug against the base profile's git install entry (the url/rev/credential authority),
 # clones it editable into $WORKTREE/_dev-plugins/<slug>, flips that entry git->editable, and writes
 # boot/<base>__dev.boot.json. We then boot that derived profile. See spec-dev-plugin-workspace.md.
+#
+# ORDERING (the --from / --boot-file compositions): this block runs AFTER both staging blocks
+# above, so when a composition is given, $BOOT_PROFILE is already the staged record's id and the
+# derivation reads $WORKTREE/boot/<id>.boot.json exactly as it reads a repo-local profile. Trust
+# boundary: --from's digest verification happened at fetch time against the record as shipped;
+# --boot-file is the trusted-local-file tier by its existing contract (no ceremony to bypass).
+# Either way the derived __dev profile is a post-verification LOCAL mutation — identical in kind
+# to the repo-local flow. Nothing new is trusted (req-dev-workspace-spawn-6/-7).
 if [[ -n "$DEV_PLUGINS" ]]; then
   info "Deriving dev workspace: editable [$DEV_PLUGINS] over base profile '$BOOT_PROFILE'"
   if ! STAGED_DEV="$(cd "$REPO" && python3 -m tap.dev_workspace \
@@ -651,9 +820,21 @@ bold "Step 3.6: Wiring project-internal skills into .claude/skills/"
 #       (not bare docker compose) so .env.local is layered correctly and the
 #       per-session port band actually takes effect.
 # ============================================================================
-bold "Step 4: Building and starting Docker stack"
-info "First build pulls postgres:16-alpine and compiles the web image — typically 2-5 minutes."
-scripts/dc up -d --build
+bold "Step 4: Pulling images and starting Docker stack"
+info "Pull-first: the published tap-web/tap-db images (GHCR, anonymous) carry the toolchain"
+info "and a pre-compiled wheel cache, so no local compile. Falls back to a local build when the"
+info "pull fails (offline, or the image is not yet published)."
+if [[ "$FIRST_RUN" -eq 1 ]]; then
+  info "First spawn on this host: the image download is the long-ish step (one-time; later"
+  info "spawns reuse it). The offline/unpublished fallback builds locally instead — that"
+  info "slow path compiles FIPS OpenSSL + the Python closure and can take 10-20 minutes."
+fi
+PULL_OK=1
+run_quiet "Pulling published images (GHCR)" scripts/dc pull web db || PULL_OK=0
+if [[ "$PULL_OK" -eq 0 ]]; then
+  warn "Pull failed — compose will build locally (the slow path)."
+fi
+run_quiet "Starting containers" scripts/dc up -d
 
 # ============================================================================
 # Step 5: Wait for the entrypoint to finish initial setup
@@ -704,8 +885,26 @@ web_container_dead_check() {
 
 bold "Step 5: Waiting for entrypoint (uv sync + migrate + runserver)"
 info "First-time uv sync downloads ~50MB of wheels — typically 1-3 minutes."
-WAIT_TIMEOUT=300   # 5 minutes — the backstop; a fatal standup fast-fails long before it.
+# Readiness backstops. The PRIMARY hang trigger is STALL DETECTION: a healthy
+# entrypoint streams log output continuously (cache seed, uv sync, plugin
+# installs, migrations), so "no new web-log output for STALL_TIMEOUT" is the
+# real signal — wall-clock alone cannot distinguish slow from stuck (observed
+# 2026-08-09: a loaded host ran a HEALTHY migrate straight past the old 600s
+# wall-clock while streaming the whole time). The wall-clock ceiling remains
+# only as the outer safety bound, sized by which Step 4 path ran: the warm
+# pull-first path still legitimately runs minutes (a samsite-class pre-boot
+# git-installs 11 plugins; a loaded host stretches everything), and the
+# local-build fallback adds the FIPS delta source compile (~4m30s for a
+# cryptography bump alone).
+STALL_TIMEOUT=120
+if [[ "${PULL_OK:-1}" -eq 1 ]]; then
+  WAIT_TIMEOUT=600   # warm path: published images + seeded wheel cache
+else
+  WAIT_TIMEOUT=900   # fallback local build: stale/absent seed re-pays the compile
+fi
 WAIT_START=$(date +%s)
+LAST_LOG_SIZE=0
+LAST_PROGRESS=$WAIT_START
 while true; do
   # Fatal-standup fast-paths (before the readiness probe, which would otherwise
   # poll a dead/aborted container to the timeout — the 300s black-box this replaces,
@@ -721,7 +920,12 @@ while true; do
   if scripts/dc exec -T web python -c "
 import urllib.request, sys
 try:
-    urllib.request.urlopen('http://localhost:8000/admin/', timeout=2)
+    # timeout=10, NOT 2: a timeout counts as 'not listening', and under heavy
+    # host load (multiple stacks + CI lanes on one machine) a HEALTHY dev
+    # server can exceed 2s per request — observed 2026-08-09: two lean-boot
+    # gate reds with a fully-booted container failing this probe for 600s.
+    # Responsiveness is governed by the 3s poll cadence, not this ceiling.
+    urllib.request.urlopen('http://localhost:8000/admin/', timeout=10)
     sys.exit(0)
 except urllib.error.HTTPError:
     sys.exit(0)  # 4xx/5xx from a real server is still 'listening'
@@ -731,11 +935,27 @@ except Exception:
     info "Web is responding."
     break
   fi
-  elapsed=$(($(date +%s) - WAIT_START))
-  if [[ $elapsed -gt $WAIT_TIMEOUT ]]; then
-    fail "Web did not become ready in ${WAIT_TIMEOUT}s (no ABORT signal seen). Check 'scripts/dc logs web' in $WORKTREE."
+  # Stall detection: track web-log growth; a healthy entrypoint streams, a hang
+  # goes silent. Byte count via wc -c — cheap, and monotonic while logs append.
+  NOW=$(date +%s)
+  LOG_SIZE=$(scripts/dc logs web 2>&1 | wc -c | tr -d ' ')
+  if [[ "$LOG_SIZE" -gt "$LAST_LOG_SIZE" ]]; then
+    LAST_LOG_SIZE=$LOG_SIZE
+    LAST_PROGRESS=$NOW
   fi
-  printf "    waiting... %ds\r" "$elapsed"
+  STALLED_FOR=$(( NOW - LAST_PROGRESS ))
+  if [[ $STALLED_FOR -gt $STALL_TIMEOUT ]]; then
+    fail "Entrypoint STALLED: no new web-log output for ${STALL_TIMEOUT}s (waited $((NOW - WAIT_START))s total, no ABORT signal).
+    The container is up but silent — a genuine hang, not a slow healthy boot.
+    Inspect: scripts/dc logs web  (in $WORKTREE). Diagnose: the /diagnose-failed-session-spawn skill."
+  fi
+  elapsed=$(( NOW - WAIT_START ))
+  if [[ $elapsed -gt $WAIT_TIMEOUT ]]; then
+    fail "Web did not become ready in the ${WAIT_TIMEOUT}s ceiling (log was still progressing ${STALLED_FOR}s ago; no ABORT signal).
+    A loaded host can stretch a healthy boot past the ceiling — check 'scripts/dc logs web' in $WORKTREE:
+    if the entrypoint is still advancing, let it finish and run the tail steps manually (see the diagnose skill's backstop-timeout signature)."
+  fi
+  printf "    waiting... %ds (log progress %ds ago)   \r" "$elapsed" "$STALLED_FOR"
   sleep 3
 done
 echo
@@ -796,13 +1016,31 @@ info "Booting with profile '$BOOT_PROFILE_EFFECTIVE'."
 # failure (req-boot-abort-signal). Guard the exec so that surfaces as a clean
 # fast-fail with the reason + diagnosis pointer, rather than a bare `set -e` death
 # into the generic recovery trap.
-if ! scripts/dc exec \
-  -e DJANGO_SUPERUSER_USERNAME=admin \
-  -e DJANGO_SUPERUSER_PASSWORD="$ADMIN_PASSWORD" \
-  -e DJANGO_SUPERUSER_EMAIL="$ADMIN_EMAIL" \
-  web uv run python manage.py boot --profile "$BOOT_PROFILE_EFFECTIVE"; then
+#
+# Presentation (req-boot-obs-spawn-presentation): the full boot output is
+# captured to $SPAWN_LOG; the terminal streams only boot's own section/step
+# status lines (phases, [seed-plugin]/[fire-collector] OK/FAILED) so failures —
+# including the load-bearing `FAILED —` line and TAP-ABORT — stay visible live.
+BOOT_CMD=(scripts/dc exec -T
+  -e DJANGO_SUPERUSER_USERNAME=admin
+  -e DJANGO_SUPERUSER_PASSWORD="$ADMIN_PASSWORD"
+  -e DJANGO_SUPERUSER_EMAIL="$ADMIN_EMAIL"
+  web uv run python manage.py boot --profile "$BOOT_PROFILE_EFFECTIVE")
+BOOT_RC=0
+if [[ -n "${TAP_SPAWN_VERBOSE:-}" ]]; then
+  "${BOOT_CMD[@]}" || BOOT_RC=$?
+else
+  printf '\n===> manage.py boot --profile %s\n' "$BOOT_PROFILE_EFFECTIVE" >>"$SPAWN_LOG"
+  # pipefail: the pipeline's status is boot's own exit code (tee and the filter
+  # both succeed), captured without tripping set -e.
+  "${BOOT_CMD[@]}" 2>&1 | tee -a "$SPAWN_LOG" | boot_status_filter || BOOT_RC=$?
+fi
+if (( BOOT_RC != 0 )); then
   abort_check   # surface the specific TAP-ABORT: boot reason if one was emitted
-  fail "manage.py boot failed (profile '$BOOT_PROFILE_EFFECTIVE') — see the output above, or scripts/dc logs web (in $WORKTREE). Diagnose: the /diagnose-failed-session-spawn skill."
+  fail "manage.py boot failed (profile '$BOOT_PROFILE_EFFECTIVE').
+    Boot record:  $WORKTREE/logs/boot/latest.boot-record.json (structured outcome + failing checks)
+    Transcript:   $SPAWN_LOG (also: scripts/dc logs web, in $WORKTREE)
+    Diagnose: the /diagnose-failed-session-spawn skill."
 fi
 
 info "Instance booted via manage.py boot. Credentials saved to $WORKTREE/.dev-credentials (gitignored)."
@@ -892,9 +1130,17 @@ esac
 # specs/spec-tap-health-v0.md and docs/aar/2026-06-26-tap-cache-latent-provisioning.md.
 # ============================================================================
 bold "Step 6.5: Gating on instance health (manage.py health)"
-if scripts/dc exec -T web uv run python manage.py health --json; then
+# The probe JSON is captured to $SPAWN_LOG either way; it is printed to the
+# terminal only on failure (where it is the evidence naming the broken probe)
+# or under TAP_SPAWN_VERBOSE=1.
+HEALTH_RC=0
+HEALTH_JSON="$(scripts/dc exec -T web uv run python manage.py health --json 2>>"$SPAWN_LOG")" || HEALTH_RC=$?
+printf '\n===> manage.py health --json\n%s\n' "$HEALTH_JSON" >>"$SPAWN_LOG"
+if (( HEALTH_RC == 0 )); then
+  if [[ -n "${TAP_SPAWN_VERBOSE:-}" ]]; then printf '%s\n' "$HEALTH_JSON"; fi
   info "Instance is healthy (db + cache + queue + secrets probes passed)."
 else
+  printf '%s\n' "$HEALTH_JSON"
   fail "Instance booted but health is UNHEALTHY — a critical backend (db/cache/secrets) is broken.
     The report JSON above names the failing probe (status + code). Inspect logs:
       scripts/dc logs web
@@ -919,7 +1165,11 @@ echo "$SESSION_NAME $WEB_PORT $POSTGRES_PORT session/$SESSION_NAME $SPAWNED_AT" 
 # Spec: req-dev-multisession-browser-disambiguation — the labeled URL uses the
 #       *.localhost subdomain pattern (RFC 6761 native browser resolution to
 #       127.0.0.1) so the address bar tells the developer which session they're
-#       in. The direct localhost:<port> URL is the unambiguous fallback.
+#       in. The direct localhost:<port> URL leads: it is the ONLY origin passkey
+#       sign-in works on — browsers refuse RP-ID "localhost" from a *.localhost
+#       subdomain, and the ceremony origin is pinned exactly
+#       (req-tap-auth-passkey-rollout-6). The labeled URL is an address-bar
+#       label, and its cookie realm is separate from Direct's.
 # ============================================================================
 trap - EXIT  # Disarm failure trap on success.
 
@@ -927,15 +1177,18 @@ echo
 bold "Done — session '$SESSION_NAME' is ready."
 echo
 info "URLs"
-info "  Labeled:   http://$SESSION_NAME.tap.localhost:$WEB_PORT/"
-info "  Direct:    http://localhost:$WEB_PORT/"
-info "  Admin URL: http://$SESSION_NAME.tap.localhost:$WEB_PORT/admin/"
+info "  Direct:    http://localhost:$WEB_PORT/  <- sign in HERE (passkeys refuse other origins)"
+info "  Labeled:   http://$SESSION_NAME.tap.localhost:$WEB_PORT/  (address-bar label only)"
+info "  Admin URL: http://localhost:$WEB_PORT/admin/"
 echo
 info "Admin credentials"
 info "  Username:  admin"
 info "  Password:  (saved to .dev-credentials — never printed to stdout)"
 info "  File:      $WORKTREE/.dev-credentials"
 info "  Read with: cat '$WORKTREE/.dev-credentials'"
+echo
+info "Standup transcript"
+info "  Captured:  $WORKTREE/logs/spawn.log (full docker/boot/health output; TAP_SPAWN_VERBOSE=1 streams instead)"
 echo
 info "Secrets mount (tap-cares runtime secrets)"
 if [[ -L "$WORKTREE/tap_secrets" ]]; then
@@ -968,6 +1221,39 @@ echo
 # ============================================================================
 case "$LAUNCH_TARGET" in
   cli)
+    # The exec below REPLACES this process with the claude REPL, which takes over
+    # the terminal — the access summary above would scroll away unrecoverably. So:
+    # persist the access block to a file in the worktree first, then (interactive
+    # runs only) pause so the human can read/copy before attaching. The /launch-ui
+    # skill reopens the web UI from inside the session any time after.
+    SESSION_INFO_FILE="$WORKTREE/logs/session-info.txt"
+    cat > "$SESSION_INFO_FILE" <<EOF
+TAP session '$SESSION_NAME' — access info (written by spawn-session.sh, $(date -u +%Y-%m-%dT%H:%M:%SZ))
+
+URLs
+  Direct:    http://localhost:$WEB_PORT/  <- sign in HERE (passkeys refuse other origins)
+  Labeled:   http://$SESSION_NAME.tap.localhost:$WEB_PORT/  (address-bar label only)
+  Admin URL: http://localhost:$WEB_PORT/admin/
+
+Admin credentials
+  Username:  admin
+  Password:  saved to $WORKTREE/.dev-credentials (gitignored; read with cat)
+
+Secrets mount:  $WORKTREE/tap_secrets -> container /run/tap-secrets (read-only)
+Standup log:    $WORKTREE/logs/spawn.log
+Boot profile:   $BOOT_PROFILE_EFFECTIVE
+
+Reopen the web UI from inside the session any time: /launch-ui
+Smoke tests:    specs/spec-dev-multisession-smoketest.md
+EOF
+    info "Session info saved to $SESSION_INFO_FILE"
+    # Pause ONLY on a real terminal: scripted/CI/gate-lean invocations (no tty on
+    # stdin) must never hang here. `read` from a non-tty would consume piped stdin
+    # or return immediately — skipping it entirely keeps those paths exec-clean.
+    if [[ -t 0 ]]; then
+      echo
+      read -r -p "    Press Enter to attach Claude Code (info saved to logs/session-info.txt; reopen the UI anytime with /launch-ui) ... "
+    fi
     bold "Launching Claude Code in $WORKTREE..."
     cd "$WORKTREE"
     # Name the session after the worktree label so it's recognizable without a

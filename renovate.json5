@@ -1,0 +1,78 @@
+// Renovate config (req-cicd-base-image-lifecycle-1 / req-cicd-dep-automation).
+// Runs SELF-HOSTED via .github/workflows/renovate.yml (GHA cron + an org-owned
+// GitHub App token) — not the Mend-hosted app; repo-write stays in-house.
+//
+// PR-ONLY MODE: automerge is globally off. The flip to auto-merge-on-green is a
+// deliberate later step, now unblocked server-side by the `main-required-checks`
+// ruleset (a bot merge cannot land without a green `gate`). Until then a human
+// merges the PRs.
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  extends: [
+    "config:recommended",
+    ":dependencyDashboard", // rolling issue = the machine-legible worklist (Player-3-friendly)
+    // Convert every `uses:` to an immutable commit-SHA pin (`@<sha> # vX.Y.Z`) and
+    // maintain it. Mutable tag pins are the exact vector of the 2026-03-19
+    // trivy-action compromise (imposter commits + moved tags shipping a credential
+    // stealer): a SHA pin makes an upstream tag-move a no-op here, and every bump
+    // arrives as a reviewable, gate-checked PR instead of a silent retarget.
+    "helpers:pinGitHubActionDigests",
+  ],
+  // Exactly the surfaces the spec names: Dockerfile digest pins, uv.lock via
+  // pyproject, pinned GitHub Action versions. Nothing else may write.
+  enabledManagers: ["dockerfile", "github-actions", "pep621"],
+  labels: ["renovate"],
+  automerge: false,
+  osvVulnerabilityAlerts: true,
+  vulnerabilityAlerts: {
+    labels: ["renovate", "security"],
+  },
+  // NO schedules while in PR-only mode: the human merge is already the rate
+  // limiter, and schedule windows just deferred PR creation invisibly (the
+  // 2026-08-09 first-run lesson — four green runs, zero PRs). Revisit schedules
+  // together with the automerge flip, where they actually earn their keep.
+  packageRules: [
+    {
+      // Our own published images (compose image: fields) — never chase our own tags.
+      matchPackageNames: ["ghcr.io/unified-systems-com/**"],
+      enabled: false,
+    },
+    {
+      // aquasecurity's org-level IP allow list (their lockdown after the
+      // 2026-03-19 trivy-action compromise) rejects GitHub-App-token API lookups
+      // from Actions runners even for public repos — a known platform gap
+      // (github.com/orgs/community/discussions/178332) with no consumer-side fix,
+      // so every Renovate run WARNs "no-result" on this lookup. Disabled to keep
+      // the dashboard's Problems section meaningful. The pin is a hand-verified
+      // commit SHA (ancestor of their master, not an imposter commit) in
+      // publish-images.yml + trivy-nightly.yml; scan freshness is unaffected
+      // (trivy pulls its vuln DB at run time). REVISIT: check
+      // github.com/aquasecurity/trivy-action/releases quarterly, and re-enable if
+      // they ever drop the allow list.
+      matchPackageNames: ["aquasecurity/trivy-action"],
+      enabled: false,
+    },
+    {
+      // wolfi-base rotates its digest daily; one rolling PR, refreshed as
+      // Chainguard publishes, delivers their patch stream as reviewable commits
+      // (the loop that makes the digest pins strictly better than :latest).
+      matchManagers: ["dockerfile"],
+      groupName: "base-image digests",
+    },
+    {
+      matchManagers: ["github-actions"],
+      groupName: "github-actions",
+    },
+    {
+      matchManagers: ["pep621"],
+      groupName: "python dependencies (uv.lock)",
+    },
+  ],
+  lockFileMaintenance: {
+    enabled: true,
+    // config:recommended ships a built-in Monday-4am schedule for lockfile
+    // maintenance; override it explicitly (the 2026-08-09 lesson: an inherited
+    // schedule defers PR creation invisibly).
+    schedule: ["at any time"],
+  },
+}

@@ -160,6 +160,12 @@ Development Environment
     Never commit secrets to version control
 
 Development Commands
+    # Images: spawn (the single entry point; stand-up.sh retired 2026-08-09) PULLS the
+    # published ghcr.io/unified-systems-com/tap-web + tap-db
+    # (anonymous, multi-arch, pre-compiled wheel cache inside — no local compile). Rebuild locally
+    # only when changing the Dockerfiles: scripts/dc build web (this shadows the published
+    # tag on your host until the next scripts/dc pull web). See publish-images.yml.
+
     # Start all services
     docker compose up
 
@@ -211,10 +217,14 @@ Multi-session worktrees
     Lifecycle scripts (canonical implementations of the multi-session workflow):
         scripts/spawn-session.sh          — create a new session worktree + Compose stack
         scripts/despawn-session.sh        — tear it down
-        scripts/promote-to-main.sh        — push this session into origin/main (pre-push merge + atomic dual-refspec push + main sync)
+        scripts/promote-to-main.sh        — promote this session via PR (pre-push merge + local fast lane + PR + server gate incl. CI boot gates + auto-merge + main sync); direct atomic push survives only as the bootstrap/skip-hatch path
         scripts/promote-all-sessions.sh   — run promote-to-main.sh across every session in the registry
     When the user says "consolidate sessions", "ship the sessions", or otherwise asks to advance
     origin/main from session branches, run the promote scripts rather than retyping the git steps.
+    SECOND ROAD (since the main-required-checks ruleset): a change whose only consumer is a
+    pending gated PR (Renovate bounds/config, dep baselines) should be pushed onto THAT PR's
+    branch — one gate pass instead of three serialized ones. See "The second road" in
+    spec-dev-multisession.md (req-dev-multisession-push-workflow).
     See spec-dev-multisession.md for port bands, spawn/despawn, and the push workflow.
     Advancing origin/main is gated on validation (req-dev-multisession-promote-gate ↔
     req-dev-validation-promote-hook): the dev-validation gate runs after the pre-push merge,

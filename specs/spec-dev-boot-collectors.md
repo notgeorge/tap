@@ -312,8 +312,9 @@ The session's profile is carried by `TAP_BOOT_PROFILE` in its `.env.local`
 default, like `TAP_SESSION_LABEL`). The profile is chosen **explicitly per
 spawn** as spawn's positional boot-profile argument
 (`spawn-session.sh <name> [cli|codex|vscode] [<boot-profile>]`, e.g.
-`spawn-session.sh samsite-boot cli samsite`), or via the equivalent `--boot
-<profile>` flag; spawn writes the value into `.env.local`. **There is no
+`spawn-session.sh full-stack cli test_all`; the samsite demo boots via its
+in-package record, `spawn --from <plugin-ref>#samsite`), or via the equivalent
+`--boot <profile>` flag; spawn writes the value into `.env.local`. **There is no
 default** — omitting it writes an empty value, so the step is a clean no-op and
 the session boots plain (seeded but not collector-populated). The deliberate
 choice is that the developer names the profile each spawn rather than silently

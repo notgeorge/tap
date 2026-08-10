@@ -12,38 +12,67 @@ req-boot-variable-resolution, req-boot-snapshot).
 
 from __future__ import annotations
 
+import subprocess
+
 import pytest
 
 from tap import preboot
 
 _SHIPPED_PROFILE_IDS = sorted(p.stem.replace(".boot", "") for p in preboot._boot_dir().glob("*.boot.json"))
 
+
+def _tracked_boot_ids() -> set[str] | None:
+    """Profile ids of the git-TRACKED boot/*.boot.json files, or None when git can't answer.
+
+    The boot/ glob sees staged records too — a live session migrated per
+    req-boot-bootstrap-samsite-rehome legitimately stages the samsite record into
+    boot/ (uncommitted), so "what does the REPO ship" is a question only git can
+    answer. In a worktree session the container has no resolvable .git (the gitdir
+    pointer targets an unmounted host path) — return None and let the caller skip
+    the repo-shipping assertion rather than false-alarm on the documented flow.
+    """
+    boot_dir = preboot._boot_dir()
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "*.boot.json"],
+            cwd=boot_dir,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except OSError, subprocess.TimeoutExpired:
+        return None
+    if result.returncode != 0:
+        return None
+    return {line.rsplit("/", 1)[-1].removesuffix(".boot.json") for line in result.stdout.splitlines() if line.strip()}
+
+
 # --- Variable resolution (req-boot-variable-resolution) ----------------------
 
 
-def test_env_var_name_mapping() -> None:
-    assert preboot._env_var_name("install", "snapshot_before_migrate") == ("TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE")
+def testenv_var_name_mapping() -> None:
+    assert preboot.env_var_name("install", "snapshot_before_migrate") == ("TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE")
 
 
-def test_resolve_var_precedence_env_over_profile_over_default(monkeypatch: pytest.MonkeyPatch) -> None:
+def testresolve_var_precedence_env_over_profile_over_default(monkeypatch: pytest.MonkeyPatch) -> None:
     section = {"snapshot_before_migrate": True}
     # default wins when neither env nor profile present
     monkeypatch.delenv("TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE", raising=False)
-    r = preboot._resolve_var("install", "missing_key", profile_section=section, default=False, is_bool=True)
+    r = preboot.resolve_var("install", "missing_key", profile_section=section, default=False, is_bool=True)
     assert (r.value, r.source) == (False, "default")
     # profile wins over default
-    r = preboot._resolve_var("install", "snapshot_before_migrate", profile_section=section, default=False, is_bool=True)
+    r = preboot.resolve_var("install", "snapshot_before_migrate", profile_section=section, default=False, is_bool=True)
     assert (r.value, r.source) == (True, "profile")
     # env wins over profile
     monkeypatch.setenv("TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE", "false")
-    r = preboot._resolve_var("install", "snapshot_before_migrate", profile_section=section, default=False, is_bool=True)
+    r = preboot.resolve_var("install", "snapshot_before_migrate", profile_section=section, default=False, is_bool=True)
     assert (r.value, r.source) == (False, "env")
 
 
-def test_resolve_var_empty_env_treated_as_absent(monkeypatch: pytest.MonkeyPatch) -> None:
+def testresolve_var_empty_env_treated_as_absent(monkeypatch: pytest.MonkeyPatch) -> None:
     # docker-compose materializes an unmapped ${VAR:-} as "" — must NOT read as False.
     monkeypatch.setenv("TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE", "")
-    r = preboot._resolve_var("install", "snapshot_before_migrate", profile_section={}, default=True, is_bool=True)
+    r = preboot.resolve_var("install", "snapshot_before_migrate", profile_section={}, default=True, is_bool=True)
     assert (r.value, r.source) == (True, "default")
 
 
@@ -52,7 +81,7 @@ def test_resolve_var_empty_env_treated_as_absent(monkeypatch: pytest.MonkeyPatch
 )
 def test_bool_coercion(monkeypatch: pytest.MonkeyPatch, raw: str, expected: bool) -> None:
     monkeypatch.setenv("TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE", raw)
-    r = preboot._resolve_var("install", "snapshot_before_migrate", profile_section=None, default=None, is_bool=True)
+    r = preboot.resolve_var("install", "snapshot_before_migrate", profile_section=None, default=None, is_bool=True)
     assert r.value is expected
 
 
@@ -64,17 +93,20 @@ def test_dist_name_for_slug() -> None:
     assert preboot.dist_name_for_slug("aws_core") == "tap-plugin-aws-core"
 
 
+UV_PIP_PREFIX = ["uv", "pip", "install", "--python", str(preboot._VENV_DIR)]
+
+
 def test_uv_install_args_git() -> None:
     entry = {"slug": "widget", "source": {"type": "git", "url": "https://x/y.git", "rev": "abc123"}}
     args = preboot._uv_install_args(entry)
-    assert args == ["uv", "pip", "install", "tap-plugin-widget @ git+https://x/y.git@abc123"]
+    assert args == [*UV_PIP_PREFIX, "tap-plugin-widget @ git+https://x/y.git@abc123"]
 
 
 def test_uv_install_args_editable() -> None:
     entry = {"slug": "widget", "source": {"type": "editable", "path": "plugins/widget"}}
     args = preboot._uv_install_args(entry)
-    assert args[:4] == ["uv", "pip", "install", "--editable"]
-    assert args[4].endswith("plugins/widget")
+    assert args[:6] == [*UV_PIP_PREFIX, "--editable"]
+    assert args[6].endswith("plugins/widget")
 
 
 def test_uv_install_args_wheelhouse_relative_dir() -> None:
@@ -83,9 +115,9 @@ def test_uv_install_args_wheelhouse_relative_dir() -> None:
         "source": {"type": "wheelhouse", "dir": "wheelhouse", "version": "0.1.1"},
     }
     args = preboot._uv_install_args(entry)
-    assert args[:5] == ["uv", "pip", "install", "--no-index", "--find-links"]
-    assert args[5].endswith("/wheelhouse")  # resolved under the repo root
-    assert args[6] == "tap-plugin-fedramp-20x-ksi==0.1.1"
+    assert args[:7] == [*UV_PIP_PREFIX, "--no-index", "--find-links"]
+    assert args[7].endswith("/wheelhouse")  # resolved under the repo root
+    assert args[8] == "tap-plugin-fedramp-20x-ksi==0.1.1"
 
 
 def test_uv_install_args_wheelhouse_absolute_dir_used_as_is() -> None:
@@ -95,9 +127,7 @@ def test_uv_install_args_wheelhouse_absolute_dir_used_as_is() -> None:
     }
     args = preboot._uv_install_args(entry)
     assert args == [
-        "uv",
-        "pip",
-        "install",
+        *UV_PIP_PREFIX,
         "--no-index",
         "--find-links",
         "/run/tap-wheelhouse",
@@ -356,9 +386,21 @@ def test_build_baked_matches_installed_apps() -> None:
 
 
 def test_shipped_profiles_exist() -> None:
-    """Sanity: the enumeration found the real boot/ profiles (not an empty glob)."""
+    """Sanity: the enumeration found the real boot/ profiles (not an empty glob).
+
+    samsite is deliberately absent from the TRACKED set: its record ships inside
+    tap-plugin-samsite (req-boot-bootstrap-samsite-rehome); the plugin's own suite
+    covers it. The negative assert consults git, not the glob — a migrated live
+    session legitimately STAGES the samsite record into boot/ (uncommitted), and
+    that documented flow must not red the suite. Where git cannot answer (worktree
+    sessions in-container), the repo-shipping half is skipped; CI's real-clone
+    checkout enforces it.
+    """
     assert "test_all" in _SHIPPED_PROFILE_IDS
-    assert "samsite" in _SHIPPED_PROFILE_IDS
+    tracked = _tracked_boot_ids()
+    if tracked is None:
+        pytest.skip("git unavailable — cannot distinguish staged from tracked boot records")
+    assert "samsite" not in tracked
 
 
 @pytest.mark.parametrize("profile_id", _SHIPPED_PROFILE_IDS)

@@ -1,8 +1,10 @@
 # TAP — The Analogy Platform
 
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14019/badge)](https://www.bestpractices.dev/projects/14019)
+
 TAP is a general-purpose platform for mastering the systems you are responsible
 for — accounts, pipelines, fleets, data flows, the organization
-itself — by modeling each as a live, queryable, visual representatiion called **the grid**:
+itself — by modeling each as a live, queryable, visual representation called **the grid**:
 nodes and edges fused with dimensions, batches, history, and field-level provenance,
 so the model stays explainable as it changes.  
   
@@ -30,19 +32,37 @@ Linux), and any **python3** on the host.
 first — it covers the docker group, ports, and two known papercuts.
 
 ```bash
-git clone <this repository> tap && cd tap
-scripts/stand-up.sh
+mkdir -p ~/tap-sessions
+git clone <this repository> ~/tap-sessions/main
+cd ~/tap-sessions/main
+scripts/spawn-session.sh dev        # any session name you like
 ```
 
-That's the whole procedure. The script checks your host, builds the image (the first
-build compiles the FIPS-validated OpenSSL provider — 10–20 minutes once (it's worth the wait), 
-boots the instance, and prints your URL and admin credentials.
-Sign in with the password from `.dev-credentials`, then enroll a passkey from your
-session if you want one.
+That's the whole procedure — first boot and every later session are the same
+command. The script checks your host, creates an isolated session worktree at
+`~/tap-sessions/dev`, pulls the published images (anonymous, multi-arch, with the
+FIPS-validated OpenSSL provider and pre-compiled Python wheels baked in — offline or
+unpublished it falls back to a local build, which compiles those from source in
+10–20 minutes), boots the instance, and prints your URL and admin credentials.
+Sign in with the password from the worktree's `.dev-credentials`, then enroll a
+passkey from your session if you want one. Your next concurrent session is just
+`scripts/spawn-session.sh <another-name>`.
+
+The `~/tap-sessions/main` location matters: sessions are git worktrees beside it,
+and the tooling standardizes on that layout (the script checks, and tells you how
+to adopt it if you cloned somewhere else).
+
+Profiles that pull live data declare the credentials they need
+(`required_secrets` in the boot profile), and the boot preflight checks the
+declarations in seconds — naming exactly what's missing or dead before anything
+expensive runs, with the verdict persisted to `logs/boot/latest.boot-record.json`.
+Your AI assistant closes the gaps with `/provision-secrets`, which reads the same
+declaration and routes each credential to its plugin's canonical setup docs. The
+default `core_dev` profile needs no credentials at all.
 
 **The easier way: let your AI assistant drive.** Open an AI coding assistant in the
-clone (Claude Code, or anything that reads this repo) and ask it to stand TAP up —
-the `/stand-up` skill walks it through host prep, the choices, the run, and the
+clone (Claude Code, or anything that reads this repo) and ask it to get TAP running —
+the `/get-started` skill walks it through host prep, the choices, the run, and the
 first login, and it can diagnose anything that goes wrong. This repo treats AI
 assistants as first-class operators: skills under `*/skills/` are step-by-step
 procedures written for them.
@@ -52,7 +72,10 @@ Day to day:
 -  `scripts/dc down`
 -  `scripts/dc logs -f web`.
   
-To update: `git pull && scripts/dc up -d --build` (migrations run on start).
+All of these run from inside a session worktree (`~/tap-sessions/<name>`).
+To pick up new code, spawn a fresh session from the updated main
+(`git -C ~/tap-sessions/main pull`, then `scripts/spawn-session.sh <new-name>`) —
+sessions are cheap and disposable (`scripts/despawn-session.sh <name>`).
 
 ## Build your own plugin
 
@@ -61,12 +84,23 @@ pull real data in, pages and panels that show it. Ask your assistant to run
 `/new-plugin`, or start from `tap_plugins/specs/spec-plugin-external-development.md`,
 which is the contract for developing plugins against this repo as your harness.
 Boot profiles (`boot/*.boot.json`) declare which plugins an instance runs and where
-they install from.
+they install from; a plugin can also ship its own boot records and be stood up
+directly from its repository with `spawn-session.sh --from <pointer>` — each such
+plugin's README is the front door for running it.
 
-The reference deployment is **samsite** — a real, deployed website whose AWS
-infrastructure, GitHub pipeline, and published signed artifacts all land on the
-grid. Its plugin README documents what it takes to point that machinery at your own
-deployment, credentials included.
+## Interfaces
+
+Each of TAP's external interfaces carries reference documentation:
+
+- **HTTP API** — the interactive OpenAPI reference is generated from the code and
+  served by every running instance at `/api/v1/docs` (machine-readable spec at
+  `/api/v1/openapi.json`).
+- **GRIFT**, the JSON graph exchange format — defined by its JSON Schema,
+  [`tap_grid/schemas/grift-document.schema.json`](tap_grid/schemas/grift-document.schema.json),
+  with behavior contracts in `tap_grid/specs/spec-grift-*.md`.
+- **Gryphon**, the grid query language — the formal grammar is
+  [`tap_grid/gryphon/grammar.lark`](tap_grid/gryphon/grammar.lark); its behavior
+  contracts live in `tap_grid/specs/`.
 
 ## Finding your way
 
@@ -78,7 +112,7 @@ deployment, credentials included.
 | `specs/`, `<app>/specs/` | Behavior contracts — the canonical source of truth |
 | `tap_grid/` | The graph core: entity spine, edges, service layer, Gryphon, GRIFT |
 | `boot/` | Boot profiles — what an instance installs and seeds |
-| `*/skills/` | AI-operable procedures (stand up, add a model, build a collector, …) |
+| `*/skills/` | AI-operable procedures (get started, provision secrets, add a model, build a collector, …) |
 
 ## License
 

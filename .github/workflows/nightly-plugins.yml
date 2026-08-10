@@ -39,6 +39,10 @@ on:
     - cron: "17 9 * * *"
   workflow_dispatch: {}
 
+# Least-privilege GITHUB_TOKEN: discovery + checkouts only read; nothing here writes.
+permissions:
+  contents: read
+
 jobs:
   discover:
     runs-on: ubuntu-latest

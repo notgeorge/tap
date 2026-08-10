@@ -22,6 +22,19 @@ assertion verifies. Self-contained, styled with the shared auth.css.
     <main class="tap-auth-main">
         <div class="tap-auth-card">
             <h1 class="tap-auth-title">Sign in</h1>
+            {% if canonical_login_url %}
+            {% comment %}
+            req-tap-auth-passkey-rollout-6: this request's origin is one the passkey
+            ceremony will refuse (the exact-origin pin, req-tap-auth-passkey-webauthn-7) —
+            e.g. the labeled <session>.tap.localhost dev alias, where the browser rejects
+            RP-ID "localhost" before any prompt. Say so before the click, with the way out.
+            {% endcomment %}
+            <p class="tap-auth-banner">
+                Passkey sign-in does not work at this address — the ceremony is pinned to
+                the server's canonical origin, and your browser will refuse it here.
+                <a class="tap-auth-link" href="{{ canonical_login_url }}">Sign in at the canonical address instead</a>
+            </p>
+            {% endif %}
             <p class="tap-auth-sub">
                 Use a passkey — either this device's built-in authenticator (Touch&nbsp;ID,
                 Windows&nbsp;Hello) or a security key you plug in (YubiKey and similar).

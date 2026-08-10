@@ -23,9 +23,10 @@ The discipline running through every requirement here is honest coverage account
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
 | req-dev-validation-map | [Validation Map](#validation-map) | Implemented | The spine: authoritative inventory of every validation surface |
-| req-dev-validation-smoke-gate | [Cold-Boot Smoke Gate](#cold-boot-smoke-gate) | Implemented | Ordered cold-boot-one-cycle, halt-on-failure (`manage.py cold_boot_gate` / `scripts/gate`) |
+| req-dev-validation-smoke-gate | [Cold-Boot Smoke Gate](#cold-boot-smoke-gate) | Implemented | Ordered cold-boot-one-cycle, halt-on-failure (`manage.py cold_boot_gate` / `scripts/gate`). Since 2026-08-10 a REQUIRED CI job (`product-lines.yml` `cold-boot`) — no boot authority exists only on a laptop; the promote's local run is optional fast feedback (`TAP_PROMOTE_LOCAL_BOOT_GATES=1`, or automatic when the server gate is inactive). |
 | req-dev-validation-real-backend | [Real-Backend Fidelity](#real-backend-fidelity) | Implemented | Gate runs the real task backend, never `ImmediateBackend` |
-| req-dev-validation-lean-boot | [Lean-Boot Independence Gate](#lean-boot-independence-gate) | Implemented | Fresh, isolated, lean-installed stack boots `core`; catches core→plugin-dep import leakage (`scripts/gate-lean`) |
+| req-dev-validation-lean-boot | [Lean-Boot Independence Gate](#lean-boot-independence-gate) | Implemented | Fresh, isolated, lean-installed stack boots `core`; catches core→plugin-dep import leakage (`scripts/gate-lean`). Since 2026-08-10 a REQUIRED CI job (`product-lines.yml` `lean-boot`); local run optional (`TAP_PROMOTE_LOCAL_BOOT_GATES=1`, or automatic when the server gate is inactive). |
+| req-dev-validation-api-fuzz | [Live-API Property Fuzz](#live-api-property-fuzz) | Partial | schemathesis derives property tests from the live Ninja OpenAPI schema on a dedicated CI stack; report-only v0 (unauthenticated surface), gate flip + authenticated fuzz are the open tail |
 | req-dev-validation-canary-tier | [Canary Test Tier](#canary-test-tier) | Proposed | `-m smoke` blast-radius subset; does not substitute for the gate |
 | req-dev-validation-known-broken | [Known-Broken Manifest](#known-broken-manifest) | Implemented | In-repo, ratchets down; named here as the house convention |
 | req-dev-validation-collection-complete | [Collection Completeness](#collection-completeness) | Implemented | Every test file on disk is collected by the gate run; discovery not an allow-list; validates the validator |
@@ -79,11 +80,12 @@ block. Rich per-surface rationale lives in each owning spec and in each guard's
 | Async-delivery — tiers 2–3 (worker/queue/lifecycle) | `req-tap-cares-task-backend-backlog-2` | Deferred | Named, deferred | backlog — no fork/queue/lifecycle harness yet |
 | Authz coverage | `req-tap-auth-policy-9` | Per-commit (`pytest`) | CI-guarded | `tap.guards.authz` (via `tap/tests/test_guards.py`) |
 | Canary tier | `req-dev-validation-canary-tier` | Pre-push + per-commit | Gate-guarded *(target)* — Named, deferred until implemented | blast-radius subset (target); not yet built |
-| Cold-boot system cycle | `req-dev-validation-smoke-gate` | Pre-push (`scripts/gate`, wired into `promote-to-main.sh`) | Gate-guarded | `tap_boot/management/commands/cold_boot_gate.py` |
+| Cold-boot system cycle | `req-dev-validation-smoke-gate` | CI (`product-lines.yml` `cold-boot` job, REQUIRED via `gate`) + optional local pre-push (`TAP_PROMOTE_LOCAL_BOOT_GATES=1`; automatic when the server gate is inactive) | Gate-guarded | `tap_boot/management/commands/cold_boot_gate.py` |
 | Collection completeness | `req-dev-validation-collection-complete` | Per-commit (`pytest`) | CI-guarded | `tap.guards.collection_addopts`, `tap.guards.collection_completeness` (via `tap/tests/test_guards.py`) |
 | Credential pattern leak guard | `req-tap-cares-secrets-credential-patterns` | Per-commit (`pytest`) | CI-guarded | `tap.guards.secret_pattern` (via `tap/tests/test_guards.py`) |
 | Credential-bind provenance | `req-tap-auth-credential-bind-provenance` | Per-commit (`pytest`) | CI-guarded | `tap_auth.guards.credential_bind` (via `tap/tests/test_guards.py`) |
 | Crypto Bill-of-Materials (every provider, not just OpenSSL) | `req-fips-crypto-bom-ci` | Per-commit (`pytest`) | CI-guarded (fail-closed) | `tap.crypto_bom` (via `tap/tests/test_crypto_bom.py`): fingerprints every ELF artifact for crypto-provider signatures (Go/Rust `ring`/`aws-lc`/`libsodium`/bundled-OpenSSL/…) and fails on any provider not dispositioned VALIDATED/out-of-boundary/unreached in `tap.crypto_providers` — catches the silent non-OpenSSL leak `tap.fips` cannot see (L17); scans the `test_all` plugin union |
+| DCO sign-off trailers (both roads to main) | `req-cicd-dco-signoff` | Pre-push (`scripts/check-dco`, wired into `promote-to-main.sh`) + CI (`product-lines.yml` `dco` job) | Report-only — flips to Gate-guarded in the change that lands CONTRIBUTING.md (TAP_DCO_ENFORCE=1 in both invokers) | `scripts/check-dco` (every non-merge, non-bot commit added over origin/main carries `Signed-off-by`); the trailer itself is applied by `.githooks/prepare-commit-msg` |
 | Dev passkey import stays shell-only | `req-tap-auth-passkey-dev-bootstrap` | Per-commit (`pytest`) | CI-guarded | `tap_auth.guards.dev_passkey_import` (via `tap/tests/test_guards.py`) |
 | Direct-write coverage | `req-tap-auth-policy-9` | Per-commit (`pytest`) | CI-guarded | `tap.guards.direct_write` (via `tap/tests/test_guards.py`) |
 | Direct-write exemption freshness | `req-tap-auth-policy-9-unused-exemption` | Per-commit (`pytest`) | CI-guarded | `tap.guards.direct_write` (via `tap/tests/test_guards.py`) |
@@ -91,7 +93,8 @@ block. Rich per-surface rationale lives in each owning spec and in each guard's
 | FIPS mode enforcement (declared vs actual) | `req-cicd-base-image-lifecycle-6` | Per-boot (`docker/entrypoint.sh`) | Boot-gated (fail-closed) | `tap.fips` (`python -m tap.fips`): executes crypto and asserts a non-approved primitive is refused when TAP_FIPS_MODE=1 — proves the declared mode is enforced, never inspects files (D13/D15); TAP-ABORT on mismatch |
 | Guard-system integrity | `req-dev-validation-meta-integrity-3` | Per-commit (`pytest`) | CI-guarded | `tap.guards.guard_integrity` (via `tap/tests/test_guards.py`) |
 | JSON-file naming | `req-tap-json-naming` | Per-commit (`pytest`) | CI-guarded | `tap.guards.json_naming` (via `tap/tests/test_guards.py`) |
-| Lean-boot core independence (import-leakage class) | `req-dev-validation-lean-boot` | Pre-push (`scripts/gate-lean`, wired into `promote-to-main.sh`) | Gate-guarded | `scripts/gate-lean` (isolated `tap_leanboot` stack, core-only venv; catches core→plugin-dep imports the full-venv cold-boot gate cannot) |
+| Lean-boot core independence (import-leakage class) | `req-dev-validation-lean-boot` | CI (`product-lines.yml` `lean-boot` job, REQUIRED via `gate`) + optional local pre-push (`TAP_PROMOTE_LOCAL_BOOT_GATES=1`; automatic when the server gate is inactive) | Gate-guarded | `scripts/gate-lean` (isolated `tap_leanboot` stack, core-only venv; catches core→plugin-dep imports the full-venv cold-boot gate cannot) |
+| Live-API property fuzz (schemathesis over the Ninja OpenAPI schema) | `req-dev-validation-api-fuzz` | CI (`product-lines.yml` `api-fuzz` job; dedicated `core_dev` stack) | Report-only (deliberately NOT in the `gate` aggregator until it has a track record) | schemathesis (`uvx`, runner-side) against the live booted API — unauthenticated surface: no 5xx, schema-conformant responses; authenticated fuzz is the named next rung |
 | Log-site tokens | `req-tap-logging-site-id-scanner` | Per-commit (`pytest`) | CI-guarded | `tap.guards.log_site_baseline`, `tap.guards.log_site_format`, `tap.guards.log_site_uniqueness` (via `tap/tests/test_guards.py`) |
 | Migration completeness (`makemigrations --check`) | `req-dev-validation-smoke-gate` | Pre-push (`cold_boot_gate` step `schema:makemigrations`) | Gate-guarded | `cold_boot_gate` step `schema:makemigrations` |
 | Per-plugin crypto posture (conformance) | `req-fips-crypto-bom-conformance` | Per-plugin (`validate_plugin`; `--strict` in conformance CI) | Conformance-guarded (warn; strict→fail) | `tap_plugins.validate` `crypto-providers` check → `tap.crypto_bom.scan_plugin`: reports a plugin's shipped/declared crypto providers so a leak is visible at authoring time |
@@ -112,6 +115,7 @@ block. Rich per-surface rationale lives in each owning spec and in each guard's
 | System FIPS-provider gate (core + all plugins, global) | `req-fips-crypto-bom-system-gate` | Per-boot (`docker/entrypoint.sh`, when `TAP_FIPS_MODE=1`) | Boot-gated (fail-closed) | `python -m tap.crypto_bom --gate`: under FIPS mode, scans the assembled environment (core + every installed plugin) and TAP-ABORTs on any non-validated provider unless an OPERATOR `fips_waivers` entry (boot profile, mandatory reason) excuses it — a plugin cannot excuse itself (declare-vs-decide) |
 | Teardown correctness | `req-dev-multisession-teardown-cleanup` | Per-despawn | Manual (CI-unguarded by design) | `spec-dev-multisession-teardown.md` documented procedure |
 | Web render smoke (login/landing) | `req-web-nav-chrome-read-free-3` | Per-commit (`pytest -m smoke`) | CI-guarded | `tap_auth/tests/test_login_wall.py` (`@pytest.mark.smoke`) |
+| Workflow least privilege (token boundary) | `req-cicd-runner-least-privilege` | Per-commit (`pytest`) | CI-guarded | `tap.guards.workflow_least_privilege` (via `tap/tests/test_guards.py`) |
 
 <!-- END GENERATED MAP -->
 
@@ -162,7 +166,7 @@ It is explicitly **not** broad correctness coverage — that is the canary tier 
 | req-dev-validation-smoke-gate-4 | Grid state asserted | Implemented | The cycle's expected grid mutation is positively asserted, not inferred from absence of error. | Counters the false-confidence failure mode. Asserted via `PRODUCED_BATCH` edges (disposition `imported`); a documented idempotent no-op (e.g. `DIFF_EMPTY`) is a valid SUCCESSFUL outcome, not a gate failure. **Drift resolved (2026-06-11):** `req-grid-edge-produced-batch` is built; the `grift_batches` field is removed. |
 | req-dev-validation-smoke-gate-5 | Runs in the compose image | Implemented | The gate executes inside the existing compose stack image, not a reconstructed environment. | The container Python build is non-stock. `scripts/gate` runs the command via `dc exec web`. |
 | req-dev-validation-smoke-gate-6 | Halt and report | Implemented | The first failing check halts the run and reports the failing step; the gate exits non-zero. | Verified live (a bogus `--collector` halts at step 5, skips step 6, exits 1). |
-| req-dev-validation-smoke-gate-7 | Every installable profile resolves | Implemented | The gate cold-resolves every shipped boot profile whose plugins are installed in this stack against the live registries (per-profile axis); a rotted fire-collector key or missing plugin/bundle fails the gate. | Step `profiles:resolve` + per-commit `test_shipped_profiles_resolve.py`. Install-aware via the single shared filter `tap_boot.profile.installable_profile_ids` (the same one the pytest guard and the focused-skip check below use — one definition, no drift). On a full stack that is every profile. Caught + fixed the live `samsite` break on build. |
+| req-dev-validation-smoke-gate-7 | Every installable profile resolves | Implemented | The gate cold-resolves every shipped boot profile whose plugins are installed in this stack against the live registries (per-profile axis); a rotted fire-collector key or missing plugin/bundle fails the gate. | Step `profiles:resolve` + per-commit `test_shipped_profiles_resolve.py`. Install-aware via the single shared filter `tap_boot.profile.installable_profile_ids` (the same one the pytest guard and the focused-skip check below use — one definition, no drift). On a full stack that is every profile. Caught + fixed the live `samsite` break on build. 2026-08-09: samsite re-homed out of `boot/` (`req-boot-bootstrap-samsite-rehome`); its resolve coverage now lives in the plugin's shipped suite — see the Map's samsite-record row. |
 | req-dev-validation-smoke-gate-8 | Focused-stack skip (full-install gate) | Implemented | Step `seed:boot-test_all` boots the whole `test_all` union, so this gate is inherently a **full-install** check. On a focused stack (a plugin subset installed — `test_all` not installable) the promote invokes it with `--skip-if-not-installable`; the gate emits a loud SKIP and exits 0, delegating full cold-boot truth to the all-plugins CI lane. | The local gate validates what's installed; the [all-plugins CI lane](#all-plugins-ci-lane) (`req-dev-validation-all-plugins-lane`) boots `test_all` on a full-install runner and owns full-set truth. Mirrors the install-aware pytest lane (`req-dev-validation-collection-complete-4`) and profile-resolution guard. The full-stack predicate is `"test_all" in installable_profile_ids(...)`. A standalone `scripts/gate` (no flag) still runs fully — the skip is opt-in, so the gate stays honest for a full manual check. |
 
 ### Real-Backend Fidelity
@@ -395,7 +399,12 @@ without taxing every unrelated local edit.
 #### Acceleration levers, ranked by ROI for this DB-bound suite
 
 1. **Parallelize first — `pytest-xdist -n auto`.** The single biggest win for a
-   DB-heavy Django suite, and low-effort. `pytest-django` gives each xdist worker its
+   DB-heavy Django suite, and low-effort. `TAP_TEST_JOBS` caps the worker count
+   (`scripts/test` resolves it host-side, default `auto`) — the pressure valve for a
+   host running several TAP stacks in one Docker VM, where `-n auto` sizes by CPU,
+   ignores memory, and the OOM killer then reaps workers mid-run ("node down: Not
+   properly terminated" + cross-worker collection mismatch; observed 2026-08-09,
+   five stacks / 7.75 GiB VM). `pytest-django` gives each xdist worker its
    *own* test database, so it does **not** violate the standing "run overlapping
    suites as one invocation or they deadlock the test DB" rule — that rule is about
    two separate pytest *processes* sharing *one* DB; xdist is one process, N workers,
@@ -460,6 +469,36 @@ This is the second half of `req-boot-minimal-baseline-5` (spec-tap-boot-v0.md): 
 
 - **Fast-fail on crash-loop — resolved 2026-07-03** (`req-boot-abort-signal`, spec-tap-boot-v0.md). A leak no longer waits out the 300s readiness timeout: the standup pipeline emits the `ABORT` signal (`req-tap-logging-abort-signal`) on fatal failure, and `spawn-session.sh` Step 5 tails for the rendered `TAP-ABORT:` line and checks the container-exited/restarting state — so a leak reds in seconds with its reason. `gate-lean` inherits it.
 - **Profile matrix.** Today the gate boots `core` (strictest signal). A follow-on could sweep `core` + `core_dev` (and, once plugins are evicted, a representative lean customer profile) if a leak class emerges that only a non-empty lean set exposes.
+
+### Live-API Property Fuzz
+
+RID: `req-dev-validation-api-fuzz`
+Status: `Partial`
+
+The CI boot gates stand up a REAL, healthy, HTTP-serving instance and — before this
+requirement — health-checked it and threw it away. The standup is the expensive part;
+tests aimed at the live instance before teardown are nearly free (George's observation,
+2026-08-10, the demand signal here). Django Ninja auto-generates the OpenAPI schema, and
+schemathesis (Hypothesis-based) derives property tests FROM that schema — the same
+second-engine-oracle pattern as the Gryphon differential fuzzer, pointed at the API.
+
+**As built (v0, report-only):** the `product-lines.yml` `api-fuzz` job boots a dedicated
+`core_dev` stack (fast, secrets-free), fetches `/api/v1/openapi.json`, and runs
+schemathesis over the UNAUTHENTICATED surface with two checks: no input may produce a
+5xx (the auth wall must reject, never crash), and every response must match its declared
+schema. Report-only: the job is `continue-on-error` and deliberately NOT in the `gate`
+aggregator until it has a flake-free track record; findings land as a run artifact.
+
+**Named open tail:** (1) the gate flip once trusted; (2) AUTHENTICATED fuzz — mint a
+session/credential on the throwaway stack and probe the authorized surface (the
+spawn-minted admin credential pattern is the path); (3) richer surface under `test_all`
+(plugin API routers) once runtime cost is measured; (4) stateful/link-following mode.
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-dev-validation-api-fuzz-1 | Unauthenticated fuzz runs in CI | Implemented | schemathesis over the live schema, no-5xx + schema-conformance checks, report artifact uploaded. | Report-only. |
+| req-dev-validation-api-fuzz-2 | Gate flip | Proposed | Join the `gate` aggregator after a track record (no flakes, stable runtime). | |
+| req-dev-validation-api-fuzz-3 | Authenticated surface | Proposed | Fuzz behind session auth with a throwaway credential. | |
 
 ### Promote-Path Enforcement
 ----

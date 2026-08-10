@@ -1,0 +1,53 @@
+# Nightly Trivy sweep of the published images (req-cicd-security-scanning-4 /
+# req-cicd-base-image-lifecycle-2).
+#
+# The publish-time scan (publish-images.yml `scan` job) covers what ships at ship
+# time; this covers ROT — CVEs disclosed against an image that hasn't changed.
+# Findings land as SARIF in code scanning (same per-image categories as the
+# publish-time scan, so alerts dedupe rather than duplicate). Report-only by
+# design: the response loop for a real finding is a Renovate digest-bump PR
+# (Chainguard patches fast) through the test_all gate, then publish ships the
+# patched image — not a red nightly blocking anything.
+#
+# Waivers: .trivyignore at the repo root; every entry carries a mandatory reason
+# comment (operator-waives discipline, mirroring the FIPS waiver pattern).
+name: trivy-nightly
+
+on:
+  schedule:
+    - cron: "30 9 * * *"   # daily 09:30 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: trivy scan ${{ matrix.image }}:latest
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [tap-web, tap-db]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7   # for .trivyignore
+        with:
+          persist-credentials: false  # never leave the job token readable in .git config
+      # guard-allow: req-cicd-runner-least-privilege — scanner needs no token; this job's
+      # only write scope is security-events, consumed by the first-party SARIF upload step.
+      - name: Scan published image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ghcr.io/unified-systems-com/${{ matrix.image }}:latest
+          format: sarif
+          output: trivy-${{ matrix.image }}.sarif
+          exit-code: "0"
+      - name: Upload SARIF to code scanning
+        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+        with:
+          sarif_file: trivy-${{ matrix.image }}.sarif
+          category: trivy-${{ matrix.image }}

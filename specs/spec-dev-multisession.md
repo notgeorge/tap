@@ -25,7 +25,8 @@ The Playwright MCP server is stateless per call and remains shared across sessio
 | req-dev-multisession-env-cascade | [Env File Cascade](#env-file-cascade) | Implemented | Phase 1 |
 | req-dev-multisession-port-registry | [Per-Machine Session Registry](#per-machine-session-registry) | Implemented | Phase 1 |
 | req-dev-multisession-browser-disambiguation | [Browser Disambiguation](#browser-disambiguation) | Implemented | Phase 1 |
-| req-dev-multisession-spawn-script | [Spawn Script](#spawn-script) | Implemented | Phase 2; interactive |
+| req-dev-multisession-spawn-script | [Spawn Script](#spawn-script) | Implemented | Phase 2; interactive. The SINGLE entry point: first boot on a fresh machine and the Nth session are the same command (stand-up.sh retired 2026-08-09) |
+| req-dev-multisession-host-readiness | [Host Readiness Battery](#host-readiness-battery) | Implemented | Spawn Step 0.1: toolchain checks + the `~/tap-sessions/main` layout seatbelt, absorbed from the retired stand-up.sh; runs on every spawn |
 | req-dev-multisession-admin-bootstrap | [Admin User Bootstrap](#admin-user-bootstrap) | Implemented | Phase 2, sub-feature of spawn |
 | req-dev-multisession-spawn-import-strict | [Granular Grift Import Failure Mode](#granular-grift-import-failure-mode) | Backlog | Phase 3 polish on top of fail-fast |
 | req-dev-multisession-push-workflow | [Session → Main Push Workflow](#session-→-main-push-workflow) | Implemented | Always-on discipline; codifies how session worktrees advance origin/main and keep the local main worktree current |
@@ -56,8 +57,8 @@ Status: `Implemented`
 - A checked-in `.env` carries the defaults so `docker compose up` works out of the box in the primary checkout.
 - Container-internal ports (`8000`, `5432`) stay fixed; only host-side mappings move.
 - **The container virtualenv lives in a per-project named volume** (`venv:/app/.venv`) mounted over the worktree's `.venv` path. This is a deliberate host/container isolation choice: macOS host tools and the Linux container cannot safely share one Python virtualenv because interpreter paths, scripts, and binary wheels are platform-specific. The container owns `/app/.venv`; host-side tools that need Python should use a separate environment such as `.venv-host` via `UV_PROJECT_ENVIRONMENT=.venv-host`.
-- **uv cache lives in a per-project named volume** (`uv_cache:/root/.cache/uv`) rather than being baked into the image at build time. This is a deliberate isolation choice: image layers carrying uv's cache caused Docker's build cache to fossilize corrupted uv state and replay it across every rebuild (a real problem hit during multi-session debugging on 2026-04-27). Per-project named volumes mean (a) cache corruption can't leak between sessions, (b) `dc down -v` (already part of despawn) clears it, and (c) image rebuilds don't carry old cache state forward.
-- **Dependency sync runs in the entrypoint, not the Dockerfile.** Because both `/app/.venv` and `/root/.cache/uv` are runtime named volumes that hide image content, build-time `uv sync` is wasted work — anything installed lands in image layers nobody can read at runtime. `docker/entrypoint.sh` runs `uv sync` on first container start; subsequent starts are near-instant no-ops because the venv and cache persist in their respective mounts.
+- **uv cache lives in a per-project named volume** (`uv_cache:/root/.cache/uv`). Per-project named volumes mean (a) cache corruption can't leak between sessions and (b) `dc down -v` (already part of despawn) clears it. The published image ships a pre-compiled wheel cache at `/opt/uv-cache-seed` (Dockerfile `deps-warm` stage) that the entrypoint copies into an EMPTY cache volume on first boot — distinct from the 2026-04-27 fossilization problem (incrementally-accreted cache state trapped in local Docker build layers and replayed across rebuilds): the seed is rebuilt from scratch by `uv sync --frozen` in a clean stage keyed on `pyproject.toml`+`uv.lock` whenever the lock changes, and an existing volume is never touched.
+- **Dependency sync runs in the entrypoint, not the Dockerfile.** Both `/app/.venv` and `/root/.cache/uv` are runtime named volumes that hide image content at their mount paths, so the venv the containers actually use is always created by `docker/entrypoint.sh`'s `uv sync` on first container start (normally in seconds, from the seeded wheel cache); subsequent starts are near-instant no-ops because the venv and cache persist in their respective mounts. The `deps-warm` build-time sync exists only to produce the wheel-cache seed at a non-mounted path — its venv is discarded, deliberately: a cp-seeded venv proved uv-hostile on the CI runner (2026-08-09), while a sync-created one is the long-proven path.
 
 #### Future
 If we add Redis, mailcatcher, or other host-exposed services, follow the same pattern: add `<SERVICE>_PORT` variable with a default, allocate it a fixed offset in the port registry.
@@ -160,6 +161,8 @@ Two zero-infra mechanisms let the developer tell at a glance which session a bro
 
 The two mechanisms are independent and complementary — the URL labels the address bar, the badge labels the page chrome. Together they make tab-switching unambiguous without any new infrastructure.
 
+**The labeled URL is a label, not a sign-in origin.** Passkey login works only at the direct `http://localhost:<WEB_PORT>/` origin: browsers refuse RP-ID `localhost` from a `*.localhost` subdomain with a pre-prompt `SecurityError`, and the ceremony origin is pinned exactly on the server side regardless (req-tap-auth-passkey-webauthn-7). The labeled hostname is also a separate cookie realm — a session established on one origin does not carry to the other. Spawn's output and `/launch-ui` therefore lead with (and open) the direct URL, and the login page itself signposts the way out when reached on a refused origin (req-tap-auth-passkey-rollout-6).
+
 #### Implementation
 - `tap/settings.py`: `ALLOWED_HOSTS` default extended to include `.localhost`. New `TAP_SESSION_LABEL` setting reads `TAP_SESSION_LABEL` env var (empty default).
 - `tap_web/context_processors.py`: `branding` exposes `session_label` to all templates.
@@ -181,17 +184,18 @@ The two mechanisms are independent and complementary — the URL labels the addr
 RID: `req-dev-multisession-spawn-script`
 Status: `Implemented`
 
-`scripts/spawn-session.sh` provisions a new isolated environment interactively. The script prompts only for decisions the developer must make (Keychain setup if missing, session name) and runs everything else automatically:
+`scripts/spawn-session.sh` provisions a new isolated environment interactively — and it is the **single entry point**: first boot on a fresh machine and the Nth concurrent session are the same command (the separate `scripts/stand-up.sh` adopter path was retired 2026-08-09; its host checks became Step 0.1, [Host Readiness Battery](#host-readiness-battery), and its conversational driver became the `get-started` skill). The script prompts only for decisions the developer must make (Keychain setup if missing, session name) and runs everything else automatically:
 
-1. **Step 0 — Keychain check.** If `tap-dev-default` is missing, offers to set it. macOS-only; non-Darwin platforms skip this step and fall back to env var or random per session.
-2. **Step 1 — Session name and band allocation.** Displays the current live sessions from `~/tap-sessions/.registry` (initializing the file with a header on first use). Prompts for a name; validates against `^[a-z][a-z0-9_-]*$` and rejects `default` (reserved for the primary stack). Rejects names already in the registry. Allocates the smallest free band (per [Per-Machine Session Registry](#per-machine-session-registry)) and computes web/db ports. Also runs the stale-Docker pre-check so leftover state from a prior failed spawn (volumes or containers under `tap_<name>`, including `postgres_data`, `venv`, and `uv_cache`) aborts the run cleanly with a "remove this first" message.
-3. **Step 2 — Worktree.** Creates the worktree at `~/tap-sessions/<name>` on a new branch `session/<name>`. Aborts if the worktree path already exists. All plugins live in-tree under `plugins/` (no submodules), so no additional worktree setup is needed.
-4. **Step 3 — `.env.local`.** Generates fresh `TAP_GRID_ID` via Python's `uuid.uuid7()`. Writes `COMPOSE_PROJECT_NAME`, `WEB_PORT`, `POSTGRES_PORT`, `TAP_GRID_ID`, `TAP_SESSION_LABEL`.
-5. **Step 4 — Build + start.** `scripts/dc up -d --build`.
-6. **Step 5 — Migrate.** `scripts/dc exec web uv run python manage.py migrate`.
-7. **Step 6 — Seed.** `scripts/dc exec web uv run python manage.py import_plugin_grift --all`.
-8. **Step 7 — Admin user.** Implements [req-dev-multisession-admin-bootstrap](#admin-user-bootstrap): resolves password (env var → Keychain → random), writes `.dev-credentials`, runs `createsuperuser --noinput`.
-9. **Done.** Prints labeled URL, direct URL, admin URL, admin credentials, credentials-file path, and how to attach Claude Code.
+1. **Step 0.1 — Host readiness.** The toolchain/layout battery ([req-dev-multisession-host-readiness](#host-readiness-battery)); also detects a first spawn (no registry yet) to set honest expectations: the one-time published-image download is the long-ish step, and only the offline/unpublished local-build fallback compiles FIPS OpenSSL from source (10–20 minutes).
+2. **Step 0 — Keychain check.** If `tap-dev-default` is missing, offers to set it. macOS-only; non-Darwin platforms skip this step and fall back to env var or random per session.
+3. **Step 1 — Session name and band allocation.** Displays the current live sessions from `~/tap-sessions/.registry` (initializing the file with a header on first use). Prompts for a name; validates against `^[a-z][a-z0-9_-]*$` and rejects `default` (reserved for the primary stack). Rejects names already in the registry. Allocates the smallest free band (per [Per-Machine Session Registry](#per-machine-session-registry)) and computes web/db ports. Also runs the stale-Docker pre-check so leftover state from a prior failed spawn aborts cleanly with a "remove this first" message.
+4. **Step 1.5 — Refresh local main.** `git -C ~/tap-sessions/main pull --ff-only origin main`, so the new session branches from current code (see [Session → Main Push Workflow](#session-→-main-push-workflow)). The layout seatbelt in Step 0.1 guarantees the main worktree location.
+5. **Step 2 — Worktree.** Creates the worktree at `~/tap-sessions/<name>` (or `$WORKTREE_BASE/<name>` for throwaway consumers) on a new branch `session/<name>` from `main`. Aborts if the worktree path already exists. Initializes the captured standup transcript at `logs/spawn.log` (`req-boot-obs-spawn-presentation`).
+6. **Step 3 / 3.5 / 3.6 — `.env.local`, secrets mount, skills.** Generates a fresh `TAP_GRID_ID`; writes `COMPOSE_PROJECT_NAME`, `WEB_PORT`, `POSTGRES_PORT`, `TAP_GRID_ID`, `TAP_SESSION_LABEL`, `TAP_BOOT_PROFILE`; provisions the `tap_secrets/` bind-mount target (shared `~/tap-secrets` symlink when present); wires `.claude/skills/` via `scripts/wire-skills.sh`.
+7. **Step 4 — Pull + start.** Pull-first: `scripts/dc pull web db` fetches the published GHCR images (toolchain + FIPS OpenSSL + pre-compiled wheel cache baked in; `spec-cicd-hardening.md` build-once artifact), falling back loudly to a local compose build when the pull fails (offline/unpublished — the 10–20-minute from-source path); then `scripts/dc up -d`. Both quiet-captured with a live elapsed counter.
+8. **Step 5 — Entrypoint wait.** Polls readiness; fast-fails on the `TAP-ABORT` signal or a dead container (`req-boot-abort-signal`). Hang detection is **stall-aware**: the primary trigger is no-new-web-log-output for 120s (a healthy entrypoint streams continuously; wall-clock cannot distinguish slow from stuck), with a path-conditional wall-clock ceiling as the outer bound (600s after a successful image pull, 900s on the local-build fallback).
+9. **Step 6 / 6.4 / 6.5 — Boot, passkey, health.** Resolves the admin password ([req-dev-multisession-admin-bootstrap](#admin-user-bootstrap)), writes `.dev-credentials`, runs `manage.py boot --profile <id>` (`req-boot-spawn-bridge`; boot's own observability is `spec-tap-boot-observability.md`), bootstraps the dev passkey, then gates on `manage.py health`.
+10. **Done.** Appends the registry row and prints labeled URL, direct URL, admin URL, admin credentials, credentials-file path, transcript location, and how to attach Claude Code. With the `cli` launch target, the access block is additionally persisted to `logs/session-info.txt` and — on a real terminal only (`[[ -t 0 ]]`; scripted invocations can never hang here) — the script pauses for Enter before `exec claude` takes over the terminal, so the info doesn't scroll away unrecoverably; the pause message points at `/launch-ui` (the skill that reopens the web UI from inside the session).
 
 The script wires a failure trap that, on any non-zero exit, prints recovery commands for the partial state (despawn + worktree-remove + branch-delete). This isolates the developer from "where did spawn fail and what do I do now" guesswork. That trap covers the *recovery*; the *root-cause read* ("why did it fail") is standardized separately in [spec-dev-multisession-diagnose.md](spec-dev-multisession-diagnose.md).
 
@@ -209,6 +213,30 @@ A `--non-interactive` mode (taking `--name`, `--admin-password` flags) would mak
 | req-dev-multisession-spawn-script-2 | Idempotent failure | Proposed | Re-running spawn for a session with an existing worktree aborts before any mutation. | |
 | req-dev-multisession-spawn-script-3 | Registry collision rejection | Proposed | Names already present in `~/tap-sessions/.registry` are rejected with a clear error pointing at despawn. | |
 | req-dev-multisession-spawn-script-4 | Failure trap recovery | Proposed | On non-zero exit during spawn, the script prints recovery commands for the partial state. | |
+
+### Host Readiness Battery
+----
+RID: `req-dev-multisession-host-readiness`
+Status: `Implemented`
+
+Spawn's Step 0.1 verifies, on **every** run, that the host can actually carry a spawn — the first-run gate for a fresh machine and the every-run seatbelt against drift. Absorbed from the retired `scripts/stand-up.sh` so there is exactly one entry point and one implementation of the checks (the copy-drift between the two scripts — stand-up had silently lost the health gate — is the motivating scar).
+
+#### Implementation
+
+- **Toolchain (fail with the fix):** `git`, `python3`, `docker` on PATH; Compose v2 present (the retired v1 binary is named as unsupported); `lsof` (the port-band probe reads nothing without it and would silently allocate a busy band — fail-loud belongs up front); daemon responsiveness within a bounded probe, with **distinct** messages for not-installed, not-running, and the Linux permission/docker-group case.
+- **Layout seatbelt:** the primary clone must live at `~/tap-sessions/main`. Derived from git itself (`git worktree list --porcelain`, first entry — correct no matter which session worktree invoked spawn), compared physically (`pwd -P`) so symlinked homes don't false-positive. The failure message carries both repair paths: fresh re-clone into place, or `mv` an existing clone (git is location-independent). **Skipped when `WORKTREE_BASE` is overridden** — throwaway consumers (`scripts/gate-lean`) are not part of the durable layout.
+- **First-spawn detection:** no `~/tap-sessions/.registry` yet ⇒ first run on this host; used only for honest messaging (the one-time published-image download, and the 10–20-minute from-source FIPS build that only the offline/unpublished fallback takes — `spec-cicd-hardening.md` build-once artifact).
+- **Soft checks (warn, never block):** unset git identity (commits would carry an auto-derived name/email).
+- Nothing in the battery mutates the host; it is read-only and idempotent by construction.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-dev-multisession-host-readiness-1 | Toolchain Named Fixes | Implemented | Missing docker / compose v2 / lsof / python3 fail with the platform-specific install fix; daemon not-running vs permission-denied get distinct messages. | |
+| req-dev-multisession-host-readiness-2 | Layout Seatbelt | Implemented | A primary clone not at `~/tap-sessions/main` fails with both repair paths (re-clone vs `mv`); derived via git, compared physically; correct when invoked from a session worktree. | |
+| req-dev-multisession-host-readiness-3 | Throwaway Exemption | Implemented | The layout check is skipped when `WORKTREE_BASE` is overridden; toolchain checks still run. | gate-lean |
+| req-dev-multisession-host-readiness-4 | Read-Only Battery | Implemented | The battery mutates nothing; soft checks warn without blocking. | |
 
 ### Granular Grift Import Failure Mode
 ----
@@ -265,6 +293,20 @@ Multi-worktree development needs an unambiguous rule for how changes leave a ses
 
    This step is load-bearing: `scripts/spawn-session.sh` runs `git worktree add <path> -b session/<name> main` to branch the new session from the local `main` ref. If that ref is stale, every newly-spawned session starts from old code. The post-push pull keeps it current. (The spawn script also runs its own `pull --ff-only` against `main` at Step 1.5 as a belt-and-suspenders guard — see `req-dev-multisession-push-workflow-6`.)
 
+#### The second road: a gated PR (bot-adjacent changes)
+
+Since the `main-required-checks` ruleset (2026-08-09), the promote is no longer the only
+sanctioned road to `main` — **a PR whose `gate` check is green is equally valid**, and for
+one class of change it is strictly better: a change whose only consumer is a **pending bot
+PR** (a Renovate policy/config/bound edit, a baseline update for a dependency bump). Pushing
+that change onto the bot's own branch bundles policy + payload into ONE gate pass (~10 min)
+instead of three serialized ones (promote the policy ~12 min → bot re-dispatch → rebased-PR
+gate ~10 min ≈ 25 min — measured the hard way, mypy bound saga, 2026-08-09). Renovate stops
+auto-rebasing an edited branch, which is fine when the edit's author intends to merge it.
+Decision rule: *session work → promote; a change consumed by a pending gated PR → bundle
+into that PR's branch.* After the PR merges, sibling session branches pick it up via the
+normal pre-push merge.
+
 #### Why the naive form does not work
 
 The intuitive command for step 4 is `git fetch origin main:main` from inside the session worktree. Git rejects it:
@@ -287,7 +329,7 @@ If `pull --ff-only` ever fails with "not a fast-forward", it means a sibling wor
 | --- | --- | :---: | --- | --- |
 | req-dev-multisession-push-workflow-1 | Never edit on main | Implemented | The primary worktree at `~/tap-sessions/main/` MUST NOT carry uncommitted changes or local commits that haven't traveled through a session branch. All edits live on `session/<name>` branches. | |
 | req-dev-multisession-push-workflow-2 | Pre-push merge required | Implemented | Before advancing `origin/main`, the session branch MUST be fast-forwardable to its target by merging `origin/main` first. | Prevents non-fast-forward push rejections and overwrites. |
-| req-dev-multisession-push-workflow-3 | Atomic combined-refspec push | Implemented | The push command is `git push --atomic origin session/<name>:main session/<name>:session/<name>` — two refspecs on one push, with `--atomic` so `origin/main` and `origin/session/<name>` advance all-or-nothing. WITHOUT `--atomic`, git transmits both refspecs but the server may apply them independently — a non-fast-forward on one ref would still leave the other update applied. WITH `--atomic`, either both refs advance or neither does. A single `:main` refspec advances only `origin/main` and does NOT preserve the session branch on origin; the second refspec is required. | No separate merge commit; no checkout of `main`. |
+| req-dev-multisession-push-workflow-3 | Atomic combined-refspec push (fallback path) | Implemented | The push command is `git push --atomic origin session/<name>:main session/<name>:session/<name>` — two refspecs on one push, with `--atomic` so `origin/main` and `origin/session/<name>` advance all-or-nothing. WITHOUT `--atomic`, git transmits both refspecs but the server may apply them independently — a non-fast-forward on one ref would still leave the other update applied. WITH `--atomic`, either both refs advance or neither does. A single `:main` refspec advances only `origin/main` and does NOT preserve the session branch on origin; the second refspec is required. | No separate merge commit; no checkout of `main`. SINCE 2026-08-10 this is the BOOTSTRAP/SKIP-HATCH path only: the default road to main is the PR flow (promote-script-4a) — the server merges on green required checks, and `origin/session/<name>` is pushed as the PR head. |
 | req-dev-multisession-push-workflow-4 | Post-push primary sync | Implemented | After the push, the local `main` ref MUST be advanced via `git -C /Users/george/tap-sessions/main pull --ff-only`. | Load-bearing for `scripts/spawn-session.sh` correctness. |
 | req-dev-multisession-push-workflow-5 | Naive fetch form is wrong | Implemented | `git fetch origin main:main` from a session worktree is explicitly NOT the post-push sync. Git refuses to fast-forward a ref that's checked out elsewhere; the operation must run inside the main worktree (via `git -C`). | Documented so agents don't reinvent the workaround. |
 | req-dev-multisession-push-workflow-6 | Spawn-side guard | Implemented | `scripts/spawn-session.sh` refreshes local `main` from `origin/main` BEFORE creating the new session worktree. The pull MUST run inside the main worktree (via `git -C "$HOME/tap-sessions/main" pull --ff-only origin main`), not via `$REPO` — `$REPO` is wherever the script was invoked from (possibly a session worktree), and pulling there would advance the session branch rather than main. A non-fast-forward (uncommitted changes on main, divergent local main) aborts the spawn loudly rather than silently starting a session from stale code. If the main worktree is missing at `$HOME/tap-sessions/main` (non-standard layout), the guard warns and skips rather than aborting. | Belt-and-suspenders with the post-push sync: that keeps siblings current between spawns; this guard ensures the *next* spawn is current even if the discipline slipped. |
@@ -317,7 +359,8 @@ The script is the canonical implementation of the push workflow. Agents (Claude,
 | req-dev-multisession-promote-script-1 | Operates on current worktree | Implemented | The script resolves the target via `git rev-parse --show-toplevel` and rejects invocation outside a worktree or on a non-`session/<name>` branch. | Lets the orchestrator `cd` into each worktree and call this script without arguments. |
 | req-dev-multisession-promote-script-2 | Clean working tree required | Implemented | Aborts when there are staged or unstaged changes. Untracked files are permitted because `.env.local` and `.dev-credentials` are always untracked. | |
 | req-dev-multisession-promote-script-3 | Pre-push merge | Implemented | Runs `git merge --no-edit origin/main` only when the branch is behind. Conflicts abort the merge and surface a manual-resolution message. | Skipping when not behind avoids needless merge commits. |
-| req-dev-multisession-promote-script-4 | Atomic dual-refspec push | Implemented | Uses `git push --atomic origin session/<name>:main session/<name>:session/<name>` verbatim per req-dev-multisession-push-workflow-3. | |
+| req-dev-multisession-promote-script-4 | Atomic dual-refspec push (fallback) | Implemented | The direct atomic push per req-dev-multisession-push-workflow-3 runs ONLY on the bootstrap/skip-hatch path (gate workflow absent from origin/main, or `TAP_PROMOTE_SKIP_CI_GATE=1`), where it rides the admin bypass loudly. | Superseded as the default by `-4a`. |
+| req-dev-multisession-promote-script-4a | PR promote (default) | Implemented | Default road to main (2026-08-10): push `session/<name>`, open/update the promote PR, run the local FAST lane in the shadow of the server checks, then ARM auto-merge (merge commit — squash would discard the individually SIGNED commits) only after local green; the server's required `gate` check (test_all lane + CI cold-boot + lean-boot jobs) decides the landing. Re-promote safety: any stale auto-merge arming is DISARMED before pushing (arming persists across pushes and would let the server land fresh commits before the local gates run). Local boot gates are OPTIONAL fast feedback (`TAP_PROMOTE_LOCAL_BOOT_GATES=1`) now that CI owns boot truth. | The bypass is unused on this path; emptying the bypass list + merge queue are the ruleset flip, tracked in `req-cicd-branch-protection`. |
 | req-dev-multisession-promote-script-5 | Post-push primary sync | Implemented | Runs `git -C $HOME/tap-sessions/main pull --ff-only origin main` after a successful push. Warns and skips if the main worktree is absent (non-standard layout). | |
 | req-dev-multisession-promote-script-6 | Dry-run mode | Implemented | `--dry-run` reports each step as `[dry-run] would: ...` without invoking any write operation, including the fetch. | |
 

@@ -276,10 +276,13 @@ The proposed install architecture has four layers:
    it does not answer TAP-domain questions such as plugin slugs, enabled
    surfaces, migration status, or health.
 3. **Python package discovery.** Installed TAP plugin packages advertise
-   themselves through Python package metadata, preferably a `tap.plugins` entry
-   point group read with `importlib.metadata.entry_points()`. This discovers
-   installed plugin-capable packages without requiring TAP to scan arbitrary
-   `site-packages` paths.
+   themselves through Python package metadata: a `tap.plugins` entry point group
+   read via `importlib.metadata`. Pre-boot deliberately scopes that read to the
+   TARGET venv's `site-packages` (`distributions(path=...)`) rather than the
+   running process's `sys.path` view — the process's own environment proved
+   untrustworthy under `uv run` on CI runners (2026-08-09), and the install
+   target is the only authoritative statement of what is installed. Discovery
+   still keys on declared metadata, never on scanning for arbitrary code.
 4. **TAP plugin registry and reports.** TAP owns the runtime registry/report:
    slug, package/distribution name, resolved version or commit, `app_config`,
    manifest path, requested and loaded surfaces, install mode, provenance,

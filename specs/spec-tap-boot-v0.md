@@ -30,7 +30,7 @@ v0 builds the **minimal standup path**: a single `manage.py boot` command that r
 
 All boot logic — command, phase sequencing, boot context, profile handling, logging, and (when built) the section handlers + registry — lives in the **`tap_boot` app**, first in `INSTALLED_APPS`, depending on and calling the capability apps' reusable, boot-agnostic ops. The domain apps stay boot-agnostic: **no boot logic in `tap_grid`/`tap_auth`/`tap_cares`/`tap_plugins`.**
 
-> **Status — v0 landed 2026-06-24.** `manage.py boot --profile <id>` runs `auth → population` and is what `spawn-session.sh` now calls (the old `sync_auth`/`import_plugin_grift`/`reconcile_collectors`/`fire_boot_collectors`/`createsuperuser` steps are gone; `fire_boot_collectors` is removed). The profile is the ordered-steps shape (`boot/<id>.boot.json`, version 1, `population.steps` of `seed-plugin`/`fire-collector`); `boot/core_dev.boot.json` (core + `grid_fixtures`, no collectors) is the plain-spawn default (2026-07-03 baseline flip, `req-boot-minimal-baseline`), `boot/samsite.boot.json` the demo standup, and `boot/test_all.boot.json` (the former `base` seed-all union) the test/gate superset. Boot-agnostic ops added/reused: `tap_auth.sync_auth` + new `tap_auth.ensure_initial_admin`, `tap_plugins.seeding.seed_plugin`, `tap_cares.reconcile_collector_nodes` + new `tap_cares.services.fire_collector_and_await`. Phases live as functions in `tap_boot/orchestrator.py` so each becomes a section-handler body when `req-boot-sections` lands. Covered by `tap_boot/tests/` and proven live on samsite (boto3 collector fired a real AWS pull; a missing-secret collector aborted loud). Deferred per below remain `Proposed`.
+> **Status — v0 landed 2026-06-24.** `manage.py boot --profile <id>` runs `auth → population` and is what `spawn-session.sh` now calls (the old `sync_auth`/`import_plugin_grift`/`reconcile_collectors`/`fire_boot_collectors`/`createsuperuser` steps are gone; `fire_boot_collectors` is removed). The profile is the ordered-steps shape (`boot/<id>.boot.json`, version 1, `population.steps` of `seed-plugin`/`fire-collector`); `boot/core_dev.boot.json` (core + `grid_fixtures`, no collectors) is the plain-spawn default (2026-07-03 baseline flip, `req-boot-minimal-baseline`), and `boot/test_all.boot.json` (the former `base` seed-all union) the test/gate superset. The samsite demo record re-homed into `tap-plugin-samsite` as an in-package record booted by pointer (2026-08-09, `req-boot-bootstrap-samsite-rehome` in `spec-tap-boot-bootstrap.md`). Boot-agnostic ops added/reused: `tap_auth.sync_auth` + new `tap_auth.ensure_initial_admin`, `tap_plugins.seeding.seed_plugin`, `tap_cares.reconcile_collector_nodes` + new `tap_cares.services.fire_collector_and_await`. Phases live as functions in `tap_boot/orchestrator.py` so each becomes a section-handler body when `req-boot-sections` lands. Covered by `tap_boot/tests/` and proven live on samsite (boto3 collector fired a real AWS pull; a missing-secret collector aborted loud). Deferred per below remain `Proposed`.
 
 Deliberately **deferred until a real consumer drives the shape** (skepticism-of-overbuilding, per the Rampart roadmap):
 
@@ -66,6 +66,7 @@ For the plugin-refactor additions (pre-boot stage, install section, snapshot, va
 
 ## Relationship To Other Specs
 
+- **Extended by `specs/spec-tap-boot-observability.md`.** The observability surfaces around this spec's contract: a collector-readiness preflight before population mutates (`req-boot-obs-preflight`), structured self-test checks on the abort path (`req-boot-obs-abort-detail`, extending `req-boot-abort-signal`'s reason), the durable per-run boot record that realizes `req-boot-report`'s deferred report + `req-boot-variable-resolution-3`'s promised provenance surface (`req-boot-obs-record`), and the dev-spawn presentation contract (`req-boot-obs-spawn-presentation`).
 - **Extended by `specs/spec-tap-boot-bootstrap.md`.** This spec owns the profile *shape* and phase application (given a profile, stand the instance up). The bootstrap spec sits one level above and owns *where the profile comes from*: a single-command `--from <pointer>` that fetches a boot record out of a versioned plugin artifact (records ship as package data), selects among multiple records per plugin, and stages it as the active profile before pre-boot proceeds. `--from` subsumes `--boot-file`; the pointer resolves through `spec-plugin-architecture.md`'s source machinery. Single-file boot → single-command boot (the netboot lineage).
 - **Absorbs `specs/spec-dev-boot-collectors.md`.** Its collector-firing mechanics — firing via `run_collection`, sequential ordered firing, per-profile `on_failure`, opt-in selection — are preserved as the `fire-collector` step-type inside this spec's population phase. The standalone `fire_boot_collectors` framing is generalized into the bootloader; the collector spec's RIDs remain the detailed contract for *how a collector is fired*.
 - **Provides the bootloader `req-tap-auth-boot` assumes.** The `auth` section is `tap_auth`'s registered section handler; the auth-boot ordering (capability sync → protected group sync → built-in actor sync → initial admin → provider validation/build → provider/domain deactivation) is that handler's internal apply sequence, run within this spec's `auth` phase.
@@ -92,6 +93,7 @@ For the plugin-refactor additions (pre-boot stage, install section, snapshot, va
 | req-boot-idempotent | [Idempotent Re-Apply](#idempotent-re-apply) | Implemented | **v0 principle** (ops are idempotent; seed + admin re-apply tested); formal convergence contract deferred |
 | req-boot-trust | [Config-As-Code Trust Model](#config-as-code-trust-model) | Implemented | **v0.** Boot config is code-level-trusted; guards are anti-footgun, not anti-operator |
 | req-boot-secrets | [Secret References Only](#secret-references-only) | Implemented | **v0.** Profiles reference `TAP_SECRETS_ROOT` keys / env, never embed secrets; missing secret fails loud at apply |
+| req-boot-required-secrets | [Required Secrets Declaration](#required-secrets-declaration) | Implemented | **Built 2026-08-09** (design locked same day). Top-level `required_secrets` manifest (envelope identity `scope`/`key`/`kind` + least-privilege `note`) plus bare `"scope:key"` consumption refs on population steps; two fail-loud coherence rules (every ref resolves; no entry orphaned by enabled steps) make the dual declaration a checked guard, not a drift point; presence + kind verified **offline** in the population preflight before the live self-tests (`req-boot-obs-preflight`). The host-/provisioning-readable half of the credential story — what the live self-test (in-container, network) cannot provide |
 | req-boot-spawn-bridge | [Spawn Bridge](#spawn-bridge) | Implemented | **v0.** `spawn-session.sh` calls the bootloader; dev == customer standup |
 | req-boot-report | [Boot Logging](#boot-logging) | Implemented | **v0.** Boot logs actions with secrets redacted; durable report deferred |
 | req-boot-abort-signal | [Standup Abort Signal](#standup-abort-signal) | Implemented | **Landed 2026-07-03.** Boot is the first consumer of the logging `ABORT` signal (`req-tap-logging-abort-signal`): preboot/migrate/boot fatal paths emit it and `spawn-session.sh` fast-fails on it (or on the container exiting) instead of the 300s readiness timeout |
@@ -134,7 +136,7 @@ A boot profile is a single config-as-code document composed of named sections.
 
 #### Implementation
 
-> **v0 (minimal):** the profile drives standup with the plugins to seed + collectors to fire (≈ today's flat `boot/<id>.boot.json`, e.g. `boot/samsite.boot.json`) plus minimal admin info. Named, app-owned sections composed from per-app JSON-Schema fragments (below) are the planned shape but are **deferred** to their first consumer (`req-boot-sections`); v0 does not compose per-app schemas.
+> **v0 (minimal):** the profile drives standup with the plugins to seed + collectors to fire (≈ today's flat `boot/<id>.boot.json`, e.g. `boot/test_all.boot.json`, or an in-package record like samsite's) plus minimal admin info. Named, app-owned sections composed from per-app JSON-Schema fragments (below) are the planned shape but are **deferred** to their first consumer (`req-boot-sections`); v0 does not compose per-app schemas.
 
 - A profile is a version-controlled file, selected `--profile` > `TAP_BOOT_PROFILE`. **A profile is required by default**: a missing one fails loud, so a deployment never silently starts empty-but-apparently-healthy because `TAP_BOOT_PROFILE` was accidentally omitted. The single escape hatch is an explicit `--allow-empty`, an opt-in to an auth-only, no-outbound standup. (This collapses the earlier two-mode framing — dev no-op vs deploy-required — into one rule: requiring a profile is the safe default *everywhere*, and an intentional empty standup is always explicit. One flag, no inverted `--require-profile`.)
 - v1 sections: `identity`, `auth`, `population`. The section set is open — any capability app may register a section (`req-boot-sections`).
@@ -168,7 +170,7 @@ Plugin installation and the pre-migrate snapshot run in a **pre-boot stage** in 
 
 - **Settings-free, so it cannot live in `tap_boot`.** Pre-boot runs before Django reads settings — indeed it *generates* part of them — so it cannot be a Django app or a `manage.py` command. Its logic is a settings-free Python module the entrypoint invokes; per the avoid-app-interdependency posture it lives in **`tap/`** (app-neutral, import-safe), reading the boot profile as plain JSON. The install/packaging mechanics it calls (uv resolution, `tap.plugins` entry-point discovery, the plugin registry/report) are owned by `spec-plugin-architecture.md` (`req-plugin-arch-install-registry`); pre-boot is the boot-profile-side *executor* of the install set.
 - **`tap_boot` owns the contract, not the pre-Django execution.** The boot profile (a `tap_boot` document) declares the install set (`req-boot-install-section`) and the snapshot switch (`req-boot-snapshot`); the `tap/` wrapper executes them. This is the Kubernetes `initContainers` shape — declared in one spec, executed as a distinct run-to-completion lifecycle stage before the main process. The boot **phase** order (`req-boot-phases`) is unchanged; pre-boot sits *before* `manage.py boot`, which is exactly what its name encodes (and disambiguates it from the in-`boot` `bootstrap` phase).
-- **Entrypoint ordering:** `uv sync → pre-boot (install plugins → [switch] snapshot DB → verify) → migrate → manage.py boot (auth → population)`.
+- **Entrypoint ordering:** `[cache-seed] → uv sync → pre-boot (install plugins → [switch] snapshot DB → verify) → migrate → manage.py boot (auth → population)`. (The optional cache-seed step copies the image's pre-compiled wheel cache into an empty uv-cache volume — a speed optimization only; the phase contract is unchanged.)
 - **Reboot stability.** Pre-boot is idempotent and fast on reboot: an already-installed plugin set is a no-op (no re-pull), satisfying "a container that already has its plugins just works." The install report / registry is the idempotency oracle (`req-plugin-arch-install-registry`).
 - **Failure is fatal — abort the whole standup.** An install / identity-mismatch / uv-resolve failure, or a snapshot failure while the switch is on, aborts pre-boot loud; the entrypoint never reaches `migrate` or `boot`. Because pre-boot runs *before* `migrate`, such an abort leaves the database untouched (the same "abort before any mutation" guarantee `req-boot-population-4` gives, extended to schema).
 
@@ -236,7 +238,7 @@ Test tiering is the corollary: the FULL lane's "one container, everything import
 | --- | --- | :---: | --- | --- |
 | req-boot-minimal-baseline-1 | Core Is Zero-Plugin | Implemented | `boot/core.boot.json` declares no plugins and boots healthy (reconciliation `0==0`, `TAP_PLUGINS` empty). | Live-verified via throwaway spawn. |
 | req-boot-minimal-baseline-2 | Core-Dev Test Tier | Implemented | `boot/core_dev.boot.json` = `core` + `grid_fixtures` only; the profile the core suites boot against. | |
-| req-boot-minimal-baseline-3 | Additive Profiles | Implemented | Every non-core profile is `core` + an explicit plugin set; no profile installs "everything" by default. The lone union (`test_all`) is explicitly the test/gate superset, not a deployment default. | Landed 2026-07-03. `core`/`core_dev`/`samsite`/`test_all` all additive over the `core` floor. |
+| req-boot-minimal-baseline-3 | Additive Profiles | Implemented | Every non-core profile is `core` + an explicit plugin set; no profile installs "everything" by default. The lone union (`test_all`) is explicitly the test/gate superset, not a deployment default. | Landed 2026-07-03. `core`/`core_dev`/`test_all` (repo-local) and the samsite record (in-package since 2026-08-09) all additive over the `core` floor. |
 | req-boot-minimal-baseline-4 | Default Repoint | Implemented | The default spawn / entrypoint profile is repointed from `base` to `core_dev` (fast inner-loop: core + grid_fixtures). `core` is the explicit product baseline. | Landed 2026-07-03: `spawn-session.sh` `BOOT_PROFILE:-core_dev`, `docker/entrypoint.sh` `TAP_BOOT_PROFILE:-core_dev`. The full lane / promote gate explicitly boots `test_all`, not the default. |
 | req-boot-minimal-baseline-5 | Retire Base → test_all | Implemented | `base` is renamed to `test_all`: the **permanent union** the suite runs against (**landed 2026-07-03**). Lean per-profile *test lanes* are infeasible (pytest discovery is file-path — an absent plugin's tests hard-error at collection; `test_settings` sees the installed venv, not a profile), so the union stays. Core independence is bridged by the **lean-container independence gate** (`scripts/gate-lean`, `req-dev-validation-lean-boot`) that stands up a genuinely fresh, lean-installed stack (own compose project → own venv volume) and full-boots `core` — the only shape that actually catches core→plugin-dep import leakage (`requests`/`jwt`), since a shared full venv masks it. Landed + proven both directions 2026-07-03 (core boots healthy in isolation; an injected core `import boto3` is caught RED). A plugin's standalone-test profile is plugin-owned (`plugins/<slug>/*.boot.json`, `spawn --boot-file`), created only on demand. | Full spec: `req-dev-validation-lean-boot` in spec-dev-validation.md; pairs with `req-dev-validation-suite-tiers`. |
 
@@ -532,7 +534,7 @@ A `fire-collector` step awaits its collector's job to a terminal state for a bou
 #### Implementation
 
 - Each `fire-collector` step may declare an optional integer `timeout_seconds`; the bootloader passes it to `tap_cares.services.fire_collector_and_await`. A collector that does not reach a terminal state within the bound is a step failure (subject to the population `on_failure`), not an indefinite hang.
-- When a step omits `timeout_seconds`, the bootloader applies a single default (`DEFAULT_COLLECTOR_TIMEOUT_SECONDS`, 90s) — deliberately short so snappy collectors finish well inside it; a slow collector (a full cloud pull) declares a higher value on its step (e.g. `boot/samsite.boot.json` gives boto3 / samsite-compliance 300s).
+- When a step omits `timeout_seconds`, the bootloader applies a single default (`DEFAULT_COLLECTOR_TIMEOUT_SECONDS`, 90s) — deliberately short so snappy collectors finish well inside it; a slow collector (a full cloud pull) declares a higher value on its step (e.g. the samsite record gives boto3 / samsite-compliance 300s).
 - **Backlog:** the better long-term home for the *default* is the collector itself — a per-collector `COLLECTION_TIMEOUT_SECONDS` class default on `CollectorBase` (mirroring the existing `SELF_TEST_LIVE_CHECK_TIMEOUT_SECONDS`) that the step-level `timeout_seconds` overrides. v0 uses the single bootloader fallback; the per-collector default is deferred until a collector needs it.
 
 #### Acceptance Criteria
@@ -663,6 +665,7 @@ Boot profiles reference secrets; they never contain them.
 - Secret values are never embedded in profile files and never persisted to the database (consistent with `req-tap-auth-providers` secret handling).
 - A reference to a missing secret fails loud at apply (and is surfaced by `--dry-run` where the check is offline-safe).
 - Boot logging redacts secret values (`req-boot-report`).
+- `req-boot-required-secrets` (Proposed) layers a declared requirements *manifest* on this rule: secret **identities** may be listed up front; values still never appear.
 
 #### Acceptance Criteria
 
@@ -670,6 +673,65 @@ Boot profiles reference secrets; they never contain them.
 | --- | --- | :---: | --- | --- |
 | req-boot-secrets-1 | References Only | Proposed | Profiles carry secret references under `TAP_SECRETS_ROOT`, never values. | |
 | req-boot-secrets-2 | Missing Secret Fails | Proposed | An unresolved secret reference fails loud at apply. | |
+
+---
+
+### Required Secrets Declaration
+----
+RID: `req-boot-required-secrets`  
+Status: `Implemented`
+
+> **Built 2026-08-09.** Schema: `required_secrets` + fire-collector `secrets` refs in `tap_boot/schemas/boot.schema.json` (every field described). Parsing + the two coherence rules: `tap_boot/profile.py` (`RequiredSecret`, `_validate_secret_coherence` — rule A enabled-scoped so the rules compose; see the docstring). Offline check: `tap_boot/orchestrator.py:_preflight_required_secrets`, resolving through the loaded envelope registry (`tap_cares.secrets.resolve_secret`) so the check cannot drift from what boot's collectors actually resolve; blocked collectors skip their live self-test and fail with the offline reason. First declaring profile: the samsite record (since 2026-08-09 in-package at `tap_plugin/samsite/boot/samsite.boot.json` in `tap-plugin-samsite`; aws_core:boto_collector kind `aws_static_access_key` — the on-disk reality of the reference deployment, NOT `aws_assumed_role`; the note names the cross-account swap — plus github_core:collector kind `github_pat`). Profile sweep 2026-08-09: samsite is the only shipped profile firing collectors; core/core_dev/test_all/soak are seed-only, operator_sso consumes its OIDC secret via the auth section (outside this contract — see the auth-section boundary note below). Covered by `tap_boot/tests/test_profile.py` + `test_orchestrator.py`. The provisioning walkthrough consumer landed same day: `tap_boot/skills/provision-secrets/SKILL.md` (core-side by design — needed at spawn time when only core exists; plugin-shipped skills are never surfaced by wire-skills).
+
+A boot profile declares, in one top-level list, every secret its composition requires — so "what must be provisioned before this profile can stand up" is answerable by reading the profile, from a bare clone, without booting a container or touching the network.
+
+**The gap this closes.** The collector-readiness preflight (`req-boot-obs-preflight`) already catches a dead or absent credential in seconds, in-container, via live self-tests — but it answers *"is this credential alive?"*, not *"what must a fresh operator mint before first boot?"*. A fresh host discovers the requirements only by booting into the failure, and provisioning guidance (the get-started flow, a secrets walkthrough skill) has no machine-readable source to enumerate. The declaration is that source: the offline, host-readable half of the credential story, layered under the live self-test which stays authoritative for liveness.
+
+```json
+{
+  "required_secrets": [
+    { "scope": "aws_core", "key": "boto_collector", "kind": "aws_assumed_role",
+      "note": "Cross-account read-only role; mandatory External ID." },
+    { "scope": "github_core", "key": "collector", "kind": "github_pat",
+      "note": "Fine-grained PAT, read-only, scoped to the collected org." }
+  ],
+  "population": {
+    "steps": [
+      { "type": "fire-collector", "key": "github_core:github_core",
+        "secrets": ["github_core:collector"] }
+    ]
+  }
+}
+```
+
+#### Implementation
+
+- **Top-level manifest.** `required_secrets` entries carry exactly the envelope identity — `scope`, `key`, `kind` (`req-tap-cares-secrets-shape`) — plus a one-line least-privilege `note`. References only, never values (`req-boot-secrets`); never minting prose (the how-to-mint walkthrough lives with the kind's consumer-owned schema and the provisioning skill, `req-tap-cares-secrets-consumer-kinds`). Every schema field carries a description.
+- **Bare consumption refs.** A population step that resolves a secret at run time declares it as `secrets: ["<scope>:<key>"]` — bare strings, deliberately **not** objects: the ref is the entire step-level surface, so per-collector configuration cannot creep in through this door (that is its own future need, `req-boot-collector-criticality` territory). The install section's per-source `credential` key (`req-plugin-arch-source-secret-6`) remains its own pre-boot declaration and is untouched by this requirement.
+- **Coherence, checked not trusted.** The dual declaration is kept honest the same way `BUILD_BAKED_PLUGIN_SLUGS` is kept honest against `INSTALLED_APPS` — by a guard, making it a checksum rather than a drift point. Two fail-loud rules under the v0 validation posture (`req-boot-validate`: shape + unknown key fails loud): a step ref with no matching entry invalidates the profile; an entry referenced by no **enabled** step invalidates it as stale.
+- **Necessity follows the composition.** The effective required set is: entries referenced by at least one enabled step. Disabling a step drops its requirement (and the stale rule demands removing the orphaned entry) — no waiver mechanism, no per-secret conditional logic in the profile.
+- **Preflight placement.** Presence + kind-match of the effective set is checked at the head of the population preflight (`req-boot-obs-preflight-6`) — offline, before any live self-test call, joining the same batch verdict. The abort names every missing or kind-mismatched `scope:key` with its expected kind and `note`, never a value. Absent-secret (a provisioning gap, fix = mint it) is thereby distinguished from dead-credential (a liveness gap, fix = rotate it).
+- **Offline-safe by construction.** Unlike the live self-test — deliberately excluded from offline validation — this check reads only the profile and the envelope files, so it belongs to any future `--dry-run` (`req-boot-validate`) and to host-side pre-checks: spawn may verify `TAP_SECRETS_ROOT` before standing anything up, and provisioning tooling enumerates needs from a bare clone. Host-side checks are advisory; the in-container preflight is authoritative (the container's mount is what boot will actually resolve from).
+- **Doctrine fit.** This is *not* the static expected-secret list `req-tap-cares-secrets-conditional-validation` forbids: the forbidden shape is TAP itself keeping a global inventory (code-level or on-grid). A profile is one operator's config-as-code (`req-boot-trust`) declaring its own composition's dependencies — the same "the declaration IS the requirement" contract as the git source `credential` key (`req-plugin-arch-source-secret-5`) — with conditionality carried structurally by which steps are enabled. `tap_cares` stays necessity-agnostic; `tap_boot` owns and enforces this contract; health probes remain the runtime authority.
+- **Named AI/tooling consumers** (`spec-ai-integration.md`): the spawn host-check, the secrets-provisioning walkthrough skill, and the boot preflight all read this one declaration — no parallel inventory anywhere.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-boot-required-secrets-1 | Top-Level Declaration | Implemented | A profile may declare `required_secrets`; each entry carries envelope identity (`scope`, `key`, `kind`) plus a least-privilege `note`; references only, never values; every schema field described. | |
+| req-boot-required-secrets-2 | Bare Consumption Refs | Implemented | Population steps declare consumption as bare `"scope:key"` strings under `secrets`; no step-level secret configuration beyond the ref. | Anti-creep: per-collector config stays its own surface. |
+| req-boot-required-secrets-3 | Refs Resolve | Implemented | A step ref with no matching `required_secrets` entry fails profile validation loud. | |
+| req-boot-required-secrets-4 | No Stale Entries | Implemented | An entry referenced by no enabled step fails profile validation loud. | Disabling a step ⇒ remove its orphaned entry. |
+| req-boot-required-secrets-5 | Preflight Presence + Kind | Implemented | Before population mutates, every entry referenced by an enabled step must resolve to an on-disk envelope with matching `kind`; joins the collector preflight's batch verdict; abort names `scope:key` + expected kind, never values. | `req-boot-obs-preflight-6`. |
+| req-boot-required-secrets-6 | Offline-Checkable | Implemented | The declared check needs only the profile + envelope files: usable by dry-run validation and host-side pre-checks (spawn, provisioning tooling); the in-container check stays authoritative. | |
+
+#### Future
+
+- **Auth-section secrets are outside this contract (named boundary).** `required_secrets` entries must be referenced by an enabled *population step* (rule B), so a secret consumed by the auth phase (e.g. `operator_sso`'s OIDC client secret) cannot be declared here without reading as stale. Auth keeps its own validation path (`critical_for_boot` + the provider health probe, `req-tap-auth-providers`); extending the declaration to auth-consumed secrets is a future decision, not an accident of omission.
+- **Kind alternatives.** `kind` is single-valued, but an envelope slot may legitimately accept one of several kinds (aws_core's collector takes `aws_static_access_key` OR `aws_assumed_role`). The shipped samsite profile declares the reference deployment's actual kind and documents the swap in its `note`; if per-deployment kind-editing proves noisy, `kind` could become a one-of list — demand-gated.
+- **Manifest conformance cross-check** (`req-plugin-manifest-v0-secrets`, `spec-plugin-manifest-v0.md`, Backlog): once plugins declare the secret kinds their collectors consume, a conformance check compares a profile's consumption refs against the union of what its enabled steps' plugins declare — catching both gaps (step needs a secret the profile never listed) and stale entries mechanically, closing the last hand-maintenance seam.
+- Interplay with profile inheritance/composition (Backlog) when that lands: the coherence rules apply to the *effective* merged profile.
 
 ---
 
@@ -710,7 +772,7 @@ Boot logs what it did. A durable boot-report artifact is deferred.
 - The bootloader logs each section/step action — added / updated / synced / fired / skipped — using the standard TAP logging conventions (`spec-tap-logging.md`, site-token discipline).
 - **v0 honest scope:** the `tap_bootloader` actor is bound (`acting_as`) only around the **population** phase, so population log lines — and Flaws emitted there (`spec-tap-flaw-v0.md`) — are attributed to it without extra plumbing. The **auth/bootstrap** phase runs *before* the actor exists (v0 mints `tap_bootloader` inside `sync_auth`, the chicken-and-egg the phase order notes), so its log lines are **not** actor-attributed — there is no actor yet to attribute them to. Full-phase attribution (one actor as writer, authorization subject, and log attribution at once) is the **future** shape that arrives with the `bootstrap` pre-phase resolving the actor first (`req-boot-phases`); v0 does not and cannot claim it for auth/bootstrap logs.
 - Secret values are redacted in all boot logs (`req-boot-secrets`).
-- Logging is the v1 record of a boot; a durable, queryable boot-report node/model is deferred to backlog.
+- Logging is the v1 record of a boot; the durable per-run boot record is now specified as `req-boot-obs-record` (`spec-tap-boot-observability.md`, file-based v0); the grid-node/queryable representation stays backlog.
 - Under failure, logs name the failed section/step and reason so an unattended caller can diagnose and re-run.
 
 #### Acceptance Criteria
@@ -773,7 +835,7 @@ Longer-horizon:
 - Plugin-owned collector-firing hooks (resolve the `req-boot-population` open seam once samsite teaches us).
 - Plugin dependency-graph resolution (v1 relies on declared order; a real DAG is deferred).
 - **Parallel collector execution.** v0 fires `fire-collector` steps strictly serially, each awaited to terminal before the next (`req-boot-population-1`), because some collectors depend on earlier ones' grid state (samsite-compliance reads boto3's `aws_account` nodes and github_core's `github_workflow` nodes). But independent collectors — e.g. the FedRAMP KSI catalog pull — need not block the others, so a future population could run non-dependent steps concurrently (a parallel/concurrent group, or DAG-derived parallelism once dependency resolution exists) while preserving declared ordering for the dependent edges. Deferred to the "make it fast" performance phase, well after functional completeness; v0's serial-and-correct default stands until then.
-- Durable, queryable boot-report node/model (v1 logs only).
+- Durable, queryable boot-report **grid node/model** (v1 logs only). The file-based per-run record is now `req-boot-obs-record` (`spec-tap-boot-observability.md`); this backlog item is the grid projection of it.
 - **Periodic / scheduled database snapshots** — built on the `req-boot-snapshot` callable primitive (take → verify → name in report), plus retention/rotation; runs concurrent/online against a live DB (the opposite of the serial standup snapshot). The primitive is shaped for this in the plugin refactor; the scheduler is not built then.
 - **Copy-on-write volume snapshots** — the `req-boot-snapshot` scale upgrade path (ZFS/LVM/cloud-volume), if/when `pg_dump` latency or DB size demands it.
 - **CLI-flag override layer** for boot variables (`req-boot-variable-resolution`) — the convention reserves `flag > env > profile > default`; the env layer is wired first (dev-disable needs it), the flag layer when a single-run override first needs one.

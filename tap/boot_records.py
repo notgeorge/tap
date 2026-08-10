@@ -48,8 +48,20 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 RECORD_SUFFIX = ".boot.json"
 
-# Glob for a plugin package's in-package boot dir: plugins/<dir>/tap_plugin/<slug>/boot/
-_BOOT_DIR_GLOB = "plugins/*/tap_plugin/*/boot"
+# Globs for a plugin package's in-package boot dir, one per supported layout:
+#   plugins/<dir>/tap_plugin/<slug>/boot/       — monorepo-era in-tree plugins
+#   _dev-plugins/<dir>/tap_plugin/<slug>/boot/  — plugin-workspace dev checkouts
+#     (spec-dev-plugin-workspace.md). Without this sweep, a fork author editing
+#     their checkout's in-package record (the external-adopter cutover flow)
+#     could not run the MANDATORY digest derivation the toml points them at —
+#     `scripts/boot-record-hash --refresh` simply couldn't see the file.
+#     CI never has _dev-plugins, so its behavior is unchanged; a worktree WITH
+#     dev checkouts now also gets their digests coherence-checked (desirable:
+#     a stale digest in a checkout should be loudly visible).
+_BOOT_DIR_GLOBS = (
+    "plugins/*/tap_plugin/*/boot",
+    "_dev-plugins/*/tap_plugin/*/boot",
+)
 
 
 @dataclass(frozen=True)
@@ -109,7 +121,8 @@ def _declared_records(toml_path: Path) -> dict[str, str]:
 def discover(repo_root: Path = REPO_ROOT) -> list[PluginBootManifest]:
     """Find every plugin package that ships in-package boot records."""
     manifests: list[PluginBootManifest] = []
-    for boot_dir in sorted(repo_root.glob(_BOOT_DIR_GLOB)):
+    boot_dirs = sorted({p for pattern in _BOOT_DIR_GLOBS for p in repo_root.glob(pattern)})
+    for boot_dir in boot_dirs:
         if not boot_dir.is_dir():
             continue
         slug = boot_dir.parent.name  # tap_plugin/<slug>/boot -> <slug>
@@ -200,8 +213,10 @@ def _rewrite_toml_digests(text: str, digests: dict[str, str]) -> str:
             continue
         m_sha = _SHA_RE.match(line)
         if m_sha and current is not None and current in digests:
-            lines[i] = f"{m_sha.group('pre')}{digests[current]}{m_sha.group('post')}\n" if line.endswith("\n") else (
-                f"{m_sha.group('pre')}{digests[current]}{m_sha.group('post')}"
+            lines[i] = (
+                f"{m_sha.group('pre')}{digests[current]}{m_sha.group('post')}\n"
+                if line.endswith("\n")
+                else (f"{m_sha.group('pre')}{digests[current]}{m_sha.group('post')}")
             )
     return "".join(lines)
 
@@ -229,18 +244,29 @@ def main(argv: list[str] | None = None) -> int:
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--check", action="store_true", help="verify declared == computed (exit 1 on drift)")
     group.add_argument("--refresh", action="store_true", help="rewrite sha256 digests in each package toml")
+    parser.add_argument(
+        "--root",
+        type=Path,
+        default=REPO_ROOT,
+        help="discovery root holding plugins/ and/or _dev-plugins/ (default: this repo)",
+    )
     args = parser.parse_args(argv)
+    root: Path = args.root.resolve()
 
     if args.refresh:
-        changed = refresh()
+        changed = refresh(root)
         for path in changed:
-            print(f"refreshed {path.relative_to(REPO_ROOT)}")
+            try:
+                shown = path.relative_to(root)
+            except ValueError:
+                shown = path
+            print(f"refreshed {shown}")
         if not changed:
             print("no digest changes")
         return 0
 
     if args.check:
-        problems = check()
+        problems = check(root)
         for p in problems:
             print(p, file=sys.stderr)
         if problems:
@@ -250,7 +276,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     # Default: list discovered records + computed digests.
-    for man in discover():
+    for man in discover(root):
         for name, rf in man.files.items():
             print(f"{man.slug}#{name}\t{rf.digest}")
     return 0

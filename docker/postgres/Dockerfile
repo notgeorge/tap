@@ -25,7 +25,9 @@ ARG TAP_FIPS=1
 # ============================================================================
 # ossl-builder — compile the validated OpenSSL 3.0.9 FIPS provider (fips.so)
 # ============================================================================
-FROM cgr.dev/chainguard/wolfi-base AS ossl-builder
+# Pinned tag@digest (req-cicd-base-image-lifecycle-1) — bump together with the root
+# Dockerfile's pins (procedure documented there).
+FROM cgr.dev/chainguard/wolfi-base:latest@sha256:1454fe554abc89f10a43cabc290d8d61941d7e81c9778b408894aaba27d398a1 AS ossl-builder
 RUN apk add --no-cache build-base perl linux-headers curl
 WORKDIR /build
 RUN curl -fsSL https://github.com/openssl/openssl/releases/download/openssl-3.0.9/openssl-3.0.9.tar.gz -o o.tgz \
@@ -36,7 +38,7 @@ RUN ./Configure enable-fips && make -j"$(nproc)" && make install_fips
 # ============================================================================
 # base — Postgres 16 runtime (identical for both FIPS modes)
 # ============================================================================
-FROM cgr.dev/chainguard/wolfi-base AS base
+FROM cgr.dev/chainguard/wolfi-base:latest@sha256:1454fe554abc89f10a43cabc290d8d61941d7e81c9778b408894aaba27d398a1 AS base
 
 # postgresql-16 + client (pg_isready/psql for the healthcheck + pg_dump), the oci-entrypoint
 # (canonical docker-library entrypoint), gosu (privilege drop root→postgres, as the official

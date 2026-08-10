@@ -1776,3 +1776,43 @@ def test_validate_grift_document_flags_structural_error():
     issues = validate_grift_document(_minimal_doc([{"deletes": []}]))
     assert issues, "expected a schema validation issue for a malformed batch"
     assert all(i.phase == "schema" for i in issues)
+
+
+# ---------------------------------------------------------------------------
+# Importer null semantics mirror the service write path
+# (req-grid-service-write-observation-2). Regression for the 2026-08-10 field
+# collector rejection: the importer validated RAW payloads, so an explicit null
+# on a known non-null field (a collector's graceful-missing None — e.g. an AWS
+# response field the API omitted) was rejected here while the service layer,
+# which runs _prepare_null_payload before validating, would have accepted the
+# very same payload at write time.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestImporterNullSemantics:
+    def test_null_on_known_optional_non_null_field_is_dropped_and_imports(self):
+        nid = _node_entity_id()
+        node = _character_node(nid, name="Samwise")
+        # The live shape: an optional boolean the source omitted (AWS leaves
+        # RotationEnabled off never-rotated secrets), projected as explicit None.
+        node["node"]["is_open"] = None
+        result = grift_import(_minimal_doc([_batch_container(_batch_entity_id(), nodes=[node])]))
+        assert result.success, [f"{i.code}: {i.message}" for i in result.errors]
+        assert Entity.objects.filter(pk=uuid.UUID(nid)).exists()
+
+    def test_null_on_required_field_still_rejected_as_missing(self):
+        # Dropping the null makes the field ABSENT — a required field then fails
+        # required-validation, exactly as the service write path would fail it.
+        node = _character_node(_node_entity_id())
+        node["node"]["description"] = None
+        result = grift_import(_minimal_doc([_batch_container(_batch_entity_id(), nodes=[node])]))
+        assert not result.success
+        assert any("required" in i.message for i in result.errors)
+
+    def test_null_on_unknown_field_still_rejected(self):
+        node = _character_node(_node_entity_id())
+        node["node"]["stranger"] = None  # unknown key: additionalProperties must still fire
+        result = grift_import(_minimal_doc([_batch_container(_batch_entity_id(), nodes=[node])]))
+        assert not result.success
+        assert any(i.code == "payload_validation_failed" for i in result.errors)

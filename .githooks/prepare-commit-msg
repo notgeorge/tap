@@ -1,0 +1,14 @@
+#!/usr/bin/env sh
+# Append the committer's DCO Signed-off-by trailer when absent (CONTRIBUTING
+# "Sign-Off"). The certification is the act of reviewing and submitting the
+# contribution — this hook is only the mechanical trailer, per that section.
+# Merge commits are exempt by DCO convention, which keeps the promote flow's
+# pre-push merges clean.
+#   $1 = commit-message file, $2 = source (message|template|merge|squash|commit)
+[ "$2" = "merge" ] && exit 0
+name="$(git config user.name)"
+email="$(git config user.email)"
+[ -n "$name" ] && [ -n "$email" ] || exit 0
+git interpret-trailers --in-place \
+    --trailer "Signed-off-by: $name <$email>" \
+    --if-exists addIfDifferent -- "$1"

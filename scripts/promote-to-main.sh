@@ -8,8 +8,13 @@
 #   1. Fetch origin/main.
 #   2. Pre-push merge of origin/main into the session branch (surfaces real
 #      conflicts in the session worktree, the right place to resolve them).
-#   3. Atomic dual-refspec push: advance origin/main AND origin/session/<name>
-#      in one operation so neither lands without the other.
+#   3. PR promote (req-cicd-branch-protection PR flow): push the session branch,
+#      open/update the promote PR, run the local fast lane in the shadow of the
+#      server-side checks, then ARM auto-merge only after local green — the
+#      server (required `gate` check incl. the CI cold-boot/lean-boot jobs)
+#      decides the landing. Direct atomic push survives ONLY as the
+#      bootstrap/skip-hatch path (cloud gate inactive), where it rides the
+#      admin bypass loudly.
 #   4. Sync the primary worktree (git -C ~/tap-sessions/main pull --ff-only)
 #      so the local main ref the next spawn branches from is current.
 #
@@ -154,6 +159,12 @@ CI_DISPATCH_ARGS=()
 # every step handles its own failure with an explicit `|| return 1`.
 run_local_gates() {
   local mode="$1"
+  # DCO sign-off trailers (req-cicd-dco-signoff) — host-side and cheap, so it runs
+  # first, before the stack even matters. REPORT-ONLY until CONTRIBUTING.md lands
+  # as repo policy; the flip is TAP_DCO_ENFORCE=1 here and in the product-lines
+  # `dco` job. Merge + bot commits exempt (the promote's pre-push merge stays clean).
+  info "DCO sign-off trailer check (scripts/check-dco; report-only until CONTRIBUTING lands) ..."
+  scripts/check-dco || return 1
   if ! scripts/dc ps --status running --services 2>/dev/null | grep -qx web; then
     warn "Validation gate requires this session's stack to be up (scripts/dc up -d)."
     return 1
@@ -175,128 +186,116 @@ run_local_gates() {
     info "Local pytest — FAST lane (scripts/test --fast; cloud gate owns the full corpus incl. gryphon) ..."
     scripts/test --fast || return 1
   fi
-  # Cold-boot gate — a cold boot from zero, per-profile resolution, real backend/health.
-  # Boots the full `test_all` union, so it is inherently a FULL-install check; on a
-  # focused session it SKIPS via --skip-if-not-installable and the cloud lane owns full
-  # cold-boot truth (req-dev-validation-all-plugins-lane). On a full stack it runs.
-  info "Local pytest GREEN. Cold-boot gate (scripts/gate; skips on a focused stack) ..."
-  scripts/gate --skip-if-not-installable || return 1
-  # Lean-boot independence — catches a core module importing a plugin-only dependency
-  # (requests/jwt class) in an isolated core-only venv where the leak fails loud; the
-  # cold-boot gate's full venv hides it (req-dev-validation-lean-boot).
-  info "Cold-boot gate GREEN. Lean-boot independence gate (scripts/gate-lean) ..."
-  scripts/gate-lean || return 1
-  info "Local gates GREEN (pytest + cold-boot + lean-boot)."
+  # Boot gates: since 2026-08-10 the cold-boot + lean-boot gates run as REQUIRED
+  # CI jobs (product-lines.yml, aggregated into `gate`) — the server owns boot
+  # truth, so the local copies are OPTIONAL fast feedback, not authorities. In
+  # `full` mode (cloud inactive → local is the sole authority) they still run;
+  # in `fast` mode they are skipped unless TAP_PROMOTE_LOCAL_BOOT_GATES=1.
+  if [[ "$mode" == "full" || "${TAP_PROMOTE_LOCAL_BOOT_GATES:-0}" == "1" ]]; then
+    info "Local pytest GREEN. Cold-boot gate (scripts/gate; skips on a focused stack) ..."
+    scripts/gate --skip-if-not-installable || return 1
+    info "Cold-boot gate GREEN. Lean-boot independence gate (scripts/gate-lean) ..."
+    scripts/gate-lean || return 1
+    info "Local gates GREEN (pytest + cold-boot + lean-boot)."
+  else
+    info "Local pytest GREEN. Boot gates are CI-owned (cold-boot + lean-boot jobs, REQUIRED via gate); TAP_PROMOTE_LOCAL_BOOT_GATES=1 also runs them here."
+  fi
   return 0
 }
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
-  info "[dry-run] would: dispatch $CI_WORKFLOW (line=test_all) on the merged tree, run the local gates (scripts/test --fast + cold-boot + lean-boot) CONCURRENTLY in its shadow, JOIN on the cloud run, and push only if both are green. When the cloud gate is bootstrap/skipped, would run the FULL local lane (--gryphon) as the sole authority instead."
+  info "[dry-run] would: push $BRANCH, open/update the promote PR, run the local fast lane in the shadow of the server checks (product-lines: test_all lane + cold-boot + lean-boot + api-fuzz), then arm auto-merge and wait for the server to land it. Bootstrap/skip-hatch would run the FULL local lane and direct-push (admin bypass, loud)."
 else
-  # --- Decide the cloud gate's disposition. ---
+  # --- Decide the disposition: PR flow (default) vs direct (bootstrap/skip). ---
   CLOUD_ACTIVE=0
   if ! git cat-file -e "origin/main:.github/workflows/$CI_WORKFLOW" 2>/dev/null; then
-    warn "Cloud gate workflow ($CI_WORKFLOW) not yet on origin/main — bootstrap promote, cloud gate SKIPPED."
-    warn "The local FULL lane is the sole authority for this one promote. Every promote after is cloud-gated."
+    warn "Gate workflow ($CI_WORKFLOW) not yet on origin/main — bootstrap promote: local FULL lane + direct push."
   elif [[ "${TAP_PROMOTE_SKIP_CI_GATE:-0}" == "1" ]]; then
-    warn "TAP_PROMOTE_SKIP_CI_GATE=1 — SKIPPING the cloud gate. The local FULL lane is the authority."
-    warn "Only this stack's installed plugin subset is validated locally; do this only when the full set is known green another way."
+    warn "TAP_PROMOTE_SKIP_CI_GATE=1 — local FULL lane + direct push (admin bypass, loud). Only when the full set is known green another way."
   else
-    # Cloud gate SHOULD run — require gh (fail-closed: never silently downgrade to a
-    # possibly-focused local stack when cloud validation was expected).
-    command -v gh >/dev/null 2>&1 || fail "Cloud gate is live (workflow on origin/main) but 'gh' is not installed/on PATH. Install+auth gh, or set TAP_PROMOTE_SKIP_CI_GATE=1 if the full set is validated another way."
-    gh repo view --json nameWithOwner -q .nameWithOwner >/dev/null 2>&1 || fail "gh could not resolve the repo (auth?). Run 'gh auth login' (needs the 'workflow' scope)."
+    command -v gh >/dev/null 2>&1 || fail "PR promote requires gh. Install+auth gh, or set TAP_PROMOTE_SKIP_CI_GATE=1 if the full set is validated another way."
+    gh repo view --json nameWithOwner -q .nameWithOwner >/dev/null 2>&1 || fail "gh could not resolve the repo (auth?)."
     CLOUD_ACTIVE=1
   fi
 
   if [[ "$CLOUD_ACTIVE" -eq 0 ]]; then
-    # --- Serial: local FULL lane is the sole authority (bootstrap / skip-hatch). ---
-    bold "Development-validation gate on the merged tree (local FULL lane — cloud gate inactive)"
+    # --- Direct path (bootstrap / skip-hatch): local FULL lane is sole authority. ---
+    bold "Development-validation gate on the merged tree (local FULL lane — server gate inactive/skipped)"
     run_local_gates full || fail "Local validation RED — aborting promote. origin/main is NOT advanced (req-dev-validation-promote-hook-2). Fix and re-run."
-    info "Validation GREEN — proceeding to push."
+    bold "Direct atomic push: origin/main and origin/$BRANCH (bypass path)"
+    PUSH_OUT="$(git push --atomic origin "$BRANCH:main" "$BRANCH:$BRANCH" 2>&1)" \
+      || { printf '%s\n' "$PUSH_OUT"; fail "Atomic push failed."; }
+    printf '%s\n' "$PUSH_OUT"
+    if grep -q "Bypassed rule violations" <<<"$PUSH_OUT"; then
+      warn "ADMIN BYPASS carried this direct push (expected on the bootstrap/skip path — req-cicd-branch-protection)."
+    fi
   else
-    # --- Parallel: kick off the cloud gate, run local gates in its shadow, join. ---
-    bold "Parallel validation gate (cloud CodeBuild lane + local gates overlap)"
-    TIP="$(git rev-parse HEAD)"
-    CI_REF="_ci-gate/$SESSION"
-    info "Publishing merged tree to origin/$CI_REF (throwaway ref) for the cloud gate ..."
-    git push -f origin "HEAD:refs/heads/$CI_REF" >/dev/null 2>&1 || fail "Could not publish the CI ref origin/$CI_REF."
-    # Clean the throwaway ref up on ANY exit path from here on.
-    _ci_cleanup() { git push origin --delete "$CI_REF" >/dev/null 2>&1 || true; }
-    trap _ci_cleanup EXIT
-    info "Dispatching $CI_WORKFLOW on $CI_REF ($TIP) ..."
-    # Snapshot the time just before dispatch. A re-promote of the SAME commit (e.g. after a
-    # transient gate red) leaves STALE runs with the identical headSha; since workflow_dispatch
-    # returns no run id, a naive "newest run for this SHA" polled right after dispatch can grab
-    # one of those stale runs (the fresh one hasn't registered yet) and then abort on its old
-    # conclusion. Match only a run CREATED after this dispatch. 30s back-buffer absorbs
-    # GitHub/local clock skew (macOS `date -v`; GNU `date -d` fallback).
-    _ci_since="$(date -u -v-30S +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d '30 seconds ago' +%Y-%m-%dT%H:%M:%SZ)"
-    # Empty-array expansion under `set -u` on bash 3.2 (macOS) needs the +alt-value guard.
-    gh workflow run "$CI_WORKFLOW" --ref "$CI_REF" "${CI_DISPATCH_ARGS[@]+"${CI_DISPATCH_ARGS[@]}"}" >/dev/null 2>&1 || fail "Failed to dispatch $CI_WORKFLOW on $CI_REF (does the token carry the 'workflow' scope?)."
-    # workflow_dispatch does not return a run id — poll for OUR run (exact SHA, created after
-    # the dispatch snapshot), newest-wins if somehow more than one.
-    RUN_ID=""
-    for _ in $(seq 1 40); do
-      RUN_ID="$(gh run list --workflow "$CI_WORKFLOW" --branch "$CI_REF" --json databaseId,headSha,createdAt \
-                  -q "[.[] | select(.headSha==\"$TIP\" and .createdAt >= \"$_ci_since\")] | sort_by(.createdAt) | last | .databaseId" 2>/dev/null || true)"
-      [[ -n "$RUN_ID" && "$RUN_ID" != "null" ]] && break
-      sleep 5
-    done
-    [[ -n "$RUN_ID" && "$RUN_ID" != "null" ]] || fail "Could not locate the dispatched CI run for $TIP on $CI_REF."
-    info "Cloud gate running: $CI_WORKFLOW run $RUN_ID (~6-8 min). Running local gates underneath it ..."
+    # --- PR flow: the server's required checks (incl. CI boot gates) decide. ---
+    bold "PR promote: $BRANCH → PR → server gate → auto-merge"
 
-    # Local gates run NOW, concurrently with the cloud run. Fail-fast: a local red
-    # cancels the in-flight cloud run to save compute, then aborts.
-    if ! run_local_gates fast; then
-      warn "Local gates RED — cancelling in-flight cloud run $RUN_ID to save compute ..."
-      gh run cancel "$RUN_ID" >/dev/null 2>&1 || true
-      fail "Local gates RED — aborting promote. origin/main is NOT advanced (req-dev-validation-promote-hook-2). Fix and re-run."
+    # Re-promote safety FIRST: auto-merge arming persists across new pushes, so a
+    # stale arm from an earlier attempt would let the server merge fresh commits
+    # on cloud-green BEFORE our local gates run. Disarm before pushing anything.
+    PR_NUM="$(gh pr list --head "$BRANCH" --base main --state open --json number -q '.[0].number' 2>/dev/null || true)"
+    if [[ -n "$PR_NUM" && "$PR_NUM" != "null" ]]; then
+      gh pr merge --disable-auto "$PR_NUM" >/dev/null 2>&1 || true
+      info "Existing promote PR #$PR_NUM — auto-merge disarmed until this run's local gates pass."
     fi
 
-    # JOIN: local is green; now wait on the cloud run's REAL conclusion.
-    # NB: `gh run watch --exit-status` conflates "CI failed" with "gh itself errored" — a
-    # transient API blip (e.g. HTTP 401 mid-watch) exits non-zero and would false-abort a
-    # green run. Drive the poll ourselves: treat gh/API errors as transient (retry), and
-    # let only a completed non-success abort. Fail-closed — a timeout or sustained
-    # lost-contact still refuses to push.
-    info "Local gates GREEN — joining on cloud run $RUN_ID ..."
-    CI_CONCLUSION=""
-    _ci_errs=0
-    for _ in $(seq 1 240); do          # 240 * 15s = 60 min ceiling
-      _ci_line="$(gh run view "$RUN_ID" --json status,conclusion \
-                    -q '.status + "|" + (.conclusion // "")' 2>/dev/null || true)"
-      if [[ -z "$_ci_line" ]]; then
-        _ci_errs=$((_ci_errs + 1))
-        [[ "$_ci_errs" -ge 20 ]] && fail "Lost contact with GitHub polling cloud run $RUN_ID (20 consecutive errors) \
-— cannot confirm green, so refusing to push. origin/main is NOT advanced. Check gh auth; inspect: gh run view $RUN_ID"
-        sleep 15
-        continue
+    info "Pushing $BRANCH (server checks start now; local gates run in their shadow) ..."
+    git push --force-with-lease origin "$BRANCH:$BRANCH" >/dev/null 2>&1 || fail "Could not push $BRANCH."
+
+    if [[ -z "$PR_NUM" || "$PR_NUM" == "null" ]]; then
+      TIP="$(git rev-parse --short HEAD)"
+      gh pr create --head "$BRANCH" --base main \
+        --title "promote: $SESSION → main" \
+        --body "Session promote via scripts/promote-to-main.sh (PR flow). Tip: $TIP. Local fast lane runs promote-side; the required \\`gate\\` check (test_all lane + cold-boot + lean-boot CI jobs) decides the landing. Merge is armed only after local green." \
+        >/dev/null 2>&1 || true
+      PR_NUM="$(gh pr list --head "$BRANCH" --base main --state open --json number -q '.[0].number' 2>/dev/null || true)"
+      [[ -n "$PR_NUM" && "$PR_NUM" != "null" ]] || fail "Could not create/locate the promote PR for $BRANCH."
+      info "Opened promote PR #$PR_NUM."
+    fi
+
+    if ! run_local_gates fast; then
+      warn "Local gates RED — auto-merge stays DISARMED; PR #$PR_NUM remains open (server checks continue, nothing can land)."
+      fail "Local gates RED — aborting promote. origin/main is NOT advanced. Fix and re-run (same PR updates)."
+    fi
+
+    # FINALIZE: local green → arm. Both authorities must now be green to land.
+    info "Local gates GREEN — arming auto-merge (merge commit) on PR #$PR_NUM ..."
+    if ! gh pr merge "$PR_NUM" --auto --merge >/dev/null 2>&1; then
+      warn "Could not arm auto-merge (setting/API hiccup) — falling back to poll-and-merge."
+    fi
+
+    info "Waiting for the server to land PR #$PR_NUM (required checks: gate = test_all lane + cold-boot + lean-boot) ..."
+    MERGED=0
+    _pr_errs=0
+    for _i in $(seq 1 240); do          # 240 * 15s = 60 min ceiling
+      _line="$(gh pr view "$PR_NUM" --json state,mergeStateStatus -q '.state + "|" + .mergeStateStatus' 2>/dev/null || true)"
+      if [[ -z "$_line" ]]; then
+        _pr_errs=$((_pr_errs + 1))
+        [[ "$_pr_errs" -ge 20 ]] && fail "Lost contact with GitHub polling PR #$PR_NUM. Auto-merge stays armed — it lands server-side when checks pass. Inspect: gh pr view $PR_NUM"
+        sleep 15; continue
       fi
-      _ci_errs=0
-      if [[ "${_ci_line%%|*}" == "completed" ]]; then
-        CI_CONCLUSION="${_ci_line##*|}"
-        break
+      _pr_errs=0
+      case "${_line%%|*}" in
+        MERGED) MERGED=1; break ;;
+        CLOSED) fail "PR #$PR_NUM was closed without merging — aborting. Inspect: gh pr view $PR_NUM" ;;
+      esac
+      # Try the fallback merge whenever the server reports CLEAN (auto-merge normally beats us to it).
+      if [[ "${_line##*|}" == "CLEAN" ]]; then
+        gh pr merge "$PR_NUM" --merge >/dev/null 2>&1 || true
       fi
+      [[ $((_i % 8)) -eq 0 ]] && info "  still waiting (state=${_line%%|*}, checks=${_line##*|}) ..."
       sleep 15
     done
-    [[ "$CI_CONCLUSION" == "success" ]] || fail "Cloud gate not green (run $RUN_ID, \
-conclusion='${CI_CONCLUSION:-<timeout/unknown>}') — aborting promote. origin/main is NOT advanced \
-(req-dev-multisession-ci-gate-2). Inspect: gh run view $RUN_ID --log-failed"
-    info "Cloud gate GREEN (run $RUN_ID) + local gates GREEN — proceeding to push."
-    _ci_cleanup
-    trap - EXIT
+    if [[ "$MERGED" -ne 1 ]]; then
+      fail "PR #$PR_NUM did not merge within 60 min. Auto-merge is ARMED — it lands server-side when checks pass; origin/main advances then. Inspect: gh pr checks $PR_NUM"
+    fi
+    info "PR #$PR_NUM MERGED — origin/main advanced by the server on green checks."
+    git fetch origin main >/dev/null 2>&1 || true
   fi
 fi
-
-# ---------------------------------------------------------------------------
-# Step 3: atomic dual-refspec push (req-dev-multisession-push-workflow-3).
-# Without --atomic the server may apply each refspec independently — a non-FF
-# on one ref could still leave the other update applied. With --atomic, both
-# refs advance or neither does.
-# ---------------------------------------------------------------------------
-bold "Atomic push: origin/main and origin/$BRANCH"
-dry git push --atomic origin "$BRANCH:main" "$BRANCH:$BRANCH"
 
 # ---------------------------------------------------------------------------
 # Step 4: sync the primary worktree (req-dev-multisession-push-workflow-4).

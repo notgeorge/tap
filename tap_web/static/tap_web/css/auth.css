@@ -79,6 +79,20 @@
   margin: 0 0 1.25rem;
   font-size: 0.95rem;
 }
+/* Wrong-origin signpost (req-tap-auth-passkey-rollout-6): shown when the request
+ * origin is one the passkey ceremony will refuse (e.g. the labeled
+ * <session>.tap.localhost dev alias). Deliberately louder than .tap-auth-sub —
+ * it names the only way forward. */
+.tap-auth-banner {
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 0.5rem;
+  color: #92400e;
+  line-height: 1.6;
+  font-size: 0.9rem;
+  padding: 0.75rem 1rem;
+  margin: 0 0 1.25rem;
+}
 .tap-auth-who {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   color: #334155;
@@ -91,8 +105,13 @@
 /* allauth's "…please sign up first" invitation does not fit TAP's closed-signup
  * model (public self-signup is disabled — TapAccountAdapter). Hide it: it is the
  * only DIRECT-child <p> of the card; the form's field rows are <p> INSIDE <form>,
- * so this selector hits only the invite, not the fields. */
-.tap-auth-card > p { display: none; }
+ * so this selector hits only the invite, not the fields. The :not([class]) guard
+ * is load-bearing: allauth's invite is classless element output, while every
+ * TAP-authored paragraph carries a class — without the guard this rule silently
+ * blanked the passkey page's intro copy, its #status line (every failure message
+ * wrote into an invisible element — "the button does nothing"), and the password
+ * fallback link. */
+.tap-auth-card > p:not([class]) { display: none; }
 
 /* "Or use a third-party" heading → quiet divider-with-rules label */
 .tap-auth-card h2 {

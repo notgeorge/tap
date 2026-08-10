@@ -31,8 +31,10 @@ perfectly shardable — the fixed tax you pay per shard is tiny — and (b) the 
 Postgres-I/O-bound (workers block on DB round-trips; the workflow comments already say
 this), so *more independent Postgres instances* helps more than *more cores on one
 box*. The image-layer cache is real and load-bearing: the ~40s build is a cache hit
-(`cache-from/to type=gha`, landed on main in `f051ba9e`); a cold build of the non-stock
-Python 3.14 image is minutes. The ~100s tax already assumes the cache hits.
+(`cache-from/to type=gha`, landed on main in `f051ba9e`; since 2026-08-09 a registry
+`buildcache-*` ref on GHCR is the second `cache-from`, catching GHA-cache eviction and
+day-one misses); a cold build of the non-stock Python 3.14 image is minutes. The ~100s
+tax already assumes the cache hits.
 
 ## Baseline cost (the "cheaper" hypothesis has no room)
 

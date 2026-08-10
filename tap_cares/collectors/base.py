@@ -301,7 +301,14 @@ class CollectorBase(ABC):
         self._produced_batches.extend((str(b.batch_entity_id), "skipped") for b in result.skipped_batches)
 
         if result.errors and on_rejection == "abort":
-            issues = "; ".join(f"{getattr(i, 'code', '?')}: {getattr(i, 'message', '')}" for i in result.errors[:5])
+            # Name the offender: the importer's issues carry entity_type + path —
+            # a condensed message without them ("'tags' was unexpected", but on
+            # WHICH node?) turns a one-line fix into an archaeology session.
+            issues = "; ".join(
+                f"{getattr(i, 'code', '?')}: {getattr(i, 'message', '')}"
+                f" [{getattr(i, 'entity_type', None) or '?'} at {getattr(i, 'path', None) or '?'}]"
+                for i in result.errors[:5]
+            )
             message = (
                 f"GRIFT import rejected the batch with {len(result.errors)} " f"error(s); nothing landed: {issues}"
             )
