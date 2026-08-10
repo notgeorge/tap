@@ -102,9 +102,14 @@ Status: `Implemented`
 Implemented as `tap/dev_workspace.py` (pure stdlib, host-runnable venv-free, reusing
 `tap.boot_pointer`'s credential + `GIT_ASKPASS` helpers) + `spawn-session.sh --dev-plugins`
 wiring (mirrors `--from`). Unit-tested (`tap/tests/test_dev_workspace.py`) and proven by a real
-spawn (see `req-dev-workspace-model` Status Details). Since 2026-08-09 the base may also be a
-`--from` pointer (`req-dev-workspace-spawn-6`): spawn stages the pointer's record before the
-derivation runs, so the staged record IS the base profile — no change to the derivation itself.
+spawn (see `req-dev-workspace-model` Status Details). Since 2026-08-09 the base may take any of
+**three forms**, staged before the derivation runs so the staged record IS the base profile — no
+change to the derivation itself: a repo-local profile (positional/`--boot`), a `--from` pointer
+(`req-dev-workspace-spawn-6`, stage-0 fetched + digest-verified — the durable/versioned tier), or
+a `--boot-file` path (`req-dev-workspace-spawn-7`, staged as-is under its basename id — the
+trusted-local-file tier, serving the fork-cutover dev flow: an adopter edits their fork's
+in-package record to point the dev slug at their own repo with rev-as-BRANCH, and works editable
+against it with no release/digest ceremony; `clone_editable` resolves branch revs).
 
 `spawn-session.sh` gains a `--dev-plugins <slug[,slug...]>` option that stands up a workspace
 in one command, extending the existing spawn lifecycle (`req-dev-multisession-spawn-script`).
@@ -164,6 +169,7 @@ is no install list to select from), matching the slug-absent fail-closed posture
 | req-dev-workspace-spawn-3 | Rest Stay Pinned | Proposed | Non-named plugins in the base profile remain git-pinned at their tags. | The override is the named subset only. |
 | req-dev-workspace-spawn-4 | Composes With A Base Profile | Proposed | `--dev-plugins` overrides a base profile's named subset to editable; bare use (no base at all) is an error, not a silent default. | |
 | req-dev-workspace-spawn-6 | Composes With A Pointer Base | Implemented | `--dev-plugins` composes with `--from <pointer>`: the stage-0-staged (digest-verified) record is the base profile; the derivation runs over it unchanged, and a slug absent from the pointed-at record fails with the same slug-absent error. | Built 2026-08-09; closes the samsite-rehome residual. |
+| req-dev-workspace-spawn-7 | Composes With A Boot-File Base | Implemented | `--dev-plugins` composes with `--boot-file <path>`: the file is staged as-is under its basename id (the trusted-local-file tier — no digest ceremony by existing contract) and the derivation runs over it unchanged; a `rev` naming a branch clones at that branch (the fork-cutover dev flow). | Built 2026-08-10; the everyday tier beside spawn-6's versioned one. |
 
 ### The Inner Loop
 ----
