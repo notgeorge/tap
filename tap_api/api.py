@@ -9,6 +9,7 @@ from ninja import NinjaAPI
 
 from tap.flaws import HANDLING_REFUSE_BOOT, AppFlaw
 from tap_api.auth import session_auth
+from tap_api.parsing import NulForbiddingParser
 from tap_api.routers.edges import router as edges_router
 from tap_api.routers.entities import router as entities_router
 from tap_api.routers.entity_types import router as entity_types_router
@@ -22,6 +23,10 @@ api = NinjaAPI(
     title="TAP API",
     version="1",
     urls_namespace="tap-api",
+    # Every JSON body / query param / form field passes through the parser —
+    # NUL rejection lives there so no route (core or plugin) can carry U+0000
+    # into a PostgreSQL write or filter (psycopg DataError = 500 otherwise).
+    parser=NulForbiddingParser(),
 )
 
 # Core routers — auth applied at mount time so TestClient(router) bypasses auth
