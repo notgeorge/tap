@@ -43,6 +43,12 @@ class TestExecuteSearch:
             content_type="application/json",
         )
         assert response.status_code == 422
+        response = logged_in_client.post(
+            f"/api/v1/searches/{uuid.uuid4()}/execute",
+            data={"offset": 10**33},
+            content_type="application/json",
+        )
+        assert response.status_code == 422
 
     def test_happy_path_empty(self, logged_in_client):
         search = _orm_character_search()

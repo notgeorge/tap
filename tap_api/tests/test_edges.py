@@ -63,6 +63,7 @@ class TestListEdges:
         assert logged_in_client.get("/api/v1/edges/?limit=-5").status_code == 422
         assert logged_in_client.get("/api/v1/edges/?offset=-5").status_code == 422
         assert logged_in_client.get("/api/v1/edges/?limit=1001").status_code == 422
+        assert logged_in_client.get(f"/api/v1/edges/?offset={10**33}").status_code == 422
 
 
 @pytest.mark.django_db
