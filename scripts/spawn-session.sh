@@ -1203,6 +1203,39 @@ echo
 # ============================================================================
 case "$LAUNCH_TARGET" in
   cli)
+    # The exec below REPLACES this process with the claude REPL, which takes over
+    # the terminal — the access summary above would scroll away unrecoverably. So:
+    # persist the access block to a file in the worktree first, then (interactive
+    # runs only) pause so the human can read/copy before attaching. The /launch-ui
+    # skill reopens the web UI from inside the session any time after.
+    SESSION_INFO_FILE="$WORKTREE/logs/session-info.txt"
+    cat > "$SESSION_INFO_FILE" <<EOF
+TAP session '$SESSION_NAME' — access info (written by spawn-session.sh, $(date -u +%Y-%m-%dT%H:%M:%SZ))
+
+URLs
+  Labeled:   http://$SESSION_NAME.tap.localhost:$WEB_PORT/
+  Direct:    http://localhost:$WEB_PORT/
+  Admin URL: http://$SESSION_NAME.tap.localhost:$WEB_PORT/admin/
+
+Admin credentials
+  Username:  admin
+  Password:  saved to $WORKTREE/.dev-credentials (gitignored; read with cat)
+
+Secrets mount:  $WORKTREE/tap_secrets -> container /run/tap-secrets (read-only)
+Standup log:    $WORKTREE/logs/spawn.log
+Boot profile:   $BOOT_PROFILE_EFFECTIVE
+
+Reopen the web UI from inside the session any time: /launch-ui
+Smoke tests:    specs/spec-dev-multisession-smoketest.md
+EOF
+    info "Session info saved to $SESSION_INFO_FILE"
+    # Pause ONLY on a real terminal: scripted/CI/gate-lean invocations (no tty on
+    # stdin) must never hang here. `read` from a non-tty would consume piped stdin
+    # or return immediately — skipping it entirely keeps those paths exec-clean.
+    if [[ -t 0 ]]; then
+      echo
+      read -r -p "    Press Enter to attach Claude Code (info saved to logs/session-info.txt; reopen the UI anytime with /launch-ui) ... "
+    fi
     bold "Launching Claude Code in $WORKTREE..."
     cd "$WORKTREE"
     # Name the session after the worktree label so it's recognizable without a

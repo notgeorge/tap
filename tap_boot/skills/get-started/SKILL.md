@@ -102,9 +102,12 @@ edges are wanted; make filing feel like contributing.
 
 ## Step 6 — Walk them in the door
 
-From the script's final summary:
+From the script's final summary (with the `cli` launch target the same access block
+is saved to `logs/session-info.txt`, and `/launch-ui` reopens the web UI from inside
+the session any time later — no need to scroll back):
 
-1. Open the labeled URL (`http://<name>.tap.localhost:<port>/`). First login is
+1. Open the labeled URL (`http://<name>.tap.localhost:<port>/`) — or just invoke
+   `/launch-ui`, which verifies the stack and opens the browser for them. First login is
    **username `admin` + the password from `.dev-credentials`** — the spawn may have
    already registered a dev passkey (it says so); otherwise enroll one from the
    authenticated session.
