@@ -290,15 +290,15 @@ conclusion='${CI_CONCLUSION:-<timeout/unknown>}') — aborting promote. origin/m
 fi
 
 # ---------------------------------------------------------------------------
-# Step 2.9: the push must pass the main ruleset on MERIT, not admin bypass
-# (req-cicd-branch-protection, ladder rungs 1-2). The ruleset requires a green
-# "gate" check on the pushed SHA. A cancelled earlier cloud attempt leaves a
-# FAILED duplicate "gate" check on the SAME commit (observed 2026-08-10:
-# attempt-1 cancel + attempt-2 green -> the server evaluated the duplicates as
-# a violation and the push landed only via the admin-role bypass). Assert the
-# LATEST "gate" check is green before pushing, while origin/main is untouched.
-# When the cloud gate was skipped (bootstrap / skip-hatch) no check exists and
-# bypass is the accepted, documented mechanism - the assertion is scoped out.
+# Step 2.9: red-gate abort (req-cicd-branch-protection-4). Checks earned by the
+# cloud run on the throwaway _ci-gate ref do NOT satisfy ruleset evaluation for
+# a direct push to main (proven 2026-08-10: a lone green check still evaluated
+# as a violation) — so this preflight cannot make the push "pass on merit"; the
+# admin bypass is structural until the PR-flow rework. What it DOES do: abort,
+# with origin/main untouched, if the latest "gate" check on the pushed SHA is
+# red, pending, or missing — the class of mistake the bypass would otherwise
+# silently wave through. When the cloud gate was skipped (bootstrap/skip-hatch)
+# no check exists and bypass is the documented mechanism - assertion scoped out.
 # ---------------------------------------------------------------------------
 if [[ "${CLOUD_ACTIVE:-0}" == "1" && "$DRY_RUN" -ne 1 ]]; then
   PUSH_SHA="$(git rev-parse "$BRANCH")"
@@ -306,11 +306,11 @@ if [[ "${CLOUD_ACTIVE:-0}" == "1" && "$DRY_RUN" -ne 1 ]]; then
     --jq '[.check_runs[]] | sort_by(.started_at) | last | (.conclusion // "pending")' 2>/dev/null || echo "unqueryable")"
   case "$LATEST_GATE" in
     success)
-      info "Ruleset preflight: latest 'gate' check on $PUSH_SHA is green — push passes on merit." ;;
+      info "Ruleset preflight: latest 'gate' check on $PUSH_SHA is green. (The push itself still rides the admin bypass — throwaway-ref checks never satisfy the ruleset; see req-cicd-branch-protection.)" ;;
     unqueryable)
       warn "Ruleset preflight: check-runs unqueryable (gh/API hiccup) — proceeding; watch for a 'Bypassed rule violations' line below." ;;
     *)
-      fail "Ruleset preflight: latest 'gate' check on $PUSH_SHA is '$LATEST_GATE', not success — the push would land only via admin bypass. Re-run, or inspect: gh api repos/{owner}/{repo}/commits/$PUSH_SHA/check-runs" ;;
+      fail "Ruleset preflight: latest 'gate' check on $PUSH_SHA is '$LATEST_GATE', not success — refusing to push over a red/missing gate. Re-run, or inspect: gh api repos/{owner}/{repo}/commits/$PUSH_SHA/check-runs" ;;
   esac
 fi
 
