@@ -97,7 +97,7 @@ dev = [
     "black>=24.0,<27",
     # Linting
     # Ruff is a fast Python linter written in Rust, replaces flake8/isort/etc
-    "ruff>=0.8,<0.16",
+    "ruff>=0.16,<0.17",
     # Type Checking
     # Mypy catches type errors before runtime
     # django-stubs provides type hints for Django's internals
@@ -107,7 +107,7 @@ dev = [
     # own Renovate range-bump PR with a deliberate fix-vs-baseline triage —
     # never inside a routine lockfile refresh. (Same treatment as ruff, whose
     # 0.x bound achieves this naturally.)
-    "mypy>=1.13,<1.20",
+    "mypy>=1.20,<1.21",
     "django-stubs>=5.1,<6",
     # Testing
     # pytest is the modern Python test framework

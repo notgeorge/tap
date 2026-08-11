@@ -29,12 +29,21 @@ from playwright.sync_api import sync_playwright
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--url", required=True, help="Full URL to load, e.g. http://localhost:8030/administrivia/batches")
-    ap.add_argument("--session", default="", help="Django sessionid cookie value (from mint_session.py); omit for public pages")
+    ap.add_argument(
+        "--session", default="", help="Django sessionid cookie value (from mint_session.py); omit for public pages"
+    )
     ap.add_argument("--host", default="localhost", help="Cookie domain (default: localhost)")
-    ap.add_argument("--tz", default="America/New_York", help="IANA timezone the browser reports (default: America/New_York)")
+    ap.add_argument(
+        "--tz", default="America/New_York", help="IANA timezone the browser reports (default: America/New_York)"
+    )
     ap.add_argument("--select", default="time", help="CSS selector to dump text/title/datetime for (default: time)")
     ap.add_argument("--shot", default="", help="Full-page screenshot output path (.png); omit to skip")
-    ap.add_argument("--wait-ms", type=int, default=1500, help="Extra settle time after networkidle for JS formatters (default: 1500)")
+    ap.add_argument(
+        "--wait-ms",
+        type=int,
+        default=1500,
+        help="Extra settle time after networkidle for JS formatters (default: 1500)",
+    )
     args = ap.parse_args()
 
     with sync_playwright() as p:

@@ -209,9 +209,7 @@ class TestDiscardedLanes:
         )
         split = parse_envelope_for_write(env)
         for key in ("created_at", "updated_at", "deleted_at", "version"):
-            assert key not in split.entity_payload, (
-                f"framework-managed field {key} leaked into entity_payload"
-            )
+            assert key not in split.entity_payload, f"framework-managed field {key} leaked into entity_payload"
 
 
 # ---------------------------------------------------------------------------

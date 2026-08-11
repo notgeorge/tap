@@ -31,8 +31,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 # Block Django at the meta-path, import the structure-validation entry point, and
 # actually RUN it against a real plugin — importability alone would miss a lazy import
 # on the execution path.
-_PROBE = textwrap.dedent(
-    """
+_PROBE = textwrap.dedent("""
     import sys
 
     class _NoDjango:
@@ -54,8 +53,7 @@ _PROBE = textwrap.dedent(
 
     result = validate_plugin(Path(sys.argv[1]), level="structure", strict=True)
     print("OK" if result.ok else "VALIDATION_FAILED", result.to_human())
-    """
-)
+    """)
 
 
 def _fixture_plugin() -> Path:
@@ -84,7 +82,11 @@ def test_structure_validation_runs_without_django() -> None:
 def test_probe_actually_blocks_django() -> None:
     """Guard the guard — a probe that silently permits Django would test nothing."""
     proc = subprocess.run(
-        [sys.executable, "-c", _PROBE.replace("from tap_plugins.validate.service", "import django\n    from tap_plugins.validate.service")],
+        [
+            sys.executable,
+            "-c",
+            _PROBE.replace("from tap_plugins.validate.service", "import django\n    from tap_plugins.validate.service"),
+        ],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
@@ -99,12 +101,9 @@ def test_identity_module_imports_no_third_party() -> None:
     offenders = [
         line.strip()
         for line in source.splitlines()
-        if line.startswith(("import ", "from "))
-        and not line.startswith("from __future__")
+        if line.startswith(("import ", "from ")) and not line.startswith("from __future__")
     ]
-    assert not offenders, (
-        f"tap/plugin_identity.py must import nothing but the standard library; found: {offenders}"
-    )
+    assert not offenders, f"tap/plugin_identity.py must import nothing but the standard library; found: {offenders}"
 
 
 def test_preboot_still_exports_the_identity_symbols() -> None:

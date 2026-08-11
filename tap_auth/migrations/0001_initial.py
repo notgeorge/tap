@@ -4,9 +4,10 @@ import django.contrib.auth.models
 import django.contrib.auth.validators
 import django.db.models.deletion
 import django.utils.timezone
-import tap_auth.models
 from django.conf import settings
 from django.db import migrations, models
+
+import tap_auth.models
 
 
 class Migration(migrations.Migration):
@@ -217,9 +218,7 @@ class Migration(migrations.Migration):
                 ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
                 (
                     "provider_id",
-                    models.CharField(
-                        help_text="Stable provider natural key, e.g. 'example-google'.", max_length=64
-                    ),
+                    models.CharField(help_text="Stable provider natural key, e.g. 'example-google'.", max_length=64),
                 ),
                 ("provider_type", models.CharField(help_text="Provider type, e.g. 'google_oidc'.", max_length=32)),
                 (

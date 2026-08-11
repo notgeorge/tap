@@ -224,5 +224,3 @@ class TestPageFullValidate:
         with pytest.raises(ValidationError) as exc_info:
             page.full_validate()
         assert "layout" in exc_info.value.message_dict
-
-

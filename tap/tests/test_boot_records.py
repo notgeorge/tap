@@ -42,7 +42,7 @@ def _make_plugin(
     lines = [f'slug = "{slug}"\n']
     if declare is not None:
         for name, sha in declare.items():
-            lines += ["\n[[boot.records]]\n", f'name = "{name}"\n', f'description = "d"\n', f'sha256 = "{sha}"\n']
+            lines += ["\n[[boot.records]]\n", f'name = "{name}"\n', 'description = "d"\n', f'sha256 = "{sha}"\n']
     toml_path.write_text("".join(lines), encoding="utf-8")
     return toml_path
 
@@ -130,7 +130,7 @@ def _make_dev_plugin(
     lines = [f'slug = "{slug}"\n']
     if declare is not None:
         for name, sha in declare.items():
-            lines += ["\n[[boot.records]]\n", f'name = "{name}"\n', f'description = "d"\n', f'sha256 = "{sha}"\n']
+            lines += ["\n[[boot.records]]\n", f'name = "{name}"\n', 'description = "d"\n', f'sha256 = "{sha}"\n']
     toml_path.write_text("".join(lines), encoding="utf-8")
     return toml_path
 
