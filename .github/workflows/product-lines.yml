@@ -1,20 +1,23 @@
 # Per-product-line CI lanes (spec-dev-validation.md req-dev-validation-product-line-lanes).
 #
-# Each product line is a boot profile validated on its OWN AWS CodeBuild GitHub Actions
-# runner (provisioned by ci/terraform/codebuild-runners/). The lane boots that line's
-# profile, clones a per-profile pre-migrated template DB (fast + race-free setup, see
-# TAP_TEST_DB_TEMPLATE / scripts/build-test-template), and runs that line's tests. Lines
-# run in parallel; parallelism is along the meaningful product axis, not arbitrary shards.
+# Each product line is a boot profile validated on its own free GitHub-hosted runner
+# (ubuntu-latest, 4 vCPU). The lane boots that line's profile, clones a per-profile
+# pre-migrated template DB (fast + race-free setup, see TAP_TEST_DB_TEMPLATE /
+# scripts/build-test-template), and runs that line's tests. Lines run in parallel;
+# parallelism is along the meaningful product axis, not arbitrary shards.
 #
-# Runner label: `codebuild-<project>-<run_id>-<run_attempt>` where <project> is
-# `tap-ci-<line>` (Terraform `runner_labels` output). Adding a line = add a matrix entry
-# here AND a `product_lines` entry in the Terraform.
+# RUNNER HISTORY: lanes ran on per-line AWS CodeBuild runners (8 vCPU,
+# ci/terraform/codebuild-runners/) until the measured free-runner spike showed the
+# identical job at ~9 min vs ~7 min on CodeBuild — under the consolidation threshold,
+# so CodeBuild was retired (runs 31443692421/31444605018/31444606509 hold the
+# measurements). The Terraform + account 180731181784 teardown is tracked separately
+# (account retirement is deliberately LAST in the migration plan). Adding a line is
+# now just a matrix entry here.
 #
 # PROMOTE GATE: the `test_all` union lane here is the promote gate — promote-to-main.sh
 # Step 2.6 dispatches `line=test_all` and blocks the atomic push on red (option B,
-# req-dev-validation-product-line-lanes-6). The free-runner all-plugins.yml lane is
-# retained as the fallback (TAP_PROMOTE_CI_WORKFLOW=all-plugins.yml) for when CodeBuild
-# is unavailable.
+# req-dev-validation-product-line-lanes-6). The sharded all-plugins.yml lane is
+# retained as the fallback (TAP_PROMOTE_CI_WORKFLOW=all-plugins.yml).
 
 name: product-lines
 
@@ -153,7 +156,7 @@ jobs:
           scripts/check-dco origin/main
 
   line:
-    # secret-scan gates the expensive lanes: it is ~30s, the CodeBuild lanes are ~25min,
+    # secret-scan gates the expensive lanes: it is ~30s, the lanes are ~9min,
     # and there is no value in testing a tree that is leaking a credential.
     # Tier-gated (req-dev-validation-product-line-lanes-7): a docs-tier diff (inert
     # documentation only) cannot red pytest — skip; the gate aggregator accepts the
@@ -163,8 +166,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
-    # CodeBuild GHA-runner label. Project name = tap-ci-<line> (Terraform name_prefix).
-    runs-on: codebuild-tap-ci-${{ matrix.line }}-${{ github.run_id }}-${{ github.run_attempt }}
+    # Free GitHub-hosted runner (4 vCPU) — measured at ~9 min for the identical job
+    # vs ~7 min on the retired 8-vCPU CodeBuild runner (see header RUNNER HISTORY).
+    runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
       COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
@@ -248,7 +252,10 @@ jobs:
       # This line's tests. install-aware collection (req-dev-validation-collection-complete)
       # runs core + the booted profile's plugin tests. Worker DBs clone the template.
       - name: Test lane — ${{ matrix.line }}
-        run: docker compose --env-file .env exec -T web sh -c 'cd /app && TAP_TEST_DB_TEMPLATE=tap_test_template uv run pytest -n 8'
+        # -n auto: workers == cores. Measured on the 4-vCPU free runner (tmpfs pg,
+        # so the lane is CPU-bound): -n 4 = 233s, -n 6 = 243s, -n 8 = 256s — and
+        # auto keeps tracking the runner size if GitHub resizes it again.
+        run: docker compose --env-file .env exec -T web sh -c 'cd /app && TAP_TEST_DB_TEMPLATE=tap_test_template uv run pytest -n auto'
 
       - name: Dump web logs on failure
         if: failure()
@@ -258,9 +265,8 @@ jobs:
   # The SAME scripts/gate + scripts/gate-lean artifacts the local promote runs —
   # "one artifact, many invokers" was scripts/gate's design contract from day one;
   # the published-images wave (pull, not build) is what made server-side invocation
-  # cheap enough to take (2026-08-10). Free GHA runners; CodeBuild stays the pytest
-  # authority. These jobs are REQUIRED via the gate aggregator: with them, no
-  # validation authority exists only on a laptop.
+  # cheap enough to take (2026-08-10). These jobs are REQUIRED via the gate
+  # aggregator: with them, no validation authority exists only on a laptop.
   cold-boot:
     # Tier-gated (req-dev-validation-product-line-lanes-7): markdown cannot affect
     # boot — docs/specs-tier diffs skip both boot gates; the gate aggregator
