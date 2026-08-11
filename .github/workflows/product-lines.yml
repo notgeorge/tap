@@ -358,21 +358,28 @@ jobs:
           TAP_DEV_ADMIN_PASSWORD: ci-throwaway
         run: scripts/gate-lean
 
-  # Report-only (v0): schemathesis property-fuzz of the LIVE API from its own
-  # OpenAPI schema (Django Ninja generates it) — two passes. Unauthenticated:
-  # the auth wall must never 5xx and responses must match their declared schema.
-  # Authenticated (req-dev-validation-api-fuzz-3): a throwaway admin minted through
-  # the real boot auth phase + a DB session, so the fuzz reaches BEHIND the wall;
-  # a 200-canary refuses to run if "authenticated" would silently mean fuzzing 401s.
-  # Deliberately NOT in the gate aggregator until it has a track record
-  # (req-dev-validation-api-fuzz).
+  # REQUIRED gate (req-dev-validation-api-fuzz-2, flipped 2026-08-11 after a clean
+  # track record): schemathesis property-fuzz of the LIVE API from its own OpenAPI
+  # schema (Django Ninja generates it) — two passes. Unauthenticated: the auth wall
+  # must never 5xx and responses must match their declared schema. Authenticated
+  # (req-dev-validation-api-fuzz-3): a throwaway admin minted through the real boot
+  # auth phase + a DB session, so the fuzz reaches BEHIND the wall; a 200-canary
+  # refuses to run if "authenticated" would silently mean fuzzing 401s.
+  #
+  # DETERMINISM (load-bearing for a REQUIRED gate): both passes pin --seed, so the
+  # verdict is a function of the CODE, not of the day's random draw — a promote can
+  # never be blocked by a fresh example finding a latent bug on unrelated code (that
+  # broad exploration belongs in a non-blocking lane; see the spec tail). Findings
+  # FAIL the step (no `|| true`; pipefail propagates schemathesis's exit through tee),
+  # and the job is in the gate aggregator's `needs`, so a 5xx or schema-conformance
+  # miss blocks the promote. It found + forced fixes for 8 real 5xx classes before
+  # being trusted here.
   api-fuzz:
-    # Tier-gated: markdown cannot change the API surface (report-only job anyway).
+    # Tier-gated: markdown cannot change the API surface.
     if: needs.setup.outputs.tier == 'full'
     needs: [setup, secret-scan]
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    continue-on-error: true
     env:
       COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
       TAP_BOOT_PROFILE: core_dev
@@ -430,7 +437,7 @@ jobs:
             -e DJANGO_SUPERUSER_EMAIL=admin@ci-fuzz.tap.localhost \
             web sh -c 'cd /app && uv run python manage.py boot --profile core_dev'
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
-      - name: Schemathesis — unauthenticated surface (report-only)
+      - name: Schemathesis — unauthenticated surface (required)
         run: |
           base="http://localhost:${WEB_PORT:-8000}"
           schema="$base/api/v1/openapi.json"
@@ -449,11 +456,13 @@ jobs:
             docker compose --env-file .env logs web | tail -80
             exit 1
           fi
-          # Pinned (supply-chain + CLI-drift): bump deliberately, in its own diff.
+          # Pinned version (supply-chain) + pinned --seed (determinism, see job header).
+          # NO `|| true`: a finding must red this required gate. pipefail (bash default
+          # for run steps) carries schemathesis's exit code through the tee.
           uvx schemathesis@4.24.3 run "$schema" \
             --checks not_a_server_error,response_schema_conformance \
-            --max-examples 20 --workers 2 2>&1 | tee schemathesis.log || true
-      - name: Schemathesis — authenticated surface (report-only)
+            --max-examples 20 --workers 2 --seed 20260811 2>&1 | tee schemathesis.log
+      - name: Schemathesis — authenticated surface (required)
         # Auth carrier: a real DB session minted by the DEBUG-fail-closed
         # tap_web/skills/drive-browser/mint_session.py (the drive-browser mechanism),
         # plus the csrftoken cookie from the login page — ninja's django_auth is
@@ -476,9 +485,9 @@ jobs:
           fi
           uvx schemathesis@4.24.3 run "$schema" \
             --checks not_a_server_error,response_schema_conformance \
-            --max-examples 20 --workers 2 \
+            --max-examples 20 --workers 2 --seed 20260811 \
             -H "Cookie: sessionid=$key; csrftoken=$tok" \
-            -H "X-CSRFToken: $tok" 2>&1 | tee schemathesis-auth.log || true
+            -H "X-CSRFToken: $tok" 2>&1 | tee schemathesis-auth.log
       - name: Upload fuzz logs
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -501,7 +510,7 @@ jobs:
   # it demands `success` specifically, so skipped/cancelled upstream jobs FAIL the
   # gate. Sibling of all-plugins.yml's `all-plugins-gate`, same convention.
   gate:
-    needs: [setup, secret-scan, line, cold-boot, lean-boot]
+    needs: [setup, secret-scan, line, cold-boot, lean-boot, api-fuzz]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -519,8 +528,9 @@ jobs:
           R_LINE: ${{ needs.line.result }}
           R_COLD: ${{ needs.cold-boot.result }}
           R_LEAN: ${{ needs.lean-boot.result }}
+          R_FUZZ: ${{ needs.api-fuzz.result }}
         run: |
-          echo "tier=$TIER setup=$R_SETUP secret-scan=$R_SECRET line=$R_LINE cold-boot=$R_COLD lean-boot=$R_LEAN"
+          echo "tier=$TIER setup=$R_SETUP secret-scan=$R_SECRET line=$R_LINE cold-boot=$R_COLD lean-boot=$R_LEAN api-fuzz=$R_FUZZ"
           die() { echo "::error::$1"; exit 1; }
           [ "$R_SETUP" = "success" ] || die "setup finished '$R_SETUP'"
           [ "$R_SECRET" = "success" ] || die "secret-scan finished '$R_SECRET' (always required)"
@@ -538,5 +548,12 @@ jobs:
             success) : ;;
             skipped) { [ "$TIER" = "docs" ] || [ "$TIER" = "specs" ]; } || die "lean-boot skipped on a full-tier diff" ;;
             *) die "lean-boot finished '$R_LEAN'" ;;
+          esac
+          # api-fuzz runs only on the full tier (needs a live boot), same as the boot
+          # gates — a skip is acceptable exactly where cold/lean-boot's is.
+          case "$R_FUZZ" in
+            success) : ;;
+            skipped) { [ "$TIER" = "docs" ] || [ "$TIER" = "specs" ]; } || die "api-fuzz skipped on a full-tier diff" ;;
+            *) die "api-fuzz finished '$R_FUZZ'" ;;
           esac
           echo "gate GREEN (tier: $TIER)"
