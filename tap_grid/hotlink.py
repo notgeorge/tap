@@ -43,6 +43,59 @@ _VALID_SELECTOR_TYPES: frozenset[str] = frozenset({"simple_path", "scalar"})
 _VALID_EDGE_DIRECTIONS: frozenset[str] = frozenset({"outbound", "inbound"})
 _VALID_MODES: frozenset[str] = frozenset({"exists", "unique", "exact"})
 
+# The shape of an edge's `properties.hotlink` participation payload
+# (req-grid-hotlink-edge-data). Owned HERE, next to the machinery that writes
+# and consumes it — edge-type property schemas must NOT redeclare it
+# (req-grid-edge-schema-required-5, spec-grid-edge.md): one shape, one owner.
+# `value` is deliberately just "string": exact/unique-mode validation already
+# checks it against the real model field content, which is stricter than any
+# pattern could be.
+EDGE_HOTLINK_PAYLOAD_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["model", "spec", "value"],
+    "properties": {
+        "model": {
+            "type": "string",
+            "description": "Registered model name whose HOTLINKS declaration this edge participates in.",
+        },
+        "spec": {
+            "type": "string",
+            "description": "The HOTLINKS entry name on that model this edge mirrors.",
+        },
+        "value": {
+            "type": "string",
+            "description": "The extracted identifier this edge asserts; checked against the field by hotlink validation.",
+        },
+    },
+}
+
+
+def validate_edge_hotlink_payload(edge_type: str, payload: Any) -> None:
+    """Validate an edge's `properties.hotlink` payload against the system schema.
+
+    The system-owned half of edge property validation
+    (req-grid-edge-schema-required-5): called by
+    `tap_grid.constraints.validate_edge_properties` for every edge write that
+    carries a `hotlink` key, regardless of edge type. Semantic validation
+    (does the value actually mirror the field?) remains `validate_hotlinks`;
+    this is the cheap structural gate in front of it.
+
+    Raises:
+        EdgePropertyValidationError: when the payload is not the declared shape.
+    """
+    import jsonschema
+
+    from tap_grid.exceptions import EdgePropertyValidationError
+
+    try:
+        jsonschema.validate(instance=payload, schema=EDGE_HOTLINK_PAYLOAD_SCHEMA)
+    except jsonschema.ValidationError as exc:
+        raise EdgePropertyValidationError(
+            f"Edge type '{edge_type}' hotlink payload failed the system schema "
+            f"(req-grid-hotlink-edge-data): {exc.message}"
+        ) from exc
+
 
 def _check_hotlinks(cls: type) -> None:
     """Enforce HOTLINKS startup invariants at class-definition time.

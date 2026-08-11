@@ -27,7 +27,7 @@ Before authoring the edge file, gather:
 2. **Edge slug** (`SCREAMING_SNAKE_CASE`, e.g. `HAS_EVIDENCE`). The slug is the canonical edge type — used in service-layer calls, GRIFT, and gryphon queries. Edge slugs should be compact semantic predicates that help `source node + edge + target node` read like a coherent sentence.
 3. **Human-readable name** and **description** (one or two sentences explaining what the edge represents and when to use it).
 4. **`sources` and `targets`** — list the entity-type slugs allowed at each end. Wildcard (`omit`) is permitted but should be justified; explicit lists are strongly preferred for typed plugins.
-5. **`property_schema`** (optional) — JSON Schema for structured edge properties. Use this when the edge carries semantically meaningful data (e.g. an enum that classifies the relationship). The user's case for adding a `support_kind` enum here is a textbook example.
+5. **`property_schema`** — MANDATORY if the edge will ever carry properties; omit only for property-free edges (req-grid-edge-schema-required: properties are optional, carrying them is not — writing non-empty properties to a schema-less edge type warns today and fails closed from core 0.2.0). Use it whenever the edge carries semantically meaningful data (e.g. an enum that classifies the relationship — a `support_kind` enum is a textbook example). EXCEPTION: never declare the `hotlink` key — it is system-owned, validated centrally by the hotlink machinery, and the registry rejects schemas that redeclare it (req-grid-edge-schema-required-5). A hotlink-only edge type needs no schema at all.
 6. **`default_dimensions`** — what dimensions does every new edge of this type carry? Edges should match the dimension convention of their participating entities. Dimension-less edges, like dimension-less nodes, are a design red flag.
 7. **Hotlink integration** — is this edge the materialization of a JSON reference on a model? If yes, plan the `HOTLINKS` declaration on the model alongside the edge.
 
@@ -85,7 +85,7 @@ Create `<plugin>/edges/<EDGE_SLUG>.edge.json` matching `edge-definition.schema.j
 - `slug`, `name`, `description` are required and must be non-empty.
 - `slug` **must** equal both the filename (minus `.edge.json`) and the manifest key.
 - `sources` and `targets` are arrays of entity-type slugs; omit either to allow wildcard at that end.
-- `property_schema` is a JSON Schema object; the service layer validates edge properties against it on create/update.
+- `property_schema` is a JSON Schema object; the service layer validates edge properties against it on create/update (net of the system-owned `hotlink` key, which it must not declare). Required whenever the edge carries properties; a schema-less type may only ever write empty properties.
 - `default_dimensions` is a flat string-to-string map applied at edge creation when the caller doesn't specify dimensions.
 
 ## Step 3: Register in the Plugin Manifest

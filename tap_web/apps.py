@@ -28,25 +28,16 @@ class TapWebConfig(AppConfig):
             "sources": [{"type": "page"}],
             "targets": [{"type": "panel"}],
             "default_dimensions": {"tap.graph": "web"},
-            # Hotlink participation data (req-grid-hotlink-edge-data).
-            # The 'hotlink' object is required; variable_map is optional.
+            # Type-authored properties only. The 'hotlink' participation payload
+            # is system-owned (req-grid-edge-schema-required-5): its shape is
+            # validated centrally by tap_grid.hotlink.EDGE_HOTLINK_PAYLOAD_SCHEMA
+            # and per-type schemas may not redeclare it. Presence/correspondence
+            # is enforced by hotlink validation itself (exact-mode mirror of the
+            # Page.definition panel list), which is stricter than a required-key
+            # check ever was.
             "property_schema": {
                 "type": "object",
-                "required": ["hotlink"],
                 "properties": {
-                    "hotlink": {
-                        "type": "object",
-                        "required": ["model", "spec", "value"],
-                        "properties": {
-                            "model": {"type": "string"},
-                            "spec": {"type": "string"},
-                            "value": {
-                                "type": "string",
-                                "pattern": "^[a-z][a-z0-9-]*$",
-                            },
-                        },
-                        "additionalProperties": False,
-                    },
                     "variable_map": {
                         "type": "object",
                         "properties": {

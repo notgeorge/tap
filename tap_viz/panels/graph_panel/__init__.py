@@ -1,10 +1,12 @@
 """Graph Panel — built-in viz panel type for search-backed Cytoscape graph display.
 
 Search binding:
-  Panel links to a Layout via a USES_LAYOUT edge (Panel -> Layout) with
-  properties={"layout-id": "default"}.
-  Layout links to a Search via a USES_SEARCH edge (Layout -> Search) with
-  properties={"search-id": "main"}.
+  Panel links to a Layout via a USES_LAYOUT edge (Panel -> Layout).
+  Layout links to a Search via a USES_SEARCH edge (Layout -> Search).
+  Binding is pure topology — earliest-created edge wins. (The v0 role-name
+  edge properties `layout-id`/`search-id` were deleted 2026-08-10 as unread
+  remnants; future role-named multi-search binding rides a hotlink, see
+  spec-viz-system.md.)
 
 Rendering:
   Server-side: the linked Search executes during panel fragment rendering.
@@ -332,7 +334,7 @@ def _get_panel_seed_searches(panel: Panel) -> list[Any]:
 
 
 def _get_panel_layout(panel: Panel) -> Any | None:
-    """Return the Layout linked to a Panel via USES_LAYOUT edge (layout-id=default), or None."""
+    """Return the Layout linked to a Panel via the earliest-created USES_LAYOUT edge, or None."""
     from tap_grid.models import Edge
     from tap_viz.models import Layout
 
