@@ -12,9 +12,9 @@
 # (0.1.x → 0.2.0), feat/fix → patch (0.1.0 → 0.1.1). This is the contract
 # language in the Sam letter addendum: "0.1.x warns, 0.2.0 enforces".
 #
-# IDENTITY (load-bearing): all writes ride the org-owned `tap-release` GitHub
+# IDENTITY (load-bearing): all writes ride the org-owned `tap-release-please` GitHub
 # App (same trust model as Renovate) — the workflow mints a ~1h installation
-# token per run from vars.TAP_RELEASE_APP_ID + secrets.TAP_RELEASE_APP_PRIVATE_KEY.
+# token per run from vars.TAP_RELEASE_PLEASE_APP_ID + secrets.TAP_RELEASE_PLEASE_APP_PRIVATE_KEY.
 # App permissions: Contents + Pull requests (read/write), installed on this
 # repo only. Both jobs run with a read-scoped GITHUB_TOKEN by design
 # (req-cicd-runner-least-privilege: no third-party step shares a write-scoped
@@ -56,8 +56,8 @@ jobs:
       - uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
         id: app-token
         with:
-          app-id: ${{ vars.TAP_RELEASE_APP_ID }}
-          private-key: ${{ secrets.TAP_RELEASE_APP_PRIVATE_KEY }}
+          app-id: ${{ vars.TAP_RELEASE_PLEASE_APP_ID }}
+          private-key: ${{ secrets.TAP_RELEASE_PLEASE_APP_PRIVATE_KEY }}
       - uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4
         id: rp
         with:
@@ -70,7 +70,7 @@ jobs:
   # with a freshly minted app token, exposed only to the steps that need it —
   # the third-party setup-uv step never sees a write credential. The lock
   # commit authors as github-actions[bot]; release-please's own commits author
-  # as tap-release[bot] — both DCO-exempt (scripts/check-dco BOT_AUTHOR_RE).
+  # as tap-release-please[bot] — both DCO-exempt (scripts/check-dco BOT_AUTHOR_RE).
   lock-refresh:
     needs: release-please
     if: needs.release-please.outputs.prs_created == 'true'
@@ -99,8 +99,8 @@ jobs:
         if: steps.lockdiff.outputs.changed == 'true'
         id: app-token
         with:
-          app-id: ${{ vars.TAP_RELEASE_APP_ID }}
-          private-key: ${{ secrets.TAP_RELEASE_APP_PRIVATE_KEY }}
+          app-id: ${{ vars.TAP_RELEASE_PLEASE_APP_ID }}
+          private-key: ${{ secrets.TAP_RELEASE_PLEASE_APP_PRIVATE_KEY }}
       - name: Push the refreshed lock onto the release PR
         if: steps.lockdiff.outputs.changed == 'true'
         env:
