@@ -174,9 +174,6 @@ jobs:
       COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
       # Name of the per-worker clone-source template built below (in-container).
       TAP_TEST_DB_TEMPLATE: tap_test_template
-      # Host bind for the container's /root/.cache/uv (docker-compose.ci.yml
-      # override) so actions/cache persists wheels + plugin git-installs.
-      TAP_CI_UV_CACHE: ${{ runner.temp }}/uv-cache
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -184,6 +181,14 @@ jobs:
         run: |
           rm -f tap_secrets
           mkdir -p tap_secrets
+
+      - name: Point the uv cache at an out-of-tree dir (runner temp)
+        # $RUNNER_TEMP is outside the workspace, so the container's `.:/app` mount
+        # never sweeps the persisted cache into the scanned repo tree (the
+        # secret-pattern guard walks /app). Set via $GITHUB_ENV in a run step, NOT a
+        # job-level `env:` — the `runner` context is unavailable at job level, and
+        # referencing it there is an invalid-workflow error (no jobs even schedule).
+        run: echo "TAP_CI_UV_CACHE=$RUNNER_TEMP/uv-cache" >> "$GITHUB_ENV"
 
       - name: Provide web image (pull published when inputs unchanged, else build)
         uses: ./.github/actions/ci-web-image
@@ -284,7 +289,6 @@ jobs:
       COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
       TAP_BOOT_PROFILE: test_all
       TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE: "false"
-      TAP_CI_UV_CACHE: ${{ runner.temp }}/uv-cache
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -293,6 +297,11 @@ jobs:
         run: |
           rm -f tap_secrets
           mkdir -p tap_secrets
+      - name: Point the uv cache at an out-of-tree dir (runner temp)
+        # See the `line` job: $RUNNER_TEMP is outside the workspace (out of the
+        # scanned /app tree); set via $GITHUB_ENV, not job-level `env:`, because the
+        # `runner` context is unavailable at job level.
+        run: echo "TAP_CI_UV_CACHE=$RUNNER_TEMP/uv-cache" >> "$GITHUB_ENV"
       - name: Provide web image (pull published when inputs unchanged, else build)
         uses: ./.github/actions/ci-web-image
       - name: Restore uv cache (wheels + plugin git-installs)
@@ -368,7 +377,6 @@ jobs:
       COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
       TAP_BOOT_PROFILE: core_dev
       TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE: "false"
-      TAP_CI_UV_CACHE: ${{ runner.temp }}/uv-cache
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -377,6 +385,11 @@ jobs:
         run: |
           rm -f tap_secrets
           mkdir -p tap_secrets
+      - name: Point the uv cache at an out-of-tree dir (runner temp)
+        # See the `line` job: $RUNNER_TEMP is outside the workspace (out of the
+        # scanned /app tree); set via $GITHUB_ENV, not job-level `env:`, because the
+        # `runner` context is unavailable at job level.
+        run: echo "TAP_CI_UV_CACHE=$RUNNER_TEMP/uv-cache" >> "$GITHUB_ENV"
       - name: Provide web image (pull published when inputs unchanged, else build)
         uses: ./.github/actions/ci-web-image
       - name: Restore uv cache (wheels + plugin git-installs)
@@ -425,7 +438,7 @@ jobs:
           # the runserver may still be warming when health first goes green (observed
           # 2026-08-10: connection-reset on the first fetch). Poll HTTP itself.
           ok=0
-          for i in $(seq 1 60); do
+          for _ in $(seq 1 60); do
             curl -fsS "$schema" -o /dev/null 2>/dev/null && { ok=1; break; }
             # 3s, not 10: readiness lands mid-interval, so the poll step is pure
             # quantization waste — same total timeout via the higher loop bound.
