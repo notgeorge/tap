@@ -107,8 +107,8 @@ dev = [
     # own Renovate range-bump PR with a deliberate fix-vs-baseline triage —
     # never inside a routine lockfile refresh. (Same treatment as ruff, whose
     # 0.x bound achieves this naturally.)
-    "mypy>=1.20,<1.21",
-    "django-stubs>=5.1,<6",
+    "mypy>=2.3,<2.4",
+    "django-stubs>=6,<7",
     # Testing
     # pytest is the modern Python test framework
     # pytest-django integrates pytest with Django's test utilities
