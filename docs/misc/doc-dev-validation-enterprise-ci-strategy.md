@@ -92,8 +92,11 @@ for solo. With multiple contributors pushing you get races/conflicts on `main` a
 the "trusted laptop" assumption breaks. The evolution is **PR-based**: session branch
 → PR → CI runs the gate as a required check → merge. That is a real change to
 `req-dev-multisession-push-workflow`; atomic-push and PR-gate do not compose — pick
-one per branch-protection regime. Flag as needing deliberate redesign, not
-incremental patching.
+one per branch-protection regime. **This landed 2026-08-10**: the promote script's
+default road is the PR flow (server-merged on the green `gate` check), with change-tier
+gating (`req-dev-validation-product-line-lanes-7`) keeping docs/specs PRs cheap; the
+atomic direct push survives only as the bootstrap/skip-hatch
+(`req-dev-multisession-push-workflow-3`/`-7`).
 
 ## Prior art (NetBox + Nautobot, from their real CI/config)
 

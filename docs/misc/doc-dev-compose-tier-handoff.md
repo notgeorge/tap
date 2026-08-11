@@ -101,10 +101,13 @@ Consensus mechanics TAP already matches: stateless app container, DB on its own 
 migrations run by the entrypoint on start. The industry arc: mature projects start at
 pattern 1 and push production users toward pattern 2 for reproducibility.
 
-**TAP's position is a defensible middle**: runtime install, but from pinned immutable tags,
-through a sha256-verified pointer, with the boot record as an explicit BOM and the FIPS
-crypto-BOM gate scanning what actually got installed. That recovers most of what normally
-forces the bake. The plugin-repo-ships-compose idea is itself the standard third-party dev
+**TAP's position is a defensible middle**: runtime install, but from pinned tags, through
+a sha256-verified pointer, with the boot record as an explicit BOM and the FIPS crypto-BOM
+gate scanning what actually got installed. That recovers most of what normally forces the
+bake. (Honesty note: the install entries' tags are immutable by *policy*, not proof — a
+git tag can be re-pointed. `req-boot-bootstrap-install-commit-pin` in
+`specs/spec-tap-boot-bootstrap.md` is the named fix: an optional `commit` field preboot
+fails closed on, mandatory for from-git standups by the time this tier ships.) The plugin-repo-ships-compose idea is itself the standard third-party dev
 pattern — Grafana's `create-plugin` scaffold generates exactly that (a compose file pulling
 the stock vendor image with the plugin wired in).
 
@@ -118,6 +121,13 @@ this until a deployment demands it.
 
 Also deferred: a migration lock / single-runner story for entrypoint-run migrations if the
 tier ever runs multiple web containers against one DB. Fine as-is for single-container.
+
+**Required before this tier ships** (not merely deferred):
+`req-boot-bootstrap-install-commit-pin` — commit-pinned install entries. The compose tier
+installs plugins from records fetched over the network with no developer in the loop, which
+is exactly when a mutable tag ref is most dangerous; the enforcement ratchet in that
+requirement names this tier as the point where the `commit` field flips from advisory to
+mandatory.
 
 ## Sequencing (center-of-gravity note)
 

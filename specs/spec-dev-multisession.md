@@ -307,6 +307,20 @@ Decision rule: *session work → promote; a change consumed by a pending gated P
 into that PR's branch.* After the PR merges, sibling session branches pick it up via the
 normal pre-push merge.
 
+#### The everyday docs road: the tier-gated PR (2026-08-10)
+
+Documentation-only changes previously rode a **human-authorized direct FF push** to `main`
+(the "docs-only bypass" — judgment plus the ruleset's admin bypass, loud but undesigned).
+That practice is **retired as the everyday path**: since change-tier gating
+(`req-dev-validation-product-line-lanes-7`, `scripts/change-tier`), the PR road itself is
+cheap for inert diffs — a **docs-tier** PR (docs/, plan/, root `*.md`, LICENSE/NOTICE)
+gates in ~1 minute (setup + secret-scan + dco; no lanes, no boot gates), and a
+**specs-tier** PR adds only the `test_all` lane (spec markdown is parsed by tests — Map
+sync, RID resolution — but cannot affect boot). Same PR flow, same single required `gate`
+check, no bypass. The direct atomic push remains **bootstrap/skip-hatch only**
+(`req-dev-multisession-push-workflow-3`). Decision rule stays simple: *every change rides
+a PR; the tier decides how much battery the PR burns.*
+
 #### Why the naive form does not work
 
 The intuitive command for step 4 is `git fetch origin main:main` from inside the session worktree. Git rejects it:
@@ -333,6 +347,7 @@ If `pull --ff-only` ever fails with "not a fast-forward", it means a sibling wor
 | req-dev-multisession-push-workflow-4 | Post-push primary sync | Implemented | After the push, the local `main` ref MUST be advanced via `git -C /Users/george/tap-sessions/main pull --ff-only`. | Load-bearing for `scripts/spawn-session.sh` correctness. |
 | req-dev-multisession-push-workflow-5 | Naive fetch form is wrong | Implemented | `git fetch origin main:main` from a session worktree is explicitly NOT the post-push sync. Git refuses to fast-forward a ref that's checked out elsewhere; the operation must run inside the main worktree (via `git -C`). | Documented so agents don't reinvent the workaround. |
 | req-dev-multisession-push-workflow-6 | Spawn-side guard | Implemented | `scripts/spawn-session.sh` refreshes local `main` from `origin/main` BEFORE creating the new session worktree. The pull MUST run inside the main worktree (via `git -C "$HOME/tap-sessions/main" pull --ff-only origin main`), not via `$REPO` — `$REPO` is wherever the script was invoked from (possibly a session worktree), and pulling there would advance the session branch rather than main. A non-fast-forward (uncommitted changes on main, divergent local main) aborts the spawn loudly rather than silently starting a session from stale code. If the main worktree is missing at `$HOME/tap-sessions/main` (non-standard layout), the guard warns and skips rather than aborting. | Belt-and-suspenders with the post-push sync: that keeps siblings current between spawns; this guard ensures the *next* spawn is current even if the discipline slipped. |
+| req-dev-multisession-push-workflow-7 | Docs ride the tier-gated PR, not the bypass | Implemented | Documentation/spec-only changes advance `origin/main` through the normal PR road; the change tier (`scripts/change-tier`, reciprocal `req-dev-validation-product-line-lanes-7`) makes that road cheap (docs ≈ 1 min; specs = the `test_all` lane only). The human-authorized direct FF push for docs-only diffs is RETIRED as an everyday path — direct atomic push is bootstrap/skip-hatch only. | Replaces the 2026-07-06 "docs-only bypass" practice; the shortcut now lives inside the required check instead of beside it. |
 
 #### Future
 

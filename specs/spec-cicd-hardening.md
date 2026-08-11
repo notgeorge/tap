@@ -112,6 +112,7 @@ cheap-edge doctrine; the rest are the larger deploy-half build, rightly deferred
 | req-cicd-supply-chain-provenance | [Sign Artifacts, Emit SBOM](#sign-artifacts-emit-sbom) | Partial | SLSA provenance attestations live on the published images; cosign signing, plugin-wheel attestations + CycloneDX/SPDX SBOM open. |
 | req-cicd-product-releases | [Product Releases](#product-releases) | Proposed | Semver product releases carrying release notes; cutting the first release must update `SECURITY.md`'s supported-versions statement. |
 | req-cicd-continuous-delivery | [Continuous Delivery](#continuous-delivery) | Proposed | Environments (staging/prod), progressive delivery, and a rollback path. The unbuilt deploy half. |
+| req-cicd-live-instance-testing | [Live Instances In CI For Operational Testing](#live-instances-in-ci-for-operational-testing) | Proposed | Stand up running TAP instances inside the CI process as targets for operational tests — API fuzzing (Schemathesis), write-path stateful fuzzing, DAST, live smoke. Generalizes the cold-boot gate from "boots healthy" to "operates correctly". |
 | req-cicd-pipeline-observability | [Measure The Pipeline](#measure-the-pipeline) | Proposed | The four DORA metrics + systematic flaky-test tracking. |
 
 ### Source Base Images Off Anonymous Docker Hub
@@ -270,6 +271,15 @@ on the pull request itself, evaluation is natural, and the bypass list empties t
 `protect-default-branches`. Do NOT relax the rule's `integration_id` pin to accept
 API-posted statuses — that would make the gate forgeable by anything holding
 `statuses: write`.
+
+**Update (2026-08-10, later the same day): the PR-flow endgame is LIVE.** The promote
+script's default road is now the PR flow (pre-push merge → PR → server gate → auto-merge;
+proven on PRs #26–#28), and change-tier gating
+(`req-dev-validation-product-line-lanes-7`) makes it the *everyday* road for docs/specs
+diffs too — the admin direct push is bootstrap/skip-hatch only
+(`req-dev-multisession-push-workflow-7`). Consequence: **emptying the bypass list to match
+`protect-default-branches` is now an actionable settings step**, no longer blocked on flow
+rework; it rides naturally with the mandatory-PR flip and the `-3` code-owner-review rung.
 
 | RID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
@@ -453,6 +463,37 @@ release versioning. This is *expected* pre-launch and is parked by the
 [Rampart roadmap](../plan/road-rampart.md) for post-launch — named here so it is tracked,
 not a blind spot. TAP has **CI, not CI/CD**: "promote to main" is *integration*, not
 *deployment*. Depends on `req-cicd-build-once-artifact` (you deploy the artifact you built).
+
+### Live Instances In CI For Operational Testing
+
+RID: `req-cicd-live-instance-testing`
+
+Stand up **running TAP instances as part of the CI process** and operate them as test
+targets — the class of validation that only exists against a live product, not a test
+database. The mechanism already half-exists: the cold-boot gate and `gate-lean` spawn
+throwaway stacks and assert "boots healthy, no import leaks"; this requirement generalizes
+that seam to "operate the running product and test what it does". Nightly/soak tier, not
+the promote gate — these are long-running, findings-oriented lanes.
+
+The backlog riding this requirement (in rough sequence):
+
+1. **API fuzzing** — Schemathesis over the Django Ninja OpenAPI schema, hitting every
+   core + plugin-registered router with schema-valid and malformed requests; oracles come
+   free (no 5xx, response-schema conformance, capability gates refuse).
+2. **Write-path stateful fuzzing** — a Hypothesis `RuleBasedStateMachine` driving
+   generated sequences of service-layer mutations (create/observe/edge/FLIP/purge/OCC)
+   against the live instance, checking grid-spine invariants after every step. Pays down
+   the read/write asymmetry: Gryphon fuzzes the read path; nothing generates adversarial
+   mutation sequences. Deliberately deferred until this requirement provides the target
+   (decided 2026-08-10).
+3. **DAST** — OWASP ZAP baseline (headers/CSP/cookies unauthenticated; authenticated scan
+   later via a minted session, the drive-browser pattern).
+4. **Live smoke / operational checks** — the spec-dev-multisession-smoketest battery run
+   mechanically instead of by an attached developer.
+
+Depends on `req-cicd-build-once-artifact` (the instance under test should be the published
+artifact, not a rebuild). Feeds `req-cicd-security-scanning` (DAST is its dynamic half) and
+the OpenSSF Scorecard fuzzing check (Schemathesis/Hypothesis are recognized engines).
 
 ### Measure The Pipeline
 

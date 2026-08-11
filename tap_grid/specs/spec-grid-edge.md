@@ -24,6 +24,8 @@ Edges are the connective tissue of the grid. They model directed, typed relation
 | req-grid-edge-service | [Edge Service Layer](#edge-service-layer) | Implemented | `create_edge()` as the canonical mutation path for edge creation |
 | req-grid-edge-nono | [No Edges Between Edges](#no-edges-between-edges) | Implemented | Service-layer rule prohibiting edges whose endpoints are themselves edges |
 | req-grid-edge-properties | [Edge Property Validation](#edge-property-validation) | Implemented | Optional JSON Schema validation backed by an in-memory edge property schema registry |
+| req-grid-edge-schema-exposure | [Edge Property Schema Exposure](#edge-property-schema-exposure) | Proposed | **Backlog (2026-08-10).** The registry's per-type `property_schema` is enforced but invisible at the API boundary: `EdgeIn.properties` reads as free-form in OpenAPI and no edge-type discovery endpoint exists. Surface the schemas so machine callers can see what the service layer will enforce |
+| req-grid-edge-schema-required | [Properties Require A Schema](#properties-require-a-schema) | Proposed | **Corrected semantics (2026-08-10).** Properties are optional; carrying them is not: writing non-empty `properties` to an edge type with no registered schema becomes a fail-closed error. Narrows the exception in `req-grid-edge-properties-6/-7`, which inadvertently allowed schema-less payloads. Transition: burn down the 9 known offenders, then flip — the write-path check needs no ratchet |
 | req-grid-edge-produced-batch | [PRODUCED_BATCH Standard Edge](#produced_batch-standard-edge) | Implemented | Canonical edge from any batch producer to a `Batch` entity; replaces embedded batch-ID lists |
 
 
@@ -336,13 +338,130 @@ Property validation should be implemented as a standalone validation step that c
 | req-grid-edge-properties-3 | Registry Duplicate Is Error | Implemented | Registering a second schema for an already-registered edge type raises a configuration error. | No merge or overwrite behavior. |
 | req-grid-edge-properties-4 | Validate on Create | Implemented | Edge property payloads are validated against registry-provided schema on every edge creation when a schema is defined for the edge type. | |
 | req-grid-edge-properties-5 | Validate on Update | Implemented | Edge property payloads are validated against registry-provided schema on every edge property update when a schema is defined for the edge type. | |
-| req-grid-edge-properties-6 | Missing Schema Skips Validation | Implemented | If an edge type has no registered schema, property validation is not executed. | |
-| req-grid-edge-properties-7 | Any JSON Allowed Without Schema | Implemented | When no schema is registered for an edge type, `properties` may be any valid JSON value. | |
+| req-grid-edge-properties-6 | Missing Schema Skips Validation | Implemented | If an edge type has no registered schema, property validation is not executed. | To be narrowed by `req-grid-edge-schema-required`: skip-validation will apply only to edges carrying no properties. |
+| req-grid-edge-properties-7 | Any JSON Allowed Without Schema | Implemented | When no schema is registered for an edge type, `properties` may be any valid JSON value. | To be superseded by `req-grid-edge-schema-required`: non-empty `properties` without a schema becomes an error. |
 | req-grid-edge-properties-8 | Dedicated Validation Error | Implemented | Schema validation failures raise `EdgePropertyValidationError` rather than `InvalidEdgeError`. | |
 | req-grid-edge-properties-9 | Schema Author Controls Strictness | Implemented | The system does not impose default `additionalProperties`; strictness is determined by each schema definition. | |
 
 #### Future
 Define a shared helper for schema lookup and validation so create/update paths cannot drift and all property mutations enforce identical behavior.
+
+### Properties Require A Schema
+
+RID: `req-grid-edge-schema-required`
+Status: `Proposed`
+
+**The corrected reading of the original exception** (identified 2026-08-10). The intent
+behind optional `property_schema` was "an edge type need not carry properties at all" —
+not "an edge type may carry unvalidated properties." `req-grid-edge-properties-6/-7` as
+implemented allow the latter, and the live grid shows the consequence: of 13 edge types
+carrying non-empty properties in the reference instance, 9 have no schema — including the
+trust-semantics edges (`TRUSTS_ISSUER__identity_core`, `IDENTITY_VOUCHED_BY__sigstore_core`,
+`SCOPED_TO_COMPLIANCE_BOUNDARY__compliance_core`, `FEDERATES_VIA__github_core`) whose
+payloads the compliance story reads. The security-relevant edges skewed *toward* the
+unvalidated set, not away from it.
+
+The corrected rule: **properties are optional; carrying them is not.**
+
+- An edge type with no registered schema may exist and be used freely — with empty
+  `properties` only.
+- Writing non-empty `properties` to an edge type with no registered schema is a
+  fail-closed error (same error family as `EdgePropertyValidationError`), at the same
+  enforcement points as schema validation (service layer + `Edge.save()`).
+- Equivalently: registering a schema is the act that *enables* the `properties` field for
+  that edge type.
+- **System-owned property keys are a separate lane** (clarified 2026-08-10). Keys written
+  and validated by core machinery — today exactly `hotlink`
+  (spec-grid-hotlink.md, `req-grid-hotlink-edge-data`: shape checked at class-definition
+  time, semantics validated by the service layer) — are exempt from the per-type schema
+  requirement and are validated by their owning system, once, centrally. The
+  mandatory-schema rule applies to the payload *net of* system-owned keys; per-type
+  schemas MUST NOT redeclare system-owned keys (one shape, one owner). An edge type whose
+  properties are hotlink-only needs no schema at all.
+
+#### Transition (burn down, then flip — no ratchet)
+
+The write path itself is the enforcement point, so no CI ratchet is needed: once the rule
+is live, every mutation in every environment hits the check. The interim is a burn-down,
+not a guard-building exercise:
+
+1. **Burn down the true offender set, data- and writer-code-informed.** After the
+   system-owned lane is subtracted, the observed 9 reduce sharply: `USES_ARRANGEMENT`,
+   `USES_ELEVATION`, `USES_DEFAULT_ELEVATION`, and `IDENTITY_VOUCHED_BY__sigstore_core`
+   are hotlink-only — covered by the hotlink machinery, nothing to author. What remains:
+   `TRUSTS_ISSUER__identity_core` + `FEDERATES_VIA__github_core` (the shared
+   `{link_rule, matched_value}` provenance shape — one schema constant owned by
+   identity_core, referenced by github_core) and `SCOPED_TO_COMPLIANCE_BOUNDARY__compliance_core`
+   (formalize or schema the v0 `kludge` membership marker). `USES_SEARCH`'s `search-id`
+   and `USES_LAYOUT`'s 2 legacy `layout-id` rows are **deleted, not schema'd**
+   (investigated 2026-08-10): they are v0 layout-definition binding remnants — read by
+   no code, binding into a steps pipeline superseded by the v1 dual-mode definition whose
+   reference binding rides hotlink (`req-viz-layout-dual-mode`; future step-to-search
+   composition binds the same way, see spec-viz-system.md). Remove from the
+   `tap_web/data/*.grift.json` seeds and clean existing rows by data migration. Derive
+   the remaining schemas from writer code plus observed rows, so the flip does not strand
+   live data behind a stricter-than-reality schema (existing rows stay readable —
+   enforcement is on writes — but *updates* must validate).
+2. **Flip runtime enforcement in core** once all 9 are schema'd. Ordering is enforced by
+   the existing pin flow: the plugin releases must precede the core flip, and the
+   `requires_tap` floor on those releases plus the test_all pin bumps make the sequence
+   explicit rather than hoped-for (the two-mains model). Any schema-less
+   property-carrying edge type introduced *during* the burn-down window simply breaks at
+   the flip and gets fixed then — which is the enforcement working, not a gap needing a
+   parallel guard.
+
+The `add-edge` skill should state the rule as mandatory-when-properties from the start.
+Feeds `req-grid-edge-schema-exposure` (exposure is only as valuable as schema coverage)
+and the generative-testing lane (`req-cicd-live-instance-testing`): under this rule,
+every properties-carrying edge type is generatively testable by construction.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-edge-schema-required-1 | Non-Empty Properties Demand A Schema | Proposed | Writing non-empty `properties` to an edge type with no registered schema raises a fail-closed error at the service layer and `Edge.save()`. | Narrows `req-grid-edge-properties-6/-7`. |
+| req-grid-edge-schema-required-2 | Schema-less Types Stay Legal | Proposed | Edge types without schemas remain fully usable with empty `properties`; no registration burden is added for property-free edges. | Preserves the original exception's true intent. |
+| req-grid-edge-schema-required-3 | Flip Follows Burn-Down | Proposed | Runtime enforcement lands only after the true offender set (net of the system-owned lane) is schema'd or migrated; plugin releases precede the core flip via the normal pin flow. | No interim ratchet — the write-path check is the guard. |
+| req-grid-edge-schema-required-4 | Skill Teaches The Rule | Proposed | The `add-edge` skill presents `property_schema` as mandatory whenever the edge will carry properties. | Author-time enforcement of the same rule. |
+| req-grid-edge-schema-required-5 | System-Owned Keys Exempt And Reserved | Proposed | The enforcement check validates system-owned keys (today: `hotlink`) via their owning machinery and applies the schema requirement to the remainder; per-type schemas may not redeclare system-owned keys. | One shape, one owner; hotlink-only edge types need no schema. |
+
+### Edge Property Schema Exposure
+
+RID: `req-grid-edge-schema-exposure`
+Status: `Proposed`
+
+`req-grid-edge-properties` enforces per-edge-type JSON Schemas at the service layer — but
+the enforcement is **invisible from outside**. In the live OpenAPI document (observed
+2026-08-10), `EdgeIn.properties` is the API surface's only free-form object: the contract
+says "any dict" while the service layer will reject payloads against a schema the caller
+had no way to see. There is also no edge-type discovery endpoint parallel to the
+`entity_types` router, so the registry's schemas are unreachable via the API entirely.
+
+This is the machine-legibility doctrine (spec-ai-integration.md) applied to edges: the
+named consumers are AI callers (tap_ai and external assistants composing edge writes),
+generative API testing (Schemathesis can only produce schema-valid `properties` for a
+type it can look up — see `req-cicd-live-instance-testing`), and any external API client.
+A declared-but-undiscoverable schema is the JSONB-blobs-un-schema'd gap wearing an
+API-boundary hat.
+
+#### Implementation (sketch — refine at build time)
+
+- An edge-type discovery lane mirroring `entity_types`: list registered edge types with
+  their `property_schema` (null when none is registered — absence is honest, not hidden).
+- OpenAPI honesty for `EdgeIn.properties`: a static document cannot express per-type
+  conditional schemas cleanly; at minimum the field description names the validation and
+  points at the discovery lane. Generating a `oneOf` over registered types at
+  schema-build time is the stronger option — evaluate cost when building.
+- Validation failures surface as structured 4xx responses carrying the JSON Schema error
+  path, not a bare message (`EdgePropertyValidationError` → API error shape).
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-edge-schema-exposure-1 | Edge-Type Discovery Endpoint | Proposed | Registered edge types are listable via the API, each carrying its `property_schema` or an explicit null. | Mirrors the `entity_types` lane. |
+| req-grid-edge-schema-exposure-2 | OpenAPI Names The Validation | Proposed | The OpenAPI document for edge writes declares that `properties` is validated per edge type and where to find the schema. | Free-form-with-a-pointer minimum; generated `oneOf` stretch. |
+| req-grid-edge-schema-exposure-3 | Structured Validation Errors | Proposed | `EdgePropertyValidationError` reaches API callers as a structured error with the failing schema path. | Machine-actionable, not prose-only. |
 
 
 ### PRODUCED_BATCH Standard Edge
