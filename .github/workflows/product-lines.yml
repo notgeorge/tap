@@ -358,148 +358,20 @@ jobs:
           TAP_DEV_ADMIN_PASSWORD: ci-throwaway
         run: scripts/gate-lean
 
-  # REQUIRED gate (req-dev-validation-api-fuzz-2, flipped 2026-08-11 after a clean
-  # track record): schemathesis property-fuzz of the LIVE API from its own OpenAPI
-  # schema (Django Ninja generates it) — two passes. Unauthenticated: the auth wall
-  # must never 5xx and responses must match their declared schema. Authenticated
-  # (req-dev-validation-api-fuzz-3): a throwaway admin minted through the real boot
-  # auth phase + a DB session, so the fuzz reaches BEHIND the wall; a 200-canary
-  # refuses to run if "authenticated" would silently mean fuzzing 401s.
-  #
-  # DETERMINISM (load-bearing for a REQUIRED gate): both passes pin --seed, so the
-  # verdict is a function of the CODE, not of the day's random draw — a promote can
-  # never be blocked by a fresh example finding a latent bug on unrelated code (that
-  # broad exploration belongs in a non-blocking lane; see the spec tail). Findings
-  # FAIL the step (no `|| true`; pipefail propagates schemathesis's exit through tee),
-  # and the job is in the gate aggregator's `needs`, so a 5xx or schema-conformance
-  # miss blocks the promote. It found + forced fixes for 8 real 5xx classes before
-  # being trusted here.
+  # REQUIRED gate: the api-fuzz reusable workflow (.github/workflows/api-fuzz.yml)
+  # in DETERMINISTIC posture — pinned seed, small example budget, findings FAIL. The
+  # verdict is a function of the code, not the day's random draw, so a promote is never
+  # blocked by a fresh example finding a latent bug on unrelated code. That broad
+  # exploration runs nightly instead (api-fuzz-nightly.yml, random seed, non-blocking).
+  # Tier-gated like the boot gates: markdown cannot change the API surface.
   api-fuzz:
-    # Tier-gated: markdown cannot change the API surface.
     if: needs.setup.outputs.tier == 'full'
     needs: [setup, secret-scan]
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
-      TAP_BOOT_PROFILE: core_dev
-      TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE: "false"
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      - name: Provide empty secrets root
-        run: |
-          rm -f tap_secrets
-          mkdir -p tap_secrets
-      - name: Point the uv cache at an out-of-tree dir (runner temp)
-        # See the `line` job: $RUNNER_TEMP is outside the workspace (out of the
-        # scanned /app tree); set via $GITHUB_ENV, not job-level `env:`, because the
-        # `runner` context is unavailable at job level.
-        run: echo "TAP_CI_UV_CACHE=$RUNNER_TEMP/uv-cache" >> "$GITHUB_ENV"
-      - name: Provide web image (pull published when inputs unchanged, else build)
-        uses: ./.github/actions/ci-web-image
-      - name: Restore uv cache (wheels + plugin git-installs)
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ runner.temp }}/uv-cache
-          key: uv-ci-core_dev-${{ hashFiles('uv.lock', 'boot/*.boot.json') }}
-          restore-keys: |
-            uv-ci-core_dev-
-            uv-ci-
-      - name: Boot the core_dev profile
-        run: |
-          docker compose --env-file .env up -d
-          ok=0
-          for i in $(seq 1 200); do
-            if docker compose --env-file .env logs web 2>/dev/null | grep -q 'TAP-ABORT:'; then
-              echo "::error::boot aborted (TAP-ABORT sentinel)"; docker compose --env-file .env logs web; exit 1
-            fi
-            if docker compose --env-file .env exec -T web sh -c 'cd /app && uv run python manage.py health' >/dev/null 2>&1; then
-              echo "web healthy after ~$((i * 3))s"; ok=1; break
-            fi
-            # 3s, not 10: readiness lands mid-interval, so the poll step is pure
-            # quantization waste — same total timeout via the higher loop bound.
-            sleep 3
-          done
-          [ "$ok" = 1 ] || { echo "::error::web not healthy in time"; docker compose --env-file .env logs web | tail -100; exit 1; }
-      - name: Run boot with a throwaway admin (auth phase)
-        # The entrypoint migrates + serves but never runs `manage.py boot`, so the
-        # stack has ZERO users until this step. The DJANGO_SUPERUSER_* env path is
-        # the same canonical route spawn uses (ensure_initial_admin, req-boot-secrets:
-        # credentials never live in boot profiles). The password is per-run garbage —
-        # never echoed, never persisted, dies with the runner.
-        run: |
-          PW="ci-fuzz-$(openssl rand -hex 16)"
-          docker compose --env-file .env exec -T \
-            -e DJANGO_SUPERUSER_USERNAME=admin \
-            -e DJANGO_SUPERUSER_PASSWORD="$PW" \
-            -e DJANGO_SUPERUSER_EMAIL=admin@ci-fuzz.tap.localhost \
-            web sh -c 'cd /app && uv run python manage.py boot --profile core_dev'
-      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
-      - name: Schemathesis — unauthenticated surface (required)
-        run: |
-          base="http://localhost:${WEB_PORT:-8000}"
-          schema="$base/api/v1/openapi.json"
-          # `manage.py health` probes the backends in-process, NOT the HTTP server —
-          # the runserver may still be warming when health first goes green (observed
-          # 2026-08-10: connection-reset on the first fetch). Poll HTTP itself.
-          ok=0
-          for _ in $(seq 1 60); do
-            curl -fsS "$schema" -o /dev/null 2>/dev/null && { ok=1; break; }
-            # 3s, not 10: readiness lands mid-interval, so the poll step is pure
-            # quantization waste — same total timeout via the higher loop bound.
-            sleep 3
-          done
-          if [ "$ok" != 1 ]; then
-            echo "::error::could not fetch $schema after 3 min"
-            docker compose --env-file .env logs web | tail -80
-            exit 1
-          fi
-          # Pinned version (supply-chain) + pinned --seed (determinism, see job header).
-          # NO `|| true`: a finding must red this required gate. pipefail (bash default
-          # for run steps) carries schemathesis's exit code through the tee.
-          uvx schemathesis@4.24.3 run "$schema" \
-            --checks not_a_server_error,response_schema_conformance \
-            --max-examples 20 --workers 2 --seed 20260811 2>&1 | tee schemathesis.log
-      - name: Schemathesis — authenticated surface (required)
-        # Auth carrier: a real DB session minted by the DEBUG-fail-closed
-        # tap_web/skills/drive-browser/mint_session.py (the drive-browser mechanism),
-        # plus the csrftoken cookie from the login page — ninja's django_auth is
-        # APIKeyCookie(csrf=True), so without the CSRF pair every write op would
-        # collapse to 403 and the pass would be authenticated in name only.
-        # The canary makes that failure mode loud instead of silent.
-        run: |
-          base="http://localhost:${WEB_PORT:-8000}"
-          schema="$base/api/v1/openapi.json"
-          key="$(docker compose --env-file .env exec -T web sh -c 'cd /app && uv run python manage.py shell' \
-            < tap_web/skills/drive-browser/mint_session.py | sed -n 's/^SESSIONKEY=//p')"
-          [ -n "$key" ] || { echo "::error::session mint failed (no SESSIONKEY in shell output)"; exit 1; }
-          echo "::add-mask::$key"
-          tok="$(curl -fsS -c - -o /dev/null "$base/auth/passkey/login/" | awk '$6 == "csrftoken" { print $7 }')"
-          [ -n "$tok" ] || { echo "::error::no csrftoken cookie from $base/auth/passkey/login/"; exit 1; }
-          code="$(curl -s -o /dev/null -w '%{http_code}' -H "Cookie: sessionid=$key" "$base/api/v1/entities/")"
-          if [ "$code" != "200" ]; then
-            echo "::error::authenticated canary GET /api/v1/entities/ returned $code, not 200 — refusing to fuzz what would silently be the 401 surface"
-            exit 1
-          fi
-          uvx schemathesis@4.24.3 run "$schema" \
-            --checks not_a_server_error,response_schema_conformance \
-            --max-examples 20 --workers 2 --seed 20260811 \
-            -H "Cookie: sessionid=$key; csrftoken=$tok" \
-            -H "X-CSRFToken: $tok" 2>&1 | tee schemathesis-auth.log
-      - name: Upload fuzz logs
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: schemathesis-log
-          path: |
-            schemathesis.log
-            schemathesis-auth.log
-          if-no-files-found: ignore
-      - name: Make uv cache saveable (container wrote it as root)
-        if: always()
-        run: sudo chown -R "$(id -u):$(id -g)" "${{ runner.temp }}/uv-cache" 2>/dev/null || true
+    uses: ./.github/workflows/api-fuzz.yml
+    with:
+      seed: "20260811"
+      max_examples: 20
+      fail_on_findings: true
 
   # The single stable required-check target — rulesets point ONLY at this name.
   # The matrix names its `line` instances from matrix DATA ("line (test_all, ...)"),
