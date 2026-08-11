@@ -540,6 +540,24 @@ the login audit path — accepted on a discarded CI stack, named here).
 | req-dev-validation-api-fuzz-3 | Authenticated surface | Implemented | Fuzz behind session auth with a throwaway credential: in-job boot auth phase + minted DB session + CSRF pair, 200-canary fail-closed, admin-role pass — now gate-blocking. | Viewer-role differential deferred to the open tail. |
 | req-dev-validation-api-fuzz-4 | Random-seed exploration lane | Implemented | `api-fuzz-nightly.yml` runs the reusable `api-fuzz.yml` nightly with an empty (random) seed, `max_examples: 200`, `fail_on_findings: false` — discovers NEW bugs off the promote path. | One reusable workflow; the gate and this lane are two callers, cannot drift. Auto-issue-on-finding is the open tail. |
 
+#### Known-flake ledger (cross-session)
+
+Now that this job is gate-blocking, a failure in its **harness standup** (stack boot, admin
+mint, session mint — everything before the first fuzz request) is a **false red on the
+promote path**, not a fuzz finding. Sessions MUST append recurrences here rather than
+re-running past them silently — this ledger is the cross-worktree memory that
+distinguishes "one-off infra flake" from "recurring boot-path concurrency defect".
+Disposition rule: a setup-phase failure is re-run once and logged; **on recurrence**, it
+graduates to a real investigation (boot-path concurrency under CI's cold Postgres) and
+the job's retry/demotion posture gets a deliberate decision — a required gate that reds
+on its own scaffolding erodes trust in every red. Feeds the flaky-test-tracking half of
+`req-cicd-pipeline-observability` (spec-cicd-hardening.md).
+
+| Date | Where | Symptom | Disposition |
+| --- | --- | --- | --- |
+| 2026-08-11 | PR #22 run (typing-only deps diff) | `psycopg.errors.DeadlockDetected` in the job's boot auth phase ("Run boot with a throwaway admin"), before any fuzz request | Initially judged harness flake (system under test byte-identical to main at runtime). Gate was green only because that PR's workflow snapshot predated the gate flip. **RECURRED same day — superseded by the next row.** |
+| 2026-08-11 | Multiple additional api-fuzz failures on other runs, same day | Same setup-phase class | **Escalated per the disposition rule** (recurrence ⇒ real investigation). Root-cause investigation OWNED by session/unified (in flight as of 2026-08-11); its landing should update this row with the finding and the retry/demotion decision. Other sessions: log further occurrences here, do not investigate in parallel. |
+
 ### Promote-Path Enforcement
 ----
 RID: `req-dev-validation-promote-hook`
