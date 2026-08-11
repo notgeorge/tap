@@ -27,24 +27,20 @@ their plugin paths from here so the two never diverge.
 from __future__ import annotations
 
 import importlib.util
-import os
 from pathlib import Path
 
 
 def installed_plugin_slugs() -> list[str]:
     """Slugs of the plugins installed+enabled in THIS stack.
 
-    Mirrors ``tap.settings``: honour an explicit ``TAP_PLUGINS`` override (the
-    space-separated AppConfig paths pre-boot emits) when present, else fall back to
-    entry-point discovery over installed distributions. Both reduce to the set of
-    plugin slugs this stack actually runs.
+    Single-sourced through ``tap.preboot.resolved_plugin_app_configs`` (TAP_PLUGINS
+    authoritative: env → persisted set → warned live-discovery fallback), so the test
+    harness and ``tap.settings`` INSTALLED_APPS can never disagree on the plugin set —
+    the divergence that was previously two hand-copied resolvers.
     """
-    env = os.environ.get("TAP_PLUGINS")
-    if env is not None:
-        return sorted({app.split(".")[1] for app in env.split() if app.startswith("tap_plugin.")})
-    from tap.preboot import discover_entry_points
+    from tap.preboot import resolved_plugin_app_configs
 
-    return sorted(discover_entry_points())
+    return sorted({app.split(".")[1] for app in resolved_plugin_app_configs() if app.startswith("tap_plugin.")})
 
 
 def requires_plugins(*slugs: str):

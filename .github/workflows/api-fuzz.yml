@@ -83,12 +83,17 @@ jobs:
             if docker compose --env-file .env logs web 2>/dev/null | grep -q 'TAP-ABORT:'; then
               echo "::error::boot aborted (TAP-ABORT sentinel)"; docker compose --env-file .env logs web; exit 1
             fi
+            # `manage.py health` gates on readiness, including the critical `migrations`
+            # probe (tap_health): the DB can be reachable while the entrypoint's migrate is
+            # still applying migrations (createcachetable precedes migrate), and acting then
+            # races the half-applied schema (the plugin-loading flake). The migrations probe
+            # makes health red until migrate is fully applied, so this waits correctly.
             if docker compose --env-file .env exec -T web sh -c 'cd /app && uv run python manage.py health' >/dev/null 2>&1; then
-              echo "web healthy after ~$((i * 3))s"; ok=1; break
+              echo "web healthy + migrations applied after ~$((i * 3))s"; ok=1; break
             fi
             sleep 3
           done
-          [ "$ok" = 1 ] || { echo "::error::web not healthy in time"; docker compose --env-file .env logs web | tail -100; exit 1; }
+          [ "$ok" = 1 ] || { echo "::error::web not healthy / migrations not applied in time"; docker compose --env-file .env logs web | tail -100; exit 1; }
       - name: Run boot with a throwaway admin (auth phase)
         # The entrypoint migrates + serves but never runs `manage.py boot`, so the stack
         # has ZERO users until this step. The DJANGO_SUPERUSER_* env path is the canonical
