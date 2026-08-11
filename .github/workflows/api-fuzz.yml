@@ -83,12 +83,20 @@ jobs:
             if docker compose --env-file .env logs web 2>/dev/null | grep -q 'TAP-ABORT:'; then
               echo "::error::boot aborted (TAP-ABORT sentinel)"; docker compose --env-file .env logs web; exit 1
             fi
-            if docker compose --env-file .env exec -T web sh -c 'cd /app && uv run python manage.py health' >/dev/null 2>&1; then
-              echo "web healthy after ~$((i * 3))s"; ok=1; break
+            # Gate on MIGRATIONS APPLIED, not just health. `manage.py health` checks DB
+            # reachability + the cache table (both true once the entrypoint's createcachetable
+            # runs, which PRECEDES migrate), so it goes green while the entrypoint's blocking
+            # migrate is still applying migrations. The next step's `manage.py boot` then runs
+            # its grid_infra concurrently with a half-applied schema and grants on an
+            # un-migrated table (flaky, different table each run — the plugin-loading flake).
+            # `migrate --check` exits non-zero while any migration is pending, so this waits
+            # for the entrypoint's migrate to finish before boot touches the grid.
+            if docker compose --env-file .env exec -T web sh -c 'cd /app && uv run python manage.py health && uv run python manage.py migrate --check' >/dev/null 2>&1; then
+              echo "web healthy + migrations fully applied after ~$((i * 3))s"; ok=1; break
             fi
             sleep 3
           done
-          [ "$ok" = 1 ] || { echo "::error::web not healthy in time"; docker compose --env-file .env logs web | tail -100; exit 1; }
+          [ "$ok" = 1 ] || { echo "::error::web not healthy / migrations not applied in time"; docker compose --env-file .env logs web | tail -100; exit 1; }
       - name: Run boot with a throwaway admin (auth phase)
         # The entrypoint migrates + serves but never runs `manage.py boot`, so the stack
         # has ZERO users until this step. The DJANGO_SUPERUSER_* env path is the canonical
