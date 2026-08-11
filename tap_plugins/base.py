@@ -239,4 +239,3 @@ class TapPluginConfig(AppConfig):
         for entry in self._manifest.searches:
             runner = import_string(entry.callable_path)
             register_search_runner(entry.runner_key, runner)
-

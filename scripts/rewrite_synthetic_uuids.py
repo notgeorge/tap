@@ -50,12 +50,8 @@ SIDECAR = REPO_ROOT / "scripts/uuid-rewrite-map.json"
 
 # Any version-7 UUID. Matches both organic and hand-shaped v7s; we filter
 # afterwards to decide which to rewrite.
-V7_RE = re.compile(
-    r"\b[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b"
-)
-STRICT_SYNTHETIC_RE = re.compile(
-    r"\b[0-9a-f]{8}-[0-9a-f]{4}-7000-8000-[0-9a-f]{12}\b"
-)
+V7_RE = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b")
+STRICT_SYNTHETIC_RE = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-7000-8000-[0-9a-f]{12}\b")
 
 
 def shared_prefix_key(u: str) -> str:

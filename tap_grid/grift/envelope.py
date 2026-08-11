@@ -56,16 +56,12 @@ _SPINE_WRITABLE_FIELDS: frozenset[str] = frozenset(
 _SPINE_REQUIRED_FIELDS: frozenset[str] = frozenset({"entity_id", "entity_type"})
 
 # Top-level fields that are framework-managed and discarded on write.
-_SPINE_DISCARDED_ON_WRITE: frozenset[str] = frozenset(
-    {"created_at", "updated_at", "deleted_at", "version"}
-)
+_SPINE_DISCARDED_ON_WRITE: frozenset[str] = frozenset({"created_at", "updated_at", "deleted_at", "version"})
 
 # Top-level lanes that exist but are discarded on write. `display` is
 # rendering metadata; future lanes (provenance, history, perspectives) are
 # similarly read-only on the write path until/unless a spec promotes them.
-_DISCARDED_LANES: frozenset[str] = frozenset(
-    {"display", "provenance", "history", "perspectives"}
-)
+_DISCARDED_LANES: frozenset[str] = frozenset({"display", "provenance", "history", "perspectives"})
 
 # Fields inside `data` that are denormalized mirrors of top-level values.
 # When both sides are present, they must agree (req-grift-envelope-denorm-3).
@@ -186,19 +182,13 @@ def parse_envelope_for_write(env: dict[str, Any]) -> SplitPayload:
             )
 
     # Build the entity payload from the top-level spine.
-    entity_payload: dict[str, Any] = {
-        key: env[key] for key in _SPINE_WRITABLE_FIELDS if key in env
-    }
+    entity_payload: dict[str, Any] = {key: env[key] for key in _SPINE_WRITABLE_FIELDS if key in env}
 
     # Build the model payload from data, with denormalized mirrors removed
     # (they flow through entity_payload).
-    model_payload: dict[str, Any] = {
-        key: value for key, value in data.items() if key not in _MIRRORED_FIELDS
-    }
+    model_payload: dict[str, Any] = {key: value for key, value in data.items() if key not in _MIRRORED_FIELDS}
 
-    discarded = tuple(
-        lane for lane in _DISCARDED_LANES if lane in env
-    )
+    discarded = tuple(lane for lane in _DISCARDED_LANES if lane in env)
 
     return SplitPayload(
         entity_payload=entity_payload,

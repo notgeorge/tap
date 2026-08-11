@@ -14,9 +14,8 @@ from pathlib import Path
 import pytest
 
 from tap import boot_pointer
-from tap.boot_records import canonical_digest_bytes
 from tap.boot_pointer import BootPointerError, parse_git_ref, parse_pointer, stage0_fetch
-
+from tap.boot_records import canonical_digest_bytes
 
 # --- parsing ----------------------------------------------------------------
 

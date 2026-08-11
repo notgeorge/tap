@@ -344,9 +344,7 @@ class TestUserDisplay:
     def test_prefers_email_over_generated_username(self):
         from tap_auth.adapter import user_display
 
-        u = get_user_model().objects.create_user(
-            username="ext-example-google-abc123", email="operator@example.com"
-        )
+        u = get_user_model().objects.create_user(username="ext-example-google-abc123", email="operator@example.com")
         assert user_display(u) == "operator@example.com"
 
     def test_falls_back_to_username_without_email(self):
