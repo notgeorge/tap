@@ -386,9 +386,7 @@ def _resolve_tap_plugins(entries: list[dict[str, Any]], discovered: dict[str, st
         slug = entry["slug"]
         if slug not in discovered:
             site_dirs = _venv_site_packages()
-            dist_infos = sorted(
-                p.name for d in site_dirs for p in Path(d).glob("*.dist-info")
-            )
+            dist_infos = sorted(p.name for d in site_dirs for p in Path(d).glob("*.dist-info"))
             raise PrebootError(
                 f"plugin '{slug}' installed but exposes no '{TAP_PLUGINS_ENTRY_POINT_GROUP}' "
                 f"entry point whose key equals the slug (identity mismatch). "

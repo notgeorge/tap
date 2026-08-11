@@ -51,6 +51,6 @@ class RecurringUniquenessGuard(Guard):
             + "\n\nAdditional recurring tasks belong on the TAP grid as Schedule entities, not as "
             "@recurring decorators (req-tap-cares-task-backend-recurring-scope-4)."
         )
-        assert "tap_cares/task_backend.py" in callsites[0], (
-            f"Expected the @recurring callsite to live in tap_cares/task_backend.py; got {callsites[0]}"
-        )
+        assert (
+            "tap_cares/task_backend.py" in callsites[0]
+        ), f"Expected the @recurring callsite to live in tap_cares/task_backend.py; got {callsites[0]}"

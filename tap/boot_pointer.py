@@ -196,7 +196,9 @@ def _git_askpass(token_tuple: tuple[str, str, str] | None) -> Iterator[dict[str,
 def _git(args: list[str], env: dict[str, str]) -> subprocess.CompletedProcess[bytes]:
     result = subprocess.run(["git", *args], capture_output=True, env=env)
     if result.returncode != 0:
-        raise BootPointerError(f"git {' '.join(args)} failed (exit {result.returncode}): {result.stderr.decode(errors='replace').strip()}")
+        raise BootPointerError(
+            f"git {' '.join(args)} failed (exit {result.returncode}): {result.stderr.decode(errors='replace').strip()}"
+        )
     return result
 
 
@@ -237,14 +239,22 @@ def stage0_fetch(
         with tempfile.TemporaryDirectory(prefix="tap-stage0-", dir=str(out_dir)) as tmp:
             clone = Path(tmp) / "repo"
             _git(
-                ["clone", "--quiet", "--depth", "1", "--branch", git_ref.rev,
-                 "--filter=blob:none", "--no-checkout", git_ref.url, str(clone)],
+                [
+                    "clone",
+                    "--quiet",
+                    "--depth",
+                    "1",
+                    "--branch",
+                    git_ref.rev,
+                    "--filter=blob:none",
+                    "--no-checkout",
+                    git_ref.url,
+                    str(clone),
+                ],
                 env,
             )
             listing = _git(["-C", str(clone), "ls-tree", "-r", "--name-only", "HEAD"], env)
-            boot_paths = [
-                line for line in listing.stdout.decode().splitlines() if _RECORD_IN_ARTIFACT.match(line)
-            ]
+            boot_paths = [line for line in listing.stdout.decode().splitlines() if _RECORD_IN_ARTIFACT.match(line)]
             available = sorted(_RECORD_IN_ARTIFACT.match(p).group("name") for p in boot_paths)  # type: ignore[union-attr]
 
             target = pointer.record or "default"
@@ -290,7 +300,9 @@ def _verify_integrity(toml_bytes: bytes, record_name: str, record_bytes: bytes, 
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="tap.boot_pointer", description="Resolve a bootstrap pointer (stage-0 fetch).")
+    parser = argparse.ArgumentParser(
+        prog="tap.boot_pointer", description="Resolve a bootstrap pointer (stage-0 fetch)."
+    )
     parser.add_argument("pointer", help="<source-ref>#<record>  (e.g. git+https://…@v0.1.0#soak)")
     parser.add_argument("--credential", help="source-secret name (under TAP_SECRETS_ROOT/~/tap-secrets) or a full path")
     parser.add_argument("--secrets-root", help="override the secrets root for a bare --credential name")

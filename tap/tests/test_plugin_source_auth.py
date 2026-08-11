@@ -44,7 +44,11 @@ def _write_secret(root: Path, payload: dict[str, Any]) -> Path:
 
 
 def _git_source(**over: object) -> dict[str, Any]:
-    src: dict[str, Any] = {"type": "git", "url": "https://github.com/unified-systems-com/tap-plugin-x.git", "rev": "abc123"}
+    src: dict[str, Any] = {
+        "type": "git",
+        "url": "https://github.com/unified-systems-com/tap-plugin-x.git",
+        "rev": "abc123",
+    }
     src.update(over)
     return src
 
