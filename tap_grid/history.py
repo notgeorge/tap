@@ -123,7 +123,7 @@ class HistoryService:
         """
         if not self.is_enabled():
             return []
-        return self._instance.history.all()  # type: ignore[attr-defined]
+        return self._instance.history.all()
 
     def timeline(self) -> Any:
         """Return ordered change history for this instance.

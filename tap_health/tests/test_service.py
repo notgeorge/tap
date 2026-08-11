@@ -74,4 +74,4 @@ def test_run_health_takes_no_caller(isolated_probe_registry):
     register_health_probe("a", ProbeResult.healthy)
     # Pure producer: no positional caller/actor argument exists.
     with pytest.raises(TypeError):
-        run_health(object())  # type: ignore[misc]
+        run_health(object())  # type: ignore[call-arg]
