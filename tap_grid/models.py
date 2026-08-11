@@ -410,7 +410,7 @@ class BaseModelQuerySet(models.QuerySet["BaseModel"]):
 _BaseModelManagerBase = models.Manager.from_queryset(BaseModelQuerySet)
 
 
-class LiveManager(_BaseModelManagerBase):  # type: ignore[misc,valid-type]
+class LiveManager(_BaseModelManagerBase):  # type: ignore[type-arg]
     """Default manager for BaseModel subclasses — excludes tombstoned entities.
 
     `LiveManager.get_queryset()` invokes `.live()` so the default-manager
@@ -422,7 +422,7 @@ class LiveManager(_BaseModelManagerBase):  # type: ignore[misc,valid-type]
         return super().get_queryset().live()
 
 
-class AllObjectsManager(_BaseModelManagerBase):  # type: ignore[misc,valid-type]
+class AllObjectsManager(_BaseModelManagerBase):  # type: ignore[type-arg]
     """Unfiltered manager for BaseModel subclasses; includes tombstoned rows.
 
     Exposes `.live()` and `.tombstoned()` so callers can narrow explicitly
