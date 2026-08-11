@@ -118,8 +118,8 @@ fi
 #
 # Two validation surfaces gate the push, and they OVERLAP in wall-clock:
 #
-#   * CLOUD (Step 2.6) — the product-lines `test_all` union lane on AWS CodeBuild:
-#     the all-plugins authority (full plugin set, real image, Tier-0-tuned). Same
+#   * CLOUD (Step 2.6) — the product-lines `test_all` union lane (free GitHub
+#     runners): the all-plugins authority (full plugin set, real image). Same
 #     suite the local lane would run, but definitive. Dispatched FIRST so it runs
 #     while the local gates run underneath it.
 #
