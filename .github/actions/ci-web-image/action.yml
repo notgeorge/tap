@@ -1,0 +1,58 @@
+# Provide `tap-web:ci` for a CI lane — pull-first, build-fallback.
+#
+# The web image is pure dependency substrate at runtime: compose bind-mounts the
+# checkout over /app and the entrypoint rebuilds the venv from the tree's
+# uv.lock, so the only image content that matters live is the base layers,
+# system packages, the FIPS provider, /entrypoint.sh, and the baked wheel-cache
+# seed. All of that is a function of five inputs (Dockerfile, pyproject.toml,
+# uv.lock, .dockerignore, docker/entrypoint.sh) — `COPY . .` is shadowed by the
+# bind mount, so ordinary code changes do NOT require a fresh image, yet they
+# invalidate the buildx layer cache and cost ~70-100s of rebuild per job.
+#
+# So: when those inputs are unchanged vs origin/main AND the image published for
+# origin/main's exact commit exists (publish-images.yml pushes :sha-<short> on
+# every main push), pull it (~20-30s). The :sha- tag is the freshness proof —
+# `:latest` alone could lag an inputs-changing merge. Any miss (inputs changed,
+# publish lag, cancelled intermediate publish) falls back to the buildx build,
+# which is exactly what every lane did unconditionally before this action.
+name: ci-web-image
+description: "Pull the published tap-web image when image inputs are unchanged vs origin/main; otherwise build with the GHA layer cache."
+
+runs:
+  using: composite
+  steps:
+    - name: Decide pull vs build
+      id: decide
+      shell: bash
+      run: |
+        set -euo pipefail
+        git fetch origin main --depth 1 --quiet
+        main_short="$(git rev-parse --short=7 FETCH_HEAD)"
+        mode=build
+        if git diff --quiet FETCH_HEAD HEAD -- Dockerfile pyproject.toml uv.lock .dockerignore docker/entrypoint.sh; then
+          ref="ghcr.io/unified-systems-com/tap-web:sha-${main_short}"
+          if docker pull --quiet "$ref" >/dev/null 2>&1; then
+            docker tag "$ref" tap-web:ci
+            mode=pull
+            echo "pulled $ref — image inputs unchanged vs origin/main"
+          else
+            echo "image inputs unchanged but $ref not published (publish lag or superseded publish) — building"
+          fi
+        else
+          echo "image inputs changed vs origin/main — building"
+        fi
+        echo "mode=$mode" >> "$GITHUB_OUTPUT"
+    - name: Set up buildx
+      if: steps.decide.outputs.mode == 'build'
+      uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+    - name: Build web image (GHA layer cache)
+      if: steps.decide.outputs.mode == 'build'
+      uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+      with:
+        context: .
+        load: true
+        tags: tap-web:ci
+        cache-from: |
+          type=gha
+          type=registry,ref=ghcr.io/unified-systems-com/tap-web:buildcache-amd64
+        cache-to: type=gha,mode=max
