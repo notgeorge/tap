@@ -40,7 +40,7 @@
         "source": {
           "type": "git",
           "url": "https://github.com/unified-systems-com/tap-plugin-identity-core",
-          "rev": "v0.1.0"
+          "rev": "v0.1.1"
         },
         "note": "Package-mode (tap_plugin.identity_core). Install-only substrate: cross-cutting federated-identity vocabulary (the oidc_issuer convergence node) + issuer identity primitives. github_core imports its issuer helper; aws_core/sigstore_core/samsite reference identity_core__oidc_issuer as an edge endpoint \u2014 listed before them so its type registers first. Owns no collector and no edges; no GRIFT population seed."
       },
@@ -70,7 +70,7 @@
         "source": {
           "type": "git",
           "url": "https://github.com/unified-systems-com/tap-plugin-github-core",
-          "rev": "v0.3.0"
+          "rev": "v0.3.1"
         },
         "note": "Package-mode (tap_plugin.github_core). Tier-0 PyYAML dep (uv resolves at install). GitHub repo landing page; seeded in population."
       },
@@ -80,7 +80,7 @@
         "source": {
           "type": "git",
           "url": "https://github.com/unified-systems-com/tap-plugin-compliance-core",
-          "rev": "v0.2.0"
+          "rev": "v0.2.1"
         },
         "note": "Package-mode (tap_plugin.compliance_core). Install-only substrate: regime-agnostic compliance vocabulary (compliance_artifact + compliance_context in Phase A). fedramp_20x_ksi + samsite depend_on it \u2014 listed before them so its types register first. No GRIFT population seed of its own."
       },
@@ -100,7 +100,7 @@
         "source": {
           "type": "git",
           "url": "https://github.com/unified-systems-com/tap-plugin-samsite",
-          "rev": "v0.2.2"
+          "rev": "v0.2.3"
         },
         "note": "Package-mode (tap_plugin.samsite). The demo integration surface; seeded in population. DEPENDS ON roscale/sigstore_core/github_core (import time) + aws_core nodes \u2014 listed last so its cross-plugin deps install first. Its collectors are NOT fired in base (base reaches out to nothing)."
       },
