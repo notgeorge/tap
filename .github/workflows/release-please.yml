@@ -1,0 +1,86 @@
+# Core release lane (req-cicd-product-releases-1, spec-cicd-hardening.md).
+#
+# release-please watches main's conventional commits and maintains ONE rolling
+# release PR (version bump in pyproject.toml + generated CHANGELOG.md). Merging
+# that PR — through the same required-checks gate as everything else — is the
+# human act that cuts a release: the action then creates the vX.Y.Z tag and the
+# GitHub Release with the changelog as its notes. The tag push triggers
+# publish-release-tags.yml, which promotes the already-attested image bytes to
+# their versioned tags. Nothing releases without a maintainer merging the PR.
+#
+# Pre-1.0 version mapping (release-please-config.json): BREAKING → minor
+# (0.1.x → 0.2.0), feat/fix → patch (0.1.0 → 0.1.1). This is the contract
+# language in the Sam letter addendum: "0.1.x warns, 0.2.0 enforces".
+#
+# TOKEN (load-bearing): RELEASE_PLEASE_TOKEN must be a fine-grained PAT
+# (this repo; Contents: read/write + Pull requests: read/write). PRs created
+# or pushed with the default GITHUB_TOKEN never trigger workflow runs, so the
+# required `gate` check would never start and the release PR could never merge.
+# The `|| github.token` fallback keeps the lane visibly limping (PR exists,
+# checks missing) rather than failing silently when the secret is absent.
+#
+# The lock-refresh job exists because uv.lock records core's OWN version
+# ([[package]] name = "tap"): a version-only pyproject bump invalidates the
+# lock (`uv lock --check` fails), which would red the frozen image build on
+# the release PR itself. Verified 2026-08-10.
+
+name: release-please
+
+on:
+  push:
+    branches: [main]
+
+permissions: {}
+
+# One release PR, updated serially; never cancel a run that may be mid-tag.
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write       # tag + GitHub Release creation
+      pull-requests: write  # open/update the release PR
+    outputs:
+      prs_created: ${{ steps.rp.outputs.prs_created }}
+      prs: ${{ steps.rp.outputs.prs }}
+    steps:
+      - uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4
+        id: rp
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  # Keep uv.lock coherent INSIDE the release PR (see header). Commits as
+  # github-actions[bot] — DCO-exempt per scripts/check-dco BOT_AUTHOR_RE; the
+  # PAT push triggers the PR's required checks on the new head.
+  lock-refresh:
+    needs: release-please
+    if: needs.release-please.outputs.prs_created == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ fromJSON(needs.release-please.outputs.prs)[0].headBranchName }}
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      - name: Refresh uv.lock for the bumped core version
+        run: |
+          set -euo pipefail
+          uv lock
+          if git diff --quiet uv.lock; then
+            echo "uv.lock already coherent — nothing to do."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add uv.lock
+          git commit -m "chore(release): refresh uv.lock for the bumped core version"
+          git push

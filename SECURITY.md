@@ -26,10 +26,13 @@ welcome but not required.
 
 ## Supported versions
 
-TAP is pre-release. The latest `main` and the latest published container
-images are the only supported versions; fixes land there and are not
-backported. This section will be replaced with a supported-versions statement
-when versioned releases begin.
+TAP is pre-1.0. From the first tagged release (`v0.1.0`), the supported
+version is the **latest tagged release line** and its published container
+images (`ghcr.io/unified-systems-com/tap-web:<version>` / `tap-db:<version>`).
+Fixes land on `main` and reach supported users through the next tagged
+release; nothing is backported to older tags. The latest `main` and the
+`:latest` images remain the development tier — supported in the
+fix-forward-only sense above, never patched in place.
 
 ## Scope
 
