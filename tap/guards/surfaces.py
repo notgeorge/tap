@@ -156,13 +156,13 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
     DeclaredSurface(
         surface="Live-API property fuzz (schemathesis over the Ninja OpenAPI schema)",
         rid="req-dev-validation-api-fuzz",
-        cadence="CI (`product-lines.yml` `api-fuzz` job; dedicated `core_dev` stack)",
-        status="Report-only (deliberately NOT in the `gate` aggregator until it has a track record)",
+        cadence="CI (`product-lines.yml` `api-fuzz` job, REQUIRED via `gate`; dedicated `core_dev` stack; full-tier only)",
+        status="Gate-guarded — in the `gate` aggregator's `needs` (2026-08-11); findings fail the step, verdict deterministic via a pinned `--seed`",
         enforced_by=(
-            "schemathesis (pinned, `uvx`, runner-side) against the live booted API — two passes, "
-            "no-5xx + schema-conformance: unauthenticated (the auth wall must reject, never crash) "
-            "and authenticated (in-job boot auth phase + minted DB session + CSRF pair, "
-            "200-canary fail-closed); viewer-role differential is the named next rung"
+            "schemathesis (pinned version + pinned seed, `uvx`, runner-side) against the live booted API — "
+            "two passes, no-5xx + schema-conformance: unauthenticated (the auth wall must reject, never crash) "
+            "and authenticated (in-job boot auth phase + minted DB session + CSRF pair, 200-canary fail-closed); "
+            "a random-seed exploration lane + viewer-role differential are the named next rungs"
         ),
     ),
     DeclaredSurface(
