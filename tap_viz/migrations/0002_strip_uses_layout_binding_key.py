@@ -9,10 +9,12 @@ left untouched.
 Direct ORM access is the sanctioned path in migrations.
 """
 
+from typing import Any
+
 from django.db import migrations
 
 
-def strip_layout_id(apps, schema_editor):
+def strip_layout_id(apps: Any, schema_editor: Any) -> None:
     Edge = apps.get_model("tap_grid", "Edge")
     for edge in Edge.objects.filter(edge_type="USES_LAYOUT").exclude(properties={}):
         if "layout-id" in edge.properties:

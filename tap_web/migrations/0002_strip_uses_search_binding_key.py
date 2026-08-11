@@ -10,10 +10,12 @@ carry empty properties, as the (schema-less) type now requires.
 Direct ORM access is the sanctioned path in migrations.
 """
 
+from typing import Any
+
 from django.db import migrations
 
 
-def strip_search_id(apps, schema_editor):
+def strip_search_id(apps: Any, schema_editor: Any) -> None:
     Edge = apps.get_model("tap_grid", "Edge")
     for edge in Edge.objects.filter(edge_type="USES_SEARCH").exclude(properties={}):
         if "search-id" in edge.properties:

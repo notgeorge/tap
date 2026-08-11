@@ -1,5 +1,7 @@
 """Tests for edge constraint validation."""
 
+from collections.abc import Iterator
+
 import pytest
 from django.core.exceptions import ImproperlyConfigured
 
@@ -487,7 +489,7 @@ class TestEdgePropertyLanes:
     per-type schema (warn mode on 0.1.x, fail-closed from 0.2.0)."""
 
     @pytest.fixture(autouse=True)
-    def isolate_registry(self) -> None:
+    def isolate_registry(self) -> "Iterator[None]":
         """Snapshot and restore the property schema registry around each test."""
         saved = _edge_property_schema_registry.all()
         _edge_property_schema_registry._reset_for_testing()
