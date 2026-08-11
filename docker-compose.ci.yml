@@ -13,8 +13,17 @@
 services:
   web:
     image: tap-web:ci
-    # The image is always pre-loaded by the build step; never reach out to a registry.
+    # The image is always pre-loaded by the pull-or-build step; never reach out
+    # to a registry from compose itself.
     pull_policy: never
+    volumes:
+      # CI-only: swap the base file's `uv_cache` NAMED volume for a host bind so
+      # actions/cache can persist wheels + plugin git checkouts across runs
+      # (compose merges service volumes by mount target — this entry overrides).
+      # An empty restored-miss dir behaves exactly like a fresh named volume:
+      # the entrypoint seeds it from the image's /opt/uv-cache-seed. The default
+      # keeps a bare `docker compose config` (no env) valid outside CI.
+      - ${TAP_CI_UV_CACHE:-uv_cache}:/root/.cache/uv
     # CI-only: pass the secret-source preinstall list + the lane's ambient AWS role creds
     # into the container so the boot's secret-source seam can reach AWS Secrets Manager for
     # a plugin-pull credential (the samsite lane). The lane exports the CodeBuild role's
