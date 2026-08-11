@@ -176,7 +176,7 @@ jobs:
       TAP_TEST_DB_TEMPLATE: tap_test_template
       # Host bind for the container's /root/.cache/uv (docker-compose.ci.yml
       # override) so actions/cache persists wheels + plugin git-installs.
-      TAP_CI_UV_CACHE: ${{ github.workspace }}/.uv-cache
+      TAP_CI_UV_CACHE: ${{ runner.temp }}/uv-cache
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -195,7 +195,7 @@ jobs:
       - name: Restore uv cache (wheels + plugin git-installs)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: .uv-cache
+          path: ${{ runner.temp }}/uv-cache
           key: uv-ci-${{ matrix.profile }}-${{ hashFiles('uv.lock', 'boot/*.boot.json') }}
           restore-keys: |
             uv-ci-${{ matrix.profile }}-
@@ -264,7 +264,7 @@ jobs:
         run: docker compose --env-file .env logs web | tail -200
       - name: Make uv cache saveable (container wrote it as root)
         if: always()
-        run: sudo chown -R "$(id -u):$(id -g)" .uv-cache 2>/dev/null || true
+        run: sudo chown -R "$(id -u):$(id -g)" "${{ runner.temp }}/uv-cache" 2>/dev/null || true
 
   # CI boot gates (req-dev-validation-smoke-gate / req-dev-validation-lean-boot).
   # The SAME scripts/gate + scripts/gate-lean artifacts the local promote runs —
@@ -284,7 +284,7 @@ jobs:
       COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
       TAP_BOOT_PROFILE: test_all
       TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE: "false"
-      TAP_CI_UV_CACHE: ${{ github.workspace }}/.uv-cache
+      TAP_CI_UV_CACHE: ${{ runner.temp }}/uv-cache
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -298,7 +298,7 @@ jobs:
       - name: Restore uv cache (wheels + plugin git-installs)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: .uv-cache
+          path: ${{ runner.temp }}/uv-cache
           key: uv-ci-test_all-${{ hashFiles('uv.lock', 'boot/*.boot.json') }}
           restore-keys: |
             uv-ci-test_all-
@@ -330,7 +330,7 @@ jobs:
         run: docker compose --env-file .env logs web | tail -200
       - name: Make uv cache saveable (container wrote it as root)
         if: always()
-        run: sudo chown -R "$(id -u):$(id -g)" .uv-cache 2>/dev/null || true
+        run: sudo chown -R "$(id -u):$(id -g)" "${{ runner.temp }}/uv-cache" 2>/dev/null || true
 
   lean-boot:
     # Tier-gated: markdown cannot affect boot (see cold-boot).
@@ -368,7 +368,7 @@ jobs:
       COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
       TAP_BOOT_PROFILE: core_dev
       TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE: "false"
-      TAP_CI_UV_CACHE: ${{ github.workspace }}/.uv-cache
+      TAP_CI_UV_CACHE: ${{ runner.temp }}/uv-cache
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -382,7 +382,7 @@ jobs:
       - name: Restore uv cache (wheels + plugin git-installs)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: .uv-cache
+          path: ${{ runner.temp }}/uv-cache
           key: uv-ci-core_dev-${{ hashFiles('uv.lock', 'boot/*.boot.json') }}
           restore-keys: |
             uv-ci-core_dev-
@@ -477,7 +477,7 @@ jobs:
           if-no-files-found: ignore
       - name: Make uv cache saveable (container wrote it as root)
         if: always()
-        run: sudo chown -R "$(id -u):$(id -g)" .uv-cache 2>/dev/null || true
+        run: sudo chown -R "$(id -u):$(id -g)" "${{ runner.temp }}/uv-cache" 2>/dev/null || true
 
   # The single stable required-check target — rulesets point ONLY at this name.
   # The matrix names its `line` instances from matrix DATA ("line (test_all, ...)"),
