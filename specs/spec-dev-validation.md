@@ -541,7 +541,8 @@ on its own scaffolding erodes trust in every red. Feeds the flaky-test-tracking 
 
 | Date | Where | Symptom | Disposition |
 | --- | --- | --- | --- |
-| 2026-08-11 | PR #22 run (typing-only deps diff) | `psycopg.errors.DeadlockDetected` in the job's boot auth phase ("Run boot with a throwaway admin"), before any fuzz request | Judged harness flake (system under test byte-identical to main at runtime). Gate was green only because that PR's workflow snapshot predated the gate flip — under the current REQUIRED job this red would have blocked. Watching for recurrence. |
+| 2026-08-11 | PR #22 run (typing-only deps diff) | `psycopg.errors.DeadlockDetected` in the job's boot auth phase ("Run boot with a throwaway admin"), before any fuzz request | Initially judged harness flake (system under test byte-identical to main at runtime). Gate was green only because that PR's workflow snapshot predated the gate flip. **RECURRED same day — superseded by the next row.** |
+| 2026-08-11 | Multiple additional api-fuzz failures on other runs, same day | Same setup-phase class | **Escalated per the disposition rule** (recurrence ⇒ real investigation). Root-cause investigation OWNED by session/unified (in flight as of 2026-08-11); its landing should update this row with the finding and the retry/demotion decision. Other sessions: log further occurrences here, do not investigate in parallel. |
 
 ### Promote-Path Enforcement
 ----
