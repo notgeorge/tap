@@ -47,7 +47,6 @@ class TestGraphPanelView:
             from_entity=layout.entity,
             to_entity=search.entity,
             edge_type="USES_SEARCH",
-            properties={"search-id": "main"},
         )
 
         panel = Panel.objects.create(
@@ -61,7 +60,6 @@ class TestGraphPanelView:
             from_entity=panel.entity,
             to_entity=layout.entity,
             edge_type="USES_LAYOUT",
-            properties={"layout-id": "default"},
         )
 
         panel_url_id = f"test-graph--{panel.entity_id}"

@@ -479,3 +479,78 @@ class TestValidateEdgeProperties:
         )
         with pytest.raises(EdgePropertyValidationError):
             validate_edge_properties("STRICT_EXTRA_EDGE", {"known": "hi", "extra": 42})
+
+
+class TestEdgePropertyLanes:
+    """req-grid-edge-schema-required: the two-lane model — system-owned keys
+    validate centrally via their owning machinery; the remainder demands a
+    per-type schema (warn mode on 0.1.x, fail-closed from 0.2.0)."""
+
+    @pytest.fixture(autouse=True)
+    def isolate_registry(self) -> None:
+        """Snapshot and restore the property schema registry around each test."""
+        saved = _edge_property_schema_registry.all()
+        _edge_property_schema_registry._reset_for_testing()
+        yield
+        _edge_property_schema_registry._reset_for_testing(saved)
+
+    _HOTLINK = {"model": "layout", "spec": "layout-arrangements", "value": "some-id"}
+
+    def test_hotlink_only_on_schemaless_type_is_silent(self, caplog) -> None:
+        """A hotlink-only payload needs no type schema and produces no warning (required-5)."""
+        import logging
+
+        with caplog.at_level(logging.WARNING, logger="tap_grid.constraints"):
+            validate_edge_properties("BARE_EDGE", {"hotlink": dict(self._HOTLINK)})
+        assert not [r for r in caplog.records if "[d393]" in r.getMessage()]
+
+    def test_schemaless_type_with_net_properties_warns(self, caplog) -> None:
+        """Warn mode (0.1.x): non-system properties without a schema log, not raise (required-1)."""
+        import logging
+
+        with caplog.at_level(logging.WARNING, logger="tap_grid.constraints"):
+            validate_edge_properties("BARE_EDGE", {"free": "form"})
+        warnings = [r.getMessage() for r in caplog.records if "[d393]" in r.getMessage()]
+        assert warnings and "BARE_EDGE" in warnings[0] and "req-grid-edge-schema-required-1" in warnings[0]
+
+    def test_enforce_flip_raises(self, monkeypatch) -> None:
+        """The 0.2.0 posture: same input fails closed once the flip lands (required-1/-3)."""
+        from tap_grid import constraints as c
+
+        monkeypatch.setattr(c, "ENFORCE_EDGE_SCHEMA_REQUIRED", True)
+        with pytest.raises(EdgePropertyValidationError, match="req-grid-edge-schema-required-1"):
+            validate_edge_properties("BARE_EDGE", {"free": "form"})
+
+    def test_malformed_hotlink_payload_rejected_any_type(self) -> None:
+        """The system lane validates hotlink shape centrally, schema or not (required-5)."""
+        with pytest.raises(EdgePropertyValidationError, match="hotlink payload"):
+            validate_edge_properties("BARE_EDGE", {"hotlink": {"model": "layout"}})
+
+    def test_schema_never_sees_system_keys(self) -> None:
+        """A strict (additionalProperties: false) type schema coexists with hotlink (required-5)."""
+        register_edge_property_schema(
+            "STRICT_EDGE",
+            {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {"label": {"type": "string"}},
+            },
+        )
+        validate_edge_properties("STRICT_EDGE", {"label": "ok", "hotlink": dict(self._HOTLINK)})
+
+    def test_registration_rejects_system_key_redeclaration(self) -> None:
+        """Per-type schemas may not redeclare system-owned keys (required-5)."""
+        with pytest.raises(ImproperlyConfigured, match="system-owned"):
+            register_edge_property_schema(
+                "GREEDY_EDGE",
+                {"type": "object", "properties": {"hotlink": {"type": "object"}}},
+            )
+
+    def test_empty_properties_always_legal(self, caplog) -> None:
+        """Schema-less types stay fully usable with empty properties (required-2)."""
+        import logging
+
+        with caplog.at_level(logging.WARNING, logger="tap_grid.constraints"):
+            validate_edge_properties("BARE_EDGE", {})
+            validate_edge_properties("BARE_EDGE", None)
+        assert not [r for r in caplog.records if "[d393]" in r.getMessage()]
