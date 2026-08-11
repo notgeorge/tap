@@ -162,7 +162,17 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
             "schemathesis (pinned version + pinned seed, `uvx`, runner-side) against the live booted API — "
             "two passes, no-5xx + schema-conformance: unauthenticated (the auth wall must reject, never crash) "
             "and authenticated (in-job boot auth phase + minted DB session + CSRF pair, 200-canary fail-closed); "
-            "a random-seed exploration lane + viewer-role differential are the named next rungs"
+            "the reusable `.github/workflows/api-fuzz.yml`, called in gate posture; viewer-role differential is the named next rung"
+        ),
+    ),
+    DeclaredSurface(
+        surface="Live-API property fuzz — nightly exploration (random seed)",
+        rid="req-dev-validation-api-fuzz",
+        cadence="Nightly (`api-fuzz-nightly.yml`, cron `47 9 * * *` + `workflow_dispatch`)",
+        status="Report-only (by design) — the same reusable `api-fuzz.yml` in exploration posture: random seed, deep example budget, `fail_on_findings: false`; a finding is a `::warning::` + artifact, never a red",
+        enforced_by=(
+            "`.github/workflows/api-fuzz-nightly.yml` → `api-fuzz.yml` (seed empty/random, `max_examples: 200`) — "
+            "discovers NEW bugs off the promote path so a fresh finding never blocks a merge; triage → fix → bump the gate seed"
         ),
     ),
     DeclaredSurface(

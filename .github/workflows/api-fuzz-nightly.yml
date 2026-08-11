@@ -1,0 +1,36 @@
+# Nightly API-fuzz EXPLORATION lane (req-dev-validation-api-fuzz-4, the exploration
+# follow-up to the deterministic gate). Calls the api-fuzz reusable workflow in
+# exploration posture: a RANDOM seed (fresh inputs every night), a deep example budget,
+# and non-blocking (a finding becomes a ::warning:: + the uploaded schemathesis-log
+# artifact, never a red that gates anything).
+#
+# WHY SEPARATE FROM THE GATE: the promote-path gate (product-lines.yml `api-fuzz`) pins
+# its seed so its verdict is a function of the code — a promote is never blocked by the
+# day's random draw. That determinism means the gate is a REGRESSION check on a fixed
+# example set; it does not DISCOVER new inputs. This lane is where discovery lives, off
+# the promote path, so a brand-new finding never blocks an unrelated merge. When it finds
+# something: triage the artifact, fix it, and (if worth locking in) bump the gate's pinned
+# seed to cover the case going forward.
+#
+# Zero secrets: boots a secrets-free core_dev stack; free runners, unlimited minutes on a
+# public repo. Scheduled workflows run from the DEFAULT branch only — this file must live
+# on main to fire.
+name: api-fuzz-nightly
+
+on:
+  schedule:
+    # Off-the-hour (GitHub delays/drops on-the-hour crons more aggressively), staggered
+    # after nightly-plugins (09:17) and trivy-nightly (09:30).
+    - cron: "47 9 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  explore:
+    uses: ./.github/workflows/api-fuzz.yml
+    with:
+      seed: ""              # empty => schemathesis draws a fresh random seed each run
+      max_examples: 200     # ~10x the gate — this lane has the time to explore deeper
+      fail_on_findings: false
