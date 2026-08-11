@@ -12,7 +12,6 @@ build/
 
 # UV lock file is committed (reproducible builds)
 # but the cache is not
-.uv-cache/
 
 # Django
 *.sqlite3
