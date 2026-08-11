@@ -392,7 +392,9 @@ not a guard-building exercise:
    `TRUSTS_ISSUER__identity_core` + `FEDERATES_VIA__github_core` (the shared
    `{link_rule, matched_value}` provenance shape — one schema constant owned by
    identity_core, referenced by github_core) and `SCOPED_TO_COMPLIANCE_BOUNDARY__compliance_core`
-   (formalize or schema the v0 `kludge` membership marker). `USES_SEARCH`'s `search-id`
+   (decided 2026-08-10: schema the field **as-is** — the `kludge` name stays, honestly
+   marking the v0 auto-membership rule; the real boundary-membership management design is
+   tracked as a revisit note in the aws_core spec, and renaming waits for that design). `USES_SEARCH`'s `search-id`
    and `USES_LAYOUT`'s 2 legacy `layout-id` rows are **deleted, not schema'd**
    (investigated 2026-08-10): they are v0 layout-definition binding remnants — read by
    no code, binding into a steps pipeline superseded by the v1 dual-mode definition whose

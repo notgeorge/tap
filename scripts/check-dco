@@ -40,7 +40,7 @@ RANGE="$(git merge-base "$BASE_REF" HEAD)..HEAD"
 
 # Bot authors exempt from sign-off (CONTRIBUTING "Sign-Off": an automated system
 # must not certify the DCO; the merging maintainer certifies instead).
-BOT_AUTHOR_RE='(renovate|dependabot|github-actions)\[bot\]'
+BOT_AUTHOR_RE='(renovate|dependabot|github-actions|tap-release)\[bot\]'
 
 violations=0
 checked=0
