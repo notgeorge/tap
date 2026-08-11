@@ -78,7 +78,7 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
         surface="All-plugins CI lane (free-runner fallback)",
         rid="req-dev-validation-all-plugins-lane",
         cadence="CI + promote fallback (TAP_PROMOTE_CI_WORKFLOW)",
-        status="Retained fallback — lane PROVEN GREEN in a real Actions run; superseded as the promote gate by the CodeBuild product-line `test_all` lane, kept as the free-runner fallback when CodeBuild is unavailable",
+        status="Retained fallback — lane PROVEN GREEN in a real Actions run; superseded as the promote gate by the product-line `test_all` lane, kept as the sharded fallback",
         enforced_by=(
             "`.github/workflows/all-plugins.yml` (boots the `test_all` union, runs the full lane); "
             "`promote-to-main.sh` Step 2.6 runs it when `TAP_PROMOTE_CI_WORKFLOW=all-plugins.yml`"
@@ -117,13 +117,12 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
         ),
     ),
     DeclaredSurface(
-        surface="Per-product-line CI lanes (CodeBuild)",
+        surface="Per-product-line CI lanes (free GitHub runners)",
         rid="req-dev-validation-product-line-lanes",
         cadence="Pre-push (promote-triggered `test_all` union) + CI (every line on PR; tier-gated — docs-tier diffs skip the lanes, specs-tier runs `test_all` only, req-dev-validation-product-line-lanes-7)",
-        status="Gate-guarded — both lanes (`test_all`, `samsite`) PROVEN GREEN on AWS CodeBuild; the `test_all` union lane is the promote gate (option B); bootstrap-skips the one promote that first lands product-lines.yml on main",
+        status="Gate-guarded — both lanes (`test_all`, `samsite`) proven green; the `test_all` union lane is the promote gate (option B). Ran on AWS CodeBuild until the measured ~9-min free-runner spike retired it (Terraform/account teardown pending, deliberately last)",
         enforced_by=(
-            "`.github/workflows/product-lines.yml` (per-line CodeBuild runners: `test_all` union + `samsite`); "
-            "`ci/terraform/codebuild-runners/` (per-line projects/roles/webhook); "
+            "`.github/workflows/product-lines.yml` (per-line free `ubuntu-latest` runners: `test_all` union + `samsite`); "
             "`promote-to-main.sh` Step 2.6 dispatches `line=test_all` and blocks on it (req-dev-multisession-ci-gate)"
         ),
     ),

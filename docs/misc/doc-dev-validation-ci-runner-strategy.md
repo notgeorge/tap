@@ -172,6 +172,34 @@ only becomes clean isolation inside an org. *(2026-08-08: the org now exists and
 lives in it, so this step is UNBLOCKED but not done — the current connection is
 authorized as George. Graduating to `tap-ci-bot` is now purely additive work.)*
 
+## Outcome addendum — the CodeBuild chapter closed
+
+The CodeBuild lanes ran for about a month, then the **CodeBuild-cancel spike**
+reversed this note's recommendation with a measurement. By then the two premises
+that had favored an in-account runner were gone: every plugin repo went public (no
+plugin-pull credential, no Secrets Manager round-trip), and no Bedrock/live-AWS
+lane had materialized. The spike dispatched the byte-identical `line=test_all`
+gate job with only `runs-on` changed:
+
+| Runner | build | boot | template | pytest | job total |
+| --- | --- | --- | --- | --- | --- |
+| CodeBuild `BUILD_GENERAL1_LARGE` (8 vCPU), `-n 8` | 72s | 115s | 57s | 163s | ~7m00s |
+| Free `ubuntu-latest` (4 vCPU), `-n 8` | 77s | 142s | 58s | 256s | 9m09s |
+| Free, `-n 6` | 82s | 144s | 56s | 243s | 8m59s |
+| Free, `-n 4` | 102s | 142s | 53s | 233s | 9m06s |
+
+With tmpfs + fsync-off Postgres the lane is CPU-bound, so workers==cores wins —
+the lane now runs `-n auto`. ~9 min is under the consolidation threshold, so the
+lanes moved to free runners and CodeBuild was retired: no Terraform to keep
+applied, no `WORKFLOW_JOB_QUEUED` webhook 502 failure mode, no CodeConnections
+identity question (the whole section above about Administration-write and the
+`tap-ci-bot` graduation becomes moot for CI — the connection can be torn down with
+the account). `ci/terraform/codebuild-runners/` stays in-repo as the worked
+example / restore point until account 180731181784 is closed (deliberately the
+last migration step), and it is the starting point if an in-account lane (live
+Bedrock) ever returns. Spike run ids: 31443692421 (-n 8), 31444605018 (-n 4),
+31444606509 (-n 6).
+
 ## Prior art / sources
 
 - GitHub Actions runner pricing (2026): 2-core $0.006, 4-core $0.012, 8-core $0.022 /min;

@@ -100,7 +100,7 @@ The ~40 surfaces group into a handful of intents. **The authoritative, live list
 - **Boot & deploy integrity** — *a fresh instance boots from zero.* Cold-boot cycle, lean-boot core-independence, migration completeness, per-profile boot resolution, plugin dependency consistency, health.
 - **Code & logging hygiene** — *authoring conventions that keep the code machine-legible.* Log-site tokens, mypy typing, JSON naming, plugin type-ownership, collection completeness.
 - **Query-engine correctness (Gryphon)** — *the graph query engine returns correct results.* Differential fuzzer, metamorphic TLP, stage/branch coverage, findings ledger.
-- **CI, process & runtime** — *the whole thing is gated before main advances.* CodeBuild product-line lanes, canary tier, secret-leak, async-delivery tiers, recurring-task uniqueness, spawn/teardown, web-render smoke.
+- **CI, process & runtime** — *the whole thing is gated before main advances.* product-line lanes (free GitHub runners), canary tier, secret-leak, async-delivery tiers, recurring-task uniqueness, spawn/teardown, web-render smoke.
 
 ## Why it isn't a pile: the doctrine
 
