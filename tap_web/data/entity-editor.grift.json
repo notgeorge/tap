@@ -125,10 +125,7 @@
       "edge": {
         "from_entity_id": "synthetic:layout:entity-neighborhood",
         "to_entity_id": "synthetic:search:entity-neighborhood",
-        "edge_type": "USES_SEARCH",
-        "properties": {
-          "search-id": "main"
-        }
+        "edge_type": "USES_SEARCH"
       }
     },
     {
@@ -140,10 +137,7 @@
       "edge": {
         "from_entity_id": "synthetic:panel:entity-graph",
         "to_entity_id": "synthetic:layout:entity-neighborhood",
-        "edge_type": "USES_LAYOUT",
-        "properties": {
-          "layout-id": "default"
-        }
+        "edge_type": "USES_LAYOUT"
       }
     },
     {

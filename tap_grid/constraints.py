@@ -27,6 +27,7 @@ Edge constraint format (in TapPluginConfig.edge_types):
 Wildcard (any type allowed): omit the "nodes", "sources", or "targets" key.
 """
 
+import logging
 from dataclasses import dataclass
 from typing import Any
 
@@ -34,6 +35,23 @@ import jsonschema
 
 from tap_grid.exceptions import EdgePropertyValidationError, InvalidEdgeError
 from tap_grid.registry import Registry
+
+logger = logging.getLogger(__name__)
+
+# System-owned edge property keys (req-grid-edge-schema-required-5,
+# tap_grid/specs/spec-grid-edge.md): written and validated by core machinery,
+# exempt from per-type schemas, and forbidden FOR per-type schemas to redeclare
+# (one shape, one owner). Today exactly `hotlink` (spec-grid-hotlink.md,
+# req-grid-hotlink-edge-data); the payload shape check lives with the machinery
+# in tap_grid.hotlink.
+SYSTEM_EDGE_PROPERTY_KEYS: frozenset[str] = frozenset({"hotlink"})
+
+# Fail-closed switch for req-grid-edge-schema-required-1: non-empty properties
+# (net of system-owned keys) on an edge type with no registered schema. False =
+# warn mode (the 0.1.x line, per the published contract "0.1.x warns, 0.2.0
+# enforces"); the 0.2.0 release flips this to True in the same change that
+# updates the spec's ACID statuses. Tests may monkeypatch to exercise both paths.
+ENFORCE_EDGE_SCHEMA_REQUIRED: bool = False
 
 # Sentinel for wildcard (connects to any node type)
 WILDCARD = object()
@@ -263,6 +281,16 @@ def register_edge_property_schema(edge_type: str, schema: dict[str, Any]) -> Non
         edge_type: The edge type slug (e.g., "USES_PANEL").
         schema: A JSON Schema dict used to validate Edge.properties.
     """
+    declared = set(schema.get("properties", {})) | set(schema.get("required", []))
+    redeclared = declared & SYSTEM_EDGE_PROPERTY_KEYS
+    if redeclared:
+        from django.core.exceptions import ImproperlyConfigured
+
+        raise ImproperlyConfigured(
+            f"Edge type '{edge_type}' property_schema redeclares system-owned key(s) "
+            f"{sorted(redeclared)} — those payloads are validated by their owning machinery, "
+            f"once, centrally (req-grid-edge-schema-required-5). Declare only type-authored keys."
+        )
     _edge_property_schema_registry.register(edge_type, schema)
 
 
@@ -294,22 +322,52 @@ def get_edge_default_dimensions(edge_type: str) -> dict[str, str]:
 
 
 def validate_edge_properties(edge_type: str, properties: Any) -> None:
-    """Validate edge properties against the registered schema for an edge type.
+    """Validate edge properties: system-owned lane first, then the type schema.
 
-    No-ops when no schema is registered for the edge type. Schema strictness
-    (e.g., additionalProperties) is fully controlled by the schema author.
+    Two lanes (req-grid-edge-schema-required, spec-grid-edge.md):
 
-    Raises EdgePropertyValidationError if properties fail schema validation.
+    1. System-owned keys (today: ``hotlink``) validate against their owning
+       machinery's payload schema — once, centrally — and are then subtracted.
+    2. The remainder validates against the type's registered schema. A type
+       with no schema may carry NO remainder: properties are optional, but
+       carrying them requires a schema (req-grid-edge-schema-required-1).
+       Warn mode on the 0.1.x line; ``ENFORCE_EDGE_SCHEMA_REQUIRED`` flips
+       fail-closed in 0.2.0.
+
+    Schema strictness (e.g., additionalProperties) is fully controlled by the
+    schema author; the schema never sees system-owned keys.
+
+    Raises EdgePropertyValidationError on any validation failure.
 
     Args:
         edge_type: The edge type slug.
         properties: The Edge.properties value to validate.
     """
+    if isinstance(properties, dict) and "hotlink" in properties:
+        from tap_grid.hotlink import validate_edge_hotlink_payload
+
+        validate_edge_hotlink_payload(edge_type, properties["hotlink"])
+    net = (
+        {k: v for k, v in properties.items() if k not in SYSTEM_EDGE_PROPERTY_KEYS}
+        if isinstance(properties, dict)
+        else properties
+    )
     schema = _edge_property_schema_registry.get_optional(edge_type)
     if schema is None:
+        if net:
+            message = (
+                f"Edge type '{edge_type}' carries properties {sorted(net) if isinstance(net, dict) else type(net).__name__} "
+                f"with no registered property_schema — properties are optional, carrying them is not "
+                f"(req-grid-edge-schema-required-1). Register a property_schema on the edge_types declaration."
+            )
+            if ENFORCE_EDGE_SCHEMA_REQUIRED:
+                raise EdgePropertyValidationError(message)
+            logger.warning("[d393] %s (warn mode; fail-closed in 0.2.0)", message)
         return
+    # A system-only payload leaves net == {} here, which still validates against
+    # the type schema: a schema requiring type-authored keys rejects it, correctly.
     try:
-        jsonschema.validate(instance=properties, schema=schema)
+        jsonschema.validate(instance=net, schema=schema)
     except jsonschema.ValidationError as exc:
         raise EdgePropertyValidationError(
             f"Edge properties for '{edge_type}' failed schema validation: {exc.message}"
