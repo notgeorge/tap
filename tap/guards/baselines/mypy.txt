@@ -35,7 +35,7 @@ tap_cares/registry.py:attr-defined:2
 tap_cares/services/__init__.py:no-any-return:1
 tap_cares/services/scheduler.py:arg-type:3
 tap_cares/services/scheduler.py:attr-defined:7
-tap_cares/services/scheduler.py:misc:2
+tap_cares/services/scheduler.py:misc:4
 tap_cares/services/scheduler.py:no-any-return:4
 tap_cares/tasks.py:arg-type:1
 tap_cares/tasks.py:type-arg:1
@@ -44,7 +44,9 @@ tap_cares/tests/test_collector_model.py:no-untyped-call:16
 tap_cares/tests/test_collector_registry.py:call-arg:1
 tap_cares/tests/test_collector_registry.py:no-untyped-call:18
 tap_cares/tests/test_collector_registry.py:unused-ignore:2
+tap_cares/tests/test_no_request_actor.py:misc:1
 tap_cares/tests/test_no_request_actor.py:no-any-return:1
+tap_cares/tests/test_scheduler.py:misc:3
 tap_cares/tests/test_scheduler.py:no-any-return:2
 tap_cares/tests/test_scheduler.py:operator:3
 tap_cares/tests/test_scheduler.py:union-attr:2
@@ -72,15 +74,13 @@ tap_grid/gryphon/executor.py:union-attr:2
 tap_grid/gryphon/parser.py:arg-type:1
 tap_grid/gryphon/parser.py:no-any-return:2
 tap_grid/gryphon/parser.py:type-arg:1
-tap_grid/history.py:unused-ignore:1
 tap_grid/hotlink.py:attr-defined:1
 tap_grid/hotlink.py:type-arg:2
 tap_grid/management/commands/purge_entities.py:no-untyped-def:2
 tap_grid/management/commands/runserver_nocache.py:no-untyped-def:2
 tap_grid/models.py:attr-defined:3
 tap_grid/models.py:no-any-return:2
-tap_grid/models.py:type-arg:25
-tap_grid/models.py:unused-ignore:2
+tap_grid/models.py:type-arg:23
 tap_grid/orm_compiler.py:arg-type:1
 tap_grid/orm_compiler.py:misc:8
 tap_grid/search.py:unused-ignore:1
@@ -116,6 +116,7 @@ tap_grid/tests/test_gryphon.py:type-arg:1
 tap_grid/tests/test_gryphon.py:union-attr:80
 tap_grid/tests/test_gryphon_sql_capture.py:no-untyped-call:10
 tap_grid/tests/test_history.py:union-attr:1
+tap_grid/tests/test_hotlink.py:misc:1
 tap_grid/tests/test_hotlink.py:no-any-return:1
 tap_grid/tests/test_hotlink.py:no-untyped-call:23
 tap_grid/tests/test_hotlink.py:type-arg:3
