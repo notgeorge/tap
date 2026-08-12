@@ -18,7 +18,6 @@ Secret material is returned in memory only and never logged in full
 from __future__ import annotations
 
 import functools
-import os
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +26,7 @@ from jsonschema import Draft202012Validator
 
 from tap.jsonfiles import JsonFileError, load_json_file, load_schema
 from tap.runtime_secrets import RuntimeSecretError, find_secret_file
+from tap.secrets_root import resolve as resolve_secrets_root
 from tap_auth.providers.base import ProviderError
 
 _SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schemas" / "oidc_client_secret.schema.json"
@@ -41,18 +41,20 @@ def _oidc_client_validator() -> Draft202012Validator:
 
 def _secrets_root() -> Path:
     # Prefer the live settings (so test fixtures overriding TAP_SECRETS_ROOT
-    # work), but fall back to os.environ when settings is not yet configured —
-    # build_socialaccount_providers runs DURING tap.settings import, where the
-    # lazy django.conf.settings object is mid-initialization and its attributes
-    # are not reliably accessible. os.environ is the same source settings.py reads.
-    root: str | None = None
+    # work), but fall back to the canonical settings-free lookup
+    # (tap.secrets_root, req-tap-cares-secrets-root-resolution) when settings is
+    # not yet configured — build_socialaccount_providers runs DURING tap.settings
+    # import, where the lazy django.conf.settings object is mid-initialization and
+    # its attributes are not reliably accessible. Unset ⇒ raise: a provider
+    # without a resolvable store is a hard error (this edge's unset-policy).
     if settings.configured:
         root = getattr(settings, "TAP_SECRETS_ROOT", None)
-    if not root:
-        root = os.environ.get("TAP_SECRETS_ROOT")
-    if not root:
+        if root:
+            return Path(root)
+    resolved = resolve_secrets_root()
+    if resolved is None:
         raise ProviderError("TAP_SECRETS_ROOT is not configured; cannot resolve provider secrets")
-    return Path(root)
+    return resolved
 
 
 def resolve_oidc_client_secret(key: str, *, scope: str = "auth") -> dict[str, str]:

@@ -74,6 +74,7 @@ Key Directories - each are their own Django app, this is also the scaffolding pr
 
 TAP Core Architectural Rules
     Specifications are the canonical source of truth; this guide is a high-level operational summary and must be kept aligned with the specs.
+    Derive a fact once: when a fact is needed in two places, call one function — never copy the logic or re-derive from another source. Where a structural boundary forces an intentional duplicate (settings-free vs in-Django, stage-0 host tools), tag EVERY site with `TAP-KNOWN-DUPE(<group-id>)` naming why and where the partner is, and document the group in the owning spec (specs/spec-tap-known-dupes.md; guard-enforced). Editing one member of a group means putting eyes on its partners. Untagged duplication is a defect.
     Entity is the graph spine and cross-cutting metadata layer for TAP-managed nodes and edges; typed BaseModel tables hold domain-specific data.
     ORM models refer to entity via foreign key relationships
     Use a BaseModel for all domain ORM models (excluding Entity, Edge, Grid and Django auth models) so every TAP-managed node has a backing Entity on the spine.

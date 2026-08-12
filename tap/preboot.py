@@ -294,13 +294,15 @@ def _resolve_wheelhouse_dir(raw: str) -> Path:
 def _secrets_root() -> Path | None:
     """The ``TAP_SECRETS_ROOT`` directory for pre-boot credential resolution, or None.
 
-    Settings-free (`req-boot-preboot`): reads the same env var ``settings.py`` reads,
-    since Django is not configured yet. Absent ⇒ no source-credential store, so only
+    Settings-free (`req-boot-preboot`): delegates to the canonical outside-Django
+    lookup (`tap.secrets_root`, req-tap-cares-secrets-root-resolution), since Django
+    is not configured yet. Absent ⇒ no source-credential store, so only
     public/editable/path sources can install (git sources that *declare* a credential
     then fail loud in :func:`_install_plugins`).
     """
-    raw = os.environ.get("TAP_SECRETS_ROOT")
-    return Path(raw) if raw else None
+    from tap.secrets_root import resolve
+
+    return resolve()
 
 
 def _run_install(args: list[str], cred: GitCredential | None) -> subprocess.CompletedProcess[str]:

@@ -89,6 +89,10 @@ TAP_SESSION_LABEL = os.environ.get("TAP_SESSION_LABEL", "")
 # normally and capabilities that need a missing secret fail at run time.
 #
 # See tap_cares/specs/spec-tap-cares-secrets.md.
+# TAP-KNOWN-DUPE(secrets-root): the settings-free partner lookup is tap/secrets_root.py —
+# pre-boot/stage-0/mid-settings-import callers cannot read Django settings, so the env read
+# exists twice by design (req-tap-cares-secrets-root-resolution). Editing this line means
+# putting eyes on the partner.
 TAP_SECRETS_ROOT = os.environ.get("TAP_SECRETS_ROOT", "/run/tap-secrets")
 
 # =============================================================================
