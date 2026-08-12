@@ -64,11 +64,16 @@ class TapCoreConfig(AppConfig):
         )
 
         try:
-            from tap_grid.models import EntityType
+            from tap_grid.models import EntityType, EntityTypeKind
 
-            EntityType.objects.get_or_create(
+            EntityType.objects.update_or_create(
                 slug="search",
-                defaults={"name": "Search", "plugin_name": "tap_grid", "icon": "search"},
+                defaults={
+                    "name": "Search",
+                    "plugin_name": "tap_grid",
+                    "icon": "search",
+                    "kind": EntityTypeKind.NODE,
+                },
             )
         except OperationalError, ProgrammingError:
             # DB not ready yet (e.g. during initial migrate).
