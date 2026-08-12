@@ -210,10 +210,9 @@ class Command(BaseCommand):
         if override:
             path = Path(override)
         else:
-            secrets_root = getattr(settings, "TAP_SECRETS_ROOT", "") or os.environ.get(
-                "TAP_SECRETS_ROOT", "/run/tap-secrets"
-            )
-            path = Path(secrets_root) / _DEV_RECORD_RELPATH
+            # settings.TAP_SECRETS_ROOT is the canonical in-Django lookup
+            # (req-tap-cares-secrets-root-resolution) — never re-read the env here.
+            path = Path(settings.TAP_SECRETS_ROOT) / _DEV_RECORD_RELPATH
         if not path.is_file():
             raise CommandError(
                 f"dev passkey record not found at {path} — run `manage.py export_dev_passkey` from a "
