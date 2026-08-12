@@ -26,6 +26,7 @@ The first requirement in this specification addresses third-party vendored compo
 | req-grid-flip-write-batch.sec | [Domain Writes Must Use Batch Context](#domain-writes-must-use-batch-context) | Backlog | All domain object mutations must occur within an active batch context for auditability |
 | req-grid-db-permission-flaw.sec | [Database Permission Errors Emit A Flaw](#database-permission-errors-emit-a-flaw) | Implemented | Any PostgreSQL permission-denied (SQLSTATE 42501) on any Django connection emits a `security` Flaw at a single connection-layer chokepoint; generalizes the read-only write-block guard and forward-proofs least-privilege DB roles |
 | req-grid-db-role-concurrency.sec | [Cluster-Global Role Provisioning Is Concurrency-Safe](#cluster-global-role-provisioning-is-concurrency-safe) | Implemented | Provisioners of cluster-global PostgreSQL objects (roles/databases/tablespaces) reconcile in a savepoint and retry on `tuple concurrently updated` — parallel test workers and concurrent instance boots on a shared cluster collide otherwise; advisory locks (per-database) can't serialize it |
+| req-grid-table-classification.sec | [Grid Table Classification Is Declared Once And Derived Everywhere](#grid-table-classification-is-declared-once-and-derived-everywhere) | Implemented | Every security consumer of "which tables are grid tables" derives from one model-declared classification (`GRID_TABLE_ROLE`); spine is core-only, a BaseModel can never claim it, and the DB grant reconciles against tables that actually exist |
 
 ---
 
@@ -293,6 +294,14 @@ TAP places one broad guard now.
 - **Highest-value case:** a `42501` on the `search_readonly` role means an in-code Gryphon
   guard (`req-grid-traversal-exec-searchable.sec` / `req-grid-traversal-lang-relation-guard.sec`)
   leaked and the database caught it — the tripwire that the primary guard has a gap.
+- **Escalation tip — when this Flaw fires in practice, it may be time to build the deferred
+  execute-time table-scope guard** (`req-grid-traversal-exec-table-guard.sec`, `Proposed`).
+  That guard is deferred precisely because the layers around it close the exploit paths and
+  this Flaw makes the DB's catch loud; recurring `42501`s on the search connection mean the
+  database has become the *first* line of defense instead of the last — the signal that
+  pre-execution blocking with precise in-app attribution (actor, query, table, *before* the
+  statement runs) is now worth its build cost. Treat repeated occurrences as the demand this
+  deferral was waiting for.
 - **New-role rule (single-chokepoint invariant).** Any new database role or connection alias
   MUST route through this guard; a role/alias that deliberately bypasses it names why per
   `req-sec-honest-risk`. This preserves the "one chokepoint" guarantee so a future god-mode
@@ -368,6 +377,103 @@ error — fail-loud by design, never a silent give-up.
 Extract the savepoint+retry into a reusable helper (context manager / decorator) when a second
 cluster-global provisioner is built — today `provision_search_role` is the sole site, so the
 pattern lives inline with a comment pointing here (YAGNI until the second caller).
+
+---
+
+### Grid Table Classification Is Declared Once And Derived Everywhere
+----
+RID: `req-grid-table-classification.sec`
+Status: `Implemented`
+Tags: `Security`
+
+Two independent security layers each need the answer to one question — **"which database
+tables hold TAP-managed grid data?"** — and each previously computed it on its own: the ORM
+read backstop (`req-tap-auth-orm-read-backstop`, `tap_grid/read_guard.py`) filtered
+`apps.get_models()` and hand-typed `tap_entity_type`; the least-privilege search-role grant
+(`req-grid-search-readonly-role.sec`, `tap_grid/search_role.py`) walked the type registry and
+hand-listed a `_SPINE_TABLES` tuple. Independent derivations of the same fact drift, and drift
+here is a security defect in one of two directions: a table the DB grant covers but the guard
+misses is **readable-at-SQL-but-unguarded** (leak); a table the guard covers but the grant
+misses is a **spurious 42501 denial** (breakage). The 2026-08-11 derive-the-same-fact-twice
+audit ranked this its #1 finding.
+
+**Design (prior-art-grounded).** Classification is **declared on the model class and derived
+by every consumer** — the pattern Django recommends for custom model metadata (class-level
+attributes, since `Meta` rejects unknown options), SQLAlchemy institutionalizes as the
+`Table.info` bag that Alembic filters on, and TAP already uses (`ENTITY_TYPE`,
+`INTERNAL_ONLY`, the proposed `GRYPHON_SEARCHABLE`):
+
+- **`GRID_TABLE_ROLE`** is a class-level declaration with exactly two values:
+  - `"domain"` — declared **once, on `BaseModel` itself**, and inherited by every concrete
+    subclass. A plugin author cannot forget to classify a domain model: subclassing IS the
+    classification (the structural half; cf. Rails `ApplicationRecord`).
+  - `"spine"` — declared **explicitly** on the grid-infrastructure models that are NOT
+    BaseModels: `Entity` and `EntityType`. (`Edge` and `Dimension` are BaseModels and arrive
+    via inheritance; the old four-name spine tuple over-listed them.)
+- **Table names always come from `Meta.db_table` on the classified model** — no consumer or
+  helper may re-type a grid table name as a string literal.
+- **One derivation module** (`tap_grid/grid_tables.py`) scans loaded models for the
+  classification and exposes the consumer sets. Both the read backstop and the search-role
+  grant MUST consume it; a future third consumer (the traversal-execution table guard,
+  `req-grid-traversal-exec-table-guard.sec`) MUST consume it too.
+
+**Classification is a privilege boundary, so who may declare it is the security question**
+(declare-vs-decide, as in the plugin FIPS posture: a component can never exempt itself):
+
+- **A BaseModel can never claim spine.** `BaseModel.__init_subclass__` — the existing
+  class-definition-time chokepoint — rejects ANY `GRID_TABLE_ROLE` declaration in a subclass
+  body with `ImproperlyConfigured`, including a redundant `"domain"` (domain-ness is
+  inherited, not declared; a declarable value invites a later edit). Spine membership drives
+  the DB grant and the read guard's one exemption, so a plugin model that could declare
+  itself spine would be writing its own security policy.
+- **Explicit classification is core-only.** The derivation honors an explicit
+  `GRID_TABLE_ROLE` in a class body only on models owned by the `tap_grid` app. Any other
+  model declaring it — including a plain non-BaseModel Django model in a plugin, the door
+  `__init_subclass__` cannot see — is a **fail-closed error** at derivation time (raise +
+  `security` Flaw), never silently honored and never silently skipped. Mirrors the
+  type-ownership boot gate's core-vs-plugin discipline.
+
+**The class-vs-table gap (desired vs persisted).** The classification answers "what SHOULD be
+covered"; the DB grant executes against "what EXISTS." A classified model class whose table
+was never migrated (test-fixture models; the registered-type-without-a-table plugin-loading
+flake of 2026-08-11) must not abort provisioning: at provision time the grant set is
+reconciled against the tables that actually exist in the database, and a declared-but-absent
+table is **skipped with a loud WARNING** naming the table. Not-granting is the fail-safe
+direction (unreadable, never over-exposed) — the same reason Alembic filters against
+*reflected* DB state rather than trusting the class layer.
+
+**The one deliberate consumer asymmetry, pinned.** `Entity` is granted to the search role
+(the executor always reads the spine) but is exempt from the ORM read backstop (its reads are
+pervasive below the service boundary and the Entity API carries its own gate — the named open
+edge of `req-tap-auth-orm-read-backstop`). This is a per-model policy of the read-guard
+consumer, expressed against the model class (never a string), and the resulting relationship
+— **grant set == read-guarded set ∪ {Entity's table}** — is pinned by a guard test so an edit
+to either consumer that breaks the relationship fails loudly.
+
+Named alternative deliberately deferred (`req-sec-honest-risk`): moving grid tables into a
+dedicated PostgreSQL schema would make the grant one statement (`GRANT … ON ALL TABLES IN
+SCHEMA` + `ALTER DEFAULT PRIVILEGES` for future tables — the DB-native prior art, cf.
+django-tenants). Django's multi-schema friction makes it an expensive edge that waits for
+demand; default-privileges WITHOUT a dedicated schema is explicitly rejected (it would
+auto-grant future non-grid tables — fail-open).
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-table-classification.sec-1 | Classification Declared On The Model | Implemented | Every grid table's classification is a class-level `GRID_TABLE_ROLE` declaration: `"domain"` inherited from `BaseModel`, `"spine"` declared explicitly on the non-BaseModel infrastructure models. Table names come only from `Meta.db_table`. | The marker-attribute prior-art pattern. |
+| req-grid-table-classification.sec-2 | One Derivation, Every Consumer | Implemented | The read backstop, the search-role grant, and any future table-scope consumer derive their sets from the single shared module (`tap_grid/grid_tables.py`); none holds its own list or re-types a table name. | Kills the #1 audit finding. |
+| req-grid-table-classification.sec-3 | A BaseModel Can Never Claim Spine | Implemented | `BaseModel.__init_subclass__` rejects any `GRID_TABLE_ROLE` declaration in a subclass body (including redundant `"domain"`) with `ImproperlyConfigured` at class-definition time. | Declare-vs-decide; self-exemption closed at the chokepoint. |
+| req-grid-table-classification.sec-4 | Explicit Classification Is Core-Only | Implemented | The derivation honors an explicit `GRID_TABLE_ROLE` only on `tap_grid`-owned models; any other declarer (incl. non-BaseModel plugin models) is a fail-closed error + `security` Flaw at derivation time. | Closes the door `__init_subclass__` cannot see. |
+| req-grid-table-classification.sec-5 | Consumer Relationship Pinned | Implemented | A guard test pins grant set == read-guarded set ∪ {`Entity`'s table}, and that the spine set is exactly {`Entity`, `EntityType`} — changing either is a deliberate, reviewed spec+test change. | The Entity asymmetry stays visible, never drifts silently. |
+| req-grid-table-classification.sec-6 | Grant Reconciles Against Existing Tables | Implemented | Provisioning grants only classified tables that exist in the database; a classified-but-absent table is skipped with a loud WARNING naming it, never an abort and never a silent drop. | Fail-safe direction: not-granted = unreadable. |
+
+#### Future
+- The `GRYPHON_SEARCHABLE` opt-in gate (`req-grid-traversal-exec-searchable.sec`), when it
+  lands, narrows the *grant* consumer to a searchable subset — it composes with this
+  classification (searchable ⊆ domain), it does not replace it.
+- A dedicated `grid` PostgreSQL schema (the deferred DB-native alternative above) would let
+  `ALTER DEFAULT PRIVILEGES` cover future tables at creation time; revisit on demand.
 
 ---
 

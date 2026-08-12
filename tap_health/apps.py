@@ -14,11 +14,15 @@ class TapHealthConfig(AppConfig):
         # Register the core (platform) probes. Registration only appends a
         # callable to the registry — no DB access — so this is ready()-safe;
         # each probe body runs later, at run_health() time.
-        from tap_health.probes import probe_cache, probe_db, probe_queue
+        from tap_health.probes import probe_cache, probe_db, probe_migrations, probe_queue
         from tap_health.registry import register_health_probe
 
         register_health_probe("db", probe_db, group="core", critical=True)
         register_health_probe("cache", probe_cache, group="core", critical=True)
+        # Critical: the DB can be reachable while migrate is mid-flight (createcachetable
+        # precedes migrate), so this is what stops a readiness consumer from acting on a
+        # half-applied schema — the plugin-loading flake's real root.
+        register_health_probe("migrations", probe_migrations, group="core", critical=True)
         register_health_probe("queue", probe_queue, group="core", critical=False)
 
         # Register the boot-time provisioning system check. Importing only

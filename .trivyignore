@@ -13,4 +13,31 @@
 #   #   codec path; accepted <name>, <date>. Revisit on libfoo bump.
 #   CVE-2026-XXXXX
 #
-# (File intentionally has no active entries.)
+# CVE-2026-24049 (wheel 0.45.1, vendored inside setuptools/_vendor in the image
+#   wheel-cache seed): malicious-wheel unpacking → ACE. Not reachable — wheel's
+#   unpack routines are never invoked here: uv unpacks published wheels with its
+#   own (Rust) implementation, and the vendored copy only runs inside setuptools
+#   PEP 517 builds of first-party, tag-pinned plugin sources (building untrusted
+#   source is already ACE by design, so the CVE adds no capability). Standalone
+#   wheel is already floored >=0.46.2 (pyproject [tool.uv]
+#   build-constraint-dependencies); the vendored copy is stuck because psycopg-c
+#   3.3.4 hard-pins setuptools==80.3.1. Accepted George Chamales, 2026-08-11.
+#   Revisit on psycopg-c bump.
+CVE-2026-24049
+# CVE-2026-59890 (setuptools 80.3.1, image wheel-cache seed): MANIFEST.in
+#   exclusion bypass in sdist creation via Unicode normalization collision.
+#   Producer-side packaging bug — relevant only when building sdists from trees
+#   with attacker-chosen filenames; TAP's images never author sdists, and plugin
+#   builds compile first-party, tag-pinned sources. setuptools>=83 floor is
+#   unsatisfiable while psycopg-c 3.3.4 hard-pins setuptools==80.3.1 in
+#   build-system.requires (pyproject [tool.uv] comment). Accepted George
+#   Chamales, 2026-08-11. Revisit on psycopg-c bump.
+CVE-2026-59890
+# CVE-2026-23949 (jaraco.context 5.3.0, vendored inside setuptools/_vendor in
+#   the image wheel-cache seed): path traversal in the tarball() extraction
+#   helper. Not reachable — nothing in TAP imports jaraco.context; it is present
+#   only as setuptools vendored code, and setuptools' build/install flow does not
+#   feed tar archives through that helper. Fixed only via setuptools>=83, blocked
+#   by the same psycopg-c setuptools==80.3.1 hard pin. Accepted George Chamales,
+#   2026-08-11. Revisit on psycopg-c bump.
+CVE-2026-23949

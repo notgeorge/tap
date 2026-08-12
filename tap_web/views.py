@@ -4,16 +4,14 @@ import json
 import logging
 import re
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from tap_grid.caller_context import CallerContext
+from typing import Any
 
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_http_methods
 
 from tap_auth.errors import AuthzError
+from tap_grid.caller_context import require_caller_context
 from tap_web.models import Page
 from tap_web.navigation import build_breadcrumb
 from tap_web.page import get_landing_page, get_page_by_slug, get_page_panels, parse_panel_url_id
@@ -184,7 +182,7 @@ def panel_edit_view(request: HttpRequest, panel_url_id: str) -> HttpResponse:
                     patch_node(
                         target=panel.entity.pk,
                         payload=_form_to_patch_payload(form, panel),
-                        caller_context=_build_caller_context(request),
+                        caller_context=require_caller_context(),
                     )
                 return redirect("panel-edit", panel_url_id=panel_url_id)
             return render(
@@ -212,7 +210,7 @@ def panel_edit_view(request: HttpRequest, panel_url_id: str) -> HttpResponse:
         patch_node(
             target=panel.entity.pk,
             payload=payload,
-            caller_context=_build_caller_context(request),
+            caller_context=require_caller_context(),
         )
         return redirect("panel-edit", panel_url_id=panel_url_id)
 
@@ -503,14 +501,6 @@ def _get_neighborhood_context(entity_id: object) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 _STANDARD_PANEL_FIELDS = frozenset({"name", "description"})
-
-
-def _build_caller_context(request: HttpRequest) -> CallerContext:
-    """Build a CallerContext from the current HTTP request."""
-    from tap_grid.caller_context import CallerContext
-
-    user = request.user if hasattr(request.user, "pk") and request.user.pk else None
-    return CallerContext(user=user, batch_id=None)
 
 
 def _form_to_patch_payload(form: object, panel: object) -> dict[str, Any]:

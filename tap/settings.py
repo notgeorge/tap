@@ -89,6 +89,10 @@ TAP_SESSION_LABEL = os.environ.get("TAP_SESSION_LABEL", "")
 # normally and capabilities that need a missing secret fail at run time.
 #
 # See tap_cares/specs/spec-tap-cares-secrets.md.
+# TAP-KNOWN-DUPE(secrets-root): the settings-free partner lookup is tap/secrets_root.py —
+# pre-boot/stage-0/mid-settings-import callers cannot read Django settings, so the env read
+# exists twice by design (req-tap-cares-secrets-root-resolution). Editing this line means
+# putting eyes on the partner.
 TAP_SECRETS_ROOT = os.environ.get("TAP_SECRETS_ROOT", "/run/tap-secrets")
 
 # =============================================================================
@@ -105,22 +109,15 @@ TAP_SECRETS_ROOT = os.environ.get("TAP_SECRETS_ROOT", "/run/tap-secrets")
 #
 # But TAP_PLUGINS is process-env state: a `manage.py` command run via a SEPARATE
 # `docker exec` (spawn's `manage.py boot`, a manual `import_plugin_grift`, pytest) does
-# NOT inherit it and would otherwise load none of the package-mode plugins. So when the
-# env var is *unset* (as opposed to set-but-empty, which is a real "no package plugins"
-# signal from the entrypoint), fall back to the SAME entry-point discovery pre-boot ran.
-# Discovery reads installed distribution metadata, so it is self-consistent with the venv
-# (never stale the way a cached file would be) and yields exactly the plugins this
-# instance installed. This keeps every container process — server, boot, tests — agreeing
-# on the package-mode set without each exec site having to re-pass TAP_PLUGINS.
-_tap_plugins_env = os.environ.get("TAP_PLUGINS")
-if _tap_plugins_env is not None:
-    TAP_PLUGINS_APPS = _tap_plugins_env.split()
-else:
-    from tap.preboot import discover_entry_points
+# NOT inherit it. TAP_PLUGINS is authoritative — the entrypoint both exports it and
+# persists it, and `resolved_plugin_app_configs()` reads env → persisted file → a warned
+# last-resort discovery. This makes the migrate process and every sibling exec agree on
+# INSTALLED_APPS by construction (the earlier env-or-live-discovery split raced: the
+# importlib.metadata mtime cache let two processes see different sets — a registered type
+# with no migrated table, the plugin-loading race 2026-08-11).
+from tap.preboot import resolved_plugin_app_configs  # noqa: E402
 
-    # sorted() for a deterministic load order among package-mode plugins; inter-plugin
-    # ordering (depends_on) is the deferred boot-consistency resolver's job.
-    TAP_PLUGINS_APPS = sorted(discover_entry_points().values())
+TAP_PLUGINS_APPS = resolved_plugin_app_configs()
 
 INSTALLED_APPS = [
     # Django built-in apps

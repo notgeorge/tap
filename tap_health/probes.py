@@ -56,6 +56,31 @@ def probe_cache() -> ProbeResult:
     return ProbeResult.healthy()
 
 
+def probe_migrations() -> ProbeResult:
+    """No unapplied migrations — the schema is fully current.
+
+    Distinct from ``probe_db`` (reachability): the DB can be UP and the cache table
+    present while ``migrate`` is still applying migrations, because the entrypoint runs
+    ``createcachetable`` BEFORE ``migrate`` — so a reachability/cache probe goes green
+    mid-migrate. A readiness consumer that then touches TAP-managed tables races the
+    half-applied schema. That was the plugin-loading flake: boot's ``grid_infra`` granted
+    ``SELECT`` on a registered entity type whose migration had not run yet (a different
+    table each run). Critical: a stack with pending migrations is not ready to ACT on the
+    grid, even though it is alive.
+    """
+    try:
+        from django.db.migrations.executor import MigrationExecutor
+
+        executor = MigrationExecutor(connection)
+        plan = executor.migration_plan(executor.loader.graph.leaf_nodes())
+    except Exception as exc:  # noqa: BLE001 — report, never raise.
+        logger.warning("[648b] health: migrations probe failed: %s", exc)
+        return ProbeResult.unhealthy("migrations.check_failed", detail=str(exc))
+    if plan:
+        return ProbeResult.unhealthy("migrations.pending", detail=f"{len(plan)} migration(s) not yet applied")
+    return ProbeResult.healthy()
+
+
 def probe_queue() -> ProbeResult:
     """Best-effort reachability of the DB-backed Steady Queue backend.
 
@@ -72,4 +97,4 @@ def probe_queue() -> ProbeResult:
     return ProbeResult.unknown("queue.tables_missing", detail="steady_queue tables not found")
 
 
-__all__ = ["probe_db", "probe_cache", "probe_queue"]
+__all__ = ["probe_db", "probe_cache", "probe_migrations", "probe_queue"]

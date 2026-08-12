@@ -181,28 +181,21 @@ _guarded_regex_cache: re.Pattern[str] | None = None
 def _guarded_regex() -> re.Pattern[str]:
     """Compiled alternation matching a quoted guarded-table identifier in SQL.
 
-    Guarded set: every concrete `BaseModel` table (covers Edge and all domain
-    node types) plus `tap_entity_type` (the type/plugin catalog — not a BaseModel,
-    so invisible to Layer 1). `Entity` (`tap_entity`) is deliberately excluded:
-    its reads are pervasive below the service boundary and the Entity API already
-    carries its own gate. Computed once and cached — the model set is fixed at
-    process start.
+    The guarded set comes from the shared single source of truth
+    (`tap_grid.grid_tables.read_guarded_tables`): every concrete `BaseModel`
+    table plus `EntityType` (the type/plugin catalog — not a BaseModel, so
+    invisible to Layer 1). `Entity` (`tap_entity`) is deliberately excluded:
+    its reads are pervasive below the service boundary and the Entity API
+    already carries its own gate. Computed once and cached — the model set is
+    fixed at process start.
     """
     global _guarded_regex_cache
     if _guarded_regex_cache is not None:
         return _guarded_regex_cache
 
-    from django.apps import apps
+    from tap_grid.grid_tables import read_guarded_tables
 
-    from tap_grid.models import BaseModel
-
-    tables: set[str] = set()
-    for model in apps.get_models():
-        if issubclass(model, BaseModel) and not model._meta.abstract:
-            tables.add(model._meta.db_table)
-    tables.add("tap_entity_type")
-
-    alternation = "|".join(re.escape(t) for t in sorted(tables))
+    alternation = "|".join(re.escape(t) for t in sorted(read_guarded_tables()))
     _guarded_regex_cache = re.compile(f'"({alternation})"')
     return _guarded_regex_cache
 

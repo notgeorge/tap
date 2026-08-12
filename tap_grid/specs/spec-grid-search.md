@@ -254,11 +254,13 @@ PostGraphile precedent (the database GRANTs *are* the query surface).
   carries both the least-privilege *read scope* (grants) and the resource *bounds* (GUCs),
   inherited automatically by every connection that authenticates as it.
 
-**Landed vs. deferred in v0 (honest scope).** The role, its registry-derived `SELECT` grants,
+**Landed vs. deferred in v0 (honest scope).** The role, its model-layer-derived `SELECT` grants,
 the resource-GUC pinning, and the 42501 detection tie-in are **built** (`tap_grid/search_role.py`,
 provisioned at boot; sec-1/2/3/4/6 `Implemented`). Two design points are not yet realized:
-(a) the grant set is derived from the **full type registry** (`list_entity_types()`) plus the
-spine, not a narrower `GRYPHON_SEARCHABLE` subset, because the opt-in searchability gate
+(a) the grant set is derived from the **grid-table classification** (`GRID_TABLE_ROLE`, one
+declaration per model, derived through `tap_grid/grid_tables.py` — the shared single source of
+truth also consumed by the ORM read backstop; `req-grid-table-classification.sec` in
+`spec-grid-security.md`), not a narrower `GRYPHON_SEARCHABLE` subset, because the opt-in searchability gate
 (`req-grid-traversal-exec-searchable.sec`) is `Proposed` — "searchable" ≡ "every registered
 grid type" until it lands (broader than the target, still strictly grid-only); (b) the
 **Validation loop** above — the CI guard asserting Gridkin's touched-table set is a subset of
@@ -271,7 +273,7 @@ directly meanwhile.
 | --- | --- | :---: | --- | --- |
 | req-grid-search-readonly-role.sec-1 | Dedicated Role, Not App Role | Implemented | The `search_readonly` connection authenticates as a dedicated least-privilege DB role, not the application's full database role. | |
 | req-grid-search-readonly-role.sec-2 | Grants Limited To Searchable + Spine | Implemented | The role holds `SELECT` on only the `GRYPHON_SEARCHABLE` model tables plus the grid spine tables, and no other tables and no writes. | |
-| req-grid-search-readonly-role.sec-3 | Grants Derived, Not Hand-Maintained | Implemented | The grant set is computed from the searchable registry at provision time, so it cannot drift from the model layer and a new un-granted table fails safe (unreadable). | |
+| req-grid-search-readonly-role.sec-3 | Grants Derived, Not Hand-Maintained | Implemented | The grant set is computed from the grid-table classification at provision time (`tap_grid/grid_tables.py`, shared with the ORM read backstop — `req-grid-table-classification.sec`), so it cannot drift from the models and a new un-granted table fails safe (unreadable). | Derivation contract owned by `req-grid-table-classification.sec`. |
 | req-grid-search-readonly-role.sec-4 | Independent Of In-Code Guards | Implemented | The DB grant is a standalone layer: a read reaching a non-searchable table is denied by PostgreSQL even if the in-code searchability/relation guards missed it. | Defense in depth. |
 | req-grid-search-readonly-role.sec-5 | Touched Tables Are A Subset Of Granted | Proposed | A CI guard asserts the set of tables Gryphon's SQL touches (from Gridkin snapshots) is a subset of the granted set. | Catches under-grant before production. |
 | req-grid-search-readonly-role.sec-6 | Role Pins The Resource GUCs | Implemented | The same provisioning pins `statement_timeout`, `lock_timeout`, `temp_file_limit`, and a conservative `work_mem` on the role, so the resource bounds of `req-grid-traversal-exec-resource-bounds.sec` are inherited by every search connection without per-query code. | One role, both scope and bounds. |

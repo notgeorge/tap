@@ -43,6 +43,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from tap.boot_records import RECORD_SUFFIX, canonical_digest_bytes
+from tap.secrets_root import resolve as resolve_secrets_root
 
 __all__ = [
     "BootPointerError",
@@ -144,9 +145,10 @@ def _resolve_token(credential: str | None, secrets_root: Path | None) -> tuple[s
     if candidate.is_file():
         secret_path = candidate
     else:
-        root = secrets_root or (
-            Path(os.environ["TAP_SECRETS_ROOT"]) if os.environ.get("TAP_SECRETS_ROOT") else DEFAULT_SECRETS_ROOT
-        )
+        # GnuPG-style host-tool precedence: --secrets-root flag > env (via the
+        # canonical settings-free lookup, req-tap-cares-secrets-root-resolution)
+        # > the host home default.
+        root = secrets_root or resolve_secrets_root() or DEFAULT_SECRETS_ROOT
         matches = sorted(root.rglob(f"{credential}{SECRET_SUFFIX}"))
         if not matches:
             raise BootPointerError(f"credential '{credential}' not found (no {credential}{SECRET_SUFFIX} under {root})")

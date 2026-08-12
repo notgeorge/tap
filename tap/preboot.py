@@ -69,6 +69,7 @@ __all__ = [
     "TAP_PLUGINS_ENTRY_POINT_GROUP",
     "dist_name_for_slug",
     "discover_entry_points",
+    "resolved_plugin_app_configs",
     "run_preboot",
     "main",
 ]
@@ -293,13 +294,15 @@ def _resolve_wheelhouse_dir(raw: str) -> Path:
 def _secrets_root() -> Path | None:
     """The ``TAP_SECRETS_ROOT`` directory for pre-boot credential resolution, or None.
 
-    Settings-free (`req-boot-preboot`): reads the same env var ``settings.py`` reads,
-    since Django is not configured yet. Absent ⇒ no source-credential store, so only
+    Settings-free (`req-boot-preboot`): delegates to the canonical outside-Django
+    lookup (`tap.secrets_root`, req-tap-cares-secrets-root-resolution), since Django
+    is not configured yet. Absent ⇒ no source-credential store, so only
     public/editable/path sources can install (git sources that *declare* a credential
     then fail loud in :func:`_install_plugins`).
     """
-    raw = os.environ.get("TAP_SECRETS_ROOT")
-    return Path(raw) if raw else None
+    from tap.secrets_root import resolve
+
+    return resolve()
 
 
 def _run_install(args: list[str], cred: GitCredential | None) -> subprocess.CompletedProcess[str]:
@@ -368,6 +371,45 @@ def discover_entry_points() -> dict[str, str]:
             if ep.group == TAP_PLUGINS_ENTRY_POINT_GROUP:
                 discovered[ep.name] = ep.value.replace(":", ".")  # module:attr -> module.attr
     return discovered
+
+
+# TAP_PLUGINS is authoritative. Pre-boot resolves the profile's package-mode set ONCE; the
+# entrypoint exports it AND persists it here so sibling execs (manage.py boot,
+# import_plugin_grift, pytest) that do not inherit the env var read the SAME set. Live
+# entry-point discovery is a last-resort ONLY — importlib.metadata's mtime-based FastPath
+# cache can disagree across processes, which let the migrate process and a boot process
+# build different INSTALLED_APPS (a registered type with no migrated table — the
+# plugin-loading race, 2026-08-11). Env override for tests; /run is tmpfs, rewritten every
+# boot, so the file is never stale.
+TAP_PLUGINS_FILE_DEFAULT = "/run/tap-plugins"
+
+
+def resolved_plugin_app_configs() -> list[str]:
+    """The authoritative package-mode plugin AppConfig paths for THIS process.
+
+    Resolution order (TAP_PLUGINS-authoritative): the ``TAP_PLUGINS`` env var → the
+    persisted copy the entrypoint wrote to ``TAP_PLUGINS_FILE`` → a warned last-resort
+    live discovery for processes launched outside the entrypoint (a bare local
+    ``manage.py``). Env/file preserve pre-boot's profile order; the discovery fallback
+    sorts. Single-sourced so ``tap.settings`` (INSTALLED_APPS) and every other consumer
+    resolve the identical set and cannot diverge.
+    """
+    env = os.environ.get("TAP_PLUGINS")
+    if env is not None:
+        return env.split()
+    path = os.environ.get("TAP_PLUGINS_FILE", TAP_PLUGINS_FILE_DEFAULT)
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return fh.read().split()
+    except FileNotFoundError:
+        pass
+    logger.warning(
+        "[3398] TAP_PLUGINS unset and no persisted set at %s — falling back to live "
+        "entry-point discovery, which is NOT authoritative (importlib.metadata mtime-cache "
+        "race). Launch via docker/entrypoint.sh or set TAP_PLUGINS.",
+        path,
+    )
+    return sorted(discover_entry_points().values())
 
 
 def _venv_site_packages() -> list[str]:

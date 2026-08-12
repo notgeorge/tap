@@ -27,16 +27,22 @@ from typing import TYPE_CHECKING
 
 from django.contrib.auth import get_user_model
 
+from tap_auth import sync as _sync
 from tap_auth.errors import MissingActor
 from tap_grid.caller_context import CallerContext, get_caller_context, set_caller_context
 
 if TYPE_CHECKING:
     from django.contrib.auth.models import AbstractUser
 
-# Built-in keys for the system program actors (mirrors tap_auth.sync).
-BOOTLOADER = "tap_bootloader"
-SCHEDULER = "tap_cares.scheduler"
-COLLECTOR = "tap_cares.collector"
+# Built-in keys for the system program actors. tap_auth.sync is the v0
+# authoritative definition (it WRITES the actor rows, req-tap-auth-builtins);
+# these names alias its constants so the resolvers here and the writers there
+# can never drift apart. Interim wiring: the whole definition moves to the
+# per-app declarative program-users file when that pass lands
+# (req-tap-auth-program-users) — do not grow a new registry here.
+BOOTLOADER = _sync.ACTOR_BOOTLOADER
+SCHEDULER = _sync.ACTOR_SCHEDULER
+COLLECTOR = _sync.ACTOR_COLLECTOR
 
 
 def get_builtin_actor(builtin_key: str) -> AbstractUser:

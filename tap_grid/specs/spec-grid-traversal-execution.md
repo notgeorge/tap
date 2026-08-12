@@ -499,8 +499,11 @@ share one allowlist but fail independently — the whole point of defense in dep
   join set and cannot be evaded by SQL formatting) and asserts each table is within the
   allowlist: the tables of every `GRYPHON_SEARCHABLE` model plus the spine tables
   (`tap_entity`, `tap_edge`, `tap_entity_type`, `tap_dimension`). This is the **same
-  registry-derived set** as `req-grid-traversal-exec-searchable.sec` and
+  derived set** as `req-grid-traversal-exec-searchable.sec` and
   `req-grid-search-readonly-role.sec` — one source of truth, three enforcement points.
+  The single source is the grid-table classification and its derivation module
+  (`req-grid-table-classification.sec`, `spec-grid-security.md`); this guard MUST consume
+  `tap_grid/grid_tables.py` rather than derive its own set.
 - **Because `alias_map` is a pre-execution ORM view, it is cross-checked against the emitted
   SQL** (`sec-6`): the Gridkin SQL snapshots already capture the final SQL for every scenario,
   so a CI check parses the table references out of the captured SQL (including those inside

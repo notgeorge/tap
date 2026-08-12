@@ -22,7 +22,7 @@ to stderr. The record JSON goes to stdout under `--emit-record`. Machine state g
 under `--json`. Nothing else is ever written to stdout, so redirecting it is always safe and
 never captures the one-time enrollment secret.
 
-**This command never writes the record** (req-…-dev-bootstrap-12). `/run/tap-secrets` is
+**This command never writes the record** (req-…-dev-bootstrap-12). The secrets root is
 mounted read-only into the container on purpose — that mount is a real integrity control for
 a file whose integrity is load-bearing. The host caller owns placement and MUST write to a
 temp file then `rename(2)` it into place, `chmod 600`.
@@ -143,8 +143,9 @@ class Command(BaseCommand):
     def _record_path(self, override: str) -> Path:
         if override:
             return Path(override)
-        root = getattr(settings, "TAP_SECRETS_ROOT", "") or os.environ.get("TAP_SECRETS_ROOT", "/run/tap-secrets")
-        return Path(root) / _DEV_RECORD_RELPATH
+        # settings.TAP_SECRETS_ROOT is the canonical in-Django lookup
+        # (req-tap-cares-secrets-root-resolution) — never re-read the env here.
+        return Path(settings.TAP_SECRETS_ROOT) / _DEV_RECORD_RELPATH
 
     def _resolve_state(self, profile_id: str, record_path: Path) -> dict[str, Any]:
         """Classify the world. The profile decision defers to `assert_dev_import_allowed`,
