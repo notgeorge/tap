@@ -142,3 +142,96 @@ def test_stage0_local_path_arm_returns_as_is(tmp_path: Path) -> None:
     local.write_bytes(b'{"version": 1}')
     staged = stage0_fetch(parse_pointer(str(local)), tmp_path / "out")
     assert staged == local
+
+
+# --- credential envelope (stage-0's reduced-but-not-absent validation) --------
+
+
+def _write_envelope(tmp_path: Path, key: str, *, kind: str = "github_pat", data: dict[str, str] | None = None) -> Path:
+    import json
+
+    root = tmp_path / "secrets"
+    root.mkdir(exist_ok=True)
+    path = root / f"{key}.secret.json"
+    payload = {
+        "scope": "tap_plugins.source",
+        "key": key,
+        "kind": kind,
+        "description": "test envelope",
+        "data": data if data is not None else {"token": "ghp_stage0_token"},
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return root
+
+
+def test_resolve_token_accepts_the_github_pat_kind(tmp_path: Path) -> None:
+    root = _write_envelope(tmp_path, "src")
+    resolved = boot_pointer._resolve_token("src", root)
+    assert resolved is not None
+    token, host, username = resolved
+    assert token == "ghp_stage0_token"
+    # Defaults come from the shared tap.git_invocation constants, not local literals.
+    assert (host, username) == ("github.com", "x-access-token")
+
+
+def test_resolve_token_rejects_a_foreign_kind(tmp_path: Path) -> None:
+    """Credential confusion: an envelope of another kind must never have its token
+    handed to the git host, even when it carries a `data.token` field."""
+    root = _write_envelope(tmp_path, "notapat", kind="aws_assumed_role")
+    with pytest.raises(BootPointerError) as exc:
+        boot_pointer._resolve_token("notapat", root)
+    assert "kind" in str(exc.value)
+    # The refusal must not echo the secret it refused to use.
+    assert "ghp_stage0_token" not in str(exc.value)
+
+
+def test_resolve_token_still_requires_a_token_field(tmp_path: Path) -> None:
+    root = _write_envelope(tmp_path, "empty", data={"not_a_token": "x"})
+    with pytest.raises(BootPointerError) as exc:
+        boot_pointer._resolve_token("empty", root)
+    assert "data.token" in str(exc.value)
+
+
+def test_stage0_credential_machinery_is_stdlib_only() -> None:
+    """The host tools run under bare `python3` during spawn-session, BEFORE the
+    container exists. If the shared credential leaf (or anything it pulls) ever
+    needs a venv package, spawn breaks at the worst possible moment — so this
+    walks the actual import graph of the host-runnable modules.
+    """
+    import ast
+    import sys
+
+    repo_root = Path(__file__).resolve().parents[2]
+    host_modules = ["tap/git_invocation.py", "tap/secrets_root.py", "tap/boot_pointer.py", "tap/dev_workspace.py"]
+    seen: set[str] = set()
+    non_stdlib: dict[str, list[str]] = {}
+
+    def walk(rel: str) -> None:
+        if rel in seen:
+            return
+        seen.add(rel)
+        tree = ast.parse((repo_root / rel).read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            names = []
+            if isinstance(node, ast.Import):
+                names = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+                names = [node.module]
+            for name in names:
+                root_pkg = name.split(".")[0]
+                if root_pkg == "tap":
+                    # Follow first-party imports — the boundary is transitive.
+                    sub = name.replace(".", "/") + ".py"
+                    if (repo_root / sub).is_file():
+                        walk(sub)
+                    continue
+                if root_pkg not in sys.stdlib_module_names and root_pkg != "__future__":
+                    non_stdlib.setdefault(rel, []).append(name)
+
+    for module in host_modules:
+        walk(module)
+
+    assert not non_stdlib, (
+        "host-runnable modules must import only stdlib (they run under bare python3 "
+        f"before the container exists): {non_stdlib}"
+    )
