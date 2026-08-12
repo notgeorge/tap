@@ -81,7 +81,7 @@ For the plugin-refactor additions (pre-boot stage, install section, snapshot, va
 | req-boot-install-section | [Install Section](#install-section) | Implemented | **Plugin-refactor MVP.** Profile `install` section (desired plugin set), separate from `population`; static coherence guard in pre-boot. During the transition, build-baked plugins coexist (a `BUILD_BAKED_PLUGIN_SLUGS` transition set, kept honest against `INSTALLED_APPS` by test); the runtime availability half already exists via `resolve_tap_plugin` (`req-boot-population-4`). Full samsite package-mode migration is the follow-on |
 | req-boot-minimal-baseline | [Minimal Core Baseline](#minimal-core-baseline) | Implemented | **Baseline flip + lean-boot gate landed 2026-07-03.** `core` (zero plugins) is the product baseline; `core_dev` (core + `grid_fixtures`) is the default a plain spawn / the entrypoint boots; `base` is renamed → `test_all` (the permanent test/gate union). Replaces `base = install-everything`, which does not scale and becomes unwritable once plugins live in their own repos. `core` is kept **honestly** bootable in isolation by the **lean-boot independence gate** (`scripts/gate-lean`, `req-dev-validation-lean-boot`): a fresh, lean-installed stack that catches core→plugin-dep import leakage (the `requests`/`jwt` class) the full-venv cold-boot gate cannot |
 | req-boot-snapshot | [Pre-Migrate Snapshot](#pre-migrate-snapshot) | Implemented | **Plugin-refactor MVP.** `pg_dump -Fc` full snapshot before `migrate`, switch defaults true, verify via `pg_restore --list`; restore is a human action; callable `tap/` primitive; dev disables via env (spawn writes it into `.env.local`). Volume-snapshot upgrade path still deferred |
-| req-boot-search-role | [Search Read-Only Role Provisioning](#search-read-only-role-provisioning) | Implemented | **Post-migrate.** Idempotent boot step provisions the dedicated `search_readonly` DB role, grants it `SELECT` on only the searchable + spine tables (grant set derived from the searchable registry), and pins its resource GUCs (`statement_timeout`/`lock_timeout`/`temp_file_limit`/`work_mem`); realizes `req-grid-search-readonly-role.sec` + `req-grid-traversal-exec-resource-bounds.sec` |
+| req-boot-search-role | [Search Read-Only Role Provisioning](#search-read-only-role-provisioning) | Implemented | **Post-migrate.** Idempotent boot step provisions the dedicated `search_readonly` DB role, grants it `SELECT` on only the searchable + spine tables (grant set derived from the model layer via `tap_grid/grid_tables.py`), and pins its resource GUCs (`statement_timeout`/`lock_timeout`/`temp_file_limit`/`work_mem`); realizes `req-grid-search-readonly-role.sec` + `req-grid-traversal-exec-resource-bounds.sec` |
 | req-boot-variable-resolution | [Boot Variable Resolution](#boot-variable-resolution) | Implemented | **Plugin-refactor MVP.** Ladder env > profile > default (flag layer reserved); `TAP_BOOT_<SECTION>__<KEY>` env mapping; resolve-once + provenance. Empty-env-as-absent guard (compose materializes unset `${VAR:-}` as `""`) |
 | req-boot-sections | [App-Registered Section Handlers](#app-registered-section-handlers) | Proposed | **Deferred** to first consumer (authN Google OIDC config); handlers/registry live in `tap_boot` |
 | req-boot-validate | [Validate Before Apply](#validate-before-apply) | Proposed | **Deferred** with `req-boot-sections`. v0 keeps only: schema shape + unknown plugin/collector key fails loud |
@@ -475,17 +475,20 @@ registry (`req-grid-traversal-exec-searchable.sec`) rather than a hand-maintaine
   never over-exposed. Under-grant is a visible CI/runtime failure; over-grant cannot happen
   because the set is derived, not authored.
 
-**Landed vs. deferred in v0 (honest scope).** The role, the registry-derived `SELECT` grants,
+**Landed vs. deferred in v0 (honest scope).** The role, the model-layer-derived `SELECT` grants,
 the idempotent reconcile, the owner-issued authority, and the role-pinned resource GUCs are
 **built** (`tap_grid/search_role.py`, provisioned in the boot grid-infra phase). Two parts of
 the *target* design above are not yet built and remain `Proposed`:
 
-- **Grant set is the full registered-type registry, not a narrower searchable subset.** The
+- **Grant set is the full grid-table classification, not a narrower searchable subset.** The
   opt-in searchability gate (`req-grid-traversal-exec-searchable.sec`) is `Proposed`, so
-  `GRYPHON_SEARCHABLE` does not exist yet; the grant set is derived from the full type
-  registry (`list_entity_types()`) plus the spine. "Searchable registry" ≡ "registered grid
-  types" until the gate lands and narrows it. This is broader than the eventual target but
-  still strictly grid-only — the fail-safe direction holds.
+  `GRYPHON_SEARCHABLE` does not exist yet; the grant set is derived from the grid-table
+  classification (`GRID_TABLE_ROLE` via `tap_grid/grid_tables.py`, the shared single source
+  of truth also consumed by the ORM read backstop — `req-grid-table-classification.sec` in
+  `spec-grid-security.md`, incl. its provision-time reconcile against tables that actually
+  exist). "Searchable" ≡ "every grid table" until the gate lands and narrows it. This is
+  broader than the eventual target but still strictly grid-only — the fail-safe direction
+  holds.
 - **`REVOKE TEMP`/`TEMPORARY` is not yet issued** (`req-boot-search-role-7`, `Proposed`). The
   read-only-transaction temp residue is currently bounded by the role-pinned `temp_file_limit`
   (a 1 GB hard cap on spill), not closed at the privilege layer. Revoking `TEMP` interacts

@@ -84,7 +84,6 @@ tap_grid/models.py:type-arg:23
 tap_grid/orm_compiler.py:arg-type:1
 tap_grid/orm_compiler.py:misc:8
 tap_grid/search.py:unused-ignore:1
-tap_grid/search_role.py:attr-defined:1
 tap_grid/services/__init__.py:attr-defined:4
 tap_grid/services/__init__.py:return-value:1
 tap_grid/services/_impl.py:arg-type:1

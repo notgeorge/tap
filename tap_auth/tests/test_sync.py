@@ -21,6 +21,50 @@ def _inject_rogue_capability(name: str = "rogue.cap") -> None:
     Capability.objects.create(name=name, description="rogue", risk="low", permission=perm)
 
 
+class TestBuiltinKeySingleSource:
+    """The built-in actor/group keys have one code home (derive-same-fact-twice collapse).
+
+    sync.py is the v0 authoritative definition (it writes the actor rows;
+    req-tap-auth-builtins); actors.py aliases its constants, and the role keys
+    in tap_auth.roles.json are coupled by name. These pins hold until the
+    per-app declarative program-users file replaces the wiring
+    (req-tap-auth-program-users, deferred).
+    """
+
+    def test_actors_module_aliases_sync_constants(self):
+        # The resolver's names must BE sync's objects — a reintroduced literal
+        # in actors.py would still equal these today, but this pins the intent
+        # and fails the moment either side drifts.
+        from tap_auth import actors
+
+        assert actors.BOOTLOADER == sync.ACTOR_BOOTLOADER
+        assert actors.SCHEDULER == sync.ACTOR_SCHEDULER
+        assert actors.COLLECTOR == sync.ACTOR_COLLECTOR
+
+    def test_every_protected_group_key_is_a_role_key(self):
+        # The JSON leg: each group's builtin key doubles as its role key in
+        # tap_auth.roles.json. _GROUP_BUNDLES resolves through the role registry
+        # at import (so a missing key already fails loudly); this makes the
+        # coupling an explicit, named pin rather than an import side effect.
+        from tap_auth.roles import ROLES
+
+        for key in (
+            sync.GROUP_ADMIN,
+            sync.GROUP_VIEWER,
+            sync.GROUP_BOOTLOADER,
+            sync.GROUP_SCHEDULER,
+            sync.GROUP_COLLECTOR,
+        ):
+            assert key in ROLES, f"group key {key!r} has no matching role in tap_auth.roles.json"
+
+    def test_dedicated_actor_key_equals_its_group_key(self):
+        # The documented convention: where a role has a single dedicated program
+        # actor, group builtin_key == actor tap_builtin_key.
+        assert sync.ACTOR_BOOTLOADER == sync.GROUP_BOOTLOADER
+        assert sync.ACTOR_SCHEDULER == sync.GROUP_SCHEDULER
+        assert sync.ACTOR_COLLECTOR == sync.GROUP_COLLECTOR
+
+
 @pytest.mark.django_db
 class TestSyncCapabilities:
     def test_creates_all_with_permissions(self):
