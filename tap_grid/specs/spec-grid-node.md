@@ -65,6 +65,15 @@ Implemented in `tap_grid/models.py` as `class BaseModel(models.Model)`. Retroact
 | Model registry | If the subclass declares `ENTITY_TYPE` in its own `__dict__`, calls `register_entity_type()` in `tap_grid/registry.py`. Abstract subclasses that omit `ENTITY_TYPE` are skipped. |
 | Constraint registration | If the subclass declares `OUTBOUND_EDGES` or `INBOUND_EDGES`, calls `register_constraints()` in `tap_grid/constraints.py`. |
 | FLIP config | Calls `get_model_flip_config()` to cache the subclass's FLIP configuration at class-definition time. |
+| Table-classification guard | Rejects any `GRID_TABLE_ROLE` declaration in the subclass body with `ImproperlyConfigured` — grid-table classification is inherited from `BaseModel` (`"domain"`), never declared by a subclass; spine is core-only. See `req-grid-table-classification.sec` (spec-grid-security.md). |
+
+**Grid table classification (`GRID_TABLE_ROLE`)** — `BaseModel` carries `GRID_TABLE_ROLE =
+"domain"`, inherited by every concrete subclass: being a BaseModel IS being a grid domain
+table, and the security consumers (ORM read backstop, search-role DB grant) derive their
+table sets from this classification. A subclass — core or plugin — MUST NOT declare
+`GRID_TABLE_ROLE` in its own body; the `__init_subclass__` guard fails the class at import.
+The full contract, including the core-only `"spine"` value and the fail-closed derivation
+rules, is owned by `req-grid-table-classification.sec` in `spec-grid-security.md`.
 
 A minimal concrete node type declaration:
 
