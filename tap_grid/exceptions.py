@@ -37,6 +37,18 @@ class NoBatchContextError(Exception):
     pass
 
 
+class NoCallerContextError(Exception):
+    """Raised when request-scoped code asks for the active CallerContext and none is bound.
+
+    A real request always carries one (`CallerContextMiddleware` binds a context for
+    every request, `user=None` for anonymous), so this signals a route reached
+    outside the middleware — a wiring bug, not a user error. Fails closed rather
+    than letting the caller invent an identity (req-grid-service-pipeline-context).
+    """
+
+    pass
+
+
 class ServiceValidationError(Exception):
     """Raised internally by the service layer when schema or model validation fails."""
 
