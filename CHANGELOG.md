@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.1.2](https://github.com/unified-systems-com/tap/compare/v0.1.1...v0.1.2) (2026-08-12)
+
+
+### Features
+
+* **grid:** grid-table classification single source (req-grid-table-classification.sec) ([e805865](https://github.com/unified-systems-com/tap/commit/e80586571a34061c631c24312f642a18f6e7b7a7))
+* **specs:** TAP-KNOWN-DUPE convention for intentional duplicates (req-tap-known-dupes) ([24767b3](https://github.com/unified-systems-com/tap/commit/24767b317fde60f7390c1d75e20d6fe6c60e46b0))
+
+
+### Bug Fixes
+
+* **auth:** built-in actor keys collapse to one code home (audit [#2](https://github.com/unified-systems-com/tap/issues/2)) ([264e899](https://github.com/unified-systems-com/tap/commit/264e899ea14801dc430a82b2d4dd0302502ec1b6))
+* **auth:** request identity derived once, at the middleware (audit [#4](https://github.com/unified-systems-com/tap/issues/4)) ([a0c977a](https://github.com/unified-systems-com/tap/commit/a0c977ae0e2570c1c640a4348522d928ddfa9767))
+* **secrets:** secrets-root resolution collapses to two canonical lookups (audit [#3](https://github.com/unified-systems-com/tap/issues/3)) ([b92a168](https://github.com/unified-systems-com/tap/commit/b92a168464aba25ed9930b7cb130160dd4eb9fc2))
+
+
+### Documentation
+
+* **plugins:** spec-plugin-lifecycle-v1 DRAFT — transactional plugin load/update wrapper ([af77348](https://github.com/unified-systems-com/tap/commit/af77348326acd3b9991b7d78ed91df9ab96c4a01))
+
 ## [0.1.1](https://github.com/unified-systems-com/tap/compare/v0.1.0...v0.1.1) (2026-08-12)
 
 

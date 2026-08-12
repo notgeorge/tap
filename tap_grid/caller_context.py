@@ -69,6 +69,37 @@ def set_caller_context(ctx: CallerContext | None) -> None:
     _caller_context.set(ctx)
 
 
+def require_caller_context() -> CallerContext:
+    """Return the active CallerContext, or raise if none is bound.
+
+    The accessor for **request-scoped** code (API routes, web views): the context
+    bound by `CallerContextMiddleware` is the single source of request identity,
+    so a route consumes it rather than rebuilding one from `request.user`. Four
+    hand-rolled rebuilders previously did the latter with a *different*
+    authenticated-vs-anonymous predicate than the middleware's — two definitions
+    of "who is calling" on an authorization surface (the 2026-08 derive-the-same-
+    fact-twice audit, finding #4).
+
+    Fails closed: a real request always has a context (the middleware binds one
+    for every request, `user=None` for anonymous), so an unbound context means
+    the code ran outside the middleware — a wiring bug that must be loud, never
+    silently papered over with an invented identity.
+
+    Raises:
+        NoCallerContextError: No CallerContext is bound in this execution context.
+    """
+    ctx = _caller_context.get()
+    if ctx is None:
+        from tap_grid.exceptions import NoCallerContextError
+
+        raise NoCallerContextError(
+            "no active CallerContext — request-scoped code must run under "
+            "CallerContextMiddleware, which binds the request's identity "
+            "(req-grid-service-pipeline-context)"
+        )
+    return ctx
+
+
 # ---------------------------------------------------------------------------
 # Deferred hotlink check queue (req-grid-hotlink-deferred)
 # ---------------------------------------------------------------------------

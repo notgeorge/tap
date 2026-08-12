@@ -33,15 +33,13 @@ argument list preboot logs.
 
 from __future__ import annotations
 
-import os
-import stat
-import tempfile
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from tap import git_invocation
 from tap.jsonfiles import JsonFileError, validate_json
 from tap.runtime_secrets import RuntimeSecretError, resolve_secret_envelope
 
@@ -54,12 +52,13 @@ from tap.runtime_secrets import RuntimeSecretError, resolve_secret_envelope
 # to (`req-tap-cares-secrets-future-access-control`).
 SOURCE_SECRET_SCOPE = "tap_plugins.source"
 
-# The one kind a source credential may declare — shared type-axis with the
-# github_core collector, but a different data_schema (req-plugin-arch-source-secret-1).
-GITHUB_PAT_KIND = "github_pat"
-
-DEFAULT_HOST = "github.com"
-DEFAULT_USERNAME = "x-access-token"
+# The credential-shape constants and the GIT_ASKPASS mechanism live in the
+# stdlib-only `tap.git_invocation` leaf, shared with the host-side tools that
+# cannot import this module (they run before the container exists). Re-exported
+# here so this module stays the install system's single import surface.
+GITHUB_PAT_KIND = git_invocation.GITHUB_PAT_KIND
+DEFAULT_HOST = git_invocation.DEFAULT_HOST
+DEFAULT_USERNAME = git_invocation.DEFAULT_USERNAME
 
 _DATA_SCHEMA_PATH = Path(__file__).resolve().parent / "schemas" / "github_pat_source_secret.schema.json"
 
@@ -155,46 +154,17 @@ def resolve_git_credential(secrets_root: Path | None, source: Mapping[str, Any])
     )
 
 
-# The GIT_ASKPASS helper git invokes. git calls it with a single argument — the
-# prompt string ("Username for '...': " / "Password for '...': ") — and reads the
-# answer from stdout. The script carries NO secret; it echoes the username/token
-# the env overlay supplies, so the token never touches the filesystem.
-_ASKPASS_SCRIPT = (
-    "#!/bin/sh\n"
-    'case "$1" in\n'
-    '  Username*) printf "%s" "$TAP_GIT_USERNAME" ;;\n'
-    '  *)         printf "%s" "$TAP_GIT_PASSWORD" ;;\n'
-    "esac\n"
-)
-
-
 @contextmanager
 def git_askpass_env(cred: GitCredential) -> Iterator[dict[str, str]]:
     """Yield an env overlay that feeds ``cred`` to git via ``GIT_ASKPASS``.
 
-    Writes a short-lived, owner-only (``0700``) askpass script that reads the
-    username/token from the environment, and yields the env keys to merge into the
-    install subprocess. The token rides in ``TAP_GIT_PASSWORD`` (child env only),
-    never in the URL or the script body. ``GIT_TERMINAL_PROMPT=0`` forbids an
-    interactive fallback so a bad/absent credential fails fast instead of hanging.
-    The script is deleted on exit.
+    The typed convenience wrapper over :func:`tap.git_invocation.askpass_env`
+    (the shared stdlib mechanism): the token rides in the child env only, never
+    in the URL, argv, or the script body, and the short-lived owner-only script
+    is deleted on exit.
     """
-    fd, path = tempfile.mkstemp(prefix="tap-askpass-", suffix=".sh")
-    try:
-        with os.fdopen(fd, "w") as fh:
-            fh.write(_ASKPASS_SCRIPT)
-        os.chmod(path, stat.S_IRWXU)  # rwx------ : only this user runs it
-        yield {
-            "GIT_ASKPASS": path,
-            "GIT_TERMINAL_PROMPT": "0",
-            "TAP_GIT_USERNAME": cred.username,
-            "TAP_GIT_PASSWORD": cred.token,
-        }
-    finally:
-        try:
-            os.unlink(path)
-        except OSError:
-            pass
+    with git_invocation.askpass_env(username=cred.username, token=cred.token, prefix="tap-askpass-") as overlay:
+        yield overlay
 
 
 __all__ = [

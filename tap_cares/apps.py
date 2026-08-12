@@ -18,7 +18,7 @@ class TapCaresConfig(AppConfig):
 
         from tap_cares.secrets.loader import load_secrets
 
-        load_secrets(getattr(settings, "TAP_SECRETS_ROOT", None))
+        load_secrets(settings.TAP_SECRETS_ROOT)
 
         # Register the secret-load system check. Importing only registers the
         # check function; it reads secret_load_report (populated just above)

@@ -20,11 +20,18 @@ commit + trees and lazily materializes only the single record blob on ``git show
 raw-content GET but **host-generic** (any git server, reusing ``GIT_ASKPASS`` auth), not coupled to
 one host's API.
 
-Credential handling here is deliberately minimal — a stdlib read of the ``*.secret.json`` token,
-fed to git via a short-lived ``GIT_ASKPASS`` (token in the child env, never the URL or argv, mirroring
-``tap.plugin_source_auth``'s contract). It is NOT the full ``github_pat`` schema validation: the clone
-itself is the validation (a bad token fails loud), and the container's install path re-resolves +
-fully validates the record's OWN per-entry credentials when it git-installs the plugins.
+Credential handling here is deliberately reduced, and the reduction is now exact. The
+``GIT_ASKPASS`` mechanism itself is NOT reimplemented: it is the shared stdlib
+``tap.git_invocation`` leaf, the same code the install system uses (token in the child env,
+never the URL or argv). What stage-0 does on its own is the *envelope read*: a stdlib
+``json.loads`` that checks the ``kind`` is ``github_pat`` — cheap, no jsonschema, and
+load-bearing, since without it any envelope carrying a ``token`` would have its secret handed
+to whatever git host the pointer names (credential confusion). What stage-0 still cannot do is
+validate the ``data`` block against the ``github_pat`` source **schema**, which needs
+jsonschema (venv-only, unavailable on the host). So a well-formed envelope of the right kind
+but wrong data shape is caught later, not here: the clone itself fails loud on a bad token, and
+the container's install path re-resolves and fully validates the record's OWN per-entry
+credentials when it git-installs the plugins.
 """
 
 from __future__ import annotations
@@ -32,7 +39,6 @@ from __future__ import annotations
 import argparse
 import os
 import re
-import stat
 import subprocess
 import sys
 import tempfile
@@ -43,6 +49,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from tap.boot_records import RECORD_SUFFIX, canonical_digest_bytes
+from tap.git_invocation import DEFAULT_HOST, DEFAULT_USERNAME, GITHUB_PAT_KIND, askpass_env, run_git
+from tap.secrets_root import resolve as resolve_secrets_root
 
 __all__ = [
     "BootPointerError",
@@ -59,17 +67,6 @@ DEFAULT_SECRETS_ROOT = Path.home() / "tap-secrets"
 
 # tap_plugin/<slug>/boot/<name>.boot.json inside an artifact.
 _RECORD_IN_ARTIFACT = re.compile(r"^tap_plugin/(?P<slug>[^/]+)/boot/(?P<name>[^/]+)\.boot\.json$")
-
-# The GIT_ASKPASS helper (identical contract to tap.plugin_source_auth): git calls it with the
-# prompt string; it echoes the username/token from the env overlay so the token never touches
-# the filesystem, the URL, or the argument list.
-_ASKPASS_SCRIPT = (
-    "#!/bin/sh\n"
-    'case "$1" in\n'
-    '  Username*) printf "%s" "$TAP_GIT_USERNAME" ;;\n'
-    '  *)         printf "%s" "$TAP_GIT_PASSWORD" ;;\n'
-    "esac\n"
-)
 
 
 class BootPointerError(Exception):
@@ -144,9 +141,10 @@ def _resolve_token(credential: str | None, secrets_root: Path | None) -> tuple[s
     if candidate.is_file():
         secret_path = candidate
     else:
-        root = secrets_root or (
-            Path(os.environ["TAP_SECRETS_ROOT"]) if os.environ.get("TAP_SECRETS_ROOT") else DEFAULT_SECRETS_ROOT
-        )
+        # GnuPG-style host-tool precedence: --secrets-root flag > env (via the
+        # canonical settings-free lookup, req-tap-cares-secrets-root-resolution)
+        # > the host home default.
+        root = secrets_root or resolve_secrets_root() or DEFAULT_SECRETS_ROOT
         matches = sorted(root.rglob(f"{credential}{SECRET_SUFFIX}"))
         if not matches:
             raise BootPointerError(f"credential '{credential}' not found (no {credential}{SECRET_SUFFIX} under {root})")
@@ -156,11 +154,20 @@ def _resolve_token(credential: str | None, secrets_root: Path | None) -> tuple[s
         envelope = json.loads(secret_path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         raise BootPointerError(f"credential '{credential}' unreadable at {secret_path}: {exc}") from exc
+    # Kind check before touching data.token: without it, ANY envelope carrying a
+    # `token` field would have its secret handed to whatever git host the pointer
+    # names — credential confusion (material for service A sent to service B).
+    # Costs no jsonschema, so the host boundary is no excuse for skipping it.
+    kind = envelope.get("kind")
+    if kind != GITHUB_PAT_KIND:
+        raise BootPointerError(
+            f"credential '{credential}' ({secret_path}) has kind {kind!r}, expected '{GITHUB_PAT_KIND}'"
+        )
     data = envelope.get("data") or {}
     token = data.get("token")
     if not isinstance(token, str) or not token:
         raise BootPointerError(f"credential '{credential}' ({secret_path}) has no data.token")
-    return token, str(data.get("host", "github.com")), str(data.get("username", "x-access-token"))
+    return token, str(data.get("host", DEFAULT_HOST)), str(data.get("username", DEFAULT_USERNAME))
 
 
 @contextmanager
@@ -170,22 +177,8 @@ def _git_askpass(token_tuple: tuple[str, str, str] | None) -> Iterator[dict[str,
         yield {}
         return
     token, _host, username = token_tuple
-    fd, path = tempfile.mkstemp(prefix="tap-stage0-askpass-", suffix=".sh")
-    try:
-        with os.fdopen(fd, "w") as fh:
-            fh.write(_ASKPASS_SCRIPT)
-        os.chmod(path, stat.S_IRWXU)  # rwx------
-        yield {
-            "GIT_ASKPASS": path,
-            "GIT_TERMINAL_PROMPT": "0",
-            "TAP_GIT_USERNAME": username,
-            "TAP_GIT_PASSWORD": token,
-        }
-    finally:
-        try:
-            os.unlink(path)
-        except OSError:
-            pass
+    with askpass_env(username=username, token=token, prefix="tap-stage0-askpass-") as overlay:
+        yield overlay
 
 
 # ---------------------------------------------------------------------------
@@ -194,12 +187,8 @@ def _git_askpass(token_tuple: tuple[str, str, str] | None) -> Iterator[dict[str,
 
 
 def _git(args: list[str], env: dict[str, str]) -> subprocess.CompletedProcess[bytes]:
-    result = subprocess.run(["git", *args], capture_output=True, env=env)
-    if result.returncode != 0:
-        raise BootPointerError(
-            f"git {' '.join(args)} failed (exit {result.returncode}): {result.stderr.decode(errors='replace').strip()}"
-        )
-    return result
+    """Run git for stage-0, raising BootPointerError on failure."""
+    return run_git(args, env, error_cls=BootPointerError)
 
 
 def stage0_fetch(

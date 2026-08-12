@@ -24,6 +24,7 @@ The grid may eventually know about secret references, health, usage, policy, and
 | --- | --- | :---: | --- |
 | req-tap-cares-secrets-scope | [Secrets Scope](#secrets-scope) | Implemented | Secret material is off-grid runtime data |
 | req-tap-cares-secrets-files | [Secret Files](#secret-files) | Implemented | Recursive `*.secret.json` discovery under a configured secrets root |
+| req-tap-cares-secrets-root-resolution | [Secrets Root Resolution](#secrets-root-resolution) | Implemented | Exactly two canonical `TAP_SECRETS_ROOT` lookups — `settings.TAP_SECRETS_ROOT` inside Django, `tap/secrets_root.py` outside — every other consumer uses one of the two; literals live once; guard-pinned |
 | req-tap-cares-secrets-resilient-load | [Resilient Load And Failure Surfacing](#resilient-load-and-failure-surfacing) | Implemented | Bad files are recorded (not crash-raised); `required_for_boot` escalates to blocking; surfaced via system check + the `tap_health` secrets probe |
 | req-tap-cares-secrets-shape | [Secret JSON Shape](#secret-json-shape) | Implemented | Minimal required JSON object fields |
 | req-tap-cares-secrets-registry | [Secret Registry And Resolution](#secret-registry-and-resolution) | Implemented | Internal `ScopedRegistry` plus `SecretRef` / `resolve_secret` helpers |
@@ -133,6 +134,75 @@ that host path before `dc up` runs:
 | req-tap-cares-secrets-files-4 | Directory Non-Semantic | Implemented | Directories help organization but do not define scope, key, or kind. | |
 | req-tap-cares-secrets-files-5 | Basename Matches Key | Implemented | The filename's `<key>` portion must match the JSON object's `key` field. | |
 | req-tap-cares-secrets-files-6 | Duplicate Guard | Implemented | Duplicate `scope:key` values are recorded as load failures (degraded unless `required_for_boot`), not crash-raised. | See `req-tap-cares-secrets-resilient-load`. |
+
+## Secrets Root Resolution
+----
+RID: `req-tap-cares-secrets-root-resolution`
+Status: `Implemented`
+Tags: `Security`
+
+`req-tap-cares-secrets-files` made the low-level resolver import-safe by having "each caller
+supply the secrets root" — sound layering that left *who supplies the root* unspecified. The
+2026-08 derive-the-same-fact-twice audit (#3) found the vacuum filled by five independent
+inline resolutions: management commands restating `settings or env or "/run/tap-secrets"` in
+full, `tap_cares.apps` restating a defensive variant, and the settings-free sites each reading
+the env var themselves. Independent resolutions of *where credentials come from* can diverge
+per entry point — for a secrets surface, that is not tolerable drift.
+
+**The contract: exactly two canonical lookups, one per world** — an intentional duplicate
+pair, tagged `TAP-KNOWN-DUPE(secrets-root)` at both sites per `req-tap-known-dupes`
+(`specs/spec-tap-known-dupes.md`): the env read exists twice by design because settings-free
+callers cannot import settings, and the tag makes each side point at its partner.
+
+- **Inside Django: `settings.TAP_SECRETS_ROOT`.** Unchanged, and deliberately in
+  `settings.py`'s house style (`os.environ.get("TAP_SECRETS_ROOT", "/run/tap-secrets")`):
+  settings.py is the one file that projects environment variables into Python variables, and
+  this variable follows the same pattern as every other. Every Django-side consumer
+  (management commands, app `ready()` hooks, loaders) reads `settings.TAP_SECRETS_ROOT` —
+  never the env var, never a literal.
+- **Outside Django: `tap/secrets_root.py`.** A stdlib-only leaf (the same import-safety
+  discipline as `tap/runtime_secrets.py`) owning the env-var name and the read:
+  `resolve() -> Path | None`, env-or-None, **no default**. The settings-free callers apply
+  their own documented unset-policies at their own edges:
+  - `tap/preboot.py` — None ⇒ "no source-credential store", proceed (public sources only).
+  - `tap_auth/providers/secrets.py` — settings when configured (test overrides), else
+    `resolve()`, else raise `ProviderError` (it runs mid-settings-import; a provider
+    without a resolvable store is a hard error).
+  - `tap/boot_pointer.py` — `resolve()` else its host-side default `~/tap-secrets`
+    (a GnuPG-style operator tool: `--secrets-root` flag > env > home default; the host
+    literal lives only there).
+
+**Prior-art grounding (2026-08-12 sweep).** Supervised-runtime secret stores are
+*injection-first*: systemd credentials (`$CREDENTIALS_DIRECTORY`, consumer carries no
+default), SPIFFE (`SPIFFE_ENDPOINT_SOCKET` as the sole well-known contract), Vault Agent
+(operator-configured sink). Docker Swarm is the fixed-well-known-path school
+(`/run/secrets`). TAP's container resolution is env-first with a Docker-school fallback that
+equals what compose injects anyway. Host-side operator tools (GnuPG `--homedir` >
+`GNUPGHOME` > `~/.gnupg`; pass) are the flag > env > home-default school `boot_pointer`
+already follows.
+
+**Named deferral (`req-sec-honest-risk`).** The systemd school would drop the in-container
+default entirely (env unset ⇒ no credentials). TAP keeps it because settings.py is uniformly
+dev-first — every env var there carries a dev default, including higher-stakes ones
+(`SECRET_KEY`, `DATABASE_URL`). Making this one variable injection-required alone buys
+inconsistency, not safety. The right unit of change is a **production strictness pass**
+flipping the whole settings env family to injection-required at once; when that lands, the
+container default here drops with the rest.
+
+The boot-time `required_secrets` preflight is a fail-fast operator-UX gate, not a security
+boundary — necessity truth is owned by per-consumer health probes
+(`req-tap-cares-secrets-conditional-validation`) — and it consumes `settings.TAP_SECRETS_ROOT`
+like any other Django-side consumer.
+
+### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-cares-secrets-root-resolution-1 | Two Canonical Lookups Only | Implemented | The `TAP_SECRETS_ROOT` env var is read in exactly two files: `tap/settings.py` and `tap/secrets_root.py`. Guard-pinned. | |
+| req-tap-cares-secrets-root-resolution-2 | Django Consumers Use Settings | Implemented | Every Django-side consumer reads `settings.TAP_SECRETS_ROOT`; none re-reads the env var or restates a default. | Kills the audit-#3 triple restatements. |
+| req-tap-cares-secrets-root-resolution-3 | Settings-Free Edges Own Their Unset-Policy | Implemented | Settings-free callers use `tap.secrets_root.resolve()` (env-or-None, no default); each caller's unset behavior (proceed / raise / host-default) is applied and documented at its own edge. | preboot / providers / boot_pointer. |
+| req-tap-cares-secrets-root-resolution-4 | Literals Live Once | Implemented | `"/run/tap-secrets"` appears in Python only in `tap/settings.py`; the host default `~/tap-secrets` only in `tap/boot_pointer.py`. Guard-pinned. | Compose/docs/help-strings excepted. |
+| req-tap-cares-secrets-root-resolution-5 | Strictness Pass Deferral Named | Implemented | The in-container default's removal is tied to the future whole-family production strictness pass, not done piecemeal. | systemd-school alignment, deferred. |
 
 ## Resilient Load And Failure Surfacing
 ----

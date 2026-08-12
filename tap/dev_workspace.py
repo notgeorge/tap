@@ -26,7 +26,6 @@ import argparse
 import copy
 import json
 import os
-import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -34,6 +33,7 @@ from typing import Any
 
 from tap.boot_pointer import BootPointerError, _git_askpass, _resolve_token
 from tap.boot_records import RECORD_SUFFIX
+from tap.git_invocation import run_git
 
 #: Nested location (under the harness worktree, gitignored) for editable dev-plugin
 #: checkouts — the "nested first-cut" decision (spec-dev-plugin-workspace.md).
@@ -101,12 +101,8 @@ def derive_profile(profile: dict[str, Any], dev_slugs: list[str]) -> tuple[dict[
 
 
 def _run_git(args: list[str], env: dict[str, str]) -> None:
-    result = subprocess.run(["git", *args], capture_output=True, env=env)
-    if result.returncode != 0:
-        raise DevWorkspaceError(
-            f"git {' '.join(args)} failed (exit {result.returncode}): "
-            f"{result.stderr.decode(errors='replace').strip()}"
-        )
+    """Run git for the dev-workspace clone, raising DevWorkspaceError on failure."""
+    run_git(args, env, error_cls=DevWorkspaceError)
 
 
 def clone_editable(spec: CloneSpec, worktree: Path, secrets_root: Path | None) -> Path:

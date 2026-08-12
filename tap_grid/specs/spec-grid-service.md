@@ -431,8 +431,21 @@ CallerContext carries at minimum:
 
 CallerContext is derived from Django primitives:
 
-- In API views, the Django request object is the source for `user` (`request.user`).
-- In management commands and background tasks, user may be None or an explicit service principal.
+- **For requests, exactly once, at the middleware.** `CallerContextMiddleware` (tap_auth)
+  derives the context from `request.user` — using Django's canonical
+  `is_authenticated` predicate — and binds it on the contextvar for the request
+  lifecycle. Request-scoped code (API routes, web views, panels) **consumes** that
+  bound context via `require_caller_context()`; it does not rebuild one from
+  `request.user`. Two derivations of request identity means two definitions of
+  "authenticated" on an authorization surface: before the 2026-08 derive-the-same-
+  fact-twice collapse (audit finding #4) four hand-rolled route builders used a
+  `hasattr(request.user, "pk")` predicate that the middleware does not, and nothing
+  held them together. `require_caller_context()` fails closed
+  (`NoCallerContextError`) when nothing is bound — a route reached outside the
+  middleware is a wiring bug, never an invented identity.
+- In management commands and background tasks there is no request middleware: the entry
+  boundary binds a named program actor via `tap_auth.acting_as` (the no-request analogue —
+  see `spec-tap-auth-v0.md`), or the caller constructs an explicit CallerContext.
 - Service functions accept CallerContext as a typed parameter. They do not accept raw Django request objects.
 
 CallerContext is not user-writable payload. Callers provide identity context; the service layer controls what is done with it (batch_id generation, future authz checks).
@@ -477,6 +490,8 @@ set on CallerContext itself" direction in `spec-tap-auth-v0.md`
 | req-grid-service-pipeline-context-3 | No Raw Request Objects | Implemented | Service functions accept CallerContext, not Django HttpRequest objects. | |
 | req-grid-service-pipeline-context-4 | None User Is Valid | Implemented | A CallerContext with user=None is valid and represents a system or internal caller. | |
 | req-grid-service-pipeline-context-5 | Authz Hook Uses Context | In Development | The reserved security/authz pipeline step operates against CallerContext. | |
+| req-grid-service-pipeline-context-6 | One Request-Identity Derivation | Implemented | Request identity is derived exactly once, by `CallerContextMiddleware` (Django's `is_authenticated` predicate); request-scoped code consumes the bound context via `require_caller_context()` and never rebuilds one from `request.user`. Guard-pinned by test. | Audit #4 collapse: four route builders carried a second, divergent predicate. |
+| req-grid-service-pipeline-context-7 | Unbound Context Fails Closed | Implemented | `require_caller_context()` raises `NoCallerContextError` when no context is bound, rather than returning an invented or anonymous identity. | A route outside the middleware is a wiring bug — loud. |
 
 #### Future
 Add role, permission scope, or realm context to CallerContext when the authorization specification is written.
