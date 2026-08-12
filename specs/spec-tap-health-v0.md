@@ -197,7 +197,7 @@ The core probes live in `tap_health/probes.py` and register from `tap_health`'s 
 | req-tap-health-probes-1 | DB Probe | Implemented | The db probe issues a trivial query over the default connection. | |
 | req-tap-health-probes-2 | Cache Round-Trip | Implemented | The cache probe is a real set→get round-trip whose value must match. | the demo-fault catcher; tests: all-healthy, cache-broken |
 | req-tap-health-probes-3 | Queue Best-Effort | Implemented | The queue probe is non-critical and reports `unknown` rather than failing on an indeterminate result. | |
-| req-tap-health-probes-4 | Critical Set | Implemented | db and cache are always critical, and `secrets` is critical when `unhealthy`; `queue` never flips the overall status. | four-state model |
+| req-tap-health-probes-4 | Critical Set | Implemented | db, cache, and migrations are always critical, and `secrets` is critical when `unhealthy`; `queue` never flips the overall status. | four-state model; `migrations` is critical so a not-yet-migrated instance reports `unhealthy` (the readiness gate) — it belongs in the *readiness* set once the deferred liveness/readiness selection layer lands (see registry-8) |
 | req-tap-health-probes-5 | Probes Report, Never Raise | Implemented | A probe error is caught and reported, never propagated as a 500. | test: cache-broken |
 | req-tap-health-probes-6 | Secrets Probe | Implemented | The `secrets` probe reports the resilient secret-load outcome: `degraded` (200) for a non-blocking failure, `unhealthy` (503) for a `required_for_boot` failure. | owned by `tap_cares`; tests in `tap/tests/test_health.py`; see `req-tap-cares-secrets-resilient-load-5` |
 
