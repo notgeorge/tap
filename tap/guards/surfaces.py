@@ -236,7 +236,7 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
     ),
     DeclaredSurface(
         surface="Read-only search write detection",
-        rid="req-grid-search-readonly",
+        rid="req-grid-search-readonly.sec-6",
         cadence="Per-commit (`pytest`)",
         status="CI-guarded",
         enforced_by="`tap_grid/tests/test_search_readonly_guard.py`",

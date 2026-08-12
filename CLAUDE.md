@@ -275,7 +275,7 @@ Documentation (specs ↔ docs alignment)
 
     Drift prevention — when editing a SPEC:
         1. Search docs/ for any reference to the requirement RID(s) you are changing:
-               grep -r "req-foo-bar" docs/
+               grep -r "req-example-name" docs/
         2. Read each hit. If the doc no longer matches behavior, update the doc in the same PR.
         3. Doc-only commits when the doc change is independent of behavior; bundled commits when paired with a behavior change.
 

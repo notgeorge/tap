@@ -267,6 +267,18 @@ markers = [
 
 Not every test needs a spec link. Tests that cover implementation details, edge cases beyond the spec, or exploratory scenarios may omit the marker.
 
+**Resolution is enforced; coverage is not yet.** The `spec-marker-resolution` guard
+(`tap/guards/spec_marker.py`) asserts every ACID named in a `@pytest.mark.spec` resolves to
+a criterion that actually exists — a hard lint with no baseline, since every marker in the
+tree already resolved when it landed. Until then the marker was registered and used but
+**consumed by nothing**, so a test could cite a criterion that had been renamed or never
+existed and the link would read as sound while pointing nowhere.
+
+The other half — walking the markers to report which acceptance criteria have no linked
+test, and deriving `Verified` from that — is the status-derivation work, not built. This
+requirement stays `In Development` until it is: a resolving marker proves the citation is
+real, not that the criterion is covered.
+
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
