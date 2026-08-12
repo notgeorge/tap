@@ -106,6 +106,14 @@ if ! TAP_PLUGINS="$(uv run python -m tap.preboot --profile "${TAP_BOOT_PROFILE:-
     exit 1
 fi
 export TAP_PLUGINS
+# Persist the resolved set so sibling execs (manage.py boot, import_plugin_grift, pytest)
+# that do NOT inherit this shell's env read the SAME authoritative plugin set, instead of
+# racing live entry-point discovery (importlib.metadata's mtime cache can disagree across
+# processes → a registered type with no migrated table, the plugin-loading race 2026-08-11).
+# /run is tmpfs; rewritten every boot, so never stale. Best-effort: the export above covers
+# the server; a persist failure only degrades sibling execs back to the warned fallback.
+printf '%s' "${TAP_PLUGINS}" > /run/tap-plugins \
+    || echo "==> WARN: could not persist TAP_PLUGINS to /run/tap-plugins (sibling execs fall back to discovery)" >&2
 echo "==> Pre-boot complete. TAP_PLUGINS=[${TAP_PLUGINS:-<none>}]"
 
 # ---------------------------------------------------------------------------
