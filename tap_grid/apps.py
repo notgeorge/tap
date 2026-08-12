@@ -46,12 +46,34 @@ class TapCoreConfig(AppConfig):
 
         register_core_edges()
 
-        try:
-            from tap_grid.models import EntityType
+        # Register the grid-population probe from tap_grid's own boundary
+        # (req-tap-health-probe-registry-3). Registration only appends a callable —
+        # no DB here; the probe body runs later at run_health() time.
+        from tap_grid.health import probe_grid_tables
+        from tap_health.registry import register_health_probe
+        from tap_health.selection import READINESS
 
-            EntityType.objects.get_or_create(
+        # Critical: a classified model whose table does not exist is exactly the
+        # schema/registry divergence that makes grid reads fail at the database.
+        register_health_probe(
+            "grid.tables",
+            probe_grid_tables,
+            sets=(READINESS,),
+            group="tap_grid",
+            critical=True,
+        )
+
+        try:
+            from tap_grid.models import EntityType, EntityTypeKind
+
+            EntityType.objects.update_or_create(
                 slug="search",
-                defaults={"name": "Search", "plugin_name": "tap_grid", "icon": "search"},
+                defaults={
+                    "name": "Search",
+                    "plugin_name": "tap_grid",
+                    "icon": "search",
+                    "kind": EntityTypeKind.NODE,
+                },
             )
         except OperationalError, ProgrammingError:
             # DB not ready yet (e.g. during initial migrate).

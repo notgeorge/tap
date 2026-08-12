@@ -352,9 +352,26 @@ class Entity(models.Model):
         return super().delete(*args, **kwargs)
 
 
+class EntityTypeKind(models.TextChoices):
+    """Whether a catalogued type describes a node or an edge.
+
+    Both belong in this catalog: edges ARE entities (`Edge` is a `BaseModel`, so
+    every edge has a backing `Entity` — req-grid-entity-spine), and a plugin
+    manifest declares both kinds. What the catalog lacked was the discriminator,
+    so a consumer could not tell a node type from an edge type
+    (req-grid-entity-type-kind).
+    """
+
+    NODE = "node", "Node"
+    EDGE = "edge", "Edge"
+
+
 class EntityType(models.Model):
-    """Registry of entity types. Plugins populate this; Entity.entity_type
-    stores the slug as a plain string (not an FK) for decoupling and speed."""
+    """Registry of entity types — node types AND edge types.
+
+    Plugins populate this; `Entity.entity_type` stores the slug as a plain string
+    (not an FK) for decoupling and speed.
+    """
 
     # Grid-table classification (req-grid-table-classification.sec): spine —
     # the type catalog is grid infrastructure, not a domain node type.
@@ -365,6 +382,18 @@ class EntityType(models.Model):
     icon = models.CharField(max_length=255, blank=True, default="")
     description = models.TextField(blank=True, default="")
     plugin_name = models.CharField(max_length=255, blank=True, default="", db_index=True)
+    # req-grid-entity-type-kind. Empty means "not yet classified": rows written
+    # before this field existed keep it until their writer next runs (the plugin
+    # loader's update_or_create sets it on every load), so a consumer must treat
+    # "" as unknown rather than as a node.
+    kind = models.CharField(
+        max_length=16,
+        choices=EntityTypeKind.choices,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="Whether this type describes a node or an edge; empty means not yet classified.",
+    )
 
     class Meta:
         db_table = "tap_entity_type"

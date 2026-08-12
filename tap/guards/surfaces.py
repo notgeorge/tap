@@ -129,7 +129,7 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
     DeclaredSurface(
         surface="Assembled-instance health",
         rid="req-tap-health-exposure-4",
-        cadence="Per-commit (`pytest`) + per-spawn (`manage.py health` gate)",
+        cadence="Per-commit (`pytest`) + per-spawn (`manage.py health --set readiness` gate)",
         status="Partially guarded — CI-guarded units + per-spawn exec gate; full live cold-boot run Named, deferred",
         enforced_by="`tap_health/tests/` + `spawn-session.sh` health gate; folds into the cold-boot cycle",
     ),

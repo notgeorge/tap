@@ -12,10 +12,22 @@ router = Router()
 
 
 @router.get("/", response=list[EntityTypeOut])
-def list_entity_types(request: HttpRequest) -> list[EntityType]:
+def list_entity_types(request: HttpRequest, kind: str | None = None) -> list[EntityType]:
+    """List catalogued types — node types and edge types.
+
+    Both kinds belong here: edges ARE entities (req-grid-entity-spine). The `kind`
+    field discriminates them, and `?kind=node` / `?kind=edge` narrows the list — a
+    caller asking "what node types exist?" gets an answer instead of having to
+    know which slugs happen to be edges (req-grid-entity-type-kind).
+    """
     # Grid.read gate (finding cs-tap-api-typecat-003): the type catalog is graph
     # metadata, and every graph read requires grid.read (req-tap-auth-policy). This
     # mirrors the entities router. EntityType is not a BaseModel, so this explicit
     # gate — plus the Layer-2 SQL read backstop — is what covers it.
     policy.authorize(require_caller_context(), "grid.read", operation="list_entity_types")
-    return list(EntityType.objects.all())
+    queryset = EntityType.objects.all()
+    if kind is not None:
+        # Unknown value ⇒ empty list, not a 500 and not the unfiltered catalog:
+        # over-returning is the dangerous direction for a typo'd filter.
+        queryset = queryset.filter(kind=kind)
+    return list(queryset)

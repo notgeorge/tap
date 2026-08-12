@@ -28,6 +28,7 @@ This spec defines the documentation system: where docs live, how they reference 
 | req-docs-versioning | [Git-Derived Versioning](#git-derived-versioning) | Proposed | No version metadata stored in files |
 | req-docs-change-history | [Change History via Git](#change-history-via-git) | Proposed | Doc-only commits when possible; git is the changelog |
 | req-docs-drift-conventions | [Drift Detection Conventions](#drift-detection-conventions) | Proposed | CLAUDE.md and memory rules |
+| req-docs-rid-integrity | [Referenced RIDs Resolve](#referenced-rids-resolve) | Proposed | Mechanize the honor-system half of drift-conventions: every `req-*` cited in a living doc/spec/agent-guide resolves to a defined requirement |
 | req-docs-landing-page | [Docs Landing Page](#docs-landing-page) | Backlog | Top-level index doc for human/LLM orientation |
 | req-docs-ref-resolution | [Structured Doc-Reference Resolution](#structured-doc-reference-resolution) | Backlog | Core shape: a structured doc reference resolves to a canonical doc target; emitters produce refs now, resolution deferred; web rendering is a separate concern |
 
@@ -267,7 +268,7 @@ Two complementary mechanisms keep docs and specs aligned:
 
 **Manual checklist (doc-spec template):** every doc-spec carries a Re-evaluation triggers section listing what changes should prompt a doc re-read. When implementing a change in any of those triggers, the doc-spec's lifecycle requires a doc review pass.
 
-A future linter pass (out of scope for now) could enforce: every doc has a valid `spec:` link, every owning spec exists, every RID in `covers:` resolves, and the git timestamp of any file in a doc's `update-triggers:` list is not newer than the doc's own `git log -1` timestamp (would suggest the doc has not been re-touched since the trigger fired). Layer 3 in the spec-dev-multisession discussion. Add only if drift becomes a real problem.
+A future linter pass (out of scope for now) could enforce: every doc has a valid `spec:` link, every owning spec exists, every RID in `covers:` resolves, and the git timestamp of any file in a doc's `update-triggers:` list is not newer than the doc's own `git log -1` timestamp (would suggest the doc has not been re-touched since the trigger fired). Layer 3 in the spec-dev-multisession discussion. Add only if drift becomes a real problem. **The RID-resolution slice of that linter is now specified separately as [Referenced RIDs Resolve](#referenced-rids-resolve) (`req-docs-rid-integrity`) — the demand signal arrived (2026-08-11).**
 
 #### Acceptance Criteria
 
@@ -275,6 +276,47 @@ A future linter pass (out of scope for now) could enforce: every doc has a valid
 | --- | --- | :---: | --- | --- |
 | req-docs-drift-conventions-1 | CLAUDE.md guidance | Proposed | CLAUDE.md includes a "Documentation drift" section describing the spec ↔ doc review workflow. | |
 | req-docs-drift-conventions-2 | Memory rule | Proposed | A feedback memory captures the doc-review-on-spec-edit rule and vice versa. | |
+
+### Referenced RIDs Resolve
+----
+RID: `req-docs-rid-integrity`
+Status: `Proposed`
+
+The documentation system is held together by `req-*` cross-references: docs cite them,
+`covers:` lists enumerate them, and the agent guides (`CLAUDE.md`, `AGENTS.md`) point
+sessions at them. Today only *guard* and *declared-surface* RIDs are machine-checked
+(`test_guard_rid_resolves`, `test_declared_surface_rid_resolves`); every other citation
+rests on the grep discipline in [Drift Detection Conventions](#drift-detection-conventions).
+Rename or retire a requirement and each doc citing the old RID strands silently. The
+reader most harmed is **Player 3** (`spec-ai-integration.md`): AI sessions ground
+themselves by *chasing RIDs*, so a dangling reference quietly poisons an agent's grounding
+— a machine-legibility defect, not a cosmetic one.
+
+**Demand signal (2026-08-11):** near-misses caught only by hand — a strategy doc whose
+forecast had silently become history, and the `uuid5` rename class where string-level
+renames miss derived references. Cheap now: the hard half already exists —
+`tap.guards.base.defined_requirement_rids()` resolves the *definition* side (an `RID:`
+heading or a table-row cell — deliberately NOT an inline mention), so only the
+*reference* side is unbuilt.
+
+**Shape.** A standalone script (the `scripts/check-dco` / `scripts/change-tier` pattern —
+ONE artifact, MANY invokers) that collects `req-*` tokens from the living surfaces,
+subtracts `defined_requirement_rids()`, and fails on the remainder. Run it as (a) a cheap
+always-on CI job — it is grep-speed, so it fits even the ~1-minute **docs tier**, closing
+the gap that a lane-only test would leave for a brand-new doc citing a typo'd RID
+(`req-dev-validation-product-line-lanes-7`) — and (b) a pytest wrapper for local runs.
+
+**Scope decision required before building:** archival corpora (`docs/aar/`,
+`docs/postmortems/`, dated handoffs) legitimately cite retired requirements — they
+describe the past, and a dead RID there is a *record*, not drift. Either exclude those
+directories (simplest, recommended) or baseline the existing strays and block only new
+ones. Choose deliberately; do not let the checker silently define "living" by accident.
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-docs-rid-integrity-1 | Referenced RIDs resolve | Proposed | Every `req-*` token cited in a living doc, spec cross-reference, or agent guide resolves to a requirement defined per `defined_requirement_rids()`. | Reuses the existing resolver; only the reference-side scan is new. |
+| req-docs-rid-integrity-2 | Runs in every tier | Proposed | The check runs on docs-tier changes too (own cheap CI job), not only in the test lane — otherwise a new doc citing a typo'd RID lands ungated. | Script-shaped so the same artifact serves CI, pytest, and ad hoc runs. |
+| req-docs-rid-integrity-3 | Archival scope is explicit | Proposed | Archival corpora are excluded (or baselined) by an explicit, documented rule — never by accident. | Historical records citing retired RIDs are correct, not drift. |
 
 ## Trial Run
 

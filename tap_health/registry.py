@@ -14,6 +14,10 @@ runs later, at `run_health()` time).
 ownership), not as a registry scope, so `name` stays globally unique. `requires`
 is the declared least-privilege capability slot — captured now, enforced later
 (req-tap-health-probe-actor); v0 probes pass `requires=()`.
+
+`sets` is the **mandatory** selection declaration (req-tap-health-selection):
+which named questions this probe answers. It is orthogonal to both `group`
+(ownership) and `critical` (does an unhealthy result sink the verdict).
 """
 
 from __future__ import annotations
@@ -23,6 +27,7 @@ from dataclasses import dataclass, field
 
 from tap.registry import Registry
 from tap_health.results import ProbeResult
+from tap_health.selection import validate_declared_sets
 
 
 @dataclass(frozen=True)
@@ -35,6 +40,7 @@ class HealthProbe:
 
     name: str
     probe: Callable[[], ProbeResult]
+    sets: tuple[str, ...]
     group: str = "core"
     critical: bool = False
     requires: tuple[str, ...] = field(default_factory=tuple)
@@ -51,6 +57,7 @@ def register_health_probe(
     name: str,
     probe: Callable[[], ProbeResult],
     *,
+    sets: Sequence[str],
     group: str = "core",
     critical: bool = False,
     requires: Sequence[str] = (),
@@ -62,14 +69,29 @@ def register_health_probe(
             raises `ImproperlyConfigured` at registration (startup).
         probe: Zero-arg callable returning a `ProbeResult`. Run at
             `run_health()` time, not at registration.
+        sets: The selection sets this probe answers for — **mandatory**, at least
+            one of `tap_health.selection.DECLARABLE_SETS`. An undeclared probe
+            would silently join or miss a deploy gate, so omission is a startup
+            error (req-tap-health-selection).
         group: Owning namespace for clustering/ownership (default `"core"`).
-        critical: Whether an `unhealthy` result flips the overall verdict.
+        critical: Whether an `unhealthy` result flips the overall verdict. Set
+            membership and criticality are independent: a probe can be in
+            readiness without being critical (`queue`).
         requires: Declared capabilities (least-privilege slot; not enforced in
             v0). Captured for forward-compatibility (req-tap-health-probe-actor).
     """
+    declared = tuple(sets)
+    validate_declared_sets(name, declared)
     health_probe_registry.register(
         name,
-        HealthProbe(name=name, probe=probe, group=group, critical=critical, requires=tuple(requires)),
+        HealthProbe(
+            name=name,
+            probe=probe,
+            sets=declared,
+            group=group,
+            critical=critical,
+            requires=tuple(requires),
+        ),
     )
 
 
