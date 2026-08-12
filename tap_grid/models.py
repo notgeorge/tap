@@ -227,6 +227,11 @@ class Entity(models.Model):
     never the other way around. Conceptually similar to Wikidata items.
     """
 
+    # Grid-table classification (req-grid-table-classification.sec): Entity is
+    # spine — grid infrastructure, not a domain node type. Spine may be declared
+    # only here and on EntityType; the derivation fails closed on any other declarer.
+    GRID_TABLE_ROLE: ClassVar[str] = "spine"
+
     id = models.UUIDField(
         primary_key=True,
         default=uuid.uuid7,
@@ -351,6 +356,10 @@ class EntityType(models.Model):
     """Registry of entity types. Plugins populate this; Entity.entity_type
     stores the slug as a plain string (not an FK) for decoupling and speed."""
 
+    # Grid-table classification (req-grid-table-classification.sec): spine —
+    # the type catalog is grid infrastructure, not a domain node type.
+    GRID_TABLE_ROLE: ClassVar[str] = "spine"
+
     slug = models.CharField(max_length=255, unique=True)
     name = models.CharField(max_length=255)
     icon = models.CharField(max_length=255, blank=True, default="")
@@ -464,6 +473,13 @@ class BaseModel(models.Model):
         all_objects — unfiltered manager, includes tombstoned entities.
     """
 
+    # Grid-table classification (req-grid-table-classification.sec): being a
+    # BaseModel IS being a grid domain table. Declared once here, inherited by
+    # every subclass; a subclass declaring it (any value) fails at import — see
+    # the guard in __init_subclass__. Security consumers (the ORM read backstop
+    # and the search-role DB grant) derive their table sets from this.
+    GRID_TABLE_ROLE: ClassVar[str] = "domain"
+
     ENTITY_TYPE: ClassVar[str]
     DEFAULT_DIMENSIONS: ClassVar[dict[str, str]]
     FIELD_VALIDATION_SCHEMA: ClassVar[dict[str, dict]] = {}
@@ -512,6 +528,19 @@ class BaseModel(models.Model):
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
+
+        # Table-classification guard (req-grid-table-classification.sec-3): a
+        # subclass may never declare GRID_TABLE_ROLE — "domain" is inherited, and
+        # spine is core-only (Entity/EntityType). Even a redundant "domain" is
+        # rejected: classification drives the read backstop and the DB grant, so
+        # a declarable value in a subclass body is an editable security surface.
+        # Runs before any registry side effects so the failure is clean.
+        if "GRID_TABLE_ROLE" in cls.__dict__:
+            raise ImproperlyConfigured(
+                f"{cls.__name__} declares GRID_TABLE_ROLE; grid-table classification "
+                "is inherited from BaseModel and may never be declared by a subclass "
+                "(req-grid-table-classification.sec)."
+            )
 
         # FIELD_VALIDATION_SCHEMA invariants run first — before any registry side effects.
         # If these raise, nothing has been registered and the failure is clean.

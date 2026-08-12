@@ -16,8 +16,9 @@ import pytest
 from django.conf import settings
 from django.db import IntegrityError, ProgrammingError, connections
 
+from tap_grid.models import Dimension, Edge, Entity, EntityType
 from tap_grid.registry import get_model_class, list_entity_types
-from tap_grid.search_role import _SPINE_TABLES, SEARCH_ROLE_NAME, provision_search_role, search_role_grant_tables
+from tap_grid.search_role import SEARCH_ROLE_NAME, provision_search_role, search_role_grant_tables
 
 pytestmark = pytest.mark.django_db(transaction=True, databases=["default"])
 
@@ -33,11 +34,12 @@ def _provision() -> list[str]:
 
 
 class TestGrantSetDerivation:
-    """The grant set is registry-derived — the validation-loop / completeness check."""
+    """The grant set is model-layer-derived — the validation-loop / completeness check."""
 
     def test_grant_set_covers_spine(self):
         tables = search_role_grant_tables()
-        for spine in _SPINE_TABLES:
+        for spine_model in (Entity, EntityType, Edge, Dimension):
+            spine = spine_model._meta.db_table
             assert spine in tables, f"spine table {spine} missing from the grant set"
 
     def test_grant_set_covers_every_registered_type(self):

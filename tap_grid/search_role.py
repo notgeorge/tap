@@ -2,15 +2,16 @@
 
 ``req-grid-search-readonly-role.sec`` + ``req-boot-search-role``. The ``search_readonly``
 connection authenticates as this role so a Gryphon read is constrained at the *database*
-level to the grid: ``SELECT`` on exactly the registry-derived grid model tables plus the
+level to the grid: ``SELECT`` on exactly the model-layer-derived grid tables plus the
 spine, and nothing else. It is the defense-in-depth backstop beneath the in-code field-path
 allowlist (``req-grid-traversal-lang-relation-guard.sec``): if an in-code guard ever leaked,
 a read reaching a non-grid table (e.g. ``tap_user``) is denied by PostgreSQL with SQLSTATE
 42501, which trips the broad permission-denied Flaw (:mod:`tap_grid.db_permission_guard`).
 
-The grant set is **derived from the registry**, not hand-maintained, so it cannot drift from
-the model layer and a newly-added grid table is covered automatically (and a non-grid table
-is never granted — the fail-safe direction).
+The grant set is **derived from the model layer** (:mod:`tap_grid.grid_tables`, the shared
+single source of truth also consumed by the ORM read backstop), not hand-maintained, so it
+cannot drift from the models and a newly-added grid table is covered automatically (and a
+non-grid table is never granted — the fail-safe direction).
 
 Utility statements (``CREATE ROLE`` / ``ALTER ROLE … SET``) do not accept bind parameters, so
 identifiers and literals are validated against strict charsets and safe-quoted rather than
@@ -45,10 +46,6 @@ _CONCURRENT_UPDATE_MARKER = "tuple concurrently updated"
 # retry's next pass sees the role and takes the ALTER path.
 _DUPLICATE_ROLE_MARKERS = ("pg_authid_rolname_index", "already exists")
 
-# Spine tables the executor always reads, independent of the registry: the Entity spine, the
-# EntityType catalog, the Edge table, and the Dimension table.
-_SPINE_TABLES = ("tap_entity", "tap_entity_type", "tap_edge", "tap_dimension")
-
 _IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 # GUC values are simple tokens (e.g. "30s", "64MB", "1GB", "on"); reject anything else.
 _GUC_VALUE_RE = re.compile(r"^[A-Za-z0-9]+$")
@@ -73,21 +70,17 @@ def _validate_guc_value(value: str) -> str:
 
 
 def search_role_grant_tables() -> list[str]:
-    """Tables the read-only search role may ``SELECT``: spine + every registered grid table.
+    """Tables the read-only search role may ``SELECT``: every classified grid table.
 
-    Derived from the type registry so the set tracks the model layer automatically. Every
-    returned name is a validated identifier (registry/model-derived, but validated defensively
-    because it is interpolated into DDL).
+    Delegates to the shared single source of truth (:mod:`tap_grid.grid_tables`,
+    req-grid-table-classification.sec), which derives the set from the ``GRID_TABLE_ROLE``
+    classification on the models (names from ``Meta.db_table``). Every returned name is a
+    validated identifier (model-derived, but validated defensively because it is interpolated
+    into DDL). Provisioning additionally reconciles against tables that actually exist.
     """
-    from tap_grid.registry import get_model_class, list_entity_types
+    from tap_grid.grid_tables import search_role_grant_tables as _grant_tables
 
-    tables: set[str] = set(_SPINE_TABLES)
-    for entity_type in list_entity_types():
-        try:
-            tables.add(get_model_class(entity_type)._meta.db_table)
-        except KeyError:
-            continue
-    return sorted(_validate_identifier(t) for t in tables)
+    return sorted(_validate_identifier(t) for t in _grant_tables())
 
 
 def provision_search_role(
@@ -101,9 +94,11 @@ def provision_search_role(
     """Idempotently provision ``tap_gryphon_ro`` using ``connection`` (the owning role).
 
     Creates/updates the role, resets its table privileges and grants ``SELECT`` on exactly the
-    allowlist (spine + registry grid tables), grants ``CONNECT``/``USAGE``, and pins the
-    resource-bound GUCs on the role. Re-running reconciles the grants to the current registry
-    set. Returns the granted table list (for logging / the validation loop).
+    allowlist (the classified grid tables that exist in the database — declared-but-absent
+    tables are loudly skipped, req-grid-table-classification.sec-6), grants ``CONNECT``/
+    ``USAGE``, and pins the resource-bound GUCs on the role. Re-running reconciles the grants
+    to the current classification. Returns the actually-granted table list (for logging / the
+    validation loop).
 
     Args:
         connection: A Django DB connection whose role owns the tables and can CREATE ROLE.
@@ -114,11 +109,11 @@ def provision_search_role(
     """
     role = _validate_identifier(SEARCH_ROLE_NAME)
     db = _validate_identifier(database)
-    grant_tables = tables if tables is not None else search_role_grant_tables()
-    grant_tables = [_validate_identifier(t) for t in grant_tables]
+    declared_tables = sorted(tables) if tables is not None else sorted(search_role_grant_tables())
+    declared_tables = [_validate_identifier(t) for t in declared_tables]
     pw = _quote_literal(password)
 
-    def _reconcile() -> None:
+    def _reconcile() -> list[str]:
         # `transaction.atomic` opens a SAVEPOINT when the caller is already in a transaction
         # (e.g. a test), so a retry after a concurrent-update rollback does not poison the
         # caller's surrounding transaction; in autocommit (boot) it is a plain atomic reconcile.
@@ -130,26 +125,47 @@ def provision_search_role(
             else:
                 cur.execute(f'ALTER ROLE "{role}" LOGIN PASSWORD {pw}')
 
-            # 2. Reset table privileges, then grant SELECT on exactly the allowlist. REVOKE ALL
-            #    first so a table dropped from the registry loses access on the next reconcile.
+            # 2. Reconcile the classified set against the tables that actually EXIST
+            #    (req-grid-table-classification.sec-6): a classified model whose table was
+            #    never migrated (test-fixture model classes; a registered-type-without-a-
+            #    table plugin state) must not abort provisioning. Skipping is the fail-safe
+            #    direction — not-granted is merely unreadable, never over-exposed — but it
+            #    is LOUD, naming every skipped table.
+            cur.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
+            existing = {row[0] for row in cur.fetchall()}
+            granted = [t for t in declared_tables if t in existing]
+            missing = [t for t in declared_tables if t not in existing]
+            if missing:
+                logger.warning(
+                    "[f468] search-role grant skipping %d classified-but-absent table(s): %s "
+                    "(class exists, table does not — req-grid-table-classification.sec-6)",
+                    len(missing),
+                    ", ".join(missing),
+                )
+
+            # 3. Reset table privileges, then grant SELECT on exactly the allowlist. REVOKE ALL
+            #    first so a table dropped from the classification loses access on the next
+            #    reconcile.
             cur.execute(f'REVOKE ALL ON ALL TABLES IN SCHEMA public FROM "{role}"')
             cur.execute(f'GRANT CONNECT ON DATABASE "{db}" TO "{role}"')
             cur.execute(f'GRANT USAGE ON SCHEMA public TO "{role}"')
-            for table in grant_tables:
+            for table in granted:
                 cur.execute(f'GRANT SELECT ON "{table}" TO "{role}"')
 
-            # 3. Pin the resource-bound GUCs on the role (req-grid-search-readonly-role.sec-6).
+            # 4. Pin the resource-bound GUCs on the role (req-grid-search-readonly-role.sec-6).
             for guc_name, guc_value in gucs.items():
                 gname = _validate_identifier(guc_name)
                 gval = _validate_guc_value(str(guc_value))
                 cur.execute(f'ALTER ROLE "{role}" SET {gname} = {_quote_literal(gval)}')
+        return granted
 
     # Retry on the benign cluster-global concurrency conflict (req-grid-db-role-concurrency.sec).
     # An advisory lock cannot serialize this: advisory locks are per-DATABASE, but the contended
     # role is cluster-global — so retry is the correct tool.
+    granted_tables: list[str] = []
     for attempt in range(1, _ROLE_PROVISION_MAX_ATTEMPTS + 1):
         try:
-            _reconcile()
+            granted_tables = _reconcile()
             break
         except InternalError as exc:
             if _CONCURRENT_UPDATE_MARKER not in str(exc) or attempt == _ROLE_PROVISION_MAX_ATTEMPTS:
@@ -180,6 +196,6 @@ def provision_search_role(
     logger.info(
         "[5ac3] provisioned search role %s with SELECT on %d tables",
         SEARCH_ROLE_NAME,
-        len(grant_tables),
+        len(granted_tables),
     )
-    return grant_tables
+    return granted_tables
