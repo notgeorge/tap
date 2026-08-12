@@ -78,4 +78,4 @@ class EdgeOut(ModelSchema):
 class EntityTypeOut(ModelSchema):
     class Meta:
         model = EntityType
-        fields = ["id", "slug", "name", "icon", "description", "plugin_name"]
+        fields = ["id", "slug", "name", "icon", "description", "plugin_name", "kind"]
