@@ -1,0 +1,32 @@
+# Generated artifacts — never text-merge (req-dev-validation-ratchet-harness).
+#
+# The guard baselines are GENERATED output (`manage.py guards --sync-<surface>`),
+# not authored text. Git's default line-based merge happily UNIONS two sessions'
+# regenerations when they touch different lines — no conflict, no review — and a
+# unioned ratchet baseline is a SILENTLY WIDENED one: both sides' entries become
+# permanently allowed without anyone deciding that. (The ratchet's stale-entry
+# tooth catches this later in CI; `-merge` catches it here, at the merge, where
+# the fix is obvious.)
+#
+# `-merge` tells git not to attempt a textual merge: when both sides changed the
+# file it declares a conflict instead of inventing a union. Resolve by taking
+# EITHER side and RE-RUNNING the generator — never by hand-merging output.
+#
+# Deliberately a built-in attribute, not a `merge=<driver>` custom driver: a
+# named driver must be defined in each clone's local git config, so it would
+# silently do nothing for contributors and in CI. `-merge` needs no config and
+# therefore applies on every clone — the same reason enforcement lives in CI
+# rather than in hooks (which need `core.hooksPath`, set only by spawn).
+#
+# Directory-wide glob on purpose: a new baseline added to this directory is
+# covered automatically, so the protection cannot be forgotten.
+tap/guards/baselines/*.txt -merge
+
+# NOT covered, deliberately:
+#   * the generated Validation Map block — it is embedded inside a prose spec
+#     (`specs/spec-dev-validation.md`); attributes are per-file, so `-merge`
+#     there would force conflicts on ordinary prose edits. Its exact-match
+#     meta-test (`test_spec_map_in_sync`) already makes a hand-merged block
+#     unlandable, and names the fix command in the failure message.
+#   * `tap/guards/guard_manifest.txt` — an authored floor, not generated output.
+#     A union merge of two sessions each adding a guard is the CORRECT result.
