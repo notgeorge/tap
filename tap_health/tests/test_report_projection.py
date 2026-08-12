@@ -26,7 +26,7 @@ def _report_with_rich_context() -> HealthReport:
         reasoning=f"basename mismatch on {_SENSITIVE}",
         context={"failed": ["aws:boto_collector"], "path": _SENSITIVE},
     )
-    return HealthReport(outcomes=(ProbeOutcome("secrets", "tap_cares", True, result),))
+    return HealthReport(outcomes=(ProbeOutcome("secrets", "tap_cares", True, result),), selection="readiness")
 
 
 @pytest.mark.spec("req-tap-health-service-3")
@@ -59,7 +59,7 @@ def test_scorecard_strips_all_rich_fields():
 @pytest.mark.spec("req-tap-health-probes-3")
 def test_unknown_status_is_present_in_both_projections():
     result = ProbeResult.unknown("queue.tables_missing", detail="steady_queue tables not found")
-    report = HealthReport(outcomes=(ProbeOutcome("queue", "core", False, result),))
+    report = HealthReport(outcomes=(ProbeOutcome("queue", "core", False, result),), selection="readiness")
     assert report.full()["checks"]["queue"]["status"] == "unknown"
     assert report.scorecard()["checks"]["queue"]["status"] == "unknown"
 

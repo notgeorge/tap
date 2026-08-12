@@ -1134,8 +1134,8 @@ bold "Step 6.5: Gating on instance health (manage.py health)"
 # terminal only on failure (where it is the evidence naming the broken probe)
 # or under TAP_SPAWN_VERBOSE=1.
 HEALTH_RC=0
-HEALTH_JSON="$(scripts/dc exec -T web uv run python manage.py health --json 2>>"$SPAWN_LOG")" || HEALTH_RC=$?
-printf '\n===> manage.py health --json\n%s\n' "$HEALTH_JSON" >>"$SPAWN_LOG"
+HEALTH_JSON="$(scripts/dc exec -T web uv run python manage.py health --set readiness --json 2>>"$SPAWN_LOG")" || HEALTH_RC=$?
+printf '\n===> manage.py health --set readiness --json\n%s\n' "$HEALTH_JSON" >>"$SPAWN_LOG"
 if (( HEALTH_RC == 0 )); then
   if [[ -n "${TAP_SPAWN_VERBOSE:-}" ]]; then printf '%s\n' "$HEALTH_JSON"; fi
   info "Instance is healthy (db + cache + queue + secrets probes passed)."
@@ -1144,7 +1144,7 @@ else
   fail "Instance booted but health is UNHEALTHY — a critical backend (db/cache/secrets) is broken.
     The report JSON above names the failing probe (status + code). Inspect logs:
       scripts/dc logs web
-    (in $WORKTREE). Do NOT treat this session as usable until 'manage.py health' passes."
+    (in $WORKTREE). Do NOT treat this session as usable until 'manage.py health --set readiness' passes."
 fi
 
 # ============================================================================

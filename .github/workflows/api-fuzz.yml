@@ -88,7 +88,7 @@ jobs:
             # still applying migrations (createcachetable precedes migrate), and acting then
             # races the half-applied schema (the plugin-loading flake). The migrations probe
             # makes health red until migrate is fully applied, so this waits correctly.
-            if docker compose --env-file .env exec -T web sh -c 'cd /app && uv run python manage.py health' >/dev/null 2>&1; then
+            if docker compose --env-file .env exec -T web sh -c 'cd /app && uv run python manage.py health --set readiness' >/dev/null 2>&1; then
               echo "web healthy + migrations applied after ~$((i * 3))s"; ok=1; break
             fi
             sleep 3

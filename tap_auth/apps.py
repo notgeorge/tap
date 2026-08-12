@@ -35,5 +35,8 @@ class TapAuthConfig(AppConfig):
         # (Conditional Validation Lives In Health Probes).
         from tap_auth.health import probe_auth_providers
         from tap_health.registry import register_health_probe
+        from tap_health.selection import READINESS
 
-        register_health_probe("auth.providers", probe_auth_providers, group="tap_auth", critical=False)
+        register_health_probe(
+            "auth.providers", probe_auth_providers, sets=(READINESS,), group="tap_auth", critical=False
+        )

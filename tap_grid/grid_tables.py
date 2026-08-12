@@ -31,6 +31,8 @@ the named open edge of req-tap-auth-orm-read-backstop). Hence
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
+from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured
 from django.db import models
@@ -143,3 +145,39 @@ def search_role_grant_tables() -> set[str]:
     (req-grid-table-classification.sec-6, in :mod:`tap_grid.search_role`).
     """
     return grid_tables()
+
+
+def existing_public_tables(cursor: Any) -> set[str]:
+    """The tables that actually exist in the ``public`` schema.
+
+    Args:
+        cursor: An open DB cursor (the caller owns the connection/transaction).
+
+    Returns:
+        Every table name in ``public``.
+    """
+    cursor.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
+    return {row[0] for row in cursor.fetchall()}
+
+
+def classified_but_absent(cursor: Any, *, declared: Iterable[str] | None = None) -> list[str]:
+    """Classified grid tables whose table does not exist in the database.
+
+    The single derivation of "the classification and the schema disagree". Two
+    consumers ask this same question for different reasons and must not compute
+    it separately: search-role provisioning skips absent tables before granting
+    (req-grid-table-classification.sec-6), and the grid-population health probe
+    reports them (req-tap-health-probes-8). A model class can exist without its
+    table — a test-fixture model, or a registered type whose migration has not
+    run — which is exactly the schema/registry divergence worth surfacing.
+
+    Args:
+        cursor: An open DB cursor.
+        declared: Table names to check; defaults to every classified grid table.
+
+    Returns:
+        Sorted names of classified tables missing from the database.
+    """
+    expected = sorted(declared) if declared is not None else sorted(grid_tables())
+    existing = existing_public_tables(cursor)
+    return [table for table in expected if table not in existing]

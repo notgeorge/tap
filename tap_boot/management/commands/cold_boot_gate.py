@@ -366,10 +366,14 @@ class Command(BaseCommand):
         )
 
     def _step_health(self, _cmd: Command) -> str:
+        from tap_health.selection import READINESS
         from tap_health.service import run_health
 
-        report = run_health()
+        # Readiness: the gate is asking "did this cold boot produce an instance fit
+        # to serve and act on the grid?", not "should something restart this
+        # process?" (req-tap-health-selection).
+        report = run_health(selection=READINESS)
         if not report.ok:
             unhealthy = [o.name for o in report.outcomes if o.critical and o.result.status.value == "unhealthy"]
             raise GateStepFailed(f"health report not ok; critical unhealthy: {unhealthy}")
-        return f"health {report.status.value} ({len(report.outcomes)} probe(s))"
+        return f"health {report.status.value} ({len(report.outcomes)} probe(s), selection={report.selection})"

@@ -496,6 +496,15 @@ from tap_auth.providers import build_socialaccount_providers  # noqa: E402
 # canonical value provider self-tests and boot validation use.
 TAP_BASE_URL = os.environ.get("TAP_BASE_URL", "")
 
+# Loopback base URL the HTTP serving health probes request (req-tap-health-probes-7).
+# Deliberately NOT TAP_BASE_URL: that is the instance's PUBLIC identity, used to derive
+# provider callback URLs, and it may be a proxied//external hostname this process cannot
+# reach. This is the address of the server as seen from inside its own container — a
+# different fact, so it gets its own setting rather than overloading that one. Set it to
+# "" to disable serving probes (they then report `unknown`, not `unhealthy`) for a
+# process that is not meant to serve.
+TAP_HEALTH_SELF_URL = os.environ.get("TAP_HEALTH_SELF_URL", "http://127.0.0.1:8000")
+
 # Passkey (WebAuthn) RP config (req-tap-auth-passkey-webauthn-5/7). RP-ID is the
 # pinned registrable domain a credential is scoped to; the expected origin is EXACT
 # (scheme+host+port) — never a wildcard (a wildcard lets a co-resident service relay
