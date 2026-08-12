@@ -14,7 +14,14 @@ class TapHealthConfig(AppConfig):
         # Register the core (platform) probes. Registration only appends a
         # callable to the registry — no DB access — so this is ready()-safe;
         # each probe body runs later, at run_health() time.
-        from tap_health.probes import probe_cache, probe_db, probe_migrations, probe_queue
+        from tap_health.probes import (
+            probe_cache,
+            probe_db,
+            probe_http_api,
+            probe_http_web,
+            probe_migrations,
+            probe_queue,
+        )
         from tap_health.registry import register_health_probe
         from tap_health.selection import READINESS
 
@@ -31,6 +38,14 @@ class TapHealthConfig(AppConfig):
         # hidden) without failing a gate — set membership and criticality are
         # independent axes.
         register_health_probe("queue", probe_queue, sets=(READINESS,), group="core", critical=False)
+
+        # Serving probes: the only probes that prove the SERVER answers, rather than
+        # that this process can reach its backends. Readiness-only and critical — a
+        # spawn or CI gate that goes green while the web/api is dead is the gap they
+        # close — but never liveness: a wedged HTTP stack must not restart a container
+        # whose dependency is what actually broke (req-tap-health-selection).
+        register_health_probe("http.web", probe_http_web, sets=(READINESS,), group="core", critical=True)
+        register_health_probe("http.api", probe_http_api, sets=(READINESS,), group="core", critical=True)
 
         # Register the boot-time provisioning system check. Importing only
         # registers the check function; the DB access happens later when the
