@@ -60,6 +60,7 @@ A survey of systems that actually ship a *registry* of named, component-contribu
 | req-tap-health-endpoint | [Health Endpoint](#health-endpoint) | Deprecated | unauthenticated `/healthz` **removed**; replaced by the internal service + `manage.py health` |
 | req-tap-health-probes | [Real-Backend Probes](#real-backend-probes) | Implemented | Independent db / cache-round-trip / secrets / queue / migrations probes; report never raise; `migrations` is the first *readiness*-class (vs liveness) probe |
 | req-tap-health-probe-registry | [Pluggable Health-Probe Registry](#pluggable-health-probe-registry) | Implemented | First-party apps register named probes from `ready()`, grouped; verdict derived from `critical=` flags; inverts the core→app dependency |
+| req-tap-health-selection | [Probe Selection Sets](#probe-selection-sets) | Implemented | Multi-valued `sets=` declared per probe (mandatory); `run_health(selection=)` and `manage.py health --set` name the question; non-selected probes never execute; no default selection |
 | req-tap-health-probe-actor | [Probe Execution Identity](#probe-execution-identity) | Proposed | Anonymous caller never becomes an actor; service-boundary probe work runs as a named `tap_health.health_probe` program actor, materialized lazily |
 | req-tap-health-unauth | [Unauthenticated, Coarse-Status Only](#unauthenticated-coarse-status-only) | Deprecated | parked with the endpoint; no unauthenticated surface remains |
 | req-tap-health-bootcheck | [Boot-Time Provisioning Check](#boot-time-provisioning-check) | Implemented | DB-tagged system check; missing `tap_cache` → loud `tap_health.E001` (owned by `tap_health`) |
@@ -82,7 +83,7 @@ Health gets its own Django app, `tap_health`, which buys:
 
 #### Entry point and report shape
 
-- `run_health(*, selection=None) -> HealthReport` — the service entrypoint, a **pure producer**. It runs the registered probes and returns a structured `HealthReport`. It takes **no caller and no actor**: the v0 (below-boundary) probes resolve no actor, so the liveness path stays runnable when auth/DB/grid is broken (`req-tap-health-probe-actor`). Caller identity and projection are *not* parameters here — they are a **surface** concern (`req-tap-health-exposure`); probe *execution* identity, when a boundary-crossing probe eventually needs it, is internal to that probe. `selection` (which groups/probes to run) is a future subset-selection hook.
+- `run_health(*, selection: str) -> HealthReport` — the service entrypoint, a **pure producer**. It runs the probes in the named selection and returns a structured `HealthReport`. It takes **no caller and no actor**: the v0 (below-boundary) probes resolve no actor, so the liveness path stays runnable when auth/DB/grid is broken (`req-tap-health-probe-actor`). Caller identity and projection are *not* parameters here — they are a **surface** concern (`req-tap-health-exposure`); probe *execution* identity, when a boundary-crossing probe eventually needs it, is internal to that probe. `selection` is **mandatory** and has no default (`req-tap-health-selection`): the caller states which question it is asking.
 - A probe returns a structured result — `{status, critical, group, code?, detail?, reasoning?, context?}` — built so a programmatic actor never has to parse prose to know what happened (Law 4, `docs/misc/agent-affordance-laws.md`):
   - `status` ∈ `{healthy, degraded, unhealthy, unknown}` — the machine status value.
   - `critical` — explicit boolean; criticality is a field, never hidden in prose.
@@ -113,7 +114,7 @@ The internal service produces one rich `HealthReport`; how much of it a caller s
 #### Surfaces (most-trusted to least)
 
 0. **Internal service** — in-process `run_health()`. Returns the full `HealthReport`; `report.full()` and `report.scorecard()` are its two projection methods. The foundation; every surface below projects from it.
-1. **CLI / exec** — `manage.py health` runs `run_health()` in-process (**actor-free** — the v0 probes resolve no actor, so the gate works even when auth/DB is broken), prints `report.full()` (human, or `--json` for the machine view), and exits 0 / non-zero. The CLI is a *trusted* surface, so it gets `full()`, not the scorecard. It sets **`requires_system_checks = []`** so a failing system check (e.g. the untagged `tap_cares.E001` from a required-for-boot malformed secret) cannot abort the command before it reports — health must *report* broken state, not be preempted by it; the probes themselves surface that state. This is the surface the spawn post-boot gate and any container **exec** readiness probe use — **no network exposure at all**. Migrating the spawn gate from the unauthenticated HTTP curl to `manage.py health --json` is what lets the HTTP endpoint be deleted (`req-tap-health-exposure-4`, coordinated removal pass below).
+1. **CLI / exec** — `manage.py health --set <selection>` runs `run_health()` in-process (**actor-free** — the v0 probes resolve no actor, so the gate works even when auth/DB is broken), prints `report.full()` (human, or `--json` for the machine view), and exits **0 healthy / 1 critical-unhealthy / 2 usage error** (`req-tap-health-selection-4`); `--list-sets` describes the vocabulary. The CLI is a *trusted* surface, so it gets `full()`, not the scorecard. It sets **`requires_system_checks = []`** so a failing system check (e.g. the untagged `tap_cares.E001` from a required-for-boot malformed secret) cannot abort the command before it reports — health must *report* broken state, not be preempted by it; the probes themselves surface that state. This is the surface the spawn post-boot gate and any container **exec** readiness probe use — **no network exposure at all**. Migrating the spawn gate from the unauthenticated HTTP curl to `manage.py health --json` is what lets the HTTP endpoint be deleted (`req-tap-health-exposure-4`, coordinated removal pass below).
 2. **Authorized rich API** *(future)* — an authenticated, authZ-gated affordance returning the full report (reasoning + context) for AI agents, operators, and plugins. The eventual "agents introspect system status" surface; deferred until there is a consumer.
 3. **Unauthenticated coarse scorecard** — **parked (resolved).** The existing unauthenticated `/healthz` (`req-tap-health-endpoint`, `req-tap-health-unauth`) is **removed** once the spawn gate migrates to `manage.py health` (tier 1) — it was an over-eager build with no consumer we actually need, and standing an unauthenticated surface on the web service by default is more exposure than the current need warrants. The coarse-scorecard *shape* (per-probe `status` + overall verdict, no `detail`/`reasoning`/`context`) is retained as a `HealthReport.scorecard()` projection method so a future external surface can be stood up deliberately — but **no endpoint exposes it** in this version. Re-introducing any externally-reachable health surface is a future, explicit decision with its own threat model, not a default.
 
@@ -126,7 +127,7 @@ Because probes now collect rich `context` (timings, file names, observed values)
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-tap-health-exposure-1 | Projections, Not Surfaces | Implemented | One rich report; each surface is an explicit projection keyed on caller trust. | Spring `show-details` pattern |
-| req-tap-health-exposure-2 | CLI Is Network-Free | Implemented | `manage.py health` runs the service in-process and exits 0 / non-zero; the spawn / exec gate uses it, needing no network endpoint. | makes the HTTP endpoint optional |
+| req-tap-health-exposure-2 | CLI Is Network-Free | Implemented | `manage.py health --set <selection>` runs the service in-process and exits 0 / 1 / 2 (healthy / critical-unhealthy / usage); the spawn / exec gate uses it, needing no network endpoint. | makes the HTTP endpoint optional; exit codes per `req-tap-health-selection-4` |
 | req-tap-health-exposure-3 | Coarse Scorecard, Leak-Tested | Implemented | `report.scorecard()` emits only per-probe `status` (+ overall verdict) — never `detail` / `reasoning` / `context` / `code`. A **load-bearing projection test** asserts this and is the gate for `req-tap-health-service-4`. | projection = security boundary; supersedes `req-tap-health-unauth-2` |
 | req-tap-health-exposure-4 | Unauth Endpoint Parked | Implemented | The unauthenticated `/healthz` is removed once the spawn gate migrates to `manage.py health`; the coarse shape survives only as a `HealthReport.scorecard()` method with no endpoint. Any future external surface is a deliberate decision with its own threat model. | resolved: park entirely |
 | req-tap-health-exposure-5 | Coordinated Removal Pass | Implemented | Parking `/healthz` is one atomic, ordered change across every surface that references it; the repo never claims it is both removed and the current gate. | the file list + order below |
@@ -186,7 +187,7 @@ The core probes live in `tap_health/probes.py` and register from `tap_health`'s 
 - **cache** (`probe_cache`) — a real `cache.set` then `cache.get` round-trip with a unique probe key; the observed value must equal the written token, else `unhealthy` (code `cache.roundtrip_mismatch` / `cache.unavailable`). This is the probe that catches the `tap_cache` fault: a missing `DatabaseCache` table surfaces here as `unhealthy` (with the `relation "tap_cache" does not exist` detail) instead of a 500 on the first real cache access. The probe key is deleted after the round-trip.
 - **secrets** (`tap_cares.health.probe_secrets`, group `tap_cares`) — reports the startup secret-load outcome (`secret_load_report`). Owned by `tap_cares` and registered from `tap_cares`'s own `ready()` (the dependency inversion of `req-tap-health-probe-registry` — no core→`tap_cares` import). **Conditionally critical**: a `required_for_boot` failure reports `unhealthy` (code `secrets.required_for_boot_failed`); any other failure reports `degraded` (code `secrets.load_failed`).
 - **queue** (`probe_queue`) — a light, best-effort reachability check (the DB-backed Steady Queue's `steady_queue_job` table is present). **Non-critical**: an indeterminate result reports `unknown`, never flips the verdict, and is never dropped. It does not probe worker liveness.
-- **migrations** (`probe_migrations`) — the `MigrationExecutor` plan against the graph leaf nodes is empty (no unapplied migrations). **Critical**. This is the first *readiness*-class probe, distinct from the *liveness* probes above: the DB can be reachable and the cache table present while `migrate` is still applying migrations (the entrypoint runs `createcachetable` **before** `migrate`), so a readiness consumer that then acts on the schema races a half-applied migration — the plugin-loading flake, where boot's `grid_infra` granted `SELECT` on a not-yet-migrated table (a different table each run). With a readiness-class probe now present, the designed-but-deferred liveness/readiness subset-selection layer (see [Probe Grouping / subset selection](#pluggable-health-probe-registry)) is the near-term next step: consumers would request the `readiness` set via the reserved `run_health(selection=)` hook.
+- **migrations** (`probe_migrations`) — the `MigrationExecutor` plan against the graph leaf nodes is empty (no unapplied migrations). **Critical**. This is the first *readiness*-class probe, distinct from the *liveness* probes above: the DB can be reachable and the cache table present while `migrate` is still applying migrations (the entrypoint runs `createcachetable` **before** `migrate`), so a readiness consumer that then acts on the schema races a half-applied migration — the plugin-loading flake, where boot's `grid_infra` granted `SELECT` on a not-yet-migrated table (a different table each run). This probe is what motivated building the subset-selection layer: consumers now request the `readiness` set explicitly via `run_health(selection="readiness")` / `manage.py health --set readiness` (`req-tap-health-selection`).
 - **Aggregation** is in `HealthReport` (`req-tap-health-service`) keyed on the per-probe `critical=` flag (`req-tap-health-probe-registry`): `unhealthy` if any critical probe is `unhealthy`; else `degraded` if any probe is `degraded` or a non-critical probe is `unhealthy`; else `healthy`.
 - Per-probe exception isolation lives in the service (`run_health._run_one`): a probe that raises is reported as `unhealthy` (code `probe.raised`) and isolated — the run never crashes.
 
@@ -197,7 +198,7 @@ The core probes live in `tap_health/probes.py` and register from `tap_health`'s 
 | req-tap-health-probes-1 | DB Probe | Implemented | The db probe issues a trivial query over the default connection. | |
 | req-tap-health-probes-2 | Cache Round-Trip | Implemented | The cache probe is a real set→get round-trip whose value must match. | the demo-fault catcher; tests: all-healthy, cache-broken |
 | req-tap-health-probes-3 | Queue Best-Effort | Implemented | The queue probe is non-critical and reports `unknown` rather than failing on an indeterminate result. | |
-| req-tap-health-probes-4 | Critical Set | Implemented | db, cache, and migrations are always critical, and `secrets` is critical when `unhealthy`; `queue` never flips the overall status. | four-state model; `migrations` is critical so a not-yet-migrated instance reports `unhealthy` (the readiness gate) — it belongs in the *readiness* set once the deferred liveness/readiness selection layer lands (see registry-8) |
+| req-tap-health-probes-4 | Critical Set | Implemented | db, cache, and migrations are always critical, and `secrets` is critical when `unhealthy`; `queue` never flips the overall status. | four-state model; `migrations` is critical so a not-yet-migrated instance reports `unhealthy` (the readiness gate) — it is a `readiness`-set member now that the selection layer has landed (`req-tap-health-selection`) |
 | req-tap-health-probes-5 | Probes Report, Never Raise | Implemented | A probe error is caught and reported, never propagated as a 500. | test: cache-broken |
 | req-tap-health-probes-6 | Secrets Probe | Implemented | The `secrets` probe reports the resilient secret-load outcome: `degraded` (200) for a non-blocking failure, `unhealthy` (503) for a `required_for_boot` failure. | owned by `tap_cares`; tests in `tap/tests/test_health.py`; see `req-tap-cares-secrets-resilient-load-5` |
 
@@ -277,7 +278,79 @@ Every registered probe executes real work, and a probe contributed by *untrusted
 | req-tap-health-probe-registry-5 | Four-State Status Model | Implemented | Overall = `unhealthy` if any critical probe `unhealthy`; else `degraded` if any probe `degraded` or a non-critical probe `unhealthy`; else `healthy`. | subsumes secrets conditional criticality; a non-critical unhealthy is degraded, never hidden (Law 1) |
 | req-tap-health-probe-registry-6 | Probe Isolation | Implemented | A probe that raises is caught and reported; it cannot 500 the endpoint or block other probes. | centralizes `req-tap-health-probes-5` |
 | req-tap-health-probe-registry-7 | First-Party Only | Implemented | The v0 registry accepts first-party app probes only; plugin probes remain deferred with the named risks above. | security scope |
-| req-tap-health-probe-registry-8 | Probe Grouping | Implemented | Each probe registers under one `group` (default `core`), carried as a value field for clustering/ownership; probes report in `(group, name)` order. Names stay globally unique. | `group` is ownership, **not** a selection set; liveness/readiness selection is a separate deferred layer; no `order` flag in v0 |
+| req-tap-health-probe-registry-8 | Probe Grouping | Implemented | Each probe registers under one `group` (default `core`), carried as a value field for clustering/ownership; probes report in `(group, name)` order. Names stay globally unique. | `group` is ownership, **not** a selection set; selection landed separately as `req-tap-health-selection`; no `order` flag in v0 |
+
+### Probe Selection Sets
+----
+RID: `req-tap-health-selection`
+Status: `Implemented`
+
+The deferred subset-selection layer designed in `req-tap-health-probe-registry-8`,
+built once a *readiness*-class probe (`migrations`) actually existed to separate.
+A probe declares which named questions it answers; a caller names the question it
+is asking. Selection is what lets membership — rather than a global `critical`
+flag — decide which probes can sink which gate.
+
+#### The model
+
+- **Declaration is multi-valued and mandatory.** `register_health_probe(...,
+  sets=("readiness",))`. Multi-valued because one probe legitimately answers
+  several questions (the Spring Boot health-group / ASP.NET tag lesson recorded in
+  the Prior Art); mandatory because an undeclared probe would silently join or
+  miss the gate that guards a deploy. Omission, an unknown tag, or the reserved
+  `all` raises `ImproperlyConfigured` at startup, exactly as a duplicate name does.
+- **Three orthogonal axes.** `group` is ownership (which app contributed it),
+  `sets` is selection, `critical` is consequence. `queue` demonstrates the
+  independence: a readiness member that is *not* critical.
+- **The vocabulary is closed** to `liveness` and `readiness`, plus the reserved
+  `all` (implicit membership, never declared). Plugin-defined sets are deliberately
+  deferred — see Non-Goals.
+- **Non-selected probes do not execute.** Filtering happens before the call, not
+  after: that is the property that keeps a liveness run from touching the database.
+  The verdict aggregates over the selected probes only, so a critical probe outside
+  the selection cannot sink the answer to a question it was not asked.
+- **There is no default selection.** `run_health(selection=)` and `--set` are
+  required, and the CLI refuses with the list of valid sets (exit 2). A default is
+  invisible to the caller: a script or an agent that inherits one cannot tell which
+  probes ran. The refusal teaches the vocabulary instead — accuracy over
+  convenience, and the Player-3-legible choice (`docs/misc/agent-affordance-laws.md`).
+
+#### Why `liveness` is deliberately (near-)empty
+
+Liveness answers one question — **would restarting this process fix it?** Every
+probe registered today checks a *dependency*: Postgres, the cache table, the
+migration state, secret material on disk. A restart fixes none of them, so
+classifying them as liveness would convert a database outage into a restart loop
+(the documented Kubernetes anti-pattern of putting dependencies in a liveness
+probe). The set is therefore defined but unpopulated, which is more honest than a
+plausible-looking set that kills healthy containers.
+
+Consequently a selection that resolves to **zero probes reports `unknown`**, never
+`healthy` — a green verdict earned by running nothing would be a claim no probe
+supports (Law 1, Preserve Truth). `ok` stays True, which is also the correct
+fail-safe for liveness: an orchestrator does not restart on the strength of a
+question nobody answered.
+
+#### As-built set membership
+
+| Probe | `readiness` | `liveness` | `critical` |
+| --- | :---: | :---: | :---: |
+| `db` | ✓ | — | ✓ |
+| `cache` | ✓ | — | ✓ |
+| `migrations` | ✓ | — | ✓ |
+| `queue` | ✓ | — | — |
+| `secrets` (`tap_cares`) | ✓ | — | ✓ (chooses its own status) |
+| `auth.providers` (`tap_auth`) | ✓ | — | — |
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-health-selection-1 | Mandatory Closed Declaration | Implemented | `sets=` is required at registration; empty, unknown, or the reserved `all` raises `ImproperlyConfigured` at startup. | an undeclared probe would silently join/miss a deploy gate |
+| req-tap-health-selection-2 | Selection Filters Before Execution | Implemented | A probe outside the selection is not called, and the verdict aggregates only over selected probes. | the property that keeps liveness off the database |
+| req-tap-health-selection-3 | Empty Selection Is Unknown | Implemented | A selection resolving to zero probes reports `unknown` (not `healthy`) and keeps `ok` True. | Law 1; fail-safe for an empty liveness set |
+| req-tap-health-selection-4 | No Default Selection | Implemented | `run_health(selection=)` and `--set` are mandatory; a missing or unknown selection is a **usage error (exit 2)**, distinct from unhealthy (exit 1), and the refusal lists the valid sets. | a forgotten flag must not read as an outage |
+| req-tap-health-selection-5 | Vocabulary Is Discoverable | Implemented | `manage.py health --list-sets [--json]` emits each set with its description, member probes, group, and criticality. | one call teaches an agent the whole vocabulary |
 
 ### Probe Execution Identity
 ----
@@ -389,7 +462,8 @@ This specification does not define:
 - the **build-out** of the authorized, detailed-diagnostics API (the rich reasoning/context surface for agents/operators) — its *shape* is now named as exposure tier 2 (`req-tap-health-exposure`), but the actual authenticated endpoint/affordance is deferred until a consumer exists
 - worker / scheduler liveness probing beyond the light queue-table reachability check
 - **untrusted plugin-contributed** health probes (a *plugin* registering its own `/healthz` check). The first-party probe registry (`req-tap-health-probe-registry`) is the substrate, but it is scoped to first-party apps; opening it to plugin code waits on the time-budget / leakage / amplification controls named there.
-- a split between distinct liveness and readiness endpoints
+- a split between distinct liveness and readiness **endpoints** (the *sets* landed — `req-tap-health-selection` — but they are selected by argument, not by role-specific network paths, since no external surface exists)
+- **plugin-defined** selection sets: the declarable vocabulary is closed to `liveness`/`readiness`, and an unknown tag is a startup error rather than a silently-accepted string
 - a durable health history / boot report
 
 Those may become later layers, but they are intentionally outside this v0 surface.
@@ -398,7 +472,7 @@ Those may become later layers, but they are intentionally outside this v0 surfac
 
 - **Plugin-contributed probes.** The first-party registry (`req-tap-health-probe-registry`) is the baked-in core analogue of NetBox's pluggable health checks. Extending it to *plugin* code (the baked-in analogue's untrusted tier) graduates when a plugin has a backend whose health is not visible to the core probes **and** the registry's named security controls (per-probe time budget, `detail` leakage enforcement, bounded probe count) are in place.
 - **Convergence with the boot report and provisioning sequence.** `/healthz`, the deferred boot report (`req-boot-report`), and the running-plugin registry/report are all facets of "observable assembled-instance truth" and should share a shape rather than proliferate; the canonical-provisioning-sequence work (carried into plugin-config / the pre-Django install wrapper) is the natural home to unify them.
-- **Liveness vs readiness split** and **metrics/latency** if an orchestrator or monitoring stack demands the finer signal.
+- **Metrics/latency** if an orchestrator or monitoring stack demands the finer signal. (The liveness-vs-readiness *split* landed as `req-tap-health-selection`; what remains deferred is exposing each role at its own network path, and populating `liveness` — deliberately near-empty today, since every current probe checks a dependency a restart would not fix.)
 - **Structured health results into the system log (indirect state channel).** Today `run_health()` logs only a summary line (`[af5e] … overall=<status>`) plus failure-only warnings; the per-probe results live only in the returned `HealthReport`. Emitting each probe's result as a **structured log event** — under a reserved `message_code` mirroring the `FLAW`/`ABORT` signals in `tap/logging.py`, at DEBUG or **log-on-change** (emit only when a probe's status flips) — would let any log sink/SIEM reconstruct instance health over time **without polling the health API**, and lands on the roadmap's "audit / logging super detailed internals" launch item. Two design constraints: **(1) cadence** — health only runs when triggered (CLI/API/boot); a true passive time series needs a **periodic emitter** (a scheduled health run), else the log just mirrors existing API pollers; **(2) volume** — full per-probe detail on every poll floods the log, so log-on-change (transitions) is the useful shape, with the API remaining the authoritative on-demand truth. A cheap foundational edge (security-posture doctrine); the periodic emitter is the demand-gated follow-on. Adjacent to the deferred on-grid health recording (`req-tap-health-probe-actor-5`) and the boot-report convergence above — the log channel is the passive/cheap sibling of on-grid recording.
 
 ## Status Vocabulary

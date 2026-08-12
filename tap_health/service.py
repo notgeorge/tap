@@ -19,6 +19,7 @@ import logging
 
 from tap_health.registry import HealthProbe, health_probe_registry
 from tap_health.results import HealthReport, ProbeOutcome, ProbeResult
+from tap_health.selection import resolve_selection, selects
 
 logger = logging.getLogger(__name__)
 
@@ -34,27 +35,43 @@ def _run_one(entry: HealthProbe) -> ProbeOutcome:
     return ProbeOutcome(name=entry.name, group=entry.group, critical=entry.critical, result=result)
 
 
-def run_health(*, selection: object = None) -> HealthReport:
-    """Run every registered probe and return a `HealthReport`.
+def run_health(*, selection: str) -> HealthReport:
+    """Run the probes in `selection` and return a `HealthReport`.
+
+    A non-selected probe is **not executed** — that is what keeps a liveness run
+    from querying the database (req-tap-health-selection). The verdict is
+    therefore aggregated over the selected probes only: a critical probe outside
+    the selection cannot sink the answer to a question it was not asked.
 
     Args:
-        selection: Reserved future hook for running a subset (a group / a
-            liveness-vs-readiness set). Ignored in v0 — all probes run.
+        selection: The selection set to run — `liveness`, `readiness`, or `all`.
+            Mandatory: the caller states which question it is asking rather than
+            inheriting a default it cannot see.
 
     Returns:
         A `HealthReport`. Project it with `.full()` (trusted) or `.scorecard()`
         (coarse) at the consuming surface.
+
+    Raises:
+        ValueError: `selection` is not a known selection name; the message lists
+            the valid names.
     """
-    del selection  # v0 runs all probes; selection is a named future hook.
+    chosen = resolve_selection(selection)
     # Report in deterministic (group, name) order so a group's probes cluster
     # (req-tap-health-probe-registry-8). The registry keys() sorts by name only.
     probes = sorted(
         (health_probe_registry.get(name) for name in health_probe_registry.keys()),
         key=lambda p: (p.group, p.name),
     )
-    outcomes = tuple(_run_one(p) for p in probes)
-    report = HealthReport(outcomes=outcomes)
-    logger.info("[af5e] health: ran %d probe(s); overall=%s", len(outcomes), report.status.value)
+    selected = tuple(p for p in probes if selects(p.sets, chosen.name))
+    outcomes = tuple(_run_one(p) for p in selected)
+    report = HealthReport(outcomes=outcomes, selection=chosen.name)
+    logger.info(
+        "[af5e] health: ran %d probe(s) for selection %s; overall=%s",
+        len(outcomes),
+        chosen.name,
+        report.status.value,
+    )
     return report
 
 

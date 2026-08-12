@@ -117,9 +117,16 @@ _UNHEALTHY = ProbeStatus.UNHEALTHY
 
 @dataclass(frozen=True)
 class HealthReport:
-    """Aggregate of per-probe outcomes with an overall verdict and projections."""
+    """Aggregate of per-probe outcomes with an overall verdict and projections.
+
+    `selection` names the set that was run (req-tap-health-selection). It is
+    carried on the report because a verdict is only meaningful alongside the
+    question it answers — "healthy" for `liveness` and "healthy" for `readiness`
+    are different claims.
+    """
 
     outcomes: tuple[ProbeOutcome, ...]
+    selection: str
 
     @property
     def status(self) -> ProbeStatus:
@@ -128,7 +135,14 @@ class HealthReport:
         A *critical* unhealthy is `unhealthy`. A *non-critical* unhealthy, or any
         `degraded`, is `degraded` — never hidden as `healthy` (Law 1, Preserve
         Truth): the overall verdict stays non-blocking but stays honest.
+
+        An **empty** selection is `unknown`, never `healthy`: a green verdict
+        earned by running no probes would be a claim nothing supports. `ok` stays
+        True, so an orchestrator does not act (e.g. restart) on the strength of a
+        question no probe answered.
         """
+        if not self.outcomes:
+            return ProbeStatus.UNKNOWN
         if any(o.critical and o.result.status is _UNHEALTHY for o in self.outcomes):
             return ProbeStatus.UNHEALTHY
         if any(o.result.status in (_UNHEALTHY, _DEGRADED) for o in self.outcomes):
@@ -166,7 +180,11 @@ class HealthReport:
             if o.result.context:
                 entry["context"] = o.result.context
             checks[o.name] = entry
-        return {"status": self.status.value, "checks": checks}
+        # `selection` rides the trusted projection only: it tells a consumer which
+        # question this verdict answers. The coarse scorecard is left untouched —
+        # its shape is a tested security boundary (req-tap-health-exposure-3) and
+        # no external surface consumes it today.
+        return {"status": self.status.value, "selection": self.selection, "checks": checks}
 
     def scorecard(self) -> dict[str, Any]:
         """Coarse projection: per-probe `status` + overall verdict ONLY.

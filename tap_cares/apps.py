@@ -31,8 +31,13 @@ class TapCaresConfig(AppConfig):
         # dependency runs tap_cares -> tap_health (not core importing up into
         # tap_cares). See tap_cares/health.py and spec-tap-health-v0.md.
         from tap_health.registry import register_health_probe
+        from tap_health.selection import READINESS
 
-        register_health_probe("secrets", probe_secrets, group="tap_cares", critical=True)
+        # Readiness only: missing/malformed secret material is not fixed by a
+        # restart. `critical=True` with the probe choosing its own status — it
+        # reports `unhealthy` for a required-for-boot failure and `degraded`
+        # otherwise (req-tap-health-probes-6).
+        register_health_probe("secrets", probe_secrets, sets=(READINESS,), group="tap_cares", critical=True)
 
         # Register tap_cares-owned edge types. Plugins use the manifest path
         # (tap-plugin.toml + edges/*.edge.json); first-party apps register
