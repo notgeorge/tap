@@ -27,7 +27,7 @@ ARG TAP_FIPS=1
 # ============================================================================
 # Pinned tag@digest (req-cicd-base-image-lifecycle-1) — bump together with the root
 # Dockerfile's pins (procedure documented there).
-FROM cgr.dev/chainguard/wolfi-base:latest@sha256:30f03343947c7ae3581fda727a6e2aa7b8ce7009b7bfc2ab8d5c9483ace5812f AS ossl-builder
+FROM cgr.dev/chainguard/wolfi-base:latest@sha256:5ec604f42453ccad5058c32094de2347b4bf8f67980465a8f1505ccec4fc6883 AS ossl-builder
 RUN apk add --no-cache build-base perl linux-headers curl
 WORKDIR /build
 RUN curl -fsSL https://github.com/openssl/openssl/releases/download/openssl-3.0.9/openssl-3.0.9.tar.gz -o o.tgz \
@@ -38,7 +38,7 @@ RUN ./Configure enable-fips && make -j"$(nproc)" && make install_fips
 # ============================================================================
 # base — Postgres 16 runtime (identical for both FIPS modes)
 # ============================================================================
-FROM cgr.dev/chainguard/wolfi-base:latest@sha256:30f03343947c7ae3581fda727a6e2aa7b8ce7009b7bfc2ab8d5c9483ace5812f AS base
+FROM cgr.dev/chainguard/wolfi-base:latest@sha256:5ec604f42453ccad5058c32094de2347b4bf8f67980465a8f1505ccec4fc6883 AS base
 
 # postgresql-16 + client (pg_isready/psql for the healthcheck + pg_dump), the oci-entrypoint
 # (canonical docker-library entrypoint), gosu (privilege drop root→postgres, as the official
