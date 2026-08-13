@@ -11,6 +11,13 @@
 # Everything here executes on CodeRabbit infrastructure. No TAP secret and no new
 # TAP CI job is involved (req-cicd-ai-review-ensemble-4).
 
+# MERGE this file on top of the organization-level configuration rather than
+# replacing it. The generic malicious-change lens belongs in the org settings so
+# that every repo in unified-systems-com — including repos created later —
+# inherits the floor without a copied file (req-cicd-ai-review-least-privilege-2).
+# This file then adds only what is specific to the core repo.
+inheritance: true
+
 language: en-US
 
 early_access: false

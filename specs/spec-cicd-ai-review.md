@@ -256,13 +256,31 @@ the reviewer class, plus the trust-delta doctrine applied to third-party reviewe
   step; SHA-pinned per `req-cicd-runner-least-privilege-4`; sandbox read-only / network-off where
   the runner supports it (codex-action `read-only`; claude actions' bubblewrap + env scrubbing);
   API keys as repo secrets, absent from fork-PR runs by GitHub's own model.
-- **App-based reviewers (vendor infra):** installation scoped to **selected repositories**, never
-  all-repos; CodeRabbit's approve/request-changes workflow stays **off** (its formal approval must
-  never be load-bearing); each app's permission grant is recorded and reviewed like
-  `tap-renovate`'s. The named residual: a vendor-side compromise of an installed App's key is write
-  access to the scoped repos — mitigated by the `main` ruleset (required checks apply to apps too)
-  and bounded by the selected-repo scope; this is the Kudelski lesson and it is accepted, named,
-  and re-reviewed on any vendor incident (a prior-art-ledger update trigger).
+- **App-based reviewers (vendor infra) install ORG-WIDE, on purpose.** `unified-systems-com` exists
+  to house purely TAP systems — all open source, all at one protection level — so the org boundary
+  *is* the policy boundary and the reviewer floor applies to every repo in it, present and future.
+  A hand-maintained selected-repo allowlist is **rejected** here: in a homogeneous org it is not a
+  tighter control but a drift generator, since each new plugin repo would sit silently below the
+  floor until someone remembered a click, and the omission is invisible. "Every repo in this org is
+  reviewed" is checkable; "the repos someone remembered" is not.
+- The invariant that keeps this honest: **org homogeneity**. Anything that ever needs a different
+  protection level belongs in a *different org*, never as an in-org exception. Admitting one
+  exception converts the floor from an invariant into a convention.
+- CodeRabbit's approve/request-changes workflow stays **off** (its formal approval must never be
+  load-bearing); each app's permission grant is **recorded at install time** and reviewed like
+  `tap-renovate`'s — an App requesting `administration` reaches the root-of-trust surface
+  (`spec-cicd-root-of-trust.md`) and is a decision, not a reflex-accept.
+- Prefer **org-level reviewer configuration** over per-repo files where the vendor supports it
+  (CodeRabbit: org settings, with `inheritance: true` in a repo's `.coderabbit.yaml` to merge
+  repo-specific rules on top). Copying one security instruction into 15 repos violates
+  derive-a-fact-once and yields 15 silently diverging copies. Where that org configuration lives in
+  a vendor dashboard rather than in git, it is an **external-configuration-ratchet** case (the
+  configuration-ratchet requirement in `spec-cicd-root-of-trust.md`): commit the intended
+  configuration and check the live state against it.
+- The named residual: a vendor-side compromise of an installed App's key is write access to every
+  repo in the org — mitigated by the `main` ruleset (required checks apply to apps too) and bounded
+  by the org boundary rather than by a repo list. This is the Kudelski lesson; it is accepted,
+  named, and re-reviewed on any vendor incident (a prior-art-ledger update trigger).
 - Reviewers never hold or mint credentials beyond their own vendor key; reviewer workflows carry no
   other repo secrets.
 
@@ -271,7 +289,7 @@ the reviewer class, plus the trust-delta doctrine applied to third-party reviewe
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-cicd-ai-review-least-privilege-1 | Read And Comment Only | Proposed | No reviewer holds a write path to code, a shared secret store, or unnecessary tool/network access. | |
-| req-cicd-ai-review-least-privilege-2 | Scoped App Installs | Proposed | Third-party reviewer apps are installed on selected repos only, grants recorded, trust-delta named. | Kudelski lesson. |
+| req-cicd-ai-review-least-privilege-2 | Org-Wide Install Floor | Proposed | Reviewer apps are installed across ALL repositories in `unified-systems-com` so every repo inherits the same floor; grants recorded at install, trust-delta named. | The org is single-purpose (all TAP, all public, one protection level). A per-repo allowlist would generate silent drift below the floor. Homogeneity is the invariant: differing protection needs go in a different org. |
 | req-cicd-ai-review-least-privilege-3 | No pull_request_target | Proposed | Reviewer workflows never combine `pull_request_target`/`workflow_run` with untrusted checkout. | GitHub pwn-request class. |
 
 ---

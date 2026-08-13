@@ -93,7 +93,7 @@ review to the opposing model family — this plan's central rule, productized, o
 
 | Seat | Service | Role | Cost | Trust cost |
 | --- | --- | --- | --- | --- |
-| **CodeRabbit** — *the daily-life seat* | GitHub App, free full Pro on public repos (permanent, no application) | PR summaries and walkthroughs, hygiene, 40+ bundled static tools (semgrep, gitleaks), plus malicious-change instructions via `path_instructions`. Advisory always. **Not the independence leg** — its planning layer runs on Claude. | $0 | The higher of the two — a third-party App with broad repo grants and a real 2025 compromise history (below). Scope the install to selected repos only. |
+| **CodeRabbit** — *the daily-life seat* | GitHub App, free full Pro on public repos (permanent, no application) | PR summaries and walkthroughs, hygiene, 40+ bundled static tools (semgrep, gitleaks), plus malicious-change instructions via `path_instructions`. Advisory always. **Not the independence leg** — its planning layer runs on Claude. | $0 | The higher of the two — a third-party App with broad repo grants and a real 2025 compromise history (below). Installed org-wide by design — see "The org is the policy boundary". |
 | **OpenAI Codex** — *the independence leg* | Codex cloud auto-review (`@codex review`), ChatGPT Plus account | A genuinely non-Anthropic frontier model reviewing Claude-authored code. P0/P1-focused by design, so it stays quiet. Tunable via the `AGENTS.md` review-rules section TAP already maintains; `@codex security review` variant on demand. | $20/mo (Plus) | Lowest available — runs on OpenAI infra, no secrets in our workflows. **Provisioning note:** cloud review ships with the *subscription*, not the API key; the API tier has no cloud features, so this seat is an account to create, not a secret to wire. |
 
 **Deferred, not eliminated — the dedicated CI-resident security reviewer.** An earlier draft seated
@@ -133,9 +133,42 @@ also an attack surface.** Every documented AI-reviewer compromise — CodeRabbit
 Action leaking its API key via shell commands hidden in a PR *title*, Copilot Chat's CamoLeak
 exfiltration, the GhostCommit attack hiding instructions inside a PNG — required the reviewer to
 hold write access, secrets, tools, or network egress. So every seat in the roster is configured
-down to *read and comment, nothing else*, and the vendor-App residual is bounded: install scoped
-to selected repos, approval workflow off, and the `main` ruleset's required checks apply to Apps
-too. A CodeRabbit-side compromise then degrades to "wrong comments," which the ensemble absorbs.
+down to *read and comment, nothing else*, and the vendor-App residual is bounded: the install is
+bounded by the org boundary, the approval workflow is off, and the `main` ruleset's required checks
+apply to Apps too. A CodeRabbit-side compromise then degrades to "wrong comments," which the
+ensemble absorbs.
+
+## The org is the policy boundary
+
+`unified-systems-com` exists to house purely TAP systems — all open source, all needing the same
+level of protection. That is a deliberate architectural choice, and it decides how reviewers get
+installed: **org-wide, across all repositories, present and future.** The goal is an org-wide floor
+for security and review, applied everywhere by design.
+
+This reverses the instinct to enumerate repositories, and the reasoning is worth stating because the
+instinct is a good one *in a different situation*. A selected-repo allowlist bounds a grant when an
+org is heterogeneous — when some future repo might hold something that shouldn't be in scope. In a
+single-purpose org it does the opposite: it becomes a drift generator. Every new plugin repo would
+sit below the floor until someone remembered a click, and nothing would signal the omission. "Every
+repo in this org is reviewed" is a checkable invariant; "the repos someone remembered" is not.
+
+Two things keep that honest:
+
+- **Homogeneity is the invariant.** If something ever needs a different protection level, it belongs
+  in a *different org* — never as an in-org exception. One exception turns the floor from an
+  invariant into a convention, and the checkability goes with it.
+- **Record the grant.** Org-wide install means a vendor-side key compromise reaches every repo in
+  the org, so what the App is permitted to do matters more, not less. Read the permission list at
+  install time and record it. An App requesting `administration` reaches branch protection and
+  rulesets — that is a root-of-trust decision, not a reflex-accept.
+
+The same reasoning applies to configuration. Copying one security instruction into fifteen
+repositories violates derive-a-fact-once and produces fifteen silently diverging copies, so the
+generic lens belongs in CodeRabbit's **org-level** settings, with `inheritance: true` in the core
+repo's `.coderabbit.yaml` merging TAP-specific paths on top. The catch is that org settings live in
+a vendor dashboard rather than in git — unversioned and silently changeable — which makes it an
+external-configuration-ratchet case: commit the intended configuration and check the live state
+against it.
 
 ## How it wires into the existing machinery
 
@@ -176,13 +209,18 @@ binary churn, so this costs nearly nothing.
    purchase, and note it is an *account*, not a credential: cloud review comes with the
    subscription, and no API key enters the repo. CodeRabbit needs no account (free Pro is automatic
    on public repos). With no reviewer secrets to wire, this phase no longer needs `/manage-secret`.
-2. **Phase 1 — two advisory reviewers on every PR** (~a day of wiring). Install the CodeRabbit App
-   scoped to **selected repositories** (the core repo only); commit `.coderabbit.yaml` — chill
-   profile, malicious-change `path_instructions`, path filters for generated files, approval
-   workflow off. Enable Codex cloud auto-review and add the review-rules section to `AGENTS.md`,
-   carrying the same malicious-change instructions. Exempt docs-tier PRs so the volume stays
-   triageable. Nothing blocks; every code-bearing PR now gets two independent commentaries, and
-   **no new code runs in TAP's CI**.
+2. **Phase 1 — two advisory reviewers, org-wide** (~a day of wiring). Install the CodeRabbit App on
+   **all repositories** in `unified-systems-com` — the floor applies everywhere by design, and the
+   plugin repos arguably need the malicious-change lens more than core does, since they ship as
+   separately released wheels that install into TAP without the change ever touching the core repo.
+   Record the permission grant at install. Commit `.coderabbit.yaml` — chill profile,
+   malicious-change `path_instructions`, near-empty path filters, approval workflow off — and put
+   the generic lens in the **org-level** configuration so new repos inherit it without a copied
+   file. Enable Codex cloud auto-review on core (its usage bills against a ChatGPT plan, so it
+   extends outward as volume justifies) and add the review-rules section to `AGENTS.md`, carrying
+   the same malicious-change instructions. Exempt docs-tier PRs so the volume stays triageable.
+   Nothing blocks; every code-bearing PR now gets independent commentary, and **no new code runs in
+   TAP's CI**.
 3. **Phase 2 — observe and calibrate** (~2 weeks / ~20 PRs, passive). Track finding volume,
    false-positive rate, and latency per reviewer; tune the noise knobs (profiles, filters, "what
    NOT to flag" instructions). Optionally seed a deliberate bug or two to spot-check detection.
@@ -197,8 +235,10 @@ binary churn, so this costs nearly nothing.
    the action. Then —
    and **empty the admin bypass list in the same wave**, since the gate is advisory-in-fact for a
    compromised admin laptop until then. Document the break-glass path.
-5. **Phase 4 — leading edge, demand-gated** (later, each on its own trigger). Roll reviewers out
-   to the plugin repos via the org preset (rides the existing Renovate-preset wave). Structured
+5. **Phase 4 — leading edge, demand-gated** (later, each on its own trigger). *(Plugin-repo rollout
+   moved into Phase 1 — it is org-wide from the start, not a later expansion.)* An
+   install-coverage drift check: verify every non-archived repo in the org still carries the
+   reviewer floor, so a new repo cannot sit silently below it. Structured
    verdict ledger — retained verdict JSON per PR SHA, monitored by the internal security AI
    alongside the `CONCERN` stream; eventually verdicts on the grid, TAP observing its own supply
    chain. Watch the open research gap: *cross-PR evidence linking* (multi-PR distributed attacks
