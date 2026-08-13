@@ -29,6 +29,7 @@ This specification captures the current architectural intent for the entity laye
 | req-grid-entity-metadata | [Canonical Entity Metadata](#canonical-entity-metadata) | In Development | Platform-level canonical metadata contract for entity instances: `name`, `description`, `description_json`. `name` is fully implemented; `description` and `description_json` are pending. |
 | req-grid-entity-display | [Display Metadata](#display-metadata) | In Development | `DEFAULT_DISPLAY` class attribute implemented on `BaseModel`; instance-level `display` JSONField deferred |
 | req-grid-entity-cascade | [Edge-Directed Cascade Deletion](#edge-directed-cascade-deletion) | Backlog | When an entity is deleted, cascades should be expressible in terms of edge relationships, not just Django's raw FK CASCADE |
+| req-grid-entity-core-type-catalog | [First-Party Types In The Catalog](#first-party-types-in-the-catalog) | Backlog | Core-app types are absent from `EntityType` (only plugins write rows), so they render without icons. Pick this up when someone cares about the missing icons |
 | req-grid-entity-tombstone-managers | [Tombstone State And Manager Surface](#tombstone-state-and-manager-surface) | Approved for Development | `Entity.deleted_at` is the single canonical home of tombstone state; manager defaults differ by surface; both surfaces expose uniform `.live()` / `.tombstoned()` chainable filters |
 
 
@@ -189,6 +190,56 @@ The `entity_types` list in `TapPluginConfig` (and equivalent `apps.py` declarati
 
 ---
 
+### First-Party Types In The Catalog
+----
+RID: `req-grid-entity-core-type-catalog`
+Status: `Backlog`
+
+**Trigger to pick this up:** someone notices that core types — `page`, `panel`, `layout`,
+`collector`, `batch`, `keystone`, `dimension`, `schedule`, `projection`, `arrangement` and the rest,
+about fifteen in total — render without icons in the graph view. That is the only user-visible
+consequence today, and it is cosmetic, which is why this is Backlog rather than scheduled.
+
+**Why they are missing.** `EntityType` rows are written only by the plugin loader from a manifest
+(plus the single `search` row from `tap_grid`'s own `ready()`), and first-party apps ship no manifest.
+The types themselves work perfectly — they are registered in the in-code model registry by
+`BaseModel.__init_subclass__` — they simply have no catalog row, so the display-metadata lookups
+(`batch_resolve_icons`, the viewer panel) find nothing for them.
+
+**Proposed shape** (measured against the as-built code, 2026-08-12):
+
+- One function that walks the entity model registry and upserts a row per registered type: `slug`
+  from `ENTITY_TYPE`, `name` from `ENTITY_NAME` falling back to the slug, `description`/`icon` from
+  `ENTITY_DESCRIPTION`/`ENTITY_ICON` defaulting to empty, `kind` = node.
+- **Gotcha that will silently break icons if missed:** `plugin_name` must be the owning AppConfig's
+  dotted `name` (e.g. `tap_web`), *not* `app_label` — `resolve_icon_path` resolves the owning app by
+  looping app configs and comparing `config.name == entity_type.plugin_name`.
+- Run it from **boot's population phase**, not `ready()` — `ready()` has no DB access, and the
+  existing plugin write violates that rule today (it is the source of the "accessing the database
+  during app initialization" warning). Having the plugin loader call the same function instead of
+  writing rows itself collapses this to one writer and removes that violation.
+- Additive only: it must never delete rows. Reclamation is a separate, deliberately parked decision
+  (`req-plugin-lifecycle-v1-departure`).
+
+**Extensibility, which is the point.** Adding a core model then requires only the class vars plugins
+already use — declare `ENTITY_TYPE` (already mandatory) plus optionally `ENTITY_NAME`/`ENTITY_ICON`/
+`ENTITY_DESCRIPTION` — and the type appears at the next boot with no registration list, manifest
+entry, migration, or code change anywhere else. One convention across core and plugins. This is the
+direction already sketched at the end of [Entity Type Declaration](#entity-type-declaration).
+
+**Cost split.** The mechanism is roughly thirty lines plus a call site. The rest is *content*: each
+type wanting an icon needs a kebab-case `ENTITY_ICON` key and an SVG in its app's static directory.
+That content is incremental — landing the mechanism alone gives every core type a correctly-named
+catalog row (fixing the completeness half), and icons fill in per model afterwards with no further
+code, degrading exactly as today when absent.
+
+**Out of scope.** Edge types: core edges register constraints only, have nowhere to declare display
+metadata, and the icon path is node-only. Also out of scope is the deeper question of what the type
+record *is* — provenance (which plugin or which core app), model version, and the fields that follow
+— which is the same reconciliation problem as plugin lifecycle one level down and is parked with it
+(`tap_plugins/specs/spec-plugin-lifecycle-v1.md`). This requirement deliberately does not settle it:
+it writes `plugin_name` exactly as the existing writer does.
+
 ### Type Catalog Discriminates Node vs Edge
 ----
 RID: `req-grid-entity-type-kind`
@@ -209,7 +260,7 @@ Measured before the fix (a healthy booted instance): 87 catalog rows against 30 
 
 Two, both measured on a live instance after this landed, and both about *which rows exist* rather than how they are labelled:
 
-1. **First-party types are absent.** Rows are written only by the plugin loader (plus the `search` row from `tap_grid`'s own `ready()`), and first-party apps ship no manifest — so ~15 registered node types (`page`, `panel`, `layout`, `collector`, `batch`, `keystone`, …) have no row and therefore no `kind`. This is the gap already noted at the end of [Entity Type Declaration](#entity-type-declaration); the discriminator is a prerequisite for closing it, since a completeness sweep must record which kind it registers. Note the write cannot live in `ready()` (no DB access there) — boot's population phase is the natural home.
+1. **First-party types are absent.** Rows are written only by the plugin loader (plus the `search` row from `tap_grid`'s own `ready()`), and first-party apps ship no manifest — so ~15 registered node types (`page`, `panel`, `layout`, `collector`, `batch`, `keystone`, …) have no row and therefore no `kind`. Tracked as [req-grid-entity-core-type-catalog](#first-party-types-in-the-catalog) (Backlog, with the proposed mechanism and its gotchas); the discriminator here is a prerequisite for closing it, since a completeness sweep must record which kind it registers.
 2. **Rows outlive their plugin.** The catalog has no removal path. Measured on a long-lived dev database (first migrated three weeks earlier) whose plugin set had since narrowed to `grid_fixtures` alone: 56 rows owned by `aws_core` — a plugin no longer installed in that container — written early in the database's life and untouched by any transaction since, with zero corresponding entities (types registered, population never run). Rows are written only by `TapPluginConfig`, so the plugin must have been in `INSTALLED_APPS` at the time; when it left the app set nothing reclaimed its rows. They stay `kind=""` because only the declaring plugin's loader can classify them, so an API consumer sees types the instance cannot serve. This is an accumulated-state condition, not something a fresh instance exhibits. Whether a type row should be removed, tombstoned, or retained-and-marked when its plugin leaves the boot profile is an open decision, and it belongs with the plugin update/uninstall design in `tap_plugins/specs/spec-plugin-lifecycle-v1.md` rather than here.
 
 This is also why `""` must not be read as `node`: the unclassified rows on that instance were predominantly *edges*, so a `node` default would have actively mislabelled them.
