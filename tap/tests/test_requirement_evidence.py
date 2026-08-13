@@ -14,7 +14,10 @@ from pathlib import Path
 from tap.spec_trace import (
     EVIDENCE_BEGIN,
     EVIDENCE_END,
+    claimed_doctrine,
     collect_evidence,
+    doctrine,
+    invalid_claims,
     render_evidence_markdown,
     under_declared,
     unearned_verified,
@@ -122,6 +125,39 @@ def test_evidence_on_a_proposed_requirement_is_reported_not_failed(tmp_path: Pat
     tree = _tree(tmp_path, status="Proposed", test=True)
     assert [e.rid for e in under_declared(tree)] == ["req-example-alpha"]
     assert unearned_verified(tree) == []
+
+
+# --- standing doctrine ---------------------------------------------------------------
+
+
+def test_doctrine_is_in_neither_coverage_bucket(tmp_path: Path) -> None:
+    """In force is neither built nor unbuilt — counting it as built was the miscount."""
+    tree = _tree(tmp_path, status="In Force")
+    assert [e.rid for e in doctrine(tree)] == ["req-example-alpha"]
+    assert unevidenced_built(tree) == []
+    assert under_declared(tree) == []
+    assert unearned_verified(tree) == []
+
+
+def test_claiming_doctrine_is_a_defect(tmp_path: Path) -> None:
+    """The inverse check: a flag that only ever REMOVES a check is a flag nobody maintains.
+
+    Doctrine is conformed to, not implemented. Without this, marking a requirement `In Force`
+    would be a free way to make it disappear from every report — which is exactly how such a
+    marker decays into decoration (OpenFastTrace's `Unwanted`; NIST's 0-of-3707).
+    """
+    tree = _tree(tmp_path, status="In Force", claim=True)
+    assert [e.rid for e in claimed_doctrine(tree)] == ["req-example-alpha"]
+
+    problems = invalid_claims(tree)
+    assert len(problems) == 1
+    assert "standing doctrine" in problems[0][1]
+
+
+def test_doctrine_without_a_claim_is_clean(tmp_path: Path) -> None:
+    tree = _tree(tmp_path, status="In Force", test=True)
+    assert claimed_doctrine(tree) == []
+    assert invalid_claims(tree) == []
 
 
 # --- the report ----------------------------------------------------------------------

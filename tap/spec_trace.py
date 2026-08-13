@@ -424,10 +424,21 @@ def invalid_claims(repo_root: Path) -> list[tuple[Claim, str]]:
     claims, _ = collect_claims(repo_root, python_scan_roots(repo_root))
     problems: list[tuple[Claim, str]] = []
     for claim in claims:
+        requirement = corpus.requirements.get(claim.rid)
         if claim.rid not in corpus.defined:
             problems.append((claim, "names a requirement that does not exist"))
         elif claim.role not in CLAIM_ROLES:
             problems.append((claim, f"role {claim.role!r} is not one of {sorted(CLAIM_ROLES)}"))
+        elif requirement is not None and requirement.status in DOCTRINE_STATUSES:
+            # `Unwanted` coverage: the requirement never asked to be implemented.
+            problems.append(
+                (
+                    claim,
+                    "is standing doctrine (In Force) — doctrine is conformed to, not implemented. "
+                    "Either the requirement is mis-labelled, or the checkable part of it should be "
+                    "split out as its own requirement and claimed there",
+                )
+            )
     return problems
 
 
@@ -471,6 +482,16 @@ def duplicate_claim_groups(repo_root: Path) -> dict[tuple[str, str], list[Claim]
 _BUILT_STATUSES = frozenset({"Implemented", "Verified"})
 #: Statuses that assert the requirement is NOT yet built — evidence contradicts them.
 _UNBUILT_STATUSES = frozenset({"Proposed", "Backlog"})
+#: Standing doctrine — in effect now, never "completed", and expecting *conformance* from
+#: other work rather than an implementation of its own. The convention is Python's, whose
+#: PEP 1 gives Informational and Process PEPs a status of `Active` precisely because they
+#: "are never meant to be completed"; Ethereum calls the same state `Living`, and IETF's
+#: BCP series has no maturity ladder at all because doctrine is in force or it is not.
+#:
+#: A doctrine requirement is neither built nor unbuilt, so it belongs in **neither**
+#: coverage bucket. Counting it as built-without-evidence was the miscount that made the
+#: unevidenced number unreadable.
+DOCTRINE_STATUSES = frozenset({"In Force"})
 
 
 @dataclass(frozen=True)
@@ -553,6 +574,30 @@ def under_declared(repo_root: Path, evidence: dict[str, Evidence] | None = None)
     return [e for e in _evidence_or_scan(repo_root, evidence).values() if e.declared in _UNBUILT_STATUSES and e.classes]
 
 
+def doctrine(repo_root: Path, evidence: dict[str, Evidence] | None = None) -> list[Evidence]:
+    """Requirements in force as standing doctrine — outside the coverage question entirely."""
+    return [e for e in _evidence_or_scan(repo_root, evidence).values() if e.declared in DOCTRINE_STATUSES]
+
+
+def claimed_doctrine(repo_root: Path, evidence: dict[str, Evidence] | None = None) -> list[Evidence]:
+    """Doctrine requirements carrying an implementation claim — `Unwanted` coverage.
+
+    The inverse check, and the thing that keeps the doctrine label from decaying into
+    decoration. OpenFastTrace fires `Unwanted` when an item covers something that *did not
+    ask* for coverage; Doorstop warns when a non-normative item has links; NIST's published
+    catalogue has zero of 3,707 assessment objectives pointing at a guidance part. The
+    lesson those three share: **a flag that only ever removes a check is a flag nobody
+    maintains.** Marking a requirement as doctrine has to cost something, and what it costs
+    is the ability to claim it.
+
+    A doctrine requirement is conformed to, not implemented. If something genuinely *is*
+    the one derivation of a doctrine requirement's fact, that is a signal the requirement
+    was mis-labelled — or that a checkable part of it should be split out as its own
+    requirement, which is what PCI does with Applicability Notes and NIST with ODPs.
+    """
+    return [e for e in doctrine(repo_root, evidence) if e.implemented_by]
+
+
 def unevidenced_built(repo_root: Path, evidence: dict[str, Evidence] | None = None) -> list[Evidence]:
     """Requirements declared built with no evidence at all.
 
@@ -581,16 +626,22 @@ def render_evidence_markdown(repo_root: Path) -> str:
     under = sorted(under_declared(repo_root, evidence), key=lambda e: e.rid)
     unearned = sorted(unearned_verified(repo_root, evidence), key=lambda e: e.rid)
 
+    doctrinal = doctrine(repo_root, evidence)
     lines = [
         EVIDENCE_BEGIN,
         "",
-        f"**{len(evidence)}** requirements · **{len(evidenced)}** carry evidence · "
+        f"**{len(evidence)}** requirements · **{len(doctrinal)}** standing doctrine · "
+        f"**{len(evidenced)}** carry evidence · "
         f"**{sum(1 for e in evidenced if e.classes == 2)}** carry both classes · "
         f"**{len(built_without)}** declared built with none.",
         "",
-        "That last number is context, not a defect list: claims are opt-in and scarce by "
-        "design (`req-tap-traceability-scope`), so it measures how much of the corpus has "
-        "been deliberately targeted — not how much is wrong.",
+        "Four separate facts, deliberately not blended into one percentage. **Doctrine** is "
+        'outside the coverage question — in force now, never "completed", expecting '
+        "conformance rather than an implementation. **Declared built with none** is context, "
+        "not a defect list: claims are opt-in and scarce by design "
+        "(`req-tap-traceability-scope`), so it measures how much of the corpus has been "
+        "deliberately targeted, not how much is wrong. Collapsing these into a single "
+        "coverage score is what makes such a score meaningless.",
         "",
         "| Requirement | Declared | Derived | Implementation | Verified by |",
         "| --- | --- | --- | --- | --- |",

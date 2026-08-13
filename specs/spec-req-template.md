@@ -91,6 +91,7 @@ Use these values consistently in the Requirements table and each requirement's `
 | In Development | Actively being worked on, see the Development section for more details. |
 | Implemented | Has been written, see the Implementation section for how. |
 | Verified | Has met the acceptance criteria as defined in that section. |
+| In Force | Standing doctrine: in effect now, and never "completed". Expects conformance from other work rather than an implementation of its own. |
 | Refactoring | In the process of being re-worked. |
 | Deprecating | In the process of being deprecated. |
 | Deprecated | No longer live. |
