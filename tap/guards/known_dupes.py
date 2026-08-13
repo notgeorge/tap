@@ -47,6 +47,27 @@ def _tag_groups(rels: list[str], *, skip: frozenset[str] = frozenset()) -> dict[
     return groups
 
 
+def groups_by_file() -> dict[str, set[str]]:
+    """Repo-relative Python path -> the `TAP-KNOWN-DUPE` group ids it carries.
+
+    The public read of this convention, for other guards that need to ask "are these two
+    sites a *declared* duplicate?". The traceability uniqueness guard
+    (`req-tap-traceability-uniqueness-2`) is the first consumer: two implementation claims
+    for one `(requirement, role)` are permitted exactly when both sites name the same
+    known-dupe group — which this convention's own guard independently requires be
+    documented in a spec. That composition is what makes "duplicate with an explanation"
+    free, instead of a second escape hatch with its own vocabulary.
+
+    Exposed rather than letting a caller re-derive the tag pattern: a second copy of
+    `_TAG_RE` is exactly the anti-pattern both conventions exist to prevent.
+    """
+    by_file: dict[str, set[str]] = defaultdict(set)
+    for group_id, rels in _tag_groups(_walk("*.py")).items():
+        for rel in rels:
+            by_file[rel].add(group_id)
+    return dict(by_file)
+
+
 class KnownDupesGuard(Guard):
     slug = "known-dupes"
     map_row = "Known-dupe group integrity"

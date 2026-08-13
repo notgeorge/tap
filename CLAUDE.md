@@ -264,6 +264,13 @@ Developer token tools (use these instead of hand-rolling identifiers)
     scripts/log-site-id [N]    — mint collision-checked `[<hex>]` log site token(s)
                                  (req-tap-logging-site-ids). Run this when adding any
                                  logger.* call rather than guessing a hex by hand.
+    scripts/implements-tag <rid> [role]
+                               — mint an implementation claim declaring that a function IS
+                                 the authoritative derivation of a requirement's fact
+                                 (req-tap-traceability-minting). Roles: derivation |
+                                 enforcement | surface. Also --check (list malformed /
+                                 unresolvable / stale claims) and --resync <path> (re-stamp
+                                 after a reviewed spec change). Never hand-type the hash.
 
 Documentation (specs ↔ docs alignment)
     Specs (specs/, <app>/specs/) are authoritative for behavior. Docs (docs/) are derived how-to surfaces.

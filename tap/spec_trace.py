@@ -71,6 +71,142 @@ _PLACEHOLDER_PREFIX = "req-example"
 # (`req-docs-rid-integrity-3` — the scope decision, made explicitly rather than by accident).
 _ARCHIVAL_DIR_PARTS = frozenset({"aar", "postmortems", "handoff", "handoffs"})
 
+# --- implementation claims (`req-tap-traceability-claim`) ----------------------------
+
+#: The closed role vocabulary (`req-tap-traceability-roles`). A requirement is often
+#: realized at several layers, all legitimately; uniqueness is scoped per (rid, role).
+CLAIM_ROLES = frozenset({"derivation", "enforcement", "surface"})
+
+# Assembled by concatenation so this module — and anything quoting the grammar — never
+# matches its own source. Same idiom as `tap/guards/known_dupes.py`.
+_CLAIM_TOKEN = "TAP-" + "IMPLEMENTS"
+_CLAIM_RE = re.compile(rf"{_CLAIM_TOKEN}:\s*({_RID_BODY})@([0-9a-f]{{12}})\s*\(([a-z]+)\)")
+# Anything that *looks* like an attempt. A near-miss must fail loudly rather than be
+# skipped: a misspelled tag otherwise reports "no claim here" and the typo goes unnoticed
+# — the documented failure mode of clippy's `SAFTEY:` hole (`req-tap-traceability-claim-3`).
+_CLAIM_NEAR_MISS_RE = re.compile(r"TAP[-_ ]?IMPLEMENT(?:S|ED|ATION)?\b", re.IGNORECASE)
+
+# The modules that *implement* the convention necessarily spell the token out in prose.
+# Excluding them is the same self-reference dodge `known_dupes.py` and `record_site.py`
+# make; without it the scanner reports its own documentation as malformed claims.
+_CONVENTION_MODULES = frozenset(
+    {
+        "tap/spec_trace.py",
+        "tap/guards/implements_shape.py",
+        "tap/guards/implements_integrity.py",
+        "tap/guards/implements_uniqueness.py",
+        "tap/guards/implements_staleness.py",
+        "tap/tests/test_spec_trace.py",
+        "tap/tests/test_implements_claims.py",
+    }
+)
+
+
+@dataclass(frozen=True)
+class Claim:
+    """A declaration that this code is the authoritative implementation of a requirement."""
+
+    rid: str
+    recorded_hash: str
+    role: str
+    qualname: str
+    path: Path
+    lineno: int
+
+    def where(self, repo_root: Path) -> str:
+        rel = self.path.relative_to(repo_root).as_posix()
+        return f"{rel}:{self.lineno} ({self.qualname})"
+
+    def key(self, repo_root: Path) -> str:
+        """Uniqueness key — module, requirement, role. Never a line number.
+
+        Keyed per *module* rather than per function so that a conditional definition
+        (`if sys.version_info >= …:`) does not manufacture a false duplicate.
+        """
+        return f"{self.path.relative_to(repo_root).as_posix()}::{self.rid}::{self.role}"
+
+
+@dataclass(frozen=True)
+class MalformedClaim:
+    """A line that attempted the claim grammar and missed."""
+
+    text: str
+    path: Path
+    lineno: int
+
+    def where(self, repo_root: Path) -> str:
+        return f"{self.path.relative_to(repo_root).as_posix()}:{self.lineno}"
+
+
+class _DocstringVisitor(ast.NodeVisitor):
+    """Collects (qualname, docstring, lineno) for every module, class and function."""
+
+    def __init__(self) -> None:
+        self.scope: list[str] = []
+        self.found: list[tuple[str, str, int]] = []
+
+    def _record(self, node: ast.AST, qualname: str) -> None:
+        doc = ast.get_docstring(node, clean=False)  # type: ignore[arg-type]
+        if not doc:
+            return
+        body = getattr(node, "body", None)
+        lineno = getattr(body[0], "lineno", 1) if body else 1
+        self.found.append((qualname, doc, lineno))
+
+    def visit_Module(self, node: ast.Module) -> None:
+        self._record(node, "<module>")
+        self.generic_visit(node)
+
+    def _visit_scoped(self, node: ast.AST, name: str) -> None:
+        self.scope.append(name)
+        self._record(node, ".".join(self.scope))
+        self.generic_visit(node)
+        self.scope.pop()
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        self._visit_scoped(node, node.name)
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self._visit_scoped(node, node.name)
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self._visit_scoped(node, node.name)
+
+
+def collect_claims(repo_root: Path, source_roots: list[Path]) -> tuple[list[Claim], list[MalformedClaim]]:
+    """Every well-formed claim, and every line that tried to be one and failed.
+
+    Read from source via `ast.get_docstring`, never from `__doc__`: `python -OO` discards
+    docstrings, and `functools.wraps` copies them, so a wrapper would silently inherit the
+    claim of the function it wraps (`req-tap-traceability-claim-2`).
+    """
+    claims: list[Claim] = []
+    malformed: list[MalformedClaim] = []
+
+    for parsed in iter_parsed_sources(source_roots):
+        if parsed.path.relative_to(repo_root).as_posix() in _CONVENTION_MODULES:
+            continue
+        visitor = _DocstringVisitor()
+        visitor.visit(parsed.tree)
+        for qualname, doc, doc_lineno in visitor.found:
+            for offset, line in enumerate(doc.splitlines()):
+                lineno = doc_lineno + offset
+                match = _CLAIM_RE.search(line)
+                if match is not None:
+                    claims.append(
+                        Claim(
+                            rid=match.group(1),
+                            recorded_hash=match.group(2),
+                            role=match.group(3),
+                            qualname=qualname,
+                            path=parsed.path,
+                            lineno=lineno,
+                        )
+                    )
+                elif _CLAIM_NEAR_MISS_RE.search(line):
+                    malformed.append(MalformedClaim(text=line.strip(), path=parsed.path, lineno=lineno))
+    return claims, malformed
+
 
 @dataclass(frozen=True)
 class Requirement:
@@ -275,6 +411,57 @@ def dangling_citations(repo_root: Path) -> list[Citation]:
     corpus = load_corpus(repo_root)
     citations = collect_citations(repo_root, python_scan_roots(repo_root))
     return [c for c in citations if c.token not in corpus.defined and not c.token.startswith(_PLACEHOLDER_PREFIX)]
+
+
+def malformed_claims(repo_root: Path) -> list[MalformedClaim]:
+    """Lines that attempted the claim grammar and missed (`req-tap-traceability-claim-3`)."""
+    return collect_claims(repo_root, python_scan_roots(repo_root))[1]
+
+
+def invalid_claims(repo_root: Path) -> list[tuple[Claim, str]]:
+    """Claims naming a requirement that does not exist, or a role outside the vocabulary."""
+    corpus = load_corpus(repo_root)
+    claims, _ = collect_claims(repo_root, python_scan_roots(repo_root))
+    problems: list[tuple[Claim, str]] = []
+    for claim in claims:
+        if claim.rid not in corpus.defined:
+            problems.append((claim, "names a requirement that does not exist"))
+        elif claim.role not in CLAIM_ROLES:
+            problems.append((claim, f"role {claim.role!r} is not one of {sorted(CLAIM_ROLES)}"))
+    return problems
+
+
+def stale_claims(repo_root: Path) -> list[tuple[Claim, str]]:
+    """Claims whose recorded hash no longer matches their requirement (`Outdated`).
+
+    Returns `(claim, expected_hash)`. A claim on a requirement that does not resolve is
+    *not* reported here — that is `invalid_claims`' finding, and reporting it twice would
+    make one defect look like two.
+    """
+    corpus = load_corpus(repo_root)
+    claims, _ = collect_claims(repo_root, python_scan_roots(repo_root))
+    stale: list[tuple[Claim, str]] = []
+    for claim in claims:
+        requirement = corpus.requirements.get(claim.rid)
+        if requirement is None:
+            continue
+        if claim.recorded_hash != requirement.content_hash:
+            stale.append((claim, requirement.content_hash))
+    return stale
+
+
+def duplicate_claim_groups(repo_root: Path) -> dict[tuple[str, str], list[Claim]]:
+    """`(rid, role)` -> claims, for every pair claimed by more than one module.
+
+    Within-module repeats collapse first: a conditional definition legitimately declares
+    the same claim twice in one file (`req-tap-traceability-uniqueness-3`).
+    """
+    claims, _ = collect_claims(repo_root, python_scan_roots(repo_root))
+    by_pair: dict[tuple[str, str], dict[str, Claim]] = {}
+    for claim in claims:
+        module = claim.path.relative_to(repo_root).as_posix()
+        by_pair.setdefault((claim.rid, claim.role), {}).setdefault(module, claim)
+    return {pair: list(mods.values()) for pair, mods in by_pair.items() if len(mods) > 1}
 
 
 def unresolvable_markers(repo_root: Path) -> list[Citation]:

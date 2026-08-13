@@ -386,6 +386,38 @@ def grid_table_names() -> frozenset[str]:
 
 ---
 
+## 5b. Backfill technique — commit co-occurrence
+
+For the rollout problem "which function implements this already-shipped requirement," the
+cheapest candidate generator is **the commit that authored the RID**: list the `.py` files
+that commit touched, and the implementation is almost always among them.
+
+This is measured, not assumed. The RID-timing analysis (§6b of
+[doc-dev-duplication-defense.md](doc-dev-duplication-defense.md)) found:
+
+| Measure | Value |
+| --- | --- |
+| RIDs whose first spec commit **is** their first code commit | **40%** |
+| RIDs whose spec and first code reference land the same day | **75%** |
+| Median spec-birth → first code reference | **0.02 days** |
+
+**Note the inversion.** Co-occurrence *failed* as a duplication signal for exactly the
+reason it *succeeds* here: spec and implementation are authored together, so the timing
+axis has no dynamic range to separate a duplicate from an original — but that same tight
+coupling makes "what else was in this commit" a high-precision shortlist for backfill. The
+same measurement answers one question badly and the other well.
+
+Practical shape: for each RID in the seed set, `git log -S'RID: \`<rid>\`' --reverse` gives
+the authoring commit; `git show --name-only` gives the candidate files; the human (or a
+review agent) picks the authoritative derivation and mints the tag. Widen from same-commit
+to same-day for the ~35% that straddle.
+
+Three honest limits: it produces **candidates, not answers** (a commit may touch many
+files); it cannot help the 68% of RIDs never referenced in code, where there may be no
+implementation to find; and it depends on per-commit granularity surviving — TAP's promote
+flow uses merge commits rather than squash, so the signal is intact today, but squash-merging
+feature branches would collapse it.
+
 ## 6. Open design questions
 
 - **Granularity — the sharpest open question.** The candidate above is function-level.

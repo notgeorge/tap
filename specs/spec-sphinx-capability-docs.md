@@ -38,7 +38,7 @@ style capability objects.
 | --- | --- | :---: | --- |
 | req-sphinx-docs-toolchain | [Sphinx Toolchain](#sphinx-toolchain) | Proposed | Intended packages and static-first extraction posture |
 | req-sphinx-docs-source-layout | [Source Layout](#source-layout) | Proposed | Root misc docs, core app docs, plugin docs; source files only |
-| req-sphinx-docs-capability-blocks | [Capability Blocks](#capability-blocks) | Proposed | `cap-*` IDs, canonical review anchors, code or MyST locations |
+| req-sphinx-docs-capability-blocks | [Capability Blocks](#capability-blocks) | Deprecated | Superseded by `req-tap-traceability-claim`; the capability-catalogue half is not carried forward |
 | req-sphinx-docs-metadata | [Capability Metadata](#capability-metadata) | Proposed | Audience, affordance, status, since/changed, spec/test/doc links |
 | req-sphinx-docs-versioning | [Versioning And Change History](#versioning-and-change-history) | Proposed | Git is exact history; capability metadata records meaningful behavioral milestones |
 | req-sphinx-docs-gap-tracking | [Advisory Gap Tracking](#advisory-gap-tracking) | Proposed | Generated reports plus `docs/capability-known-gaps.toml` later |
@@ -118,7 +118,24 @@ Sphinx/Needs inventory is not enough for installed-doc discovery.
 ### Capability Blocks
 ----
 RID: `req-sphinx-docs-capability-blocks`
-Status: `Proposed`
+Status: `Deprecated`
+
+#### Status Details
+
+**Superseded 2026-08-12 by [`spec-tap-requirement-traceability.md`](spec-tap-requirement-traceability.md)**
+(`req-tap-traceability-claim`), and never built.
+
+The overlap is the `:implements: req-…` field proposed below. Two docstring conventions for one
+relationship — "this code realizes that requirement" — would be exactly the duplication that spec
+exists to prevent, so `TAP-IMPLEMENTS` is the single mechanism and this block is retired rather
+than layered on top of it.
+
+**What is not carried forward, stated honestly:** a capability block was broader than a traceability
+link — it also carried audience, affordance kind, status, validating tests and doc links, i.e. a
+*reader-facing capability catalogue*, which `TAP-IMPLEMENTS` deliberately does not attempt.
+`TAP-IMPLEMENTS` answers "which function owns this requirement's fact," not "what can a user do
+here." That catalogue remains an unbuilt, unclaimed idea; if it is wanted it should be re-proposed
+on its own merits and consume the traceability claim rather than restate it.
 
 A capability block documents a load-bearing user-, operator-, plugin-author-, or
 agent-relevant affordance. It is not a generic function docstring and it is not a
