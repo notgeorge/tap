@@ -8,10 +8,13 @@
 #     dependabot, github-actions) — a maintainer certifies those at merge,
 #     normally by squash-merging with their own sign-off
 #
-# REPORT-ONLY by default until CONTRIBUTING.md lands as repo policy: violations
-# are listed but the exit stays 0. Enforcement is TAP_DCO_ENFORCE=1 — flipping
-# the two invokers is the one-line change that makes the policy law
-# (req-cicd-dco-signoff-3).
+# ENFORCING since 2026-08-12, when CONTRIBUTING.md + DCO landed at the repo root
+# as approved policy (req-cicd-dco-signoff-3). A violation is a non-zero exit:
+# it reds the `dco` CI job and aborts a promote. The default lives HERE rather
+# than in the invokers on purpose — an ad-hoc `scripts/check-dco` gives the same
+# verdict CI will, so the artifact can never be quietly less strict than the gate.
+# Escape hatch: TAP_DCO_REPORT_ONLY=1 (lists violations, exits 0) for triaging a
+# pile of unsigned history without blocking the run.
 #
 # Invokers: scripts/promote-to-main.sh (local gates) and the `dco` job in
 # .github/workflows/product-lines.yml (the PR road + the promote's dispatched
@@ -20,9 +23,9 @@
 # Spec: specs/spec-cicd-hardening.md (req-cicd-dco-signoff).
 #
 # Usage:
-#   scripts/check-dco                    # check merge-base(origin/main, HEAD)..HEAD
-#   scripts/check-dco <base-ref>         # explicit base ref
-#   TAP_DCO_ENFORCE=1 scripts/check-dco  # enforcing: non-zero exit on violation
+#   scripts/check-dco                        # check merge-base(origin/main, HEAD)..HEAD
+#   scripts/check-dco <base-ref>             # explicit base ref
+#   TAP_DCO_REPORT_ONLY=1 scripts/check-dco  # list violations without failing
 
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
@@ -62,9 +65,23 @@ if [ "$violations" -eq 0 ]; then
   exit 0
 fi
 
-if [ "${TAP_DCO_ENFORCE:-0}" = "1" ]; then
-  fail "DCO check RED — $violations of $checked commit(s) missing Signed-off-by. Sign with 'git commit -s --amend' (or an interactive rebase adding trailers); see CONTRIBUTING."
+if [ "${TAP_DCO_REPORT_ONLY:-0}" = "1" ]; then
+  warn "DCO report-only (TAP_DCO_REPORT_ONLY=1): $violations of $checked commit(s) missing Signed-off-by."
+  exit 0
 fi
 
-warn "DCO report-only: $violations of $checked commit(s) missing Signed-off-by. Enforcement flips with CONTRIBUTING.md (TAP_DCO_ENFORCE=1)."
-exit 0
+# Remediation is spelled out, not implied: the single-commit and whole-branch
+# forms differ, and a contributor meeting this red for the first time should not
+# have to derive the rebase incantation. Both re-write history, so they are safe
+# on an unmerged branch and wrong on a shared one — hence the force-with-lease note.
+printf "\033[31m    ERROR: DCO check RED — %s of %s commit(s) missing Signed-off-by.\033[0m\n" "$violations" "$checked" >&2
+cat >&2 <<EOF
+    Fix (rewrites the listed commits; force-push with --force-with-lease after):
+      last commit only : git commit --amend --no-edit -s
+      whole branch     : git rebase --exec 'git commit --amend --no-edit -s' $BASE_REF
+    Sign-off is your certification under the DCO — see CONTRIBUTING.md "Sign-Off".
+    Future commits are stamped automatically by .githooks/prepare-commit-msg
+    (active when core.hooksPath=.githooks — set by scripts/spawn-session.sh; a
+    plain clone needs 'git commit -s' or 'git config core.hooksPath .githooks').
+EOF
+exit 1

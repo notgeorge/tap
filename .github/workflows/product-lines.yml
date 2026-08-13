@@ -138,8 +138,9 @@ jobs:
 
   # DCO sign-off trailer check (req-cicd-dco-signoff): every non-merge, non-bot
   # commit this ref adds over origin/main carries `Signed-off-by` (CONTRIBUTING
-  # "Sign-Off"). REPORT-ONLY until CONTRIBUTING.md lands as repo policy — the flip
-  # is TAP_DCO_ENFORCE=1 here and in promote-to-main.sh's local gates. Covers the
+  # "Sign-Off"). ENFORCING since 2026-08-12 — CONTRIBUTING.md + DCO are repo policy,
+  # so a missing trailer FAILS this job (the enforcing default lives in check-dco
+  # itself; no env var here, so CI and an ad-hoc run agree). Covers the
   # PR road and the promote's dispatched cloud gate (the _ci-gate throwaway ref) in
   # one place; deliberately NOT in `line`'s needs — an unsigned commit is a trailer
   # problem, not a code problem, so it reds the run without blocking the test lanes.

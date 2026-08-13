@@ -35,7 +35,7 @@ tier=docs
 while IFS= read -r f; do
   case "$f" in
     docs/*|plan/*|LICENSE|NOTICE) : ;;
-    README.md|CLAUDE.md|AGENTS.md|SECURITY.md|Misc.md) : ;;
+    README.md|CLAUDE.md|AGENTS.md|SECURITY.md|CONTRIBUTING.md|DCO|Misc.md) : ;;
     specs/*|*/specs/*) tier=specs ;;
     *) echo full; exit 0 ;;
   esac
