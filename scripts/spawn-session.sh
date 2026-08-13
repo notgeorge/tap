@@ -773,6 +773,12 @@ TAP_GRID_ID=$TAP_GRID_ID
 TAP_SESSION_LABEL=$SESSION_NAME
 TAP_BOOT_PROFILE=${BOOT_PROFILE:-core_dev}
 TAP_BOOT_INSTALL__SNAPSHOT_BEFORE_MIGRATE=false
+# Dev sessions track main's tip; a plain (non-session) docker compose up gets the
+# release pinned in .env. Both refs are written in full BECAUSE overriding TAP_VERSION
+# here would silently do nothing — .env interpolates its image refs before this file
+# is read (see the warning in .env).
+TAP_WEB_IMAGE=ghcr.io/unified-systems-com/tap-web:latest
+TAP_DB_IMAGE=ghcr.io/unified-systems-com/tap-db:latest
 EOF
 info "Wrote $WORKTREE/.env.local (gitignored)."
 
