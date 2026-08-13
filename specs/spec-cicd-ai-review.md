@@ -274,9 +274,9 @@ the reviewer class, plus the trust-delta doctrine applied to third-party reviewe
   (CodeRabbit: org settings, with `inheritance: true` in a repo's `.coderabbit.yaml` to merge
   repo-specific rules on top). Copying one security instruction into 15 repos violates
   derive-a-fact-once and yields 15 silently diverging copies. Where that org configuration lives in
-  a vendor dashboard rather than in git, it is an **external-configuration-ratchet** case (the
-  configuration-ratchet requirement in `spec-cicd-root-of-trust.md`): commit the intended
-  configuration and check the live state against it.
+  a vendor dashboard rather than in git, it is an **external-configuration-ratchet** case
+  (`req-cicd-rot-config-ratchet`): commit the intended configuration and check the live state
+  against it.
 - The named residual: a vendor-side compromise of an installed App's key is write access to every
   repo in the org — mitigated by the `main` ruleset (required checks apply to apps too) and bounded
   by the org boundary rather than by a repo list. This is the Kudelski lesson; it is accepted,
