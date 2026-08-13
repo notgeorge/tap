@@ -464,6 +464,163 @@ def duplicate_claim_groups(repo_root: Path) -> dict[tuple[str, str], list[Claim]
     return {pair: list(mods.values()) for pair, mods in by_pair.items() if len(mods) > 1}
 
 
+# --- evidence and derived status (`req-tap-traceability-status`) ----------------------
+
+#: Declared statuses that assert the requirement is built. A claim of `Verified` is the
+#: only one this module gates on, because it is the only one that asserts *verification*.
+_BUILT_STATUSES = frozenset({"Implemented", "Verified"})
+#: Statuses that assert the requirement is NOT yet built — evidence contradicts them.
+_UNBUILT_STATUSES = frozenset({"Proposed", "Backlog"})
+
+
+@dataclass(frozen=True)
+class Evidence:
+    """What the tree can actually show about a requirement."""
+
+    rid: str
+    declared: str | None
+    implemented_by: tuple[Claim, ...]
+    verified_acids: tuple[str, ...]
+
+    @property
+    def classes(self) -> int:
+        """How many *independent* evidence classes exist — implementation, verification.
+
+        Two is the bar for `Verified`. A requirement evidenced only by its own
+        implementation is not verified: the implementation asserting it works is the claim
+        under test, not a check on it. SQLite renders a requirement green only at 2+
+        independent evidence classes for exactly this reason.
+        """
+        return bool(self.implemented_by) + bool(self.verified_acids)
+
+    @property
+    def derived(self) -> str:
+        """The status the evidence supports, independent of what the spec declares."""
+        if self.implemented_by and self.verified_acids:
+            return "Verified"
+        if self.implemented_by:
+            return "Implemented"
+        if self.verified_acids:
+            return "Tested"
+        return "Unevidenced"
+
+
+def collect_evidence(repo_root: Path) -> dict[str, Evidence]:
+    """Per-requirement evidence: implementation claims and verified acceptance criteria."""
+    corpus = load_corpus(repo_root)
+    roots = python_scan_roots(repo_root)
+    claims, _ = collect_claims(repo_root, roots)
+    marked = {m.token for m in collect_spec_markers(roots)}
+
+    by_rid: dict[str, list[Claim]] = {}
+    for claim in claims:
+        by_rid.setdefault(claim.rid, []).append(claim)
+
+    evidence: dict[str, Evidence] = {}
+    for rid, requirement in corpus.requirements.items():
+        evidence[rid] = Evidence(
+            rid=rid,
+            declared=requirement.status,
+            implemented_by=tuple(by_rid.get(rid, ())),
+            verified_acids=tuple(sorted(acid for acid in requirement.acids if acid in marked)),
+        )
+    return evidence
+
+
+def _evidence_or_scan(repo_root: Path, evidence: dict[str, Evidence] | None) -> dict[str, Evidence]:
+    """Reuse a caller's scan when it has one — each `collect_evidence` walks the whole tree."""
+    return collect_evidence(repo_root) if evidence is None else evidence
+
+
+def unearned_verified(repo_root: Path, evidence: dict[str, Evidence] | None = None) -> list[Evidence]:
+    """Requirements declaring `Verified` without two independent evidence classes.
+
+    The one hard gate in the status work. It deliberately does **not** fault a requirement
+    for lacking a claim — claims are opt-in and scarce by design
+    (`req-tap-traceability-scope-1`), so faulting their absence would contradict the
+    convention. What it faults is the strongest possible assertion — "this is verified" —
+    made without the evidence that would justify it.
+    """
+    return [e for e in _evidence_or_scan(repo_root, evidence).values() if e.declared == "Verified" and e.classes < 2]
+
+
+def under_declared(repo_root: Path, evidence: dict[str, Evidence] | None = None) -> list[Evidence]:
+    """Requirements carrying evidence while still declared unbuilt.
+
+    Reported, never failed: a requirement can legitimately be `Proposed` while part of it
+    is built, and a doctrine requirement is cited as guidance rather than implemented.
+    """
+    return [e for e in _evidence_or_scan(repo_root, evidence).values() if e.declared in _UNBUILT_STATUSES and e.classes]
+
+
+def unevidenced_built(repo_root: Path, evidence: dict[str, Evidence] | None = None) -> list[Evidence]:
+    """Requirements declared built with no evidence at all.
+
+    The honest headline number, and deliberately **not** a failure: with claims opt-in,
+    this measures how much of the corpus has been *targeted*, not how much is wrong.
+    """
+    return [
+        e for e in _evidence_or_scan(repo_root, evidence).values() if e.declared in _BUILT_STATUSES and not e.classes
+    ]
+
+
+EVIDENCE_BEGIN = "<!-- BEGIN GENERATED EVIDENCE — manage.py guards --sync-evidence -->"
+EVIDENCE_END = "<!-- END GENERATED EVIDENCE -->"
+
+
+def render_evidence_markdown(repo_root: Path) -> str:
+    """The generated evidence report — declared status against what the tree can show.
+
+    Deliberately compact: it lists only requirements that *have* evidence, plus the
+    contradictions, rather than all ~1,100 rows. A report nobody can read is a report
+    nobody reads, and the tag's whole value depends on this being looked at.
+    """
+    evidence = collect_evidence(repo_root)  # one tree walk; every helper below reuses it
+    evidenced = sorted((e for e in evidence.values() if e.classes), key=lambda e: e.rid)
+    built_without = unevidenced_built(repo_root, evidence)
+    under = sorted(under_declared(repo_root, evidence), key=lambda e: e.rid)
+    unearned = sorted(unearned_verified(repo_root, evidence), key=lambda e: e.rid)
+
+    lines = [
+        EVIDENCE_BEGIN,
+        "",
+        f"**{len(evidence)}** requirements · **{len(evidenced)}** carry evidence · "
+        f"**{sum(1 for e in evidenced if e.classes == 2)}** carry both classes · "
+        f"**{len(built_without)}** declared built with none.",
+        "",
+        "That last number is context, not a defect list: claims are opt-in and scarce by "
+        "design (`req-tap-traceability-scope`), so it measures how much of the corpus has "
+        "been deliberately targeted — not how much is wrong.",
+        "",
+        "| Requirement | Declared | Derived | Implementation | Verified by |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for e in evidenced:
+        impl = ", ".join(f"`{c.qualname}`" for c in e.implemented_by) or "—"
+        acids = ", ".join(f"`{a}`" for a in e.verified_acids) or "—"
+        lines.append(f"| `{e.rid}` | {e.declared or '—'} | {e.derived} | {impl} | {acids} |")
+
+    lines += [
+        "",
+        "**Declared unbuilt, but evidence exists** — reported, never failed; a "
+        "requirement can be partly built, and a doctrine requirement is cited as guidance:",
+    ]
+    if under:
+        lines += ["", "| Requirement | Declared | Derived |", "| --- | --- | --- |"]
+        lines += [f"| `{e.rid}` | {e.declared} | {e.derived} |" for e in under]
+    else:
+        lines += ["", "None."]
+
+    lines += [
+        "",
+        "**Declared `Verified` without two evidence classes** — this one fails " "(`req-tap-traceability-status`):",
+    ]
+    lines += ["", "None." if not unearned else ""]
+    lines += [f"- `{e.rid}` (evidence classes: {e.classes})" for e in unearned]
+    lines += ["", EVIDENCE_END]
+    return "\n".join(lines)
+
+
 def unresolvable_markers(repo_root: Path) -> list[Citation]:
     """Every `@pytest.mark.spec(...)` argument that resolves to nothing defined."""
     corpus = load_corpus(repo_root)
