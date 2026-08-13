@@ -56,6 +56,14 @@ Your tooling may apply the `Signed-off-by` trailer automatically (for example vi
 
 Commits authored by automated dependency-update tooling (for example, Renovate) are exempt from the sign-off requirement; a maintainer reviews and certifies them at merge, normally by squash-merging with their own sign-off.
 
+If you have already pushed a commit without a sign-off, you may certify it retroactively with a **remediation commit** rather than rewriting history — useful when others may have pulled your branch. Add a later commit, itself signed off, whose message contains one line per commit being certified:
+
+```text
+I, Your Name <your.email@example.com>, hereby add my Signed-off-by to this commit: <commit sha>
+```
+
+The identity you declare must be your own and must match the author of the commit you are certifying: this form lets you certify your own earlier work, not anyone else's.
+
 ## Employer and Organizational Authority
 
 If your employer or another organization may own or control rights in your contribution, you must obtain authorization before submitting it. Your DCO sign-off certifies that you are authorized to submit the contribution on behalf of the applicable rights holder.
