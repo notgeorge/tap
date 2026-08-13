@@ -110,7 +110,7 @@ cheap-edge doctrine; the rest are the larger deploy-half build, rightly deferred
 | req-cicd-dep-automation | [Automate Dependency Updates](#automate-dependency-updates) | Proposed | Dependabot/Renovate on `uv.lock` — pinned deps rot without it. |
 | req-cicd-build-once-artifact | [Build Once, Promote The Artifact](#build-once-promote-the-artifact) | Partial | Immutable multi-arch images published to GHCR on main push (publish-images.yml); dev + CI pull instead of rebuilding. Deploy-side promote-the-same-bytes open (no environments yet). |
 | req-cicd-supply-chain-provenance | [Sign Artifacts, Emit SBOM](#sign-artifacts-emit-sbom) | Partial | SLSA provenance attestations live on the published images; cosign signing, plugin-wheel attestations + CycloneDX/SPDX SBOM open. |
-| req-cicd-product-releases | [Product Releases](#product-releases) | Proposed | Semver product releases carrying release notes; cutting the first release must update `SECURITY.md`'s supported-versions statement. |
+| req-cicd-product-releases | [Product Releases](#product-releases) | Proposed | Semver product releases carrying release notes; cutting the first release must update `SECURITY.md`'s supported-versions statement. Consumers pin a version via `.env` (`-3`, Implemented 2026-08-13) rather than tracking `:latest`. |
 | req-cicd-continuous-delivery | [Continuous Delivery](#continuous-delivery) | Proposed | Environments (staging/prod), progressive delivery, and a rollback path. The unbuilt deploy half. |
 | req-cicd-live-instance-testing | [Live Instances In CI For Operational Testing](#live-instances-in-ci-for-operational-testing) | Proposed | Stand up running TAP instances inside the CI process as targets for operational tests — API fuzzing (Schemathesis), write-path stateful fuzzing, DAST, live smoke. Generalizes the cold-boot gate from "boots healthy" to "operates correctly". |
 | req-cicd-pipeline-observability | [Measure The Pipeline](#measure-the-pipeline) | Proposed | The four DORA metrics + systematic flaky-test tracking. |
@@ -449,10 +449,21 @@ means, what it contains, and what is supported. The root `SECURITY.md` is a cons
 contract — its supported-versions statement currently says "latest `main` only" *because*
 there are no releases, and it silently rots the day that stops being true.
 
+**Update 2026-08-13 — the consumer half now exists.** Releases and the machinery below are
+built; what was missing was any way for a consumer to *choose* one. `docker-compose.yml`
+defaulted both images to `:latest`, which `publish-images.yml` republishes on **every main
+push**, and the `TAP_WEB_IMAGE`/`TAP_DB_IMAGE` overrides that could have pinned a version
+appeared in exactly one file and were documented nowhere — so the release ceremony was
+decorative for anyone running the default: every promote reached them. `.env` now pins both
+images to `TAP_VERSION` (one literal, bumped by release-please so it cannot go stale), and
+development explicitly opts *out* via `.env.local`. The default is now the release; tracking
+main's tip is the deliberate choice.
+
 | RID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-cicd-product-releases-1 | Semver product releases with release notes | Proposed | Product-level releases MUST use semantic versioning — semver git tags published as GitHub Releases, each carrying human-readable release notes that summarize major changes and name any fixed vulnerabilities. | OpenSSF Best Practices `release_notes` criterion; legitimately N/A until the first release exists. **When the first release is cut, update the project's OpenSSF Best Practices entry**: refresh the `version_unique` answer (unique versions then = the semver tags, not just SHA identifiers), confirm `version_semver`/`version_tags`, and flip `release_notes`/`release_notes_vulns` off N/A. **Machinery (2026-08-10):** the release-please PR lane (`release-please.yml` + manifest config; pre-1.0 mapping breaking→minor, feat/fix→patch — the "0.1.x warns, 0.2.0 enforces" contract language) computes the version from conventional commits and cuts tag+Release only when a maintainer merges the gated release PR; `publish-release-tags.yml` then promotes the already-attested `:sha-<short>` manifest to `:X.Y.Z` — same bytes, same digest, attestation intact. Writes ride the org-owned `tap-release-please` GitHub App (Renovate's trust model; app-token PRs trigger the required checks, default-token PRs never do and would sit unmergeable; both workflow jobs keep read-scoped tokens per req-cicd-runner-least-privilege). The release PR carries a bot `uv lock` refresh — the lock records core's own version and a version-only bump invalidates it (verified). |
 | req-cicd-product-releases-2 | SECURITY.md tracks the release model | Proposed | Cutting the first product release MUST update the root `SECURITY.md` supported-versions statement (today: latest `main` + latest published images, no backports) to name which releases receive security fixes. | The tripwire that keeps the published policy honest once a release cadence exists. |
+| req-cicd-product-releases-3 | Consumers Pin A Version, Not A Moving Tag | Implemented | The shipped `.env` pins `tap-web` and `tap-db` to the SAME `TAP_VERSION` (one literal; both images are artifacts of one gated commit, so a mixed pair is never valid). release-please bumps that pin on release (`extra-files`), so it cannot go stale. `docker-compose.yml` REQUIRES the image vars (`:?`) rather than falling back to `:latest` — an unset var fails loudly instead of silently shipping main's tip. Development opts out explicitly: `spawn-session.sh` writes the `:latest` pair into the session's `.env.local`. | **Gotcha, verified against Compose v2:** an override MUST set both image refs, NOT `TAP_VERSION` — `.env` interpolates its refs before `.env.local` is read, so overriding the version there silently does nothing. Both the `.env` comment and the spawn heredoc say so at the point of use. |
 
 ### Continuous Delivery
 
