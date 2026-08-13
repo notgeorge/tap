@@ -10,6 +10,16 @@ build/
 .venv/
 .venv-host/
 
+# Tool caches. `.mypy_cache` in particular is a MUTABLE SHARED INPUT: the worktree is
+# bind-mounted into the container, so an ad-hoc path-scoped run (`mypy tap_health`)
+# leaves cached results that a later canonical `mypy .` — which the ratchet guard runs —
+# can reuse, changing its error set for environmental reasons. Never commit it; and when
+# the mypy ratchet fails inexplicably, suspect the cache before the baseline
+# (req-dev-validation-mypy-ratchet; see also "run mypy canonically").
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
 # UV lock file is committed (reproducible builds)
 # but the cache is not
 

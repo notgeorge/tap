@@ -160,10 +160,12 @@ CI_DISPATCH_ARGS=()
 run_local_gates() {
   local mode="$1"
   # DCO sign-off trailers (req-cicd-dco-signoff) — host-side and cheap, so it runs
-  # first, before the stack even matters. REPORT-ONLY until CONTRIBUTING.md lands
-  # as repo policy; the flip is TAP_DCO_ENFORCE=1 here and in the product-lines
-  # `dco` job. Merge + bot commits exempt (the promote's pre-push merge stays clean).
-  info "DCO sign-off trailer check (scripts/check-dco; report-only until CONTRIBUTING lands) ..."
+  # first, before the stack even matters. ENFORCING since 2026-08-12 (CONTRIBUTING.md
+  # + DCO landed as approved policy): a missing trailer aborts the promote. The
+  # enforcing default lives in check-dco itself, not in an env var here, so an
+  # ad-hoc run gives the same verdict. Merge + bot commits exempt (the promote's
+  # pre-push merge stays clean).
+  info "DCO sign-off trailer check (scripts/check-dco; enforcing — CONTRIBUTING.md is policy) ..."
   scripts/check-dco || return 1
   # Change-tier shortcut (req-dev-validation-product-line-lanes-7): a docs-tier
   # diff (scripts/change-tier — inert documentation only) cannot red pytest or

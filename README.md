@@ -88,6 +88,14 @@ they install from; a plugin can also ship its own boot records and be stood up
 directly from its repository with `spawn-session.sh --from <pointer>` — each such
 plugin's README is the front door for running it.
 
+## Contributing
+
+Issues and pull requests are welcome — [CONTRIBUTING.md](CONTRIBUTING.md) covers the
+process, the contribution terms (this project uses the
+[Developer Certificate of Origin](DCO), not a CLA — sign off with `git commit -s`), and
+the test and code-quality bar every change is held to. Found a security problem? Do not
+open a public issue — follow [SECURITY.md](SECURITY.md).
+
 ## Interfaces
 
 Each of TAP's external interfaces carries reference documentation:
