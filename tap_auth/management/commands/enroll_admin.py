@@ -37,16 +37,13 @@ from tap_auth.errors import MissingActor
 from tap_auth.invitations import GENESIS_TTL, UsernameTaken, _mint_invitation
 from tap_auth.models import InvitationAction, User, UserKind
 from tap_auth.passkey.dev_record import (
+    DEV_RECORD_RELPATH,
     DevImportNotAllowed,
     DevRecordError,
     assert_dev_import_allowed,
     import_dev_admin,
     load_dev_record,
 )
-
-# Default record location: the operator's read-only secrets mount, mirroring the
-# `export_dev_passkey > ~/tap-secrets/dev-passkey/admin.dev-passkey.json` convention.
-_DEV_RECORD_RELPATH = "dev-passkey/admin.dev-passkey.json"
 
 
 class Command(BaseCommand):
@@ -80,7 +77,7 @@ class Command(BaseCommand):
             "--base-url",
             default="",
             metavar="URL",
-            help="Origin for the enrollment link (default: TAP_PASSKEY_ORIGIN / TAP_BASE_URL).",
+            help="Origin for the enrollment link (default: TAP_PASSKEY_ORIGIN). Must match it — the ceremony compares origins exactly.",
         )
         parser.add_argument(
             "--print-token",
@@ -102,7 +99,7 @@ class Command(BaseCommand):
             metavar="PATH",
             help=(
                 "Path to the exported dev passkey record for --import-dev-passkey "
-                f"(default: $TAP_SECRETS_ROOT/{_DEV_RECORD_RELPATH})."
+                f"(default: $TAP_SECRETS_ROOT/{DEV_RECORD_RELPATH})."
             ),
         )
         parser.add_argument(
@@ -152,7 +149,7 @@ class Command(BaseCommand):
             raise CommandError(str(exc)) from exc
 
         path = reverse("passkey_enroll", args=[invitation.public_id])
-        base_url = (options["base_url"] or self._default_base_url()).rstrip("/")
+        base_url = self._resolve_base_url(options["base_url"])
 
         self.stdout.write(
             self.style.SUCCESS(
@@ -212,7 +209,7 @@ class Command(BaseCommand):
         else:
             # settings.TAP_SECRETS_ROOT is the canonical in-Django lookup
             # (req-tap-cares-secrets-root-resolution) — never re-read the env here.
-            path = Path(settings.TAP_SECRETS_ROOT) / _DEV_RECORD_RELPATH
+            path = Path(settings.TAP_SECRETS_ROOT) / DEV_RECORD_RELPATH
         if not path.is_file():
             raise CommandError(
                 f"dev passkey record not found at {path} — run `manage.py export_dev_passkey` from a "
@@ -220,9 +217,25 @@ class Command(BaseCommand):
             )
         return path
 
-    def _default_base_url(self) -> str:
-        origin = getattr(settings, "TAP_PASSKEY_ORIGIN", "") or getattr(settings, "TAP_BASE_URL", "")
-        return origin or "http://localhost:8000"
+    def _resolve_base_url(self, override: str) -> str:
+        """The enrollment link's base URL: the ceremony's own origin, or a matching override.
+
+        No fallback chain (req-tap-auth-passkey-enrollment-9): a link minted at
+        anything other than TAP_PASSKEY_ORIGIN cannot complete the ceremony, so
+        both the unset case and a mismatched --base-url fail here, loudly, with
+        an actionable message — instead of handing over a dead link.
+        """
+        from django.core.exceptions import ImproperlyConfigured
+
+        from tap_auth.passkey import config as passkey_config
+
+        try:
+            if override:
+                passkey_config.assert_enrollment_origin(override)
+                return override.rstrip("/")
+            return passkey_config.enrollment_base_url().rstrip("/")
+        except ImproperlyConfigured as exc:
+            raise CommandError(str(exc)) from exc
 
     def _warn_if_admins_exist(self) -> None:
         """Genesis targets an empty instance; if a live admin already exists this is a

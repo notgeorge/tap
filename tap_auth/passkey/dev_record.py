@@ -54,6 +54,11 @@ PROFILE_KIND_DEV_LOCAL = "dev_local"
 # second admin).
 DEV_ADMIN_USERNAME = "admin"
 
+#: Default on-disk location of the exported dev passkey record, relative to the
+#: secrets root. One home: both `enroll_admin` and `bootstrap_dev_passkey` import
+#: it rather than restating the path (2026-08 code-clone sweep, finding S2).
+DEV_RECORD_RELPATH = "dev-passkey/admin.dev-passkey.json"
+
 RECORD_VERSION = 1
 _ADMIN_ROLE = "tap_admin"
 

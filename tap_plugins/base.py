@@ -178,7 +178,7 @@ class TapPluginConfig(AppConfig):
         try:
             from django.utils.module_loading import import_string
 
-            from tap_grid.models import EntityType
+            from tap_grid.models import EntityType, EntityTypeKind
 
             for model_entry in self._manifest.models:
                 cls = import_string(model_entry.class_path)
@@ -189,6 +189,10 @@ class TapPluginConfig(AppConfig):
                         "icon": getattr(cls, "ENTITY_ICON", ""),
                         "description": getattr(cls, "ENTITY_DESCRIPTION", ""),
                         "plugin_name": self.name,
+                        # The writer is the only place that knows which kind this is
+                        # (the manifest separates models from edges), so it stamps it
+                        # here — req-grid-entity-type-kind.
+                        "kind": EntityTypeKind.NODE,
                     },
                 )
 
@@ -200,6 +204,7 @@ class TapPluginConfig(AppConfig):
                         "icon": "",
                         "description": edge.description,
                         "plugin_name": self.name,
+                        "kind": EntityTypeKind.EDGE,
                     },
                 )
 

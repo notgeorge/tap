@@ -226,7 +226,7 @@ jobs:
               echo "::error::boot aborted (TAP-ABORT sentinel in web log)"
               docker compose --env-file .env logs web; exit 1
             fi
-            if docker compose --env-file .env exec -T web sh -c 'cd /app && uv run python manage.py health' >/dev/null 2>&1; then
+            if docker compose --env-file .env exec -T web sh -c 'cd /app && uv run python manage.py health --set readiness' >/dev/null 2>&1; then
               echo "web healthy after ~$((i * 3))s"; ok=1; break
             fi
             # 3s, not 10: readiness lands mid-interval, so the poll step is pure
@@ -322,7 +322,7 @@ jobs:
               echo "::error::boot aborted (TAP-ABORT sentinel in web log)"
               docker compose --env-file .env logs web; exit 1
             fi
-            if docker compose --env-file .env exec -T web sh -c 'cd /app && uv run python manage.py health' >/dev/null 2>&1; then
+            if docker compose --env-file .env exec -T web sh -c 'cd /app && uv run python manage.py health --set readiness' >/dev/null 2>&1; then
               echo "web healthy after ~$((i * 3))s"; ok=1; break
             fi
             # 3s, not 10: readiness lands mid-interval, so the poll step is pure

@@ -69,9 +69,55 @@ caches of "what loaded" — they grew to paper over the absence of a persisted-a
 | req-plugin-lifecycle-v1-phases | Ordered idempotent phases | Proposed | `resolve/install → migrate → register types → seed → schedule collectors → mount pages`, each convergent ("ensure X"), declared order (Helm-weight style), phase N+1 gated on N observably complete. |
 | req-plugin-lifecycle-v1-grid-invariant | Fail-closed grid-integrity check | Proposed | Before any grid mutation, assert every registered TAP-managed type has its backing table; abort with a legible "type X registered, table absent — schema/registry divergence" instead of a raw psycopg error. Mechanizes the sacrosanct principle. |
 | req-plugin-lifecycle-v1-grid-tables-single-source | Collapse the two grid-table derivations | Satisfied | **Satisfied by PR #49; superseded by `req-grid-table-classification.sec` (tap_grid/specs/spec-grid-security.md, Implemented) — do not double-build.** Landed shape: a `GRID_TABLE_ROLE` classification declared on the models (`"domain"` once on `BaseModel`, inherited; `"spine"` only on Entity/EntityType), one derivation module `tap_grid/grid_tables.py` consumed by both `read_guard` and `search_role`, an `__init_subclass__` guard so a BaseModel subclass can never declare a role, a fail-closed core-only rule for explicit declarers (security Flaw on violation), and provision-time reconciliation against `pg_tables` (classified-but-absent tables loudly skipped, never a boot abort). The grant/guard consumer relationship (grant = guarded ∪ {tap_entity}) is pinned by test. |
+| req-plugin-lifecycle-v1-departure | Departure: what happens to persisted state when a plugin leaves | Proposed | **OPEN DESIGN QUESTION.** Every ordered phase has an inverse that nothing performs. Measured on a live instance: 56 type-catalog rows owned by a plugin no longer installed, written early in the database's life and never reclaimed. Worse than stale metadata — an entity of a departed plugin's type cannot be resolved at all (`get_model_class` raises `KeyError`). Define the contract: remove, tombstone, or retain-and-mark, per class of persisted state. See [Departure and reclamation](#departure-and-reclamation). |
 | req-plugin-lifecycle-v1-external-boundary | Name the non-transactional seam | Proposed | The pip/filesystem install and external side effects (collector scheduling) sit OUTSIDE the DB transaction. Order them first + idempotent; document them as the phases a future rollback would need to compensate. |
 | req-plugin-lifecycle-v1-profile-drift | Profile vs actual on long-lived instances | Proposed | **OPEN DESIGN QUESTION.** In-place upgrades advance the DB registry (actual) past the boot profile (desired). Define what is authoritative for "what should run" after drift: does the profile stay the desired-state input (operator re-issues it), does an in-place upgrade rewrite/annotate the profile, or does the registry become desired+actual? Reconciliation says desired drives, actual records — but the *source* of desired on a long-lived instance needs a decision. |
 | req-plugin-lifecycle-v1-nongoals | v1 non-goals | Proposed | Automated rollback of committed installs / downgrade paths (Erlang-OTP compensation); Nix-style multi-generation time-travel; continuous background reconciliation (v1 reconciles on load/update/boot, not a watch loop); saga/2PC coordination. Deferred deliberately, not by oversight. |
+
+## Departure and reclamation
+
+RID: `req-plugin-lifecycle-v1-departure`
+
+The phases above describe a plugin *arriving*. Every one of them has an inverse that nothing
+currently performs, so the reconciliation model is only implemented in the growing direction: when
+the desired set **shrinks**, persisted actual state stays where it is. This is the same family as
+the profile-drift question (`req-plugin-lifecycle-v1-profile-drift`) — that one asks what is
+authoritative when *actual* advances past *desired*; this one asks what is owed when *desired*
+retreats behind *actual*.
+
+**Measured, not hypothesised** (2026-08-12, a long-lived dev instance): 56 `EntityType` rows owned by
+a plugin that is no longer installed in the container, written early in that database's life and
+untouched by any transaction since. `TapPluginConfig` is the only writer of those rows, so the plugin
+was in `INSTALLED_APPS` at the time; when it left the app set, nothing reclaimed them.
+
+Three classes of state depart differently, and the contract must address them separately:
+
+1. **In-memory registries** (edge constraints, model registry, health probes, panels) — self-healing:
+   they are rebuilt from whatever loads at startup, so a departed plugin simply stops registering.
+   No action needed, and worth stating explicitly so the asymmetry with persisted state is visible.
+2. **Type-catalog rows** (`EntityType`) — persist with no reclamation path. They surface through
+   `GET /api/v1/entity-types/` as types the instance cannot serve. A second-order trap:
+   `EntityType.kind` can only be stamped by the declaring plugin's own loader
+   (`req-grid-entity-type-kind`), so any row left unclassified at departure can *never* be classified
+   afterwards — the information leaves with the plugin. That is a general lesson for this spec:
+   anything only the plugin knows must be captured while it is present.
+3. **Entity and edge data** — the sharp edge, and the reason this is more than housekeeping. A
+   surviving node of a departed plugin's type cannot be resolved: `get_model_class` raises `KeyError`
+   for an unregistered type, so `resolve_entity` fails rather than degrading. Edges pointing at such
+   nodes inherit the problem. The measured instance did not expose this only because that plugin had
+   registered types without ever populating data; an instance with real data would strand it.
+
+**The decision space** is remove / tombstone / retain-and-mark, and it need not be uniform across the
+three classes — the cheap and safe answer for catalog rows (mark them, so the API can exclude what it
+cannot serve) is almost certainly the wrong answer for data (deleting a departed plugin's nodes is
+destructive and irreversible; a plugin removed by mistake, or temporarily absent from a narrower boot
+profile, must not cost the operator their graph). The grid already carries tombstone-aware querysets
+on `BaseModel`, which is the natural in-codebase prior art to reach for rather than inventing a new
+mechanism.
+
+Note the boundary with the existing non-goals: automated rollback of a committed install stays out of
+scope. This requirement is about **defining the departure contract**, not building compensation — and
+until it is defined, "a plugin left the profile" is an unmodelled state the system silently tolerates.
 
 ## Prior-art basis (for the review discussion)
 
@@ -99,6 +145,10 @@ caches of "what loaded" — they grew to paper over the absence of a persisted-a
 - **Consumes** `spec-plugin-dependency-resolution.md` (depends_on ordering feeds phase ordering).
 - **Feeds** `spec-dev-validation.md` (the fail-closed grid invariant + a migration-path CI discipline:
   exercise fresh-install AND upgrade-from-vN and assert schema convergence).
+- **Consumes** `tap_grid/specs/spec-grid-entity.md` (`req-grid-entity-type-kind`): the type catalog now
+  discriminates node from edge, and records two gaps this spec inherits — first-party types are absent
+  from the catalog (the write belongs in boot's population phase, since `ready()` has no DB access), and
+  catalog rows outlive their plugin (`req-plugin-lifecycle-v1-departure`).
 - **Security posture**: the grid-table single-source (req-…-grid-tables-single-source) closed audit
   finding #1 (read_guard vs search_role divergence) — landed via PR #49 as
   `req-grid-table-classification.sec` in `tap_grid/specs/spec-grid-security.md`. Any table-scoped

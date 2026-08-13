@@ -113,6 +113,8 @@ def provision_search_role(
     declared_tables = [_validate_identifier(t) for t in declared_tables]
     pw = _quote_literal(password)
 
+    from tap_grid.grid_tables import classified_but_absent
+
     def _reconcile() -> list[str]:
         # `transaction.atomic` opens a SAVEPOINT when the caller is already in a transaction
         # (e.g. a test), so a retry after a concurrent-update rollback does not poison the
@@ -131,10 +133,8 @@ def provision_search_role(
             #    table plugin state) must not abort provisioning. Skipping is the fail-safe
             #    direction — not-granted is merely unreadable, never over-exposed — but it
             #    is LOUD, naming every skipped table.
-            cur.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
-            existing = {row[0] for row in cur.fetchall()}
-            granted = [t for t in declared_tables if t in existing]
-            missing = [t for t in declared_tables if t not in existing]
+            missing = classified_but_absent(cur, declared=declared_tables)
+            granted = [t for t in declared_tables if t not in set(missing)]
             if missing:
                 logger.warning(
                     "[f468] search-role grant skipping %d classified-but-absent table(s): %s "

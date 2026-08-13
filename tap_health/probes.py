@@ -1,4 +1,4 @@
-"""Core (platform) health probes: db, cache, queue.
+"""Core (platform) health probes: db, cache, migrations, queue, http serving.
 
 req-tap-health-probes (spec-tap-health-v0.md). Registered from
 `TapHealthConfig.ready()`. Each probe exercises a real backend and returns a
@@ -97,4 +97,101 @@ def probe_queue() -> ProbeResult:
     return ProbeResult.unknown("queue.tables_missing", detail="steady_queue tables not found")
 
 
-__all__ = ["probe_db", "probe_cache", "probe_migrations", "probe_queue"]
+# --- HTTP serving probes (req-tap-health-probes-7) ------------------------------
+#
+# These answer the question a boot gate actually cares about and that no in-process
+# probe can: "is the SERVER answering?" Every other probe runs in the calling
+# process and stays green while the web worker is dead.
+#
+# No new unauthenticated surface is introduced to make this work — that would undo
+# req-tap-health-exposure-4. Instead the probe reads the *authentication* responses
+# as proof of life: an anonymous GET of a walled page returns 302 to the login flow,
+# and an anonymous API GET returns 401. A redirect or a 401 is stronger evidence
+# than a 200 from a bypass route: it proves the WSGI stack, the middleware chain,
+# and the login wall are all executing.
+#
+# Timeouts are the probe's own responsibility. These are the first probes that can
+# HANG (a wedged worker accepts the connection and never replies), and v0
+# deliberately has no runner-level time budget (req-tap-health-probe-registry
+# security considerations) — so the socket timeout below is what bounds a health
+# run, and it is deliberately short.
+_HTTP_TIMEOUT_SECONDS = 2.0
+
+# Anonymous-expected statuses. A 5xx or a connection failure is the real signal.
+_WEB_SERVING_STATUSES = frozenset({200, 302, 303})
+_API_SERVING_STATUSES = frozenset({200, 401, 403})
+
+
+def _probe_serving(path: str, expected: frozenset[int], code_prefix: str) -> ProbeResult:
+    """GET `path` on this instance's own base URL and judge the response.
+
+    Args:
+        path: Absolute path to request (e.g. `/`).
+        expected: Statuses that prove the stack is serving.
+        code_prefix: Probe namespace for the machine `code`.
+
+    Returns:
+        A `ProbeResult`. `unknown` (never `unhealthy`) when no base URL is
+        configured: a process that is not supposed to be serving must not be
+        reported as broken.
+    """
+    from django.conf import settings
+
+    base = (getattr(settings, "TAP_HEALTH_SELF_URL", "") or "").rstrip("/")
+    if not base:
+        return ProbeResult.unknown(
+            f"{code_prefix}.not_configured",
+            detail="TAP_HEALTH_SELF_URL is unset; serving is not probed",
+        )
+
+    url = f"{base}{path}"
+    try:
+        import requests
+
+        response = requests.get(url, timeout=_HTTP_TIMEOUT_SECONDS, allow_redirects=False)
+    except Exception as exc:  # noqa: BLE001 — report, never raise.
+        logger.warning("[c14a] health: %s probe could not reach %s: %s", code_prefix, url, exc)
+        return ProbeResult.unhealthy(
+            f"{code_prefix}.unreachable",
+            detail=f"{type(exc).__name__} requesting {path}",
+            context={"path": path, "timeout_seconds": _HTTP_TIMEOUT_SECONDS},
+        )
+
+    if response.status_code in expected:
+        return ProbeResult.healthy(context={"path": path, "status": response.status_code})
+    logger.warning(
+        "[4d7f] health: %s probe got unexpected status %s from %s",
+        code_prefix,
+        response.status_code,
+        url,
+    )
+    return ProbeResult.unhealthy(
+        f"{code_prefix}.unexpected_status",
+        detail=f"HTTP {response.status_code} from {path}",
+        context={"path": path, "status": response.status_code},
+    )
+
+
+def probe_http_web() -> ProbeResult:
+    """The web stack answers on `/` (200, or 302 into the login wall)."""
+    return _probe_serving("/", _WEB_SERVING_STATUSES, "http.web")
+
+
+def probe_http_api() -> ProbeResult:
+    """The API stack answers on a real router path (401 when anonymous).
+
+    Deliberately an authenticated route rather than the unauthenticated
+    `openapi.json`: a 401 proves routing *and* the auth layer, and costs no
+    schema generation on every poll.
+    """
+    return _probe_serving("/api/v1/entity-types/", _API_SERVING_STATUSES, "http.api")
+
+
+__all__ = [
+    "probe_cache",
+    "probe_db",
+    "probe_http_api",
+    "probe_http_web",
+    "probe_migrations",
+    "probe_queue",
+]

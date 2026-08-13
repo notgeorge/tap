@@ -534,6 +534,28 @@ package.
   profile from that point on; `req-boot-preboot` / `req-boot-install-section` / `req-boot-population`
   are unchanged downstream.
 
+**Credential handling: shared mechanism, reduced validation, explicit boundary.** Stage-0 runs on
+the *host* under bare `python3` (during `spawn-session`, before the container exists), so it cannot
+import the jsonschema-backed install-system module (`tap/plugin_source_auth.py` →
+`tap.runtime_secrets` → `tap.jsonfiles` → `import jsonschema`, venv-only). That boundary is real,
+and it governs exactly one thing — *validation depth* — not the credential mechanism:
+
+- **The `GIT_ASKPASS` handoff is not reimplemented.** The askpass script, its owner-only
+  (`0700`) temp-file lifecycle, `GIT_TERMINAL_PROMPT=0`, and the git runner live in the
+  stdlib-only leaf `tap/git_invocation.py`, imported by BOTH stage-0 and the install system. Two
+  byte-identical copies previously existed (2026-08 code-clone sweep, finding S1) on the
+  never-leak-the-token surface, where a hardening applied to one would silently miss the other.
+  The leaf must remain stdlib-only or the host tools break at spawn time — asserted by test.
+- **Stage-0 DOES check the envelope `kind`** (`github_pat`) before reading `data.token`. This
+  costs no jsonschema, and without it any envelope carrying a `token` field would have its secret
+  handed to whatever git host the pointer names — credential confusion (material for service A
+  transmitted to service B). The host boundary never excused this check.
+- **Stage-0 does NOT validate the `data` block against the source schema** — that needs
+  jsonschema. A right-kind/wrong-shape envelope is caught downstream instead: the clone itself
+  fails loud on a bad token, and the in-container install path re-resolves and fully validates the
+  record's own per-entry credentials (`req-plugin-arch-source-secret`). This is the named,
+  bounded reduction (`req-sec-honest-risk`), not an omission.
+
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
@@ -541,6 +563,9 @@ package.
 | req-boot-bootstrap-stage0-1 | Extract Not Install | Proposed | Stage-0 reads `boot/<record>.boot.json` out of the artifact without installing/importing the package. | |
 | req-boot-bootstrap-stage0-2 | Settings-Free + Abort-Safe | Proposed | Stage-0 stays Django-free and runs before `migrate`; a bad pointer aborts with the DB untouched. | Extends `req-boot-preboot-4` |
 | req-boot-bootstrap-stage0-3 | Self-Reference | Proposed | The staged record names its own plugin in `install`, so the bootstrap plugin is properly installed in the normal stage (app-of-apps). | |
+| req-boot-bootstrap-stage0-4 | Shared Credential Mechanism | Implemented | The `GIT_ASKPASS` handoff and git runner come from the stdlib-only `tap/git_invocation.py` leaf, shared with the install system — never a second copy. The leaf's stdlib-only property is asserted by test (host tools run under bare `python3`). | Closes code-clone sweep S1. |
+| req-boot-bootstrap-stage0-5 | Kind Checked Before Token Use | Implemented | Stage-0 refuses an envelope whose `kind` is not `github_pat` before reading `data.token`, so a credential for another service is never transmitted to the git host. | No jsonschema needed; the boundary is no excuse. |
+| req-boot-bootstrap-stage0-6 | Schema Validation Deferred, Named | Implemented | Stage-0 does not validate the `data` block against the source schema (jsonschema is venv-only); the clone failing loud plus the in-container install path's full validation are the named downstream backstops. | `req-sec-honest-risk` — bounded, documented. |
 
 ---
 
