@@ -3230,7 +3230,7 @@ def _grift_import_impl(
     # There is no alternate flag, override, or settings key that enables it
     # in any other configuration. Refuse with a dedicated error code so the
     # operator sees exactly why it was rejected.
-    if force_batches_set and not getattr(settings, "DEBUG", False):
+    if force_batches_set and not settings.DEBUG:
         return GriftImportResult(
             success=False,
             grift_version="",
@@ -3252,7 +3252,7 @@ def _grift_import_impl(
         )
     # req-grid-import-grift-sweep-purge env gate: same invariant, applied
     # independently so --purge refusals are distinguishable.
-    if purge and not getattr(settings, "DEBUG", False):
+    if purge and not settings.DEBUG:
         return GriftImportResult(
             success=False,
             grift_version="",

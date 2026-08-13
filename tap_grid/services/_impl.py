@@ -643,7 +643,7 @@ def _assert_debug_for_purge(verb_name: str = "purge_node") -> None:
     """
     from django.conf import settings
 
-    if not getattr(settings, "DEBUG", False):
+    if not settings.DEBUG:
         raise ServiceConflictError(
             f"{verb_name} is permitted only when DEBUG=True (purge_refused_production); " "see req-grid-service-purge."
         )
@@ -659,7 +659,7 @@ def _assert_test_or_debug(fn_name: str) -> None:
 
     from django.conf import settings
 
-    if not getattr(settings, "DEBUG", False) and "PYTEST_CURRENT_TEST" not in os.environ:
+    if not settings.DEBUG and "PYTEST_CURRENT_TEST" not in os.environ:
         raise RuntimeError(
             f"{fn_name} is for tests only; it refuses to run outside DEBUG / pytest. "
             "Production code should use the subsystem-owned trusted-internal helper instead."

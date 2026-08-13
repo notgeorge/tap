@@ -98,8 +98,16 @@ fi
 # aborts here, before any schema mutation, leaving the DB untouched (req-boot-preboot).
 # It is the Kubernetes initContainers shape: a run-to-completion stage before the
 # main process. `manage.py boot` (population) still runs at spawn time.
-echo "==> Pre-boot: installing declared plugins + pre-migrate snapshot (profile: ${TAP_BOOT_PROFILE:-core_dev})..."
-if ! TAP_PLUGINS="$(uv run python -m tap.preboot --profile "${TAP_BOOT_PROFILE:-core_dev}")"; then
+# Resolve the boot profile ONCE. Pre-boot (which installs the plugins) and the FIPS
+# gate (which reads that profile's fips_waivers) MUST agree on which profile booted;
+# resolving `unset -> core_dev` separately at each site is one edit away from gating
+# a different profile than the one installed. Empty means the lean core_dev baseline —
+# spawn's documented contract (scripts/spawn-session.sh, req-boot-minimal-baseline),
+# whose peer default writes the resolved id into .env.local — edit one, check the other.
+BOOT_PROFILE_ID="${TAP_BOOT_PROFILE:-core_dev}"
+
+echo "==> Pre-boot: installing declared plugins + pre-migrate snapshot (profile: ${BOOT_PROFILE_ID})..."
+if ! TAP_PLUGINS="$(uv run python -m tap.preboot --profile "$BOOT_PROFILE_ID")"; then
     # tap.preboot already emits its own `TAP-ABORT: preboot: …` on a PrebootError;
     # this covers the case where the process died without one (e.g. uv itself failed).
     emit_abort preboot "pre-boot stage failed; aborting standup before migrate (DB untouched)"
@@ -129,7 +137,7 @@ echo "==> Pre-boot complete. TAP_PLUGINS=[${TAP_PLUGINS:-<none>}]"
 # `uv sync`, so scanning before pre-boot would miss every plugin — the exact thing this gate exists to
 # catch (a plugin leaking non-FIPS crypto). Still before migrate/serve, so a leak refuses to serve.
 echo "==> System FIPS-provider gate (crypto-BOM: core + all plugins)..."
-if ! uv run python -m tap.crypto_bom --gate --profile "${TAP_BOOT_PROFILE:-core_dev}"; then
+if ! uv run python -m tap.crypto_bom --gate --profile "$BOOT_PROFILE_ID"; then
     emit_abort crypto-bom "system FIPS-provider gate failed: a non-validated, un-waived crypto provider is present (see above); refusing to serve"
     exit 1
 fi

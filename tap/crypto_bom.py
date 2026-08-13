@@ -573,17 +573,36 @@ def format_report(report: Report) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     """CLI. `--gate --profile <id>` runs the boot-time global FIPS validation (fail-closed with a
-    TAP-ABORT on an unwaived leak); with no args it prints the core report (report-only)."""
+    TAP-ABORT on an unwaived leak); with no args it prints the core report (report-only).
+
+    `--profile` defaults to `TAP_BOOT_PROFILE`, and to NOTHING (no waivers) when that is
+    unset — never to an invented profile id, whose waivers the operator did not choose.
+    """
     parser = argparse.ArgumentParser(description="TAP crypto Bill-of-Materials scanner / FIPS-provider gate.")
     parser.add_argument("--gate", action="store_true", help="enforce the system FIPS-provider gate (fail-closed)")
     parser.add_argument(
-        "--profile", default=os.environ.get("TAP_BOOT_PROFILE") or "core_dev", help="boot profile id (for fips_waivers)"
+        "--profile",
+        default=os.environ.get("TAP_BOOT_PROFILE") or "",
+        help="boot profile id whose fips_waivers apply; omit to gate with NO waivers",
     )
     args = parser.parse_args(argv)
 
     if not args.gate:
         print(format_report(core_report()))
         return 0
+
+    # No invented default. The old `or "core_dev"` silently applied a DEV profile's
+    # waivers to whatever instance was being gated whenever this ran outside the
+    # entrypoint (which passes the resolved profile explicitly) — a waiver borrowed
+    # from a profile the operator never chose. Absent profile now means NO waivers:
+    # the strictest outcome, and loud about why.
+    if not args.profile:
+        print(
+            "crypto-bom: no boot profile given (--profile / TAP_BOOT_PROFILE unset); "
+            "gating with NO operator waivers. A legitimately waived provider will fail "
+            "here until you name the profile.",
+            file=sys.stderr,
+        )
 
     try:
         code, report = system_fips_gate(args.profile)
@@ -596,7 +615,12 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"TAP-ABORT: crypto-bom: FIPS mode is on but {len(report.failures)} crypto provider(s) are "
             f"non-validated and un-waived: {leaks}. Fix the plugin, or add a justified operator waiver "
-            f"to boot/{args.profile}.boot.json 'fips_waivers'.",
+            + (
+                f"to boot/{args.profile}.boot.json 'fips_waivers'."
+                if args.profile
+                else "to the boot profile's 'fips_waivers' — and name that profile here via "
+                "--profile / TAP_BOOT_PROFILE, since no profile was given, so NO waivers applied."
+            ),
             file=sys.stderr,
         )
         return 1

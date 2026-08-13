@@ -29,6 +29,7 @@ import jsonschema  # type: ignore[import-untyped]
 from django import forms
 from django.core.exceptions import ValidationError
 
+from tap_web.panel import TABULATOR_CSS, TABULATOR_JS
 from tap_web.utils import safe_json
 
 if TYPE_CHECKING:
@@ -195,8 +196,8 @@ class TablePanelType:
     label = "Table Panel"
     view = "tap_web/panels/table_panel.html"
     editor_view = "tap_web/panels/table_panel_editor.html"
-    css: list[str] = ["tap_web/css/lib/tabulator.min.css", "tap_web/css/tabulator-minimal.css"]
-    js: list[str] = ["tap_web/js/lib/tabulator.min.js", "tap_web/js/panel-table.js"]
+    css: list[str] = [*TABULATOR_CSS]
+    js: list[str] = [*TABULATOR_JS]
     config_defaults: dict[str, Any] = {
         "column_mode": _DEFAULT_COLUMN_MODE,
         "default_page_size": _DEFAULT_PAGE_SIZE,

@@ -60,7 +60,16 @@ if TYPE_CHECKING:
 
 from tap_grid.caller_context import CallerContext, set_caller_context
 
-_TAP_TEST_KEY = "tap_test"
+
+def _tap_test_key() -> str:
+    """The built-in test-actor key — tap_auth.sync is its one definition.
+
+    Imported lazily: tap/ must not import a tap_* app at module scope, and this
+    harness only needs the key inside a fixture body.
+    """
+    from tap_auth.sync import ACTOR_TEST
+
+    return ACTOR_TEST
 
 
 @pytest.fixture(scope="session")
@@ -102,12 +111,12 @@ def _resolve_test_actor() -> AbstractUser:
     from django.contrib.auth import get_user_model
 
     user_model = get_user_model()
-    actor = user_model.objects.filter(tap_builtin_key=_TAP_TEST_KEY).first()
+    actor = user_model.objects.filter(tap_builtin_key=_tap_test_key()).first()
     if actor is None:
         from tap_auth.sync import sync_auth
 
         sync_auth()
-        actor = user_model.objects.get(tap_builtin_key=_TAP_TEST_KEY)
+        actor = user_model.objects.get(tap_builtin_key=_tap_test_key())
     return actor
 
 
