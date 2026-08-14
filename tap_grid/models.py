@@ -1342,6 +1342,10 @@ class Keystone(BaseModel):
     def validate(self) -> None:
         """Self-describing-context contract (req-grid-keystone-validation).
 
+        TAP-IMPLEMENTS: req-grid-keystone-validation@5d6b0a36a8c2 (derivation) — the
+            whole-record hook is the one place the three context rules are derived;
+            every service-layer / GRIFT write reaches them through full_validate().
+
         1. context present  ⇒ a context schema is required.
         2. schema present    ⇒ it must be a valid JSON Schema.
         3. schema present    ⇒ context_json must conform to it.

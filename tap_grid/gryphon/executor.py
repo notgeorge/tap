@@ -2558,6 +2558,10 @@ def _rows_from_values(
 def materialize_rows(plan: MaterializationPlan) -> list[dict[str, Any]]:
     """The shared Layer-B row backend: a resolved plan -> the ``rows`` list.
 
+    TAP-IMPLEMENTS: req-grid-traversal-exec-row-materialization@edbd98db287d (derivation) —
+        the requirement exists to forbid per-dispatch row tails; this function is the one
+        backend every shape reaches, so a fifth row tail is a defect by construction.
+
     Shape-agnostic. It applies the plan's pre-resolved annotations, projects
     through ``.values()``, applies aggregates, ordering, and LIMIT, and builds the
     row dicts — reached identically by the type-scan, edge-chain, and OPTIONAL

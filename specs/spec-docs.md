@@ -366,6 +366,27 @@ The first doc to run through this system is the developer onboarding for multi-s
 
 Lessons learned from the trial fold back into this spec.
 
+## Requirement Review Needed
+
+Open questions where the documentation system makes no ruling. Recorded, not decided. Indexed
+across all specs in [doc-tap-requirement-review-ledger.md](../docs/misc/doc-tap-requirement-review-ledger.md).
+
+### Retired-in-place specs
+
+`tap_auth/specs/spec-tap-auth-assurance-v0.md` is explicitly retired (2026-07-08, "kept for
+posterity") but lives in a living-surface path. Its heading-style `req-tap-auth-assurance-*`
+IDs scan as citations rather than definitions, making them permanent danglers — the 16-entry
+floor of the `rid-reference-integrity` baseline (2026-08-14 burn-down). Editing a retirement
+record so its own RIDs "resolve" would falsify the record, so no fix is available inside the
+current rules. The archival exclusion (`req-docs-rid-integrity-3`) covers `docs/aar/` and
+postmortems but says nothing about a retired spec kept in place.
+
+Decisions required:
+
+1. Where does a retired spec live — moved to an archival corpus, or retired in place?
+2. If retired in place, does the archival exclusion extend to specs that declare their own
+   retirement (and how is that declaration made machine-legible)?
+
 ## Status Vocabulary
 
 Standard TAP states: `Proposed`, `Approved for Development`, `In Development`, `Implemented`, `Verified`, `Refactoring`, `Deprecating`, `Deprecated`, `Backlog`.

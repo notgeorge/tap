@@ -53,6 +53,8 @@ moves to Resolved.
 | # | Kind | Decision | Owning spec | Surfaced |
 | :---: | --- | --- | --- | :---: |
 | 1 | Ungoverned choice | Default graph placement — is `cytoscape:cose` a system-wide default, a per-consumer choice, or neither? | [spec-viz-panel.md](../../tap_viz/specs/spec-viz-panel.md) → *Requirement Review Needed* → Default graph placement | 2026-08-14 |
+| 2 | Disputed requirement | `req-sphinx-docs-capability-blocks` — deprecated as "never built", yet the gryphon executor/AST modules carry 10+ live `tap:capability` blocks with the retired `:implements:` field. Stay, go, or convert? Until ruled: no new blocks, and no `TAP-IMPLEMENTS` claims on functions already carrying one. | [spec-sphinx-capability-docs.md](../../specs/spec-sphinx-capability-docs.md) → *Requirement Review Needed* | 2026-08-14 |
+| 3 | Ungoverned choice | Retired-in-place specs — `spec-tap-auth-assurance-v0.md` (retired 2026-07-08) lives in a living-surface path with heading-style RIDs that scan as permanent danglers (the 16-entry floor of the RID baseline). Move to an archival corpus, extend the archival exclusion to retired-in-place specs, or leave recorded? | [spec-docs.md](../../specs/spec-docs.md) → *Requirement Review Needed* → Retired-in-place specs | 2026-08-14 |
 
 ## Related backlogs
 

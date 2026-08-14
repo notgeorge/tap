@@ -414,7 +414,7 @@ Generated — do not hand-edit. Regenerate with `manage.py guards --sync-evidenc
 
 <!-- BEGIN GENERATED EVIDENCE — manage.py guards --sync-evidence -->
 
-**1129** requirements · **19** standing doctrine · **0** disputed · **20** carry evidence · **1** carry both classes · **503** declared built with none.
+**1129** requirements · **19** standing doctrine · **1** disputed · **22** carry evidence · **1** carry both classes · **501** declared built with none.
 
 Separate facts, deliberately not blended into one percentage. **Doctrine** is outside the coverage question — in force now, never "completed", expecting conformance rather than an implementation. **Disputed** marks a spec-versus-implementation disagreement awaiting a human ruling — its claims are pointers to the contested code, never resolution, and the count should trend to zero. **Declared built with none** is context, not a defect list: claims are opt-in and scarce by design (`req-tap-traceability-scope`), so it measures how much of the corpus has been deliberately targeted, not how much is wrong. Collapsing these into a single coverage score is what makes such a score meaningless.
 
@@ -422,8 +422,10 @@ Separate facts, deliberately not blended into one percentage. **Doctrine** is ou
 | --- | --- | --- | --- | --- |
 | `req-cicd-dco-signoff` | — | Tested | — | `req-cicd-dco-signoff-2`, `req-cicd-dco-signoff-3`, `req-cicd-dco-signoff-4` |
 | `req-grid-edge-schema-required` | Proposed | Implemented | `validate_edge_properties` | — |
+| `req-grid-keystone-validation` | Implemented | Implemented | `Keystone.validate` | — |
 | `req-grid-service-pipeline-context` | Implemented | Implemented | `require_caller_context` | — |
 | `req-grid-table-classification.sec` | Implemented | Verified | `classified_models` | `req-grid-table-classification.sec-6` |
+| `req-grid-traversal-exec-row-materialization` | Implemented | Implemented | `materialize_rows` | — |
 | `req-grift-envelope-validation` | In Development | Implemented | `parse_envelope_for_write` | — |
 | `req-plugin-load-v0-ready-chain` | Implemented | Tested | — | `req-plugin-load-v0-ready-chain-1`, `req-plugin-load-v0-ready-chain-2` |
 | `req-tap-auth-passkey-dev-bootstrap` | Implemented | Tested | — | `req-tap-auth-passkey-dev-bootstrap-1`, `req-tap-auth-passkey-dev-bootstrap-10`, `req-tap-auth-passkey-dev-bootstrap-11`, `req-tap-auth-passkey-dev-bootstrap-13`, `req-tap-auth-passkey-dev-bootstrap-14`, `req-tap-auth-passkey-dev-bootstrap-15`, `req-tap-auth-passkey-dev-bootstrap-3`, `req-tap-auth-passkey-dev-bootstrap-4`, `req-tap-auth-passkey-dev-bootstrap-6`, `req-tap-auth-passkey-dev-bootstrap-7`, `req-tap-auth-passkey-dev-bootstrap-8`, `req-tap-auth-passkey-dev-bootstrap-9` |
@@ -443,7 +445,9 @@ Separate facts, deliberately not blended into one percentage. **Doctrine** is ou
 
 **Disputed** — the spec and the implementation disagree; each entry pairs with a row in the requirement-review ledger and a section in its owning spec (`req-tap-traceability-disputed`):
 
-None.
+| Requirement | Contested code (claims) | Verified by |
+| --- | --- | --- |
+| `req-sphinx-docs-capability-blocks` | — | — |
 
 **Declared unbuilt, but evidence exists** — reported, never failed; a requirement can be partly built, and a doctrine requirement is cited as guidance:
 

@@ -38,7 +38,7 @@ style capability objects.
 | --- | --- | :---: | --- |
 | req-sphinx-docs-toolchain | [Sphinx Toolchain](#sphinx-toolchain) | Proposed | Intended packages and static-first extraction posture |
 | req-sphinx-docs-source-layout | [Source Layout](#source-layout) | Proposed | Root misc docs, core app docs, plugin docs; source files only |
-| req-sphinx-docs-capability-blocks | [Capability Blocks](#capability-blocks) | Deprecated | Superseded by `req-tap-traceability-claim`; the capability-catalogue half is not carried forward |
+| req-sphinx-docs-capability-blocks | [Capability Blocks](#capability-blocks) | Disputed | Deprecation says "never built"; the tree carries 10+ live blocks — see Requirement Review Needed |
 | req-sphinx-docs-metadata | [Capability Metadata](#capability-metadata) | Proposed | Audience, affordance, status, since/changed, spec/test/doc links |
 | req-sphinx-docs-versioning | [Versioning And Change History](#versioning-and-change-history) | Proposed | Git is exact history; capability metadata records meaningful behavioral milestones |
 | req-sphinx-docs-gap-tracking | [Advisory Gap Tracking](#advisory-gap-tracking) | Proposed | Generated reports plus `docs/capability-known-gaps.toml` later |
@@ -118,7 +118,7 @@ Sphinx/Needs inventory is not enough for installed-doc discovery.
 ### Capability Blocks
 ----
 RID: `req-sphinx-docs-capability-blocks`
-Status: `Deprecated`
+Status: `Disputed`
 
 #### Status Details
 
@@ -129,6 +129,14 @@ The overlap is the `:implements: req-…` field proposed below. Two docstring co
 relationship — "this code realizes that requirement" — would be exactly the duplication that spec
 exists to prevent, so `TAP-IMPLEMENTS` is the single mechanism and this block is retired rather
 than layered on top of it.
+
+**Disputed 2026-08-14** (`req-tap-traceability-disputed`). The deprecation's factual basis —
+"never built" — does not match the tree: `tap_grid/gryphon/executor.py` and
+`tap_grid/gryphon/ast_nodes.py` carry 10+ live, maintained `.. tap:capability::` blocks, each
+with the `:implements:` field this ruling retired, plus `:status:`, `:covered-by:` (gridkin
+scenario links) and `:limitations:`. The Sphinx *rendering machinery* was never built; the
+*authoring convention* demonstrably was. See the Requirement Review Needed section below and
+the requirement-review ledger.
 
 **What is not carried forward, stated honestly:** a capability block was broader than a traceability
 link — it also carried audience, affordance kind, status, validating tests and doc links, i.e. a
@@ -441,6 +449,28 @@ shape.
   `covered-by` reference to it. The advisory gap report (`req-sphinx-docs-gap-tracking`)
   catches the break after the fact; an explicit stable `id` field on Gridkin
   scenarios would prevent it. Accepted as-is for v0.
+
+## Requirement Review Needed
+
+Open questions where the spec and the tree disagree. Recorded, not decided. Indexed across all
+specs in [doc-tap-requirement-review-ledger.md](../docs/misc/doc-tap-requirement-review-ledger.md).
+
+### Live capability blocks under a deprecated convention
+
+`req-sphinx-docs-capability-blocks` is marked superseded-and-never-built, yet the gryphon
+executor and AST modules carry 10+ maintained `tap:capability` blocks whose `:implements:`
+fields restate exactly the ownership relation `TAP-IMPLEMENTS` now owns. The blocks are
+high-quality reader-facing affordance documentation (audience, limitations, gridkin coverage
+links) — the catalogue half the deprecation honestly said it was not carrying forward.
+
+Decisions required:
+
+1. Do the existing blocks stay, go, or convert? (Strip to prose; convert `:implements:` to
+   `TAP-IMPLEMENTS` claims and keep the rest; or leave as-is under a revived convention.)
+2. If a capability catalogue is wanted, it must be re-proposed to *consume* the traceability
+   claim rather than restate it — who owns that proposal?
+3. Until ruled: no new `tap:capability` blocks, and no `TAP-IMPLEMENTS` claims on functions
+   already carrying a block (two formats on one function pre-empts the ruling).
 
 ## Status Vocabulary
 
