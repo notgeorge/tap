@@ -1,5 +1,9 @@
 """Settings-free git-source credential resolution for the pre-boot plugin install.
 
+TAP-IMPLEMENTS: req-plugin-arch-source-secret@4a96bdf8263b (derivation) — the spec's own
+build note names this module as the implementation: resolve via ``tap/runtime_secrets``,
+validate against the install-owned schema, feed ``git`` via ``GIT_ASKPASS``.
+
 The private-repo half of the ``git`` source (`req-plugin-arch-sources-2`): a
 profile's ``install`` entry may name a source-scoped credential, which pre-boot
 resolves and hands to ``git`` **via ``GIT_ASKPASS``, never in the URL** — a token

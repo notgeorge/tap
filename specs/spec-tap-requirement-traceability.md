@@ -414,12 +414,13 @@ Generated — do not hand-edit. Regenerate with `manage.py guards --sync-evidenc
 
 <!-- BEGIN GENERATED EVIDENCE — manage.py guards --sync-evidence -->
 
-**1129** requirements · **19** standing doctrine · **1** disputed · **22** carry evidence · **1** carry both classes · **501** declared built with none.
+**1129** requirements · **19** standing doctrine · **1** disputed · **30** carry evidence · **1** carry both classes · **497** declared built with none.
 
 Separate facts, deliberately not blended into one percentage. **Doctrine** is outside the coverage question — in force now, never "completed", expecting conformance rather than an implementation. **Disputed** marks a spec-versus-implementation disagreement awaiting a human ruling — its claims are pointers to the contested code, never resolution, and the count should trend to zero. **Declared built with none** is context, not a defect list: claims are opt-in and scarce by design (`req-tap-traceability-scope`), so it measures how much of the corpus has been deliberately targeted, not how much is wrong. Collapsing these into a single coverage score is what makes such a score meaningless.
 
 | Requirement | Declared | Derived | Implementation | Verified by |
 | --- | --- | --- | --- | --- |
+| `req-boot-bootstrap-pointer-grammar` | Proposed | Implemented | `parse_pointer` | — |
 | `req-cicd-dco-signoff` | — | Tested | — | `req-cicd-dco-signoff-2`, `req-cicd-dco-signoff-3`, `req-cicd-dco-signoff-4` |
 | `req-grid-edge-schema-required` | Proposed | Implemented | `validate_edge_properties` | — |
 | `req-grid-keystone-validation` | Implemented | Implemented | `Keystone.validate` | — |
@@ -427,7 +428,9 @@ Separate facts, deliberately not blended into one percentage. **Doctrine** is ou
 | `req-grid-table-classification.sec` | Implemented | Verified | `classified_models` | `req-grid-table-classification.sec-6` |
 | `req-grid-traversal-exec-row-materialization` | Implemented | Implemented | `materialize_rows` | — |
 | `req-grift-envelope-validation` | In Development | Implemented | `parse_envelope_for_write` | — |
+| `req-plugin-arch-source-secret` | Implemented | Implemented | `<module>` | — |
 | `req-plugin-load-v0-ready-chain` | Implemented | Tested | — | `req-plugin-load-v0-ready-chain-1`, `req-plugin-load-v0-ready-chain-2` |
+| `req-service-boundary-guard` | Proposed | Implemented | `<module>` | — |
 | `req-tap-auth-passkey-dev-bootstrap` | Implemented | Tested | — | `req-tap-auth-passkey-dev-bootstrap-1`, `req-tap-auth-passkey-dev-bootstrap-10`, `req-tap-auth-passkey-dev-bootstrap-11`, `req-tap-auth-passkey-dev-bootstrap-13`, `req-tap-auth-passkey-dev-bootstrap-14`, `req-tap-auth-passkey-dev-bootstrap-15`, `req-tap-auth-passkey-dev-bootstrap-3`, `req-tap-auth-passkey-dev-bootstrap-4`, `req-tap-auth-passkey-dev-bootstrap-6`, `req-tap-auth-passkey-dev-bootstrap-7`, `req-tap-auth-passkey-dev-bootstrap-8`, `req-tap-auth-passkey-dev-bootstrap-9` |
 | `req-tap-auth-passkey-enrollment` | Proposed | Tested | — | `req-tap-auth-passkey-enrollment-1`, `req-tap-auth-passkey-enrollment-2`, `req-tap-auth-passkey-enrollment-3`, `req-tap-auth-passkey-enrollment-6`, `req-tap-auth-passkey-enrollment-8` |
 | `req-tap-auth-passkey-genesis` | Proposed | Tested | — | `req-tap-auth-passkey-genesis-3`, `req-tap-auth-passkey-genesis-4` |
@@ -441,6 +444,11 @@ Separate facts, deliberately not blended into one percentage. **Doctrine** is ou
 | `req-tap-health-probes` | Implemented | Tested | — | `req-tap-health-probes-3`, `req-tap-health-probes-7`, `req-tap-health-probes-8`, `req-tap-health-probes-9` |
 | `req-tap-health-selection` | Implemented | Tested | — | `req-tap-health-selection-1`, `req-tap-health-selection-2`, `req-tap-health-selection-3`, `req-tap-health-selection-4`, `req-tap-health-selection-5` |
 | `req-tap-health-service` | Implemented | Tested | — | `req-tap-health-service-3`, `req-tap-health-service-5` |
+| `req-tap-json-discovery` | Implemented | Implemented | `discover_json_files` | — |
+| `req-tap-json-loader` | Implemented | Implemented | `<module>` | — |
+| `req-tap-json-scanner` | Implemented | Implemented | `scan_json_files` | — |
+| `req-tap-logging-config-location` | Proposed | Implemented | `build_logging_config` | — |
+| `req-tap-tree-scanner-substrate` | Proposed | Implemented | `<module>` | — |
 | `req-web-page-dim` | Implemented | Implemented | `<module>` | — |
 
 **Disputed** — the spec and the implementation disagree; each entry pairs with a row in the requirement-review ledger and a section in its owning spec (`req-tap-traceability-disputed`):
@@ -453,11 +461,15 @@ Separate facts, deliberately not blended into one percentage. **Doctrine** is ou
 
 | Requirement | Declared | Derived |
 | --- | --- | --- |
+| `req-boot-bootstrap-pointer-grammar` | Proposed | Implemented |
 | `req-grid-edge-schema-required` | Proposed | Implemented |
+| `req-service-boundary-guard` | Proposed | Implemented |
 | `req-tap-auth-passkey-enrollment` | Proposed | Tested |
 | `req-tap-auth-passkey-genesis` | Proposed | Tested |
 | `req-tap-auth-passkey-rollout` | Proposed | Tested |
 | `req-tap-auth-passkey-webauthn` | Proposed | Tested |
+| `req-tap-logging-config-location` | Proposed | Implemented |
+| `req-tap-tree-scanner-substrate` | Proposed | Implemented |
 
 **Declared `Verified` without two evidence classes** — this one fails (`req-tap-traceability-status`):
 
