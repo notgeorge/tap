@@ -414,15 +414,17 @@ Generated — do not hand-edit. Regenerate with `manage.py guards --sync-evidenc
 
 <!-- BEGIN GENERATED EVIDENCE — manage.py guards --sync-evidence -->
 
-**1129** requirements · **19** standing doctrine · **0** disputed · **18** carry evidence · **1** carry both classes · **497** declared built with none.
+**1129** requirements · **19** standing doctrine · **0** disputed · **20** carry evidence · **1** carry both classes · **503** declared built with none.
 
 Separate facts, deliberately not blended into one percentage. **Doctrine** is outside the coverage question — in force now, never "completed", expecting conformance rather than an implementation. **Disputed** marks a spec-versus-implementation disagreement awaiting a human ruling — its claims are pointers to the contested code, never resolution, and the count should trend to zero. **Declared built with none** is context, not a defect list: claims are opt-in and scarce by design (`req-tap-traceability-scope`), so it measures how much of the corpus has been deliberately targeted, not how much is wrong. Collapsing these into a single coverage score is what makes such a score meaningless.
 
 | Requirement | Declared | Derived | Implementation | Verified by |
 | --- | --- | --- | --- | --- |
 | `req-cicd-dco-signoff` | — | Tested | — | `req-cicd-dco-signoff-2`, `req-cicd-dco-signoff-3`, `req-cicd-dco-signoff-4` |
+| `req-grid-edge-schema-required` | Proposed | Implemented | `validate_edge_properties` | — |
 | `req-grid-service-pipeline-context` | Implemented | Implemented | `require_caller_context` | — |
 | `req-grid-table-classification.sec` | Implemented | Verified | `classified_models` | `req-grid-table-classification.sec-6` |
+| `req-grift-envelope-validation` | In Development | Implemented | `parse_envelope_for_write` | — |
 | `req-plugin-load-v0-ready-chain` | Implemented | Tested | — | `req-plugin-load-v0-ready-chain-1`, `req-plugin-load-v0-ready-chain-2` |
 | `req-tap-auth-passkey-dev-bootstrap` | Implemented | Tested | — | `req-tap-auth-passkey-dev-bootstrap-1`, `req-tap-auth-passkey-dev-bootstrap-10`, `req-tap-auth-passkey-dev-bootstrap-11`, `req-tap-auth-passkey-dev-bootstrap-13`, `req-tap-auth-passkey-dev-bootstrap-14`, `req-tap-auth-passkey-dev-bootstrap-15`, `req-tap-auth-passkey-dev-bootstrap-3`, `req-tap-auth-passkey-dev-bootstrap-4`, `req-tap-auth-passkey-dev-bootstrap-6`, `req-tap-auth-passkey-dev-bootstrap-7`, `req-tap-auth-passkey-dev-bootstrap-8`, `req-tap-auth-passkey-dev-bootstrap-9` |
 | `req-tap-auth-passkey-enrollment` | Proposed | Tested | — | `req-tap-auth-passkey-enrollment-1`, `req-tap-auth-passkey-enrollment-2`, `req-tap-auth-passkey-enrollment-3`, `req-tap-auth-passkey-enrollment-6`, `req-tap-auth-passkey-enrollment-8` |
@@ -447,6 +449,7 @@ None.
 
 | Requirement | Declared | Derived |
 | --- | --- | --- |
+| `req-grid-edge-schema-required` | Proposed | Implemented |
 | `req-tap-auth-passkey-enrollment` | Proposed | Tested |
 | `req-tap-auth-passkey-genesis` | Proposed | Tested |
 | `req-tap-auth-passkey-rollout` | Proposed | Tested |
