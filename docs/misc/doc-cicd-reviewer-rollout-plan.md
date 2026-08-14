@@ -12,7 +12,7 @@ update-triggers:
   - GitHub changes where Copilot code review reads custom instructions from (currently the head branch)
   - The parked `actionlint` / `zizmor` gap in Step 0 is closed — remove those rows
 assumes:
-  - All 16 `unified-systems-com` repos are public and Apache-2.0 (unlocks every free tier used here)
+  - All 16 `unified-systems-com` repos are public and Apache-2.0 (unlocks the Codacy and Sonar free tiers, and exempts Copilot from per-review usage billing)
   - The PR promote flow (promote-to-main.sh → PR → `gate` required check → auto-merge) is the road to main
   - No reviewer holds `contents: write` — this is the hard filter, not a preference
 provides: |
@@ -34,12 +34,13 @@ after the roster was rebuilt from scratch on permission evidence — see
 
 | Seat | What it is | Job | Cost | Status |
 | --- | --- | --- | --- | --- |
-| **Copilot code review** | First-party GitHub | Daily-life: summaries, correctness, hygiene | $10/mo Pro, or free for verified OSS maintainers | To install |
+| **Copilot code review** | First-party GitHub | Daily-life: summaries, correctness, hygiene | $10/mo Pro | Licensed 2026-08-14; ruleset pending |
 | **Codex** (`openai/codex-action`) | Runs in our CI, permissions we write | The independence leg + the malicious-change lens | API usage (trivial at ~44 PRs/mo) | To install |
 | **Codacy** | Third-party App, `contents: read` | Security observability — SAST, SCA, secrets, duplication | Free, unlimited public repos | To install |
 | **SonarQube Cloud** | Third-party App, `contents: read` | Security observability — rules, vulnerabilities, quality gate | Free, all open source | To install |
 
-Total recurring cost: **$0–120/year**, depending on whether the OSS-maintainer path works.
+Total recurring cost: **$120/year** (Copilot Pro) plus Codex API usage — trivial at ~44 PRs/mo.
+Codacy and SonarQube Cloud are free on public repositories with no time limit.
 
 ### Why this roster and not the obvious one
 
@@ -146,13 +147,12 @@ own change.
 
 ## Step 1 — Copilot code review (10 min)
 
-### 1a. Get the licence — *both routes, per the decision above*
+### 1a. Get the licence — DONE 2026-08-14
 
-Buy **Copilot Pro** ($10/mo — automatic review requires Pro or higher) to unblock this step now,
-**and** apply through GitHub's free-access programme for **verified open-source maintainers**, who
-get complimentary Pro. Cancel Pro if the application is granted. Public repositories are exempt from
-the usage-based billing introduced 2026-06-01, so the per-review cost on our repos is zero either
-way; the $10 buys only the licence.
+**Copilot Pro** is licensed ($10/mo — automatic review requires Pro, Pro+ or Max). Public
+repositories are exempt from the usage-based billing introduced 2026-06-01, so the per-review cost
+on our repos is zero; the $10 buys only the licence. GitHub's complimentary-Pro programme for
+verified open-source maintainers exists but is **not being pursued** — see the decision above.
 
 ### 1b. Turn on automatic review, org-wide
 
@@ -412,9 +412,11 @@ no need to stage anything.
 
 ## Decisions (George, 2026-08-14)
 
-1. **Copilot licence — both routes in parallel.** Buy Pro at $10/mo to unblock Step 1 today, and
-   submit the verified-OSS-maintainer application the same day; cancel Pro if it is granted. Worst
-   case is a month or two of $10 for not waiting on an application with unknown turnaround.
+1. **Copilot licence — buy Pro, $10/mo. Do not apply for free OSS-maintainer access.** GitHub's
+   complimentary-Pro programme is for maintainers of established open-source projects; TAP does not
+   clear that bar today and an application would be a waste of a cycle. Revisit only if TAP's public
+   profile changes enough to make it plausible — it is a nice-to-have worth $120/year, not a
+   blocker. **(Revised 2026-08-14; the original decision was to pursue both in parallel.)**
 2. **Everything org-wide on day one**, including Codacy and Sonar. The floor doctrine applies
    without exception (`req-cicd-ai-review-least-privilege-2`) — no repo sits below the line and
    there is no second click to forget later. The accepted cost is day-one finding volume across 16

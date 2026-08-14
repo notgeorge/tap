@@ -195,9 +195,10 @@ actor."
   reviews — the negative result that cements the required-check gating pattern. **First-party, so
   there is no App to install and no standing third-party grant** — turned on by an org ruleset
   ("Automatically request Copilot code review", with "Review new pushes" and Balanced effort).
-  Requires a Copilot Pro licence or higher for automatic review ($10/mo, or complimentary for
-  verified OSS maintainers); public repos are exempt from the usage-based billing introduced
-  2026-06-01. Reads repository custom instructions from `.github/copilot-instructions.md` **on the
+  Requires a Copilot Pro licence or higher for automatic review ($10/mo); public repos are exempt
+  from the usage-based billing introduced 2026-06-01, so the per-review cost here is zero. GitHub's
+  complimentary-Pro programme for verified open-source maintainers is real but **not pursued** — it
+  is aimed at maintainers of established projects and TAP does not clear that bar today. Reads repository custom instructions from `.github/copilot-instructions.md` **on the
   head branch**.
 - *Codacy* (`codacy-production`, verified `contents: read`): SAST, SCA, secrets detection and
   duplication analysis as a GitHub App; free and unlimited for public repositories, no time limit;
