@@ -50,6 +50,7 @@ from pathlib import Path
 
 from tap.boot_records import RECORD_SUFFIX, canonical_digest_bytes
 from tap.git_invocation import DEFAULT_HOST, DEFAULT_USERNAME, GITHUB_PAT_KIND, askpass_env, run_git
+from tap.secret_naming import SECRET_SUFFIX
 from tap.secrets_root import resolve as resolve_secrets_root
 
 __all__ = [
@@ -62,7 +63,6 @@ __all__ = [
     "main",
 ]
 
-SECRET_SUFFIX = ".secret.json"
 DEFAULT_SECRETS_ROOT = Path.home() / "tap-secrets"
 
 # tap_plugin/<slug>/boot/<name>.boot.json inside an artifact.

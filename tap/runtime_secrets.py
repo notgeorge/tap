@@ -42,8 +42,7 @@ from typing import Any
 
 from tap.jsonfiles import JsonFileError, load_json_file
 from tap.registry import validate_scoped_token
-
-SECRET_SUFFIX = ".secret.json"
+from tap.secret_naming import SECRET_EXAMPLE_SUFFIX, SECRET_SUFFIX
 
 # The built-in source: the value is inline in the envelope's `data`. A manifest with no
 # `metadata.source` (or this value) never leaves disk. Kept as a local constant — mirrors
@@ -298,10 +297,9 @@ def resolve_secret_envelope(
 # `_TEST_SEGMENTS` exemption in `tap/jsonfiles.py`.
 _LEAK_TEST_SEGMENTS: frozenset[str] = frozenset({"tests", "fixtures", "expected", "snapshots"})
 
-# Explicit, non-secret template suffix. A `<key>.secret.example.json` is a
-# checked-in placeholder, never real material, so it is allowed to be both
-# committed and envelope-shaped.
-SECRET_EXAMPLE_SUFFIX = ".secret.example.json"
+# `SECRET_EXAMPLE_SUFFIX` (tap.secret_naming, imported above) marks the explicit,
+# non-secret template: a `<key>.secret.example.json` is a checked-in placeholder,
+# never real material, so it is allowed to be both committed and envelope-shaped.
 
 
 @dataclass(frozen=True)
