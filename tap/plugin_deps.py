@@ -28,10 +28,12 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
+from tap.plugin_identity import NAMESPACE_PACKAGE
 from tap.source_scan import first_party_source_roots, iter_parsed_sources
 
 # The PEP 420 namespace every package-mode plugin imports under (req-plugin-arch-identity-3).
-NAMESPACE = "tap_plugin"
+# Declared once in tap.plugin_identity (stdlib-only, so pre-Django callers can import it).
+NAMESPACE = NAMESPACE_PACKAGE
 
 
 @dataclass(frozen=True)

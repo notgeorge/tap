@@ -19,6 +19,7 @@ This specification captures the current architectural intent for the entity laye
 | req-grid-entity-spine | [Entity Spine Mapping](#entity-spine-mapping) | Implemented | `Entity` is the canonical node instance for nodes and edges |
 | req-grid-entity-type | [Entity Type Declaration](#entity-type-declaration) | Implemented | BaseModel subclasses declare `ENTITY_TYPE`; registered in the model registry |
 | req-grid-entity-base | [BaseModel Auto-Creates Entity](#basemodel-auto-creates-entity) | Implemented | `BaseModel.save()` auto-creates its Entity atomically when none is set |
+| req-grid-entity-type-kind | [Type Catalog Discriminates Node vs Edge](#type-catalog-discriminates-node-vs-edge) | Implemented | `EntityType.kind` (`node`/`edge`) — the catalog holds both because edges ARE entities; the writer stamps it and the API exposes and filters on it |
 | req-grid-entity-resolve | [Entity Resolution](#entity-resolution) | Implemented | `Entity.resolve()` uses the model registry to return the concrete typed object |
 | req-grid-entity-ee | [Entities Are Entities](#entities-are-entities) | Deprecated | Significant architectural shift; explicitly not part of current direction |
 | req-grid-entity-validation | [BaseModel Field Validation](#basemodel-field-validation) | Implemented | Three-layer validation (JSON Schema, per-field functions, whole-record hook) on derived model fields; hooked into save() |
@@ -28,6 +29,7 @@ This specification captures the current architectural intent for the entity laye
 | req-grid-entity-metadata | [Canonical Entity Metadata](#canonical-entity-metadata) | In Development | Platform-level canonical metadata contract for entity instances: `name`, `description`, `description_json`. `name` is fully implemented; `description` and `description_json` are pending. |
 | req-grid-entity-display | [Display Metadata](#display-metadata) | In Development | `DEFAULT_DISPLAY` class attribute implemented on `BaseModel`; instance-level `display` JSONField deferred |
 | req-grid-entity-cascade | [Edge-Directed Cascade Deletion](#edge-directed-cascade-deletion) | Backlog | When an entity is deleted, cascades should be expressible in terms of edge relationships, not just Django's raw FK CASCADE |
+| req-grid-entity-core-type-catalog | [First-Party Types In The Catalog](#first-party-types-in-the-catalog) | Backlog | Core-app types are absent from `EntityType` (only plugins write rows), so they render without icons. Pick this up when someone cares about the missing icons |
 | req-grid-entity-tombstone-managers | [Tombstone State And Manager Surface](#tombstone-state-and-manager-surface) | Approved for Development | `Entity.deleted_at` is the single canonical home of tombstone state; manager defaults differ by surface; both surfaces expose uniform `.live()` / `.tombstoned()` chainable filters |
 
 
@@ -187,6 +189,90 @@ Consider a management command or system check that validates all registered enti
 The `entity_types` list in `TapPluginConfig` (and equivalent `apps.py` declarations) is a separate layer from the in-memory model registry: the model registry (`_ENTITY_MODEL_REGISTRY`) is populated automatically at class-definition time and is sufficient for all functional operations. The `EntityType` DB table exists solely to serve the API's type catalogue with display metadata (`name`, `icon`, `description`, `plugin_name`). This creates duplication — the same type is declared once in the model and again in `apps.py`. The natural resolution is to add `DISPLAY_NAME`, `DESCRIPTION`, `ICON` as class vars on `BaseModel` subclasses and have `__init_subclass__` (or a `ready()`-time sweep of the model registry) populate `EntityType` automatically, eliminating the `entity_types` list entirely.
 
 ---
+
+### First-Party Types In The Catalog
+----
+RID: `req-grid-entity-core-type-catalog`
+Status: `Backlog`
+
+**Trigger to pick this up:** someone notices that core types — `page`, `panel`, `layout`,
+`collector`, `batch`, `keystone`, `dimension`, `schedule`, `projection`, `arrangement` and the rest,
+about fifteen in total — render without icons in the graph view. That is the only user-visible
+consequence today, and it is cosmetic, which is why this is Backlog rather than scheduled.
+
+**Why they are missing.** `EntityType` rows are written only by the plugin loader from a manifest
+(plus the single `search` row from `tap_grid`'s own `ready()`), and first-party apps ship no manifest.
+The types themselves work perfectly — they are registered in the in-code model registry by
+`BaseModel.__init_subclass__` — they simply have no catalog row, so the display-metadata lookups
+(`batch_resolve_icons`, the viewer panel) find nothing for them.
+
+**Proposed shape** (measured against the as-built code, 2026-08-12):
+
+- One function that walks the entity model registry and upserts a row per registered type: `slug`
+  from `ENTITY_TYPE`, `name` from `ENTITY_NAME` falling back to the slug, `description`/`icon` from
+  `ENTITY_DESCRIPTION`/`ENTITY_ICON` defaulting to empty, `kind` = node.
+- **Gotcha that will silently break icons if missed:** `plugin_name` must be the owning AppConfig's
+  dotted `name` (e.g. `tap_web`), *not* `app_label` — `resolve_icon_path` resolves the owning app by
+  looping app configs and comparing `config.name == entity_type.plugin_name`.
+- Run it from **boot's population phase**, not `ready()` — `ready()` has no DB access, and the
+  existing plugin write violates that rule today (it is the source of the "accessing the database
+  during app initialization" warning). Having the plugin loader call the same function instead of
+  writing rows itself collapses this to one writer and removes that violation.
+- Additive only: it must never delete rows. Reclamation is a separate, deliberately parked decision
+  (`req-plugin-lifecycle-v1-departure`).
+
+**Extensibility, which is the point.** Adding a core model then requires only the class vars plugins
+already use — declare `ENTITY_TYPE` (already mandatory) plus optionally `ENTITY_NAME`/`ENTITY_ICON`/
+`ENTITY_DESCRIPTION` — and the type appears at the next boot with no registration list, manifest
+entry, migration, or code change anywhere else. One convention across core and plugins. This is the
+direction already sketched at the end of [Entity Type Declaration](#entity-type-declaration).
+
+**Cost split.** The mechanism is roughly thirty lines plus a call site. The rest is *content*: each
+type wanting an icon needs a kebab-case `ENTITY_ICON` key and an SVG in its app's static directory.
+That content is incremental — landing the mechanism alone gives every core type a correctly-named
+catalog row (fixing the completeness half), and icons fill in per model afterwards with no further
+code, degrading exactly as today when absent.
+
+**Out of scope.** Edge types: core edges register constraints only, have nowhere to declare display
+metadata, and the icon path is node-only. Also out of scope is the deeper question of what the type
+record *is* — provenance (which plugin or which core app), model version, and the fields that follow
+— which is the same reconciliation problem as plugin lifecycle one level down and is parked with it
+(`tap_plugins/specs/spec-plugin-lifecycle-v1.md`). This requirement deliberately does not settle it:
+it writes `plugin_name` exactly as the existing writer does.
+
+### Type Catalog Discriminates Node vs Edge
+----
+RID: `req-grid-entity-type-kind`
+Status: `Implemented`
+
+The `EntityType` catalog holds **node types and edge types alike**, and that is correct, not a defect: edges *are* entities (`Edge` is a `BaseModel`, so every edge carries a backing `Entity` — `req-grid-entity-spine`), and a plugin manifest declares both. What the catalog lacked was a way to tell them apart, so a consumer reading it could not answer "what node types exist?" without already knowing which slugs happen to be edges.
+
+Measured before the fix (a healthy booted instance): 87 catalog rows against 30 in-code node models and 12 in-code core edge types. The bulk of the remainder are plugin-declared edge types — legitimately catalogued, simply indistinguishable.
+
+#### Implementation
+
+- `EntityType.kind` is a `TextChoices` field (`node` / `edge`), indexed.
+- **The writer stamps it**, because the writer is the only place that knows: the manifest lists `models` and `edges` separately (`tap_plugins/base.py::_register_types_from_manifest`). It cannot be recovered downstream — the in-code edge registry is populated only when plugins load, so a sweep in a bare process would see core edges alone and misclassify every plugin edge as a node.
+- **Empty means "not yet classified", never "node".** Rows written before the field existed keep `""` until their writer next runs; because the loader uses `update_or_create`, they self-heal on the next plugin load. A consumer must treat `""` as unknown — the API's `?kind=node` deliberately does not match them.
+- `GET /api/v1/entity-types/` exposes `kind` and accepts `?kind=node|edge`. An unrecognised value returns an empty list rather than the unfiltered catalog: over-returning is the dangerous direction for a typo'd filter.
+
+#### Known gaps (not closed by this requirement)
+
+Two, both measured on a live instance after this landed, and both about *which rows exist* rather than how they are labelled:
+
+1. **First-party types are absent.** Rows are written only by the plugin loader (plus the `search` row from `tap_grid`'s own `ready()`), and first-party apps ship no manifest — so ~15 registered node types (`page`, `panel`, `layout`, `collector`, `batch`, `keystone`, …) have no row and therefore no `kind`. Tracked as [req-grid-entity-core-type-catalog](#first-party-types-in-the-catalog) (Backlog, with the proposed mechanism and its gotchas); the discriminator here is a prerequisite for closing it, since a completeness sweep must record which kind it registers.
+2. **Rows outlive their plugin.** The catalog has no removal path. Measured on a long-lived dev database (first migrated three weeks earlier) whose plugin set had since narrowed to `grid_fixtures` alone: 56 rows owned by `aws_core` — a plugin no longer installed in that container — written early in the database's life and untouched by any transaction since, with zero corresponding entities (types registered, population never run). Rows are written only by `TapPluginConfig`, so the plugin must have been in `INSTALLED_APPS` at the time; when it left the app set nothing reclaimed its rows. They stay `kind=""` because only the declaring plugin's loader can classify them, so an API consumer sees types the instance cannot serve. This is an accumulated-state condition, not something a fresh instance exhibits. Whether a type row should be removed, tombstoned, or retained-and-marked when its plugin leaves the boot profile is an open decision, and it belongs with the plugin update/uninstall design in `tap_plugins/specs/spec-plugin-lifecycle-v1.md` rather than here.
+
+This is also why `""` must not be read as `node`: the unclassified rows on that instance were predominantly *edges*, so a `node` default would have actively mislabelled them.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-grid-entity-type-kind-1 | Both Kinds Catalogued | Implemented | The catalog holds node types and edge types; edge rows are not removed. | edges are entities (`req-grid-entity-spine`) |
+| req-grid-entity-type-kind-2 | Writer Stamps The Kind | Implemented | The manifest loader sets `kind` on both its model and edge writes; nothing infers it later. | only the writer knows |
+| req-grid-entity-type-kind-3 | Empty Is Unknown | Implemented | `""` means unclassified and never matches a `kind` filter; rows self-heal on the next plugin load. | must not be read as `node` |
+| req-grid-entity-type-kind-4 | API Exposes And Filters | Implemented | `kind` is in the API schema; `?kind=` narrows; an unknown value returns empty, not everything. | fail-closed filter |
 
 ### BaseModel Auto-Creates Entity
 ----
@@ -444,7 +530,7 @@ The model registry is always fully populated before any request or task can call
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-grid-entity-resolve-1 | Resolve Returns Typed Object | Implemented | `entity.resolve()` returns the concrete BaseModel subclass instance corresponding to that Entity. | |
-| req-grid-entity-resolve-2 | resolve_entity Helper | Implemented | `resolve_entity(entity_id)` in `tap_grid/registry.py` resolves from a UUID without requiring a pre-fetched Entity instance. | |
+| req-grid-entity-resolve-2 | resolve_entity Helper | Implemented | `resolve_entity(entity_id)` in `tap_grid/registry.py` resolves from a UUID without requiring a pre-fetched Entity instance. It is **below-the-gate model-layer machinery**, the UUID-keyed peer of `Entity.resolve()` — deliberately NOT in the module's `__all__`, because a public export invites application code to reach it instead of the capability-gated service read (`tap_grid.services.resolve_entity` / `get_node`). | De-exported 2026-08-12 (code-clone sweep C8): the helper is spec'd and stays, the ungated *public surface* is what was removed. |
 | req-grid-entity-resolve-3 | Unregistered Type Raises Error | Implemented | Resolving an entity whose `entity_type` is not in the registry raises `KeyError` with a descriptive message listing registered types. | |
 | req-grid-entity-resolve-4 | Edge Resolves Correctly | Implemented | `entity.resolve()` works for entities whose type is `"edge"`, returning the `Edge` instance. | |
 

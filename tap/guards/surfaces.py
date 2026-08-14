@@ -179,7 +179,7 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
         surface="DCO sign-off trailers (both roads to main)",
         rid="req-cicd-dco-signoff",
         cadence="Pre-push (`scripts/check-dco`, wired into `promote-to-main.sh`) + CI (`product-lines.yml` `dco` job)",
-        status="Report-only — flips to Gate-guarded in the change that lands CONTRIBUTING.md (TAP_DCO_ENFORCE=1 in both invokers)",
+        status="Gate-guarded (enforcing since 2026-08-12, when CONTRIBUTING.md + DCO landed at the repo root as approved policy)",
         enforced_by=(
             "`scripts/check-dco` (every non-merge, non-bot commit added over origin/main carries "
             "`Signed-off-by`); the trailer itself is applied by `.githooks/prepare-commit-msg`"

@@ -8,10 +8,13 @@
 #     dependabot, github-actions) — a maintainer certifies those at merge,
 #     normally by squash-merging with their own sign-off
 #
-# REPORT-ONLY by default until CONTRIBUTING.md lands as repo policy: violations
-# are listed but the exit stays 0. Enforcement is TAP_DCO_ENFORCE=1 — flipping
-# the two invokers is the one-line change that makes the policy law
-# (req-cicd-dco-signoff-3).
+# ENFORCING since 2026-08-12, when CONTRIBUTING.md + DCO landed at the repo root
+# as approved policy (req-cicd-dco-signoff-3). A violation is a non-zero exit:
+# it reds the `dco` CI job and aborts a promote. The default lives HERE rather
+# than in the invokers on purpose — an ad-hoc `scripts/check-dco` gives the same
+# verdict CI will, so the artifact can never be quietly less strict than the gate.
+# Escape hatch: TAP_DCO_REPORT_ONLY=1 (lists violations, exits 0) for triaging a
+# pile of unsigned history without blocking the run.
 #
 # Invokers: scripts/promote-to-main.sh (local gates) and the `dco` job in
 # .github/workflows/product-lines.yml (the PR road + the promote's dispatched
@@ -20,9 +23,9 @@
 # Spec: specs/spec-cicd-hardening.md (req-cicd-dco-signoff).
 #
 # Usage:
-#   scripts/check-dco                    # check merge-base(origin/main, HEAD)..HEAD
-#   scripts/check-dco <base-ref>         # explicit base ref
-#   TAP_DCO_ENFORCE=1 scripts/check-dco  # enforcing: non-zero exit on violation
+#   scripts/check-dco                        # check merge-base(origin/main, HEAD)..HEAD
+#   scripts/check-dco <base-ref>             # explicit base ref
+#   TAP_DCO_REPORT_ONLY=1 scripts/check-dco  # list violations without failing
 
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
@@ -42,6 +45,59 @@ RANGE="$(git merge-base "$BASE_REF" HEAD)..HEAD"
 # must not certify the DCO; the merging maintainer certifies instead).
 BOT_AUTHOR_RE='(renovate|dependabot|github-actions|tap-release-please)\[bot\]'
 
+# --- Pass 1: individual remediation declarations (CONTRIBUTING "Sign-Off").
+#
+# A later commit may retroactively certify an earlier one, so an unsigned commit
+# is fixable WITHOUT rewriting history — which matters on a shared branch, where
+# `--amend`/`rebase` would break someone else's work. Format and identity rules
+# follow the reference DCO app (dcoapp/app) verbatim so a contributor who knows
+# the ecosystem convention needs no TAP-specific knowledge:
+#
+#   I, Ada Lovelace <ada@example.com>, hereby add my Signed-off-by to this commit: <sha>
+#
+# Accepted only when ALL hold — the declaration certifies the declarer's OWN
+# earlier work, never someone else's:
+#   * the remediation commit itself carries a Signed-off-by trailer
+#   * the declared identity == the remediation commit's own author
+#   * the declared identity == the target commit's author (checked in pass 2)
+#
+# THIRD-PARTY remediation ("On behalf of X, I, Y, hereby add...") is deliberately
+# NOT accepted: certifying another person's right to submit is a materially
+# larger statement than certifying your own, and enabling it is a policy call for
+# the steward, not a mechanical convenience.
+REMEDIATED=""
+while read -r sha; do
+  [ -n "$sha" ] || continue
+  git log -1 --format='%(trailers:key=Signed-off-by,valueonly)' "$sha" | grep -q . || continue
+  r_author="$(git log -1 --format='%an <%ae>' "$sha")"
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^I,\ (.+)\ \<(.+)\>,\ hereby\ add\ my\ Signed-off-by\ to\ this\ commit:\ ([0-9a-fA-F]{7,40})[[:space:]]*$ ]]; then
+      claim="${BASH_REMATCH[1]} <${BASH_REMATCH[2]}>"
+      target="${BASH_REMATCH[3]}"
+      if [ "$(printf '%s' "$claim" | tr '[:upper:]' '[:lower:]')" != "$(printf '%s' "$r_author" | tr '[:upper:]' '[:lower:]')" ]; then
+        warn "ignoring remediation in $(git log -1 --format='%h' "$sha"): declared '$claim' but the commit is authored by '$r_author'"
+        continue
+      fi
+      REMEDIATED="${REMEDIATED}${target}|${claim}
+"
+    fi
+  done <<< "$(git log -1 --format='%B' "$sha")"
+done < <(git rev-list --no-merges "$RANGE")
+
+# True when $1 (a full sha) is remediated by a declaration whose identity also
+# matches $2 (that commit's author). Target shas may be abbreviated, so prefix-match.
+is_remediated() {
+  local sha="$1" author_lc t c
+  author_lc="$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')"
+  while IFS='|' read -r t c; do
+    [ -n "$t" ] || continue
+    case "$sha" in
+      "$t"*) [ "$(printf '%s' "$c" | tr '[:upper:]' '[:lower:]')" = "$author_lc" ] && return 0 ;;
+    esac
+  done <<< "$REMEDIATED"
+  return 1
+}
+
 violations=0
 checked=0
 while read -r sha; do
@@ -52,6 +108,10 @@ while read -r sha; do
   fi
   checked=$((checked + 1))
   if ! git log -1 --format='%(trailers:key=Signed-off-by,valueonly)' "$sha" | grep -q .; then
+    if is_remediated "$sha" "$author"; then
+      info "remediated: $(git log -1 --format='%h %s' "$sha") — certified by a later remediation commit"
+      continue
+    fi
     warn "missing Signed-off-by: $(git log -1 --format='%h %s (%an)' "$sha")"
     violations=$((violations + 1))
   fi
@@ -62,9 +122,28 @@ if [ "$violations" -eq 0 ]; then
   exit 0
 fi
 
-if [ "${TAP_DCO_ENFORCE:-0}" = "1" ]; then
-  fail "DCO check RED — $violations of $checked commit(s) missing Signed-off-by. Sign with 'git commit -s --amend' (or an interactive rebase adding trailers); see CONTRIBUTING."
+if [ "${TAP_DCO_REPORT_ONLY:-0}" = "1" ]; then
+  warn "DCO report-only (TAP_DCO_REPORT_ONLY=1): $violations of $checked commit(s) missing Signed-off-by."
+  exit 0
 fi
 
-warn "DCO report-only: $violations of $checked commit(s) missing Signed-off-by. Enforcement flips with CONTRIBUTING.md (TAP_DCO_ENFORCE=1)."
-exit 0
+# Remediation is spelled out, not implied: the single-commit and whole-branch
+# forms differ, and a contributor meeting this red for the first time should not
+# have to derive the rebase incantation. Both re-write history, so they are safe
+# on an unmerged branch and wrong on a shared one — hence the force-with-lease note.
+printf "\033[31m    ERROR: DCO check RED — %s of %s commit(s) missing Signed-off-by.\033[0m\n" "$violations" "$checked" >&2
+cat >&2 <<EOF
+    Fix A — remediation commit (keeps history; safe on a SHARED branch).
+      Add an empty commit whose message certifies the earlier one(s), one line each:
+        git commit -s --allow-empty -m "I, \$(git config user.name) <\$(git config user.email)>, hereby add my Signed-off-by to this commit: <sha>"
+      The declared identity must match both your own and the target commit's author.
+    Fix B — rewrite (simpler, but only on a branch nobody else has pulled;
+      force-push with --force-with-lease after):
+      last commit only : git commit --amend --no-edit -s
+      whole branch     : git rebase --exec 'git commit --amend --no-edit -s' $BASE_REF
+    Sign-off is your certification under the DCO — see CONTRIBUTING.md "Sign-Off".
+    Future commits are stamped automatically by .githooks/prepare-commit-msg
+    (active when core.hooksPath=.githooks — set by scripts/spawn-session.sh; a
+    plain clone needs 'git commit -s' or 'git config core.hooksPath .githooks').
+EOF
+exit 1

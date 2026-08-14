@@ -19,7 +19,7 @@ services:
     # block below is the fallback + local-dev rebuild path (`scripts/dc build db`).
     # NOTE: a local build tags its result under this same name, shadowing the
     # published tag on this host until the next `scripts/dc pull db`.
-    image: ${TAP_DB_IMAGE:-ghcr.io/unified-systems-com/tap-db:latest}
+    image: ${TAP_DB_IMAGE:?TAP_DB_IMAGE unset — .env defines it from TAP_VERSION; see .env}
     build:
       context: .
       dockerfile: docker/postgres/Dockerfile
@@ -108,7 +108,7 @@ services:
     # Published multi-arch image (publish-images.yml, anonymous pull) carrying the
     # pre-compiled wheel cache; build: below is the fallback + local-dev rebuild path
     # (`scripts/dc build web`; same tag-shadowing note as db above).
-    image: ${TAP_WEB_IMAGE:-ghcr.io/unified-systems-com/tap-web:latest}
+    image: ${TAP_WEB_IMAGE:?TAP_WEB_IMAGE unset — .env defines it from TAP_VERSION; see .env}
     build:
       context: .
       args:
