@@ -10,7 +10,8 @@ update-triggers:
   - Any seat is installed, changed, or removed — update the status column in "The roster"
   - A reviewer vendor changes its GitHub App permission set (re-run the `gh api /apps/<slug>` check)
   - GitHub changes where Copilot code review reads custom instructions from (currently the head branch)
-  - The canon cleanup in Step 0 lands — delete that step and update spec-cicd-ai-review.md's roster
+  - A seat is installed — flip its "To install" status and record the observed permission grant
+  - The parked `zizmor` gap in Step 0 is closed — remove that row
 assumes:
   - All 16 `unified-systems-com` repos are public and Apache-2.0 (unlocks every free tier used here)
   - The PR promote flow (promote-to-main.sh → PR → `gate` required check → auto-merge) is the road to main
@@ -95,24 +96,52 @@ comment-posting job (no model). We keep that split because it comes free.
 
 ---
 
-## Step 0 — Canon cleanup (5 min, do first)
+## Step 0 — Canon cleanup — DONE 2026-08-14
 
-The spec and its plan still describe a roster we rejected. Land this before the new seats so the
-tree never claims two different things.
+The spec and its plan described a roster we rejected. Landed before the new seats so the tree never
+claims two different things.
 
-1. **Delete `.coderabbit.yaml`.** CodeRabbit is out on `contents: write`; the file is config for a
-   vendor we are not using. Its twelve instruction sets are ported into Step 2's prompt.
-2. **Amend `specs/spec-cicd-ai-review.md`:** replace the CodeRabbit + Codex-cloud roster with the
-   table above; record the permission-sweep evidence; add the two injection findings to
+1. **Deleted `.coderabbit.yaml`.** CodeRabbit is out on `contents: write`; the file was config for a
+   vendor we are not using. All twelve of its instruction sets are now carried by Step 1's
+   `copilot-instructions.md` and Step 2's Codex prompt — the four that had *not* been ported
+   (service layer, migrations, `secrets*.py`, `docker-compose*.yml`) were added to both before the
+   deletion.
+2. **Amended `specs/spec-cicd-ai-review.md`:** roster replaced with the table above; the
+   permission-sweep evidence recorded in the prior-art ledger and in
+   `req-cicd-ai-review-least-privilege`; the two injection findings added to
    `req-cicd-ai-review-untrusted-content`.
-3. **Amend `docs/misc/doc-cicd-ai-review-plan.md`** to match, keeping the reasoning history.
-4. **Correct the prior-art ledger:** it implies CodeRabbit's App requests `administration`. It does
-   not — the actual set is `contents/checks/issues/pull_requests/statuses: write`, `actions/
-   discussions/members/metadata: read`. The disqualifier is `contents: write`, and the ledger
-   should say so precisely.
+3. **Amended `docs/misc/doc-cicd-ai-review-plan.md`** to match, keeping the reasoning history as a
+   superseded record rather than rewriting history.
+4. **Corrected the prior-art ledger:** it implied CodeRabbit's App requests `administration`. It
+   does not — the actual set is `contents/checks/issues/pull_requests/statuses: write`,
+   `actions/discussions/members/metadata: read`. The disqualifier is `contents: write`, and the
+   ledger now says so precisely.
+5. **Amended `AGENTS.md`** — it named the old two-seat roster in a file the reviewers themselves
+   read.
 
-New canon worth writing while we are here: **check `gh api /apps/<slug>` before installing any
-GitHub App.** That one command is what caught every problem in this thread.
+New canon written while we were here: **check `gh api /apps/<slug>` before installing any GitHub
+App.** That one command is what caught every problem in this thread. It now lives in
+`req-cicd-ai-review-least-privilege` as acceptance criterion 4.
+
+### What the deleted seat carried that the new roster does not
+
+Named rather than implied closed (`req-sec-honest-risk`). `.coderabbit.yaml` enabled six bundled
+scanners on every PR. The new roster covers most of them, but not all:
+
+| Scanner | Covered now by | Gap |
+| --- | --- | --- |
+| `gitleaks` (secrets) | Codacy secrets detection | — |
+| `semgrep` (SAST) | Codacy + Sonar rules | — |
+| `osvScanner` (SCA) | Codacy SCA + Renovate + Trivy nightly | — |
+| `actionlint` (workflow lint) | *nothing* | **Open** — GitHub Actions syntax/expression errors |
+| `zizmor` (Actions security) | Codex prompt §3, judgement not rules | **Open** — no deterministic check on the highest-value surface |
+| `checkov` (IaC) | *nothing* | Low impact — TAP's remaining Terraform is the retired CodeBuild restore point |
+
+`zizmor` is the one worth reopening: `.github/**` is where a single change defeats every other
+control, and a rules-based check there is cheap and non-negotiable in a way an LLM's attention is
+not. It runs as a standalone pre-commit hook or GitHub Action with no third-party App and no
+`contents: write` — so it clears the hard filter trivially. Not part of this rollout; queued as its
+own change.
 
 ---
 
@@ -173,9 +202,22 @@ description does not admit?"**
 5. **High-value paths.** `.github/**` runs with credentials — flag `pull_request_target` with a
    PR-controlled checkout, unpinned actions, widened `permissions:`, or a gate that can pass
    without doing its work. `tap/guards/**` baselines are ratchets and may only tighten — flag every
-   ADDED entry. `scripts/**`, `Dockerfile*`, `.githooks/**` are the xz-utils vector. `uv.lock` /
-   `pyproject.toml`: new deps, typosquats, source-URL changes, versions moving backwards.
-6. **Say what you could not review, and why.**
+   ADDED entry. `scripts/**`, `Dockerfile*`, `.githooks/**` are the xz-utils vector; `.githooks/**`
+   runs on the maintainer's machine, so flag ANY change there and say what would now execute
+   locally. `docker-compose*.yml`: new host mounts, exposed ports, added capabilities, disabled
+   security options, credential-bearing environment variables. `uv.lock` / `pyproject.toml`: new
+   deps, typosquats, source-URL changes, versions moving backwards, build backends/hooks/entry
+   points (they execute at install time), bundled crypto providers or binary wheels for
+   `cryptography`/`psycopg` where the build is `--no-binary` (TAP is FIPS-default against system
+   OpenSSL).
+6. **The service layer is the authorization path.** In `**/services/**`, flag any mutation route
+   that bypasses it, any capability check that becomes optional or moves below the gate it
+   protects, and any `_impl` exposed above its gate or called from outside its module. In
+   `**/migrations/**`, flag any dropped or loosened constraint, index, uniqueness rule or
+   permission grant — especially when the description frames it as unrelated cleanup. In
+   `**/secrets*.py`, flag committed key material, any widening of where secrets may be read from,
+   and any log/exception path that could emit secret material.
+7. **Say what you could not review, and why.**
 
 Do not comment on formatting, import order or docstring style — black, ruff and mypy gate every PR.
 ```
@@ -257,19 +299,33 @@ jobs:
                downgraded to a log line; an allowlist/exemption/baseline that GROWS; a test
                weakened or deleted with the behaviour it covered. "Cleanup" / "baseline
                refresh" framing warrants more scrutiny, not less.
-            3. CI AND BUILD TOOLING — .github/**, scripts/**, Dockerfile*, .githooks/**.
-               pull_request_target with PR-controlled checkout; unpinned actions; widened
-               permissions; secrets reachable from forks; a gate that can pass without
-               doing its work; curl-pipe-to-shell; decode-then-execute; fixtures executed
-               rather than read.
+            3. CI AND BUILD TOOLING — .github/**, scripts/**, Dockerfile*, .githooks/**,
+               docker-compose*.yml. pull_request_target with PR-controlled checkout;
+               unpinned actions; widened permissions; secrets reachable from forks; a gate
+               that can pass without doing its work; curl-pipe-to-shell;
+               decode-then-execute; fixtures executed rather than read; new host mounts,
+               exposed ports, added capabilities or disabled security options. .githooks/**
+               runs on the maintainer's machine — flag ANY change there and say what would
+               now execute locally, including ones that look like conveniences.
             4. DEPENDENCIES — uv.lock, pyproject.toml. New direct deps, typosquats, index
-               or source-URL changes, versions moving backwards, git-ref installs, bundled
-               crypto providers (TAP is FIPS-default against system OpenSSL).
+               or source-URL changes, versions moving backwards, git-ref installs, changes
+               to build backends / build hooks / entry points (they execute at install
+               time), bundled crypto providers or prebuilt binary wheels for cryptography
+               or psycopg where the build is --no-binary (TAP is FIPS-default against
+               system OpenSSL).
             5. REVIEWER CONFIG — any edit to .github/copilot-instructions.md,
                .github/instructions/**, .github/workflows/**, AGENTS.md or CLAUDE.md is a
                finding. A PR editing these is editing its own review.
             6. UNREVIEWABLE ADDITIONS ARE FINDINGS — binary blobs, images in code paths,
                base64/hex payloads. TAP has almost no legitimate binary churn.
+            7. AUTHORIZATION AND DATA PATHS — **/services/** is TAP's canonical mutation
+               and authorization path: flag a mutation route that bypasses it, a capability
+               check that becomes optional or moves below the gate it protects, an _impl
+               exposed above its gate or called from outside its module. **/migrations/**:
+               a dropped or loosened constraint, index, uniqueness rule or permission
+               grant, especially framed as unrelated cleanup. **/secrets*.py**: committed
+               key material, a widening of where secrets may be read from, a log or
+               exception path that could emit secret material.
 
             Label each finding critical / high / medium / low. Reserve critical and high
             for security-class findings. Do not comment on formatting, import order or

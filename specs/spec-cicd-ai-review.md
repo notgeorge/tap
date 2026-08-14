@@ -2,8 +2,10 @@
 
 ## Philosophy
 
-**DRAFT (2026-08-11)** — authored from the sam-dev research session on AI PR review; requirements are
-`Proposed` and unbuilt. This spec is the center of gravity for **automated AI review of changes to
+**DRAFT (2026-08-11, roster rebuilt 2026-08-13)** — authored from the sam-dev research session on AI
+PR review; requirements are `Proposed` and unbuilt. The v0 roster was rebuilt from scratch on
+2026-08-13 against verified GitHub App permission grants; the run sheet for standing it up is
+[doc-cicd-reviewer-rollout-plan.md](../docs/misc/doc-cicd-reviewer-rollout-plan.md). This spec is the center of gravity for **automated AI review of changes to
 TAP's repositories**: which AI reviewers run, what they are trusted to do, how their verdicts gate
 (or don't gate) a merge, and how the fast-moving prior art is tracked over time.
 
@@ -54,10 +56,44 @@ Three doctrine points shape everything below:
 
 ## Prior Art (the standing ledger — `req-cicd-ai-review-prior-art`)
 
-Last swept: **2026-08-12** (verification sweep confirming vendor model-stacks, pricing tiers and
-reviewer CVEs ahead of the roster decision; built on the 2026-08-11 three-agent sweep). Update triggers: any
-reviewer vendor incident; a new first-party review product; a major eval/benchmark result on
-malicious-change detection; SLSA/OpenSSF movement on AI review as a control.
+Last swept: **2026-08-13** (permission sweep of the GitHub App registry, which rebuilt the roster;
+built on the 2026-08-12 model-stack/pricing/CVE sweep and the 2026-08-11 three-agent sweep). Update
+triggers: any reviewer vendor incident; a new first-party review product; a major eval/benchmark
+result on malicious-change detection; SLSA/OpenSSF movement on AI review as a control; **any change
+to a seated App's permission set**.
+
+**The permission sweep (2026-08-13) — the finding that decided the roster.** Every candidate's
+GitHub App was queried directly against the registry rather than read from vendor marketing:
+
+```bash
+gh api /apps/<slug> --jq '.permissions'
+```
+
+The result eliminated nearly the entire market on one criterion — **write access to code**:
+
+| Verdict | Apps |
+| --- | --- |
+| `contents: read` | `codacy-production`, `sonarqubecloud`, `difflens` |
+| `contents: write` | `coderabbitai`, `greptile-apps`, `chatgpt-codex-connector`, `cursor`, `baz-app`, `graphite-app`, `sourcery-ai`, `trunk-io`, `devin-ai-integration`, `ellipsis-dev`, `deepsource-io`, `snyk-io`, `socket-security`, `codeant-ai`, `pixeebot`, `reviewbot` |
+| Dead / sunset | `korbit-ai` (vendor dead), `gemini-code-assist` (sunset 2026-07-17) |
+
+Two corrections to earlier entries in this ledger, recorded rather than silently overwritten:
+
+- **CodeRabbit's App does not request `administration`.** An earlier draft of this ledger implied it
+  did. The actual grant is `contents`/`checks`/`issues`/`pull_requests`/`statuses: write` and
+  `actions`/`discussions`/`members`/`metadata: read`. The disqualifier is `contents: write` alone —
+  which is precisely the grant the Kudelski RCE converted into write access across ~1M repositories.
+- **`chatgpt-codex-connector` (the Codex *cloud* GitHub integration) requests `contents: write`
+  plus `workflows: write` plus `actions: write`** — the broadest grant of any candidate, and the
+  reason the Codex seat is taken via `openai/codex-action` in TAP's own CI under a permissions block
+  we author, rather than via the subscription's App.
+
+**First-party as a permission strategy.** GitHub Copilot code review is not a third-party App at
+all: automatic review is turned on by an org *ruleset*, so there is no new standing grant and no
+vendor holding an App private key. That property — not its review quality — is why it takes the
+daily-life seat. Its known cost is that it reads custom instructions from the *head* branch (a PR
+can influence its own review) and that it cannot approve, request changes, or satisfy a required
+review — the negative result that cements the required-check gating pattern below.
 
 **Production ensembles.** Cloudflare's orchestrator is the reference architecture: up to seven
 specialized reviewers across model families (Claude, GPT, Kimi), a coordinator model that dedups,
@@ -97,7 +133,10 @@ diff-review barely sees; no credible claim standard AI review would have caught 
 **Attacks on reviewers.** CodeRabbit RCE (disclosed 2025-01, published 2025-08, Kudelski): a PR's
 `.rubocop.yml` executed attacker Ruby on CodeRabbit prod, leaking the GitHub App private key ⇒
 mintable write tokens for ~1M repos; fixed in days (tools now sandboxed, "tools in jail"), but the
-broad App grant (contents R/W, administration) remains the structural risk. Claude Code Action —
+structural risk is unchanged and is exactly one permission: **`contents: write`**, which the App
+still requests. (It does *not* request `administration` — see the permission sweep above.) An App
+private key sitting in a vendor's environment is a write path to every repo it is installed on,
+however well the vendor sandboxes its tools. Claude Code Action —
 **CVE-2025-59536** (arbitrary code execution via prompt injection embedded in PR content; bash in a
 PR *title* executed by the agent) and **CVE-2026-21852** (Anthropic API-key exfiltration by the same
 vector); reported by RyotaK of GMO Flatt Security, fixed in four days, hardened through spring 2026,
@@ -120,15 +159,16 @@ actor."
   free Developer plan for qualified MIT/Apache/GPL open source — **TAP is Apache-2.0 and public, so
   it qualifies**; GitHub + GitLab only; SOC 2 Type II all tiers; no training on customer code. The
   50-review/month ceiling is the open question against TAP's measured ~44 merged PRs/30d.
-- *CodeRabbit*: full Pro features free on public repos (permanent, no application or qualification
-  process — the free tier is the complete Pro plan, not a reduced one); **planning layer built on
-  Claude** plus a post-trained NVIDIA Nemotron routing model ⇒ NOT vendor-independent from TAP's
-  authoring model; paid reference $24–30/seat/mo; GitHub App (org/user install,
-  scopable to selected repos); summary + inline comments; can formally Approve only behind
-  `reviews.request_changes_workflow` (off by default; not endorsed as a required-review substitute);
-  `.coderabbit.yaml` — `profile` quiet/chill/assertive, `path_filters`, `path_instructions` (≤20k
-  chars, the security-instruction hook), `auto_review`, 60+ bundled tools incl. semgrep + gitleaks;
-  SOC 2 Type II; code shared with OpenAI/Anthropic for review, no training on customer code.
+- *CodeRabbit* — **rejected 2026-08-13 on `contents: write`.** Full Pro free on public repos
+  (permanent, no application); **planning layer built on Claude** plus a post-trained NVIDIA
+  Nemotron routing model ⇒ NOT vendor-independent from TAP's authoring model either; paid reference
+  $24–30/seat/mo; GitHub App (org/user install, scopable to selected repos); summary + inline
+  comments; can formally Approve only behind `reviews.request_changes_workflow` (off by default;
+  not endorsed as a required-review substitute); `.coderabbit.yaml` — `profile`
+  quiet/chill/assertive, `path_filters`, `path_instructions` (≤20k chars, the security-instruction
+  hook), `auto_review`, 60+ bundled tools incl. semgrep + gitleaks; SOC 2 Type II; code shared with
+  OpenAI/Anthropic for review, no training on customer code. Two independent disqualifiers, and the
+  permission one is the hard filter.
 - *OpenAI Codex*: `@codex review` / auto-review toggle via the Codex cloud GitHub integration
   (ChatGPT-plan billed; Free tier excluded — **Plus at $20/mo is the entry point that includes
   GitHub code review**; Pro 5x $100/mo since 2026-04). **Gotcha that constrains the wiring: the API
@@ -136,9 +176,13 @@ actor."
   *subscription*, not the key, so the seat is provisioned as an account, not a secret; posts a real
   GitHub review, P0/P1-focused;
   `@codex security review` variant; `AGENTS.md` "Code Review Rules" section tunes it; cloud sandbox
-  runs the agent phase network-off with secrets stripped. `openai/codex-action@v1` runs in *your*
+  runs the agent phase network-off with secrets stripped. **The cloud path is rejected on
+  permissions:** its `chatgpt-codex-connector` App requests `contents: write` + `workflows: write` +
+  `actions: write` (the broadest grant surveyed). `openai/codex-action@v1` runs in *your*
   CI (API-key billed), sandbox modes read-only/workspace-write, structured `output-schema` verdicts
-  ⇒ first-party supported required-check gating.
+  ⇒ first-party supported required-check gating, under a `permissions:` block GitHub enforces and we
+  author. The action's own example already splits the model job (`contents: read`) from the
+  comment-posting job (`pull-requests: write`, no model).
 - *Anthropic*: `anthropics/claude-code-action` (interactive @claude / automation mode; API key,
   subscription OAuth token, OIDC federation, or Bedrock/Vertex; the most detailed vendor
   prompt-injection hardening — content sanitization, untrusted-ref discipline, base-branch config
@@ -148,7 +192,23 @@ actor."
   Anthropic infra, verification pass filters FPs, ~$15–25/review, deliberately-neutral check run
   plus a documented recipe for building your own blocking check from its severity JSON.
 - *GitHub Copilot code review*: comments only; cannot approve/request-changes/satisfy required
-  reviews — the negative result that cements the required-check gating pattern.
+  reviews — the negative result that cements the required-check gating pattern. **First-party, so
+  there is no App to install and no standing third-party grant** — turned on by an org ruleset
+  ("Automatically request Copilot code review", with "Review new pushes" and Balanced effort).
+  Requires a Copilot Pro licence or higher for automatic review ($10/mo, or complimentary for
+  verified OSS maintainers); public repos are exempt from the usage-based billing introduced
+  2026-06-01. Reads repository custom instructions from `.github/copilot-instructions.md` **on the
+  head branch**.
+- *Codacy* (`codacy-production`, verified `contents: read`): SAST, SCA, secrets detection and
+  duplication analysis as a GitHub App; free and unlimited for public repositories, no time limit;
+  optional `.codacy.yml` at the repo root (defining it makes the UI's ignored-files settings stop
+  applying). Security *observability*, not a reviewer — it produces findings, not verdicts.
+- *SonarQube Cloud* (`sonarqubecloud`, verified `contents: read`): rules, vulnerabilities and a
+  quality gate; free plan covers unlimited public projects. **Python is supported by Automatic
+  Analysis**, so it needs no workflow, no `SONAR_TOKEN` and no `sonar-project.properties` — the
+  cheapest seat to stand up. Known limits: no coverage import, no monorepo support, no non-main
+  branch analysis (PR analysis does work), no analysis logs. Coverage would require CI-based
+  analysis and therefore a secret.
 
 **Standards.** SLSA Source Track L4 = two or more trusted *persons*; AI does not count (a "Trusted
 Robot" policy-exception seam exists; L1–3 are the honest solo-maintainer target). OpenSSF
@@ -163,9 +223,9 @@ serious OSS project yet *mandates* an AI review pass — TAP doing so is ahead o
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-cicd-ai-review-ensemble | [Independent Reviewer Ensemble](#independent-reviewer-ensemble) | Proposed | ≥2 vendors; author-model ≠ reviewer-model — a non-Anthropic reviewer is mandatory while Claude authors |
-| req-cicd-ai-review-least-privilege | [Reviewer Least Privilege](#reviewer-least-privilege) | Proposed | Read + comment only; no write path, no secrets, no egress, minimal tools; per-reviewer trust-delta named |
-| req-cicd-ai-review-untrusted-content | [PR Content Is Untrusted Input](#pr-content-is-untrusted-input) | Proposed | Injection-aware config; unreviewable binaries/images are findings; per-PR review unit, never batched |
+| req-cicd-ai-review-ensemble | [Independent Reviewer Ensemble](#independent-reviewer-ensemble) | Proposed | ≥2 vendors; author-model ≠ reviewer-model — a non-Anthropic reviewer is mandatory while Claude authors; no seat holds `contents: write` |
+| req-cicd-ai-review-least-privilege | [Reviewer Least Privilege](#reviewer-least-privilege) | Proposed | Read + comment only; verify every App grant with `gh api /apps/<slug>` before install; per-reviewer trust-delta named |
+| req-cicd-ai-review-untrusted-content | [PR Content Is Untrusted Input](#pr-content-is-untrusted-input) | Proposed | Injection-aware config; unreviewable binaries/images are findings; per-PR review unit; the security lens sits on the base-branch seat |
 | req-cicd-ai-review-gate | [TAP-Owned Fail-Closed Gate](#tap-owned-fail-closed-gate) | Proposed | Blocking = required check over machine-readable verdicts (the `gate` pattern); never a bot approval |
 | req-cicd-ai-review-graduation | [Advisory Then Blocking](#advisory-then-blocking) | Proposed | Phase 1 advisory; graduate only measured, security-severity findings to blocking |
 | req-cicd-ai-review-verdict-ledger | [Verdict Ledger](#verdict-ledger) | Proposed | Machine-legible review verdicts retained as an audit trail; named AI consumer per `req-ai-name-the-consumer` |
@@ -187,34 +247,54 @@ different vendors**, chosen so that the reviewer set is independent of the autho
 - **Author-model ≠ reviewer-model is the non-negotiable rule.** TAP is authored overwhelmingly by
   Claude (the beanbag); therefore at least one reviewer MUST be non-Anthropic (Codex/GPT family).
   This is the strongest-evidenced ensemble rule (self-correction blind spot; homogenization trap).
-- **v0 roster (DECIDED 2026-08-12 — two seats, both running off TAP infrastructure):**
-  1. **CodeRabbit** (free full-Pro on public repos — no application, permanent; GitHub App scoped
-     to selected repos) — the daily-life seat: PR summaries and walkthroughs, hygiene, 40+ bundled
-     static tools (semgrep/gitleaks), malicious-change `path_instructions`. Advisory always.
-     **Explicitly NOT the independence leg** — CodeRabbit's planning layer is built on Claude, the
-     authoring family, so it cannot satisfy `req-cicd-ai-review-ensemble-2`.
-  2. **OpenAI Codex cloud review** — the independence leg, and the only seat that satisfies
-     `req-cicd-ai-review-ensemble-2`. Runs on OpenAI infra (ChatGPT-plan billed; the API tier does
-     not include cloud review), no secrets in our CI; tuned via the `AGENTS.md` review-rules
-     section TAP already maintains.
-- **The malicious-change lens is CONFIGURATION ON BOTH SEATS, not a third agent.** A dedicated
-  CI-resident security reviewer (`anthropics/claude-code-security-review`) was evaluated and
-  **deferred, not eliminated**: it executes inside TAP's CI holding an API key while parsing
-  attacker-controlled PR content — precisely the capability combination behind CVE-2025-59536
-  (code execution via PR-borne prompt injection) and CVE-2026-21852 (API-key exfiltration), fixed
-  in `claude-code-action` v1.0.94. Adding that surface in order to defend against smuggled
-  compromise is a net-negative trade at v0 scale. Revisit only if the Phase-2 observation window
-  shows the dedicated lens catching a class the two seats miss — and then hardened per
-  `req-cicd-ai-review-least-privilege`.
-- Count votes honestly: correlated errors mean this roster ≈ 1.5 effective independent opinions.
-  Diversity of *prompt/lens* (hygiene + summaries vs independent correctness) is deliberate, and
-  both seats carry the malicious-change instructions rather than one specialist holding them.
-- **Alternative on the shelf:** *Greptile* (whole-codebase context; its experimental **Model
-  Inversion** auto-detects the authoring agent from commit trails/branch prefixes and routes review
-  to the opposing family — this spec's independence rule, productized; free for Apache-2.0 OSS).
-  Passed over at v0 because it is measurably the noisiest reviewer (11 false positives vs
-  CodeRabbit's 2 across a 50-PR benchmark) and noise is the failure mode that would sink the
-  daily-life goal for a solo maintainer. Swap it in if depth beats quiet in practice.
+- **The hard filter is `contents: write`.** No reviewer holds a write path to code. This is not a
+  preference to be traded against review quality — it is the property that makes a steered or
+  compromised reviewer degrade to "wrong comment" instead of "compromised repository", and it
+  eliminated nearly the entire market (see the permission sweep in the ledger above).
+- **v0 roster (REBUILT 2026-08-13 — two reviewing seats, two security-observability seats):**
+  1. **GitHub Copilot code review** — the daily-life seat: summaries, correctness, hygiene.
+     First-party, so **there is no third-party App and no new standing grant**; enabled by an
+     org-wide ruleset. Advisory always — GitHub itself will not let it satisfy a required review.
+     **Explicitly NOT the independence leg** (Anthropic models are among those it routes to, and
+     the seat is not vendor-pinned in a way we can verify).
+  2. **OpenAI Codex via `openai/codex-action`** — the independence leg, and the only seat that
+     satisfies `req-cicd-ai-review-ensemble-2`. Runs in TAP's CI under a `permissions:` block we
+     author and GitHub enforces (`contents: read` on the model job; `pull-requests: write` on a
+     separate job that runs no model), `safety-strategy: read-only`. Billed as API usage.
+  3. **Codacy** and **SonarQube Cloud** — security *observability*, not reviewers. Third-party Apps,
+     both verified `contents: read`. They produce findings (SAST, SCA, secrets, rules), not
+     verdicts, and they do not count toward `req-cicd-ai-review-ensemble-1`.
+- **This roster reverses `req-cicd-ai-review-ensemble-4`, deliberately.** The 2026-08-12 roster was
+  all-vendor-infrastructure specifically so that no reviewer executed in TAP's CI holding a TAP
+  secret. The permission sweep showed that property was unpurchasable: every vendor offering it
+  wanted `contents: write` in exchange. Given the choice between *a third party holding a write key
+  to every repo* and *a read-only job in our own CI holding one API key we can rotate*, the second
+  is the smaller surface — the blast radius of the first is the whole org, the second is one
+  OpenAI bill. The CVE-2025-59536 / CVE-2026-21852 concern that motivated ensemble-4 is answered by
+  configuration rather than by absence: `safety-strategy: read-only`, `permissions: {}` at the
+  workflow top level, `persist-credentials: false`, and the model job holding no write scope at all.
+  See the amended criterion below.
+- **The malicious-change lens is CONFIGURATION ON EVERY SEAT, not a third agent.** A dedicated
+  security reviewer (`anthropics/claude-code-security-review`) remains **deferred, not eliminated**,
+  but the reason has narrowed. It is no longer "no reviewer runs in our CI" — Codex now does. It is
+  that the action self-declares "not hardened against prompt injection", it is same-family with the
+  authoring model so it adds correlated rather than independent judgement, and a third seat costs
+  triage attention a solo maintainer does not have. CVE-2025-59536 and CVE-2026-21852 (fixed in
+  `claude-code-action` v1.0.94) are the reason any such seat would be configured per
+  `req-cicd-ai-review-ensemble-5` rather than the reason to refuse it. Revisit if the Phase-2
+  observation window shows a dedicated lens catching a class the seated reviewers miss.
+- Count votes honestly: correlated errors mean the two reviewing seats ≈ 1.5 effective independent
+  opinions. Diversity of *prompt/lens* (hygiene + summaries vs independent correctness) is
+  deliberate, and both seats carry the malicious-change instructions rather than one specialist
+  holding them.
+- **Alternatives on the shelf, all now blocked by the hard filter.** *Greptile* (whole-codebase
+  context; its experimental **Model Inversion** auto-detects the authoring agent from commit
+  trails/branch prefixes and routes review to the opposing family — this spec's independence rule,
+  productized; free for Apache-2.0 OSS) was the strongest technical alternative and is out on
+  `contents: write`, not on noise. *CodeRabbit* likewise. `difflens` is the one surveyed App that
+  clears the filter and is not seated — parked as the first swap-in if a reviewing seat needs
+  replacing. Reopening any rejected vendor requires a fresh `gh api /apps/<slug>` showing the grant
+  has actually narrowed.
 - Both reviewers' instructions MUST explicitly target the malicious-change class:
   instruction-like content in diffs/comments, capability-adding changes with cover-story
   descriptions, CI/build-script modifications, dependency/lockfile edits, encoded/obfuscated blobs.
@@ -226,7 +306,8 @@ different vendors**, chosen so that the reviewer set is independent of the autho
 | req-cicd-ai-review-ensemble-1 | Two Vendors Minimum | Proposed | Every code-bearing PR to main is reviewed by ≥2 AI reviewers from different vendors. | Docs-tier PRs MAY be exempt (change-tier). |
 | req-cicd-ai-review-ensemble-2 | Non-Author Vendor | Proposed | While Claude is the primary authoring model, ≥1 reviewer is non-Anthropic. | The independence leg. |
 | req-cicd-ai-review-ensemble-3 | Malicious-Change Lens | Proposed | EVERY seated reviewer runs explicit malicious-change/smuggling instructions, not generic review prompts. | The #1-with-a-bullet job; carried by config on both seats, not by a specialist agent. |
-| req-cicd-ai-review-ensemble-4 | No CI-Resident Reviewer At v0 | Proposed | No reviewer executes inside TAP's CI holding a TAP secret; the v0 roster runs entirely on vendor infrastructure. | Escalating past this requires the re-decision named in `req-cicd-ai-review-least-privilege`. |
+| req-cicd-ai-review-ensemble-4 | No Reviewer Holds Code Write | Proposed | No seated reviewer — App or action — holds `contents: write` or any other write path to code. Verified per seat with `gh api /apps/<slug>` (Apps) or an explicit `permissions:` block (actions) before install. | **Amended 2026-08-13**, replacing "No CI-Resident Reviewer At v0". The original forbade CI residency as a proxy for this property; the permission sweep showed the proxy inverted — the all-vendor rosters all required `contents: write`, while a CI-resident action can be pinned read-only. The reasoning is preserved in `doc-cicd-ai-review-plan.md`. |
+| req-cicd-ai-review-ensemble-5 | CI-Resident Reviewers Are Hardened | Proposed | A reviewer running in TAP's CI uses `pull_request` (never `pull_request_target` with PR-controlled checkout), workflow-level `permissions: {}`, `persist-credentials: false`, a read-only sandbox where the runner supports it, SHA-pinned actions, and a model job that holds no write scope — the comment-posting job runs no model. | The configuration that answers CVE-2025-59536 / CVE-2026-21852 now that absence is no longer the control. |
 
 ---
 
@@ -241,16 +322,23 @@ the reviewer class, plus the trust-delta doctrine applied to third-party reviewe
 
 #### Implementation
 
-- **Strongest form first: prefer reviewers that do not execute in TAP's CI at all.** The v0 roster
-  (`req-cicd-ai-review-ensemble`) is deliberately all-vendor-infrastructure: no reviewer holds a TAP
-  secret, no reviewer process parses attacker-controlled PR content inside our pipeline, and a
-  reviewer compromise therefore cannot become pipeline execution. A CI-resident reviewer is an
-  *escalation*, adopted only when a capability genuinely demands it and hardened per the bullet
-  below. This is why the dedicated Claude security action is deferred rather than seated.
-  **Named tension:** the Phase-3 blocking path in `req-cicd-ai-review-graduation` currently assumes
-  `openai/codex-action` with `output-schema` running in our CI — which re-introduces exactly the
-  CI-resident reviewer this bullet avoids. That trade MUST be re-decided at the flip, with parsing
-  the cloud review's already-posted verdict evaluated first as the no-new-surface alternative.
+- **Strongest form first: verify the grant before installing anything.** `gh api /apps/<slug> --jq
+  '.permissions'` against GitHub's own registry, not the vendor's marketing, and the install
+  consent screen as the authoritative check at install time. That one command caught every problem
+  in the roster rebuild — including a vendor whose App wanted `contents: write` + `workflows: write`
+  + `actions: write` while being sold as a read-only reviewer. An App that requests write access to
+  code is rejected; there is no configuration that takes it back, because the grant lives on the
+  vendor's key and not in our repository.
+- **Prefer, in order: (1) first-party mechanisms with no standing grant** — Copilot review is an org
+  ruleset, not an App, so there is nothing to compromise on a vendor's side; **(2) a read-only job in
+  our own CI**, where the permission block is ours, versioned, reviewable and enforced by GitHub;
+  **(3) a third-party App verified `contents: read`.** The 2026-08-12 ordering put "runs on vendor
+  infrastructure" above all three. That was wrong, and the permission sweep is why: vendor infra
+  bought us "no TAP secret at risk" only by handing the vendor a write key to every repo in the org.
+  A rotatable API key in our CI is the strictly smaller loss. **Named residual:** an action in our
+  CI does parse attacker-controlled PR content next to a secret — bounded by
+  `req-cicd-ai-review-ensemble-5`'s hardening and by that secret being a single-vendor API key with
+  no repository access, not by absence.
 - **Action-based reviewers (in our CI):** `pull_request` trigger only — never `pull_request_target`
   with a fork checkout; `permissions:` read-only plus `pull-requests: write` solely for the comment
   step; SHA-pinned per `req-cicd-runner-least-privilege-4`; sandbox read-only / network-off where
@@ -266,21 +354,29 @@ the reviewer class, plus the trust-delta doctrine applied to third-party reviewe
 - The invariant that keeps this honest: **org homogeneity**. Anything that ever needs a different
   protection level belongs in a *different org*, never as an in-org exception. Admitting one
   exception converts the floor from an invariant into a convention.
-- CodeRabbit's approve/request-changes workflow stays **off** (its formal approval must never be
-  load-bearing); each app's permission grant is **recorded at install time** and reviewed like
-  `tap-renovate`'s — an App requesting `administration` reaches the root-of-trust surface
-  (`spec-cicd-root-of-trust.md`) and is a decision, not a reflex-accept.
-- Prefer **org-level reviewer configuration** over per-repo files where the vendor supports it
-  (CodeRabbit: org settings, with `inheritance: true` in a repo's `.coderabbit.yaml` to merge
-  repo-specific rules on top). Copying one security instruction into 15 repos violates
-  derive-a-fact-once and yields 15 silently diverging copies. Where that org configuration lives in
-  a vendor dashboard rather than in git, it is an **external-configuration-ratchet** case
-  (`req-cicd-rot-config-ratchet`): commit the intended configuration and check the live state
-  against it.
-- The named residual: a vendor-side compromise of an installed App's key is write access to every
-  repo in the org — mitigated by the `main` ruleset (required checks apply to apps too) and bounded
-  by the org boundary rather than by a repo list. This is the Kudelski lesson; it is accepted,
-  named, and re-reviewed on any vendor incident (a prior-art-ledger update trigger).
+- No bot's formal Approve / Request-changes state is ever load-bearing. Each app's permission grant
+  is **recorded at install time** and reviewed like `tap-renovate`'s — an App requesting
+  `administration` reaches the root-of-trust surface (`spec-cicd-root-of-trust.md`) and is a
+  decision, not a reflex-accept. The standing verification query lives in the run sheet's checklist:
+  `gh api /orgs/unified-systems-com/installations` should show `contents: read` for every reviewer
+  App, write only for TAP's own automation (`tap-renovate`, `tap-release-please`), and
+  `administration` nowhere.
+- Prefer **org-level reviewer configuration** over per-repo files where the vendor supports it.
+  Copying one security instruction into 15 repos violates derive-a-fact-once and yields 15 silently
+  diverging copies. Where that org configuration lives in a vendor dashboard rather than in git, it
+  is an **external-configuration-ratchet** case (`req-cicd-rot-config-ratchet`): commit the intended
+  configuration and check the live state against it. Sonar's "automatically import new repositories"
+  and the org-wide Copilot ruleset are the same floor property applied to their seats.
+- The named residuals, now that no seat holds code write:
+  - **Vendor-side compromise of a `contents: read` App is org-wide source disclosure, not
+    modification.** TAP is entirely public and Apache-2.0, so the disclosure loss is approximately
+    zero — which is a real reason this roster is affordable here and would not be elsewhere. It is
+    still a foothold for reconnaissance, and re-reviewed on any vendor incident.
+  - **The CI-resident Codex seat holds one API key.** Compromise of that key is OpenAI billing
+    abuse, not repository access. It is a repo secret, absent from fork-PR runs by GitHub's model,
+    and rotatable in minutes.
+  - **A compromised seat can still lie.** Every seat can be steered into a soft review; none can act
+    on it. That is the trade this roster makes deliberately.
 - Reviewers never hold or mint credentials beyond their own vendor key; reviewer workflows carry no
   other repo secrets.
 
@@ -291,6 +387,7 @@ the reviewer class, plus the trust-delta doctrine applied to third-party reviewe
 | req-cicd-ai-review-least-privilege-1 | Read And Comment Only | Proposed | No reviewer holds a write path to code, a shared secret store, or unnecessary tool/network access. | |
 | req-cicd-ai-review-least-privilege-2 | Org-Wide Install Floor | Proposed | Reviewer apps are installed across ALL repositories in `unified-systems-com` so every repo inherits the same floor; grants recorded at install, trust-delta named. | The org is single-purpose (all TAP, all public, one protection level). A per-repo allowlist would generate silent drift below the floor. Homogeneity is the invariant: differing protection needs go in a different org. |
 | req-cicd-ai-review-least-privilege-3 | No pull_request_target | Proposed | Reviewer workflows never combine `pull_request_target`/`workflow_run` with untrusted checkout. | GitHub pwn-request class. |
+| req-cicd-ai-review-least-privilege-4 | Verify The Grant Before Installing | Proposed | Every GitHub App is checked with `gh api /apps/<slug> --jq '.permissions'` before install, the consent screen is read at install, and the observed grant is recorded. An App requesting write access to code is rejected outright. | Generalizes past reviewers: this is now the rule for ANY App on `unified-systems-com`. The command is what caught every problem in the 2026-08-13 rebuild. |
 
 ---
 
@@ -316,7 +413,27 @@ design absorbs a steered verdict rather than pretending to prevent steering.
 - Injection degrades to "wrong verdict": the gate (`req-cicd-ai-review-gate`) fails closed on a
   *missing* verdict, and a forged *approving* verdict from one reviewer still faces the other
   reviewers and the human — which is why approve-the-backdoor is named, not solved, in
-  `req-cicd-ai-review-honest-limits`.
+  `req-cicd-ai-review-honest-limits`. **This is the whole control, and it is structural rather than
+  contractual**: because no reviewer holds `contents: write` (`req-cicd-ai-review-ensemble-4`), the
+  blast radius of a successful injection is a wrong comment, enforced by GitHub rather than promised
+  by a vendor. Defence-in-depth on top of that would cost more than the risk it removes.
+
+**Two seat-specific injection findings (2026-08-13), recorded because they shape the design and are
+deliberately not engineered around:**
+
+- **A PR can influence its own Copilot review.** Copilot reads `.github/copilot-instructions.md`
+  from the *head* branch, so a PR editing that file changes the instructions used to review it.
+  Real, and accepted: it buys an attacker a softer comment, not a write, and Copilot is the hygiene
+  seat rather than the security one. Two things bound it — the security lens lives on the seat that
+  is immune (below), and **any edit to reviewer configuration is itself a prompt-level finding** on
+  every seat (`.github/copilot-instructions.md`, `.github/instructions/**`, `.github/workflows/**`,
+  `AGENTS.md`, `CLAUDE.md`). A PR editing these is editing its own review, and must say so out loud.
+- **The Codex seat is structurally immune to the same trick**, because its prompt lives in the
+  workflow file and `pull_request` runs workflows from the *base* branch — the PR under review
+  cannot edit the instructions being applied to it. **This is why the malicious-change lens belongs
+  in the workflow prompt rather than in a checked-out file**: it costs nothing and lands the
+  security job on the seat that happens to be un-steerable. A checked-out `AGENTS.md` or
+  instructions file would forfeit that property for no gain.
 
 #### Acceptance Criteria
 
@@ -325,6 +442,8 @@ design absorbs a steered verdict rather than pretending to prevent steering.
 | req-cicd-ai-review-untrusted-content-1 | Sanitizing Configs | Proposed | Reviewer configs enable available content-sanitization and injection mitigations. | |
 | req-cicd-ai-review-untrusted-content-2 | Unreviewable = Finding | Proposed | Binary/image/opaque additions in code paths are flagged findings, not silent skips. | GhostCommit. |
 | req-cicd-ai-review-untrusted-content-3 | Per-PR Unit | Proposed | Review scope is one PR; no batched multi-PR review mode is adopted. | PRWeaver. |
+| req-cicd-ai-review-untrusted-content-4 | Base-Branch Instructions For The Security Seat | Proposed | The seat carrying the malicious-change lens reads its instructions from a location the PR under review cannot edit — the workflow file under `pull_request`, not a checked-out file. | Copilot reads head-branch instructions; Codex does not. Put the security job on the immune seat. |
+| req-cicd-ai-review-untrusted-content-5 | Reviewer-Config Edits Are Findings | Proposed | Every seat's instructions flag any diff touching reviewer or CI configuration as a finding in its own right. | A PR editing its own review must be visible even when the edit looks benign. |
 
 ---
 
@@ -340,9 +459,12 @@ closed — **never** a bot Approve satisfying a required-review rule.
 #### Implementation
 
 - An `ai-review` aggregator (product-lines.yml sibling of `gate`, or its own workflow with a
-  hand-named stable job) consumes structured verdicts: codex-action `output-schema` JSON; the
-  Claude action's structured output (or managed Code Review's `bughunter-severity:` JSON if that
-  product is adopted); CodeRabbit remains advisory (no reliable machine verdict contract).
+  hand-named stable job) consumes structured verdicts: codex-action `output-schema` JSON is the
+  primary contract, since that seat already runs in our CI and can emit a schema-validated verdict
+  directly. Copilot review stays advisory — it posts comments with no machine verdict contract and
+  cannot satisfy a required review by GitHub's own design. Codacy and Sonar expose their own status
+  checks, which can be required independently of this aggregator if their signal proves worth
+  blocking on; they are not verdict sources for it.
 - **Fail-closed semantics mirror `gate`:** missing verdict = red; skipped = red unless the change
   tier justifies it (docs-tier exempt via `scripts/change-tier`, same as the boot gates); severity
   ≥ the blocking threshold = red. `if: always()` aggregator so a skip cannot become a false green.
@@ -385,9 +507,16 @@ window, and only to the security-severity slice.
 - Phase 2 flip: the `ai-review` gate (`req-cicd-ai-review-gate`) goes required in the same wave as
   the ruleset bypass-emptying. The flip is a deliberate, recorded decision referencing the
   observation data.
-- Noise is managed in config (CodeRabbit `profile`/`path_filters`; Codex P0/P1-only posture;
-  Claude confidence filtering + "what NOT to flag" instructions), not by ignoring reviewers — an
+- Noise is managed in config (Copilot review effort and draft-PR exclusion; Codex severity labels
+  with critical/high reserved for security-class findings; "what NOT to flag" instructions on both
+  seats — formatting, import order and docstring style are already gated by black/ruff/mypy;
+  Codacy/Sonar exclusion lists once we know what is actually noisy), not by ignoring reviewers — an
   ignored advisory layer is worse than none (the it-was-on-but-unread failure).
+- **A filtered path is a silent path.** Exclusion lists never grow to cover `uv.lock`,
+  `tap/guards/baselines/**`, vendored minified JS, or anything under `.github/` — those are exactly
+  the files worth smuggling through, and "generated file" is a costume a weakened control can wear.
+  Derived output with a committed generator and no smuggling value (e.g. `tailwind.css`) is the only
+  legitimate exclusion.
 
 #### Acceptance Criteria
 
@@ -483,6 +612,18 @@ defined:
   as guard meta-integrity (`req-dev-validation-meta-integrity`).
 - **Reviewer availability.** A required external reviewer adds an outage mode to shipping; accepted
   with the loud break-glass (`req-cicd-ai-review-gate-4`).
+- **A PR can soften its own Copilot review**, because Copilot reads instructions from the head
+  branch. Bounded, not closed: the security lens sits on the base-branch seat
+  (`req-cicd-ai-review-untrusted-content-4`) and reviewer-config edits are findings
+  (`-untrusted-content-5`). Trusting GitHub's team with the underlying fix is the deliberate default.
+- **Deterministic checks on `.github/**` are missing.** The deleted CodeRabbit seat bundled
+  `actionlint` and `zizmor`; nothing in the current roster replaces them, so the
+  highest-consequence surface in the repository is now covered by LLM judgement alone. Both run
+  without a third-party App and clear the hard filter trivially — queued, not built. Tracked in the
+  run sheet's Step 0 gap table.
+- **Codacy and Sonar see the source of every repo in the org.** Accepted because every repo is
+  already public; it would not be accepted in an org holding anything private, which is the same
+  homogeneity invariant `req-cicd-ai-review-least-privilege-2` depends on.
 
 #### Acceptance Criteria
 

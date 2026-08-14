@@ -6,7 +6,7 @@ covers:
   - ../../specs/spec-cicd-ai-review.md
 update-triggers:
   - A decision is made on any option below — record it and mark the option chosen/rejected
-  - A reviewer vendor ships named duplication detection, or CodeRabbit adds repo indexing
+  - A reviewer vendor ships named duplication detection, or a seated reviewer adds repo indexing
   - GitClear publishes a new annual report (the duplication trend numbers here go stale yearly)
   - The duplicates-session backlog (18 findings) closes out — re-measure and re-assess
 assumes:
@@ -156,8 +156,11 @@ primitive for "what breaks." CodeRabbit chose the latter. Its Code Graph Analysi
 dependency/call graph — it cannot cluster functions by behavior. And **none of its 50+ bundled
 tools is a clone detector** (no jscpd, no PMD-CPD, no Simian; PMD is present for linting only).
 
-**Conclusion: CodeRabbit is the weakest of the three planned reviewers for this specific job.** It
-remains justified on the security/hygiene grounds in the companion plan. The knobs that do apply:
+**Conclusion: CodeRabbit is the weakest reviewer surveyed for this specific job** — and it was
+subsequently **rejected from the roster entirely** (2026-08-13, on `contents: write`; see
+[doc-cicd-reviewer-rollout-plan.md](doc-cicd-reviewer-rollout-plan.md)). The analysis is kept
+because the *finding* generalizes — reviewers that clone-and-grep instead of indexing cannot do
+this job, which is true of the seated roster too. The knobs below no longer apply to TAP:
 
 | Knob | Why |
 | --- | --- |
@@ -204,8 +207,8 @@ worse at reviewing their own output.** Claude reviewing Claude: **53.7% recall**
 GPT: **62.0%**. GPT on GPT: 50.5%; GPT on Claude: 60.0%.
 
 TAP is ~95% Claude-authored, so a Claude-only reviewer runs in its weakest configuration. This is
-an independent, quantitative justification for the CodeRabbit + Codex + Claude stack already
-planned on security grounds — **~8 points of recall, not coverage hand-waving.**
+an independent, quantitative justification for the multi-vendor stack planned on security grounds
+(now Copilot + Codex, with the non-Anthropic seat carrying the weight) — **~8 points of recall, not coverage hand-waving.**
 
 ### The one vendor that ships this by name
 
@@ -356,9 +359,9 @@ Pre-decision. Each is an option, not a commitment.
    with TAP's fail-closed posture. Related: entry-point name collisions are **not** detected by
    Python packaging — a boot-time collision check is ~10 lines and directly relevant to a plugin
    system.
-4. **Reuse clause in CLAUDE.md + `REVIEW.md`.** The only way Anthropic's official review plugin and
-   CodeRabbit's guideline ingestion surface duplication at all. Cheap, and CodeRabbit picks up
-   CLAUDE.md with zero config.
+4. **Reuse clause in CLAUDE.md + `REVIEW.md`.** The only way an instruction-driven reviewer surfaces
+   duplication at all. Cheap — Copilot reads `.github/copilot-instructions.md` and Codex reads its
+   workflow prompt, so the clause lands in both without a new file.
 
 ### Tier B — structural enforcement (deterministic, moderate effort)
 
@@ -393,10 +396,13 @@ Pre-decision. Each is an option, not a commitment.
     live" map filled in with TAP's actual layout, delegating to subagents across four search
     vectors (structural similarity, naming conventions, comments/docs, architectural fit) and
     requiring `file:path` + symbol in every finding.
-12. **CodeRabbit `pre_merge_checks.custom_checks`** with reuse instructions, `mode: warning` first.
-    The only gate-shaped knob in that product.
-13. **Trial Baz** if a vendor should own this. Only one shipping it by name; fails closed; $30/dev;
-    near-zero community footprint is the risk.
+12. ~~**CodeRabbit `pre_merge_checks.custom_checks`**~~ — **dead option** as of 2026-08-13:
+    CodeRabbit is off the roster. The gate-shaped equivalent on the current roster is a reuse rule
+    in the Codex prompt feeding the planned `ai-review` aggregator.
+13. ~~**Trial Baz**~~ — **blocked on permissions** as of 2026-08-13: `baz-app` requests
+    `contents: write`, which `req-cicd-ai-review-ensemble-4` rejects outright. It remains the only
+    vendor shipping duplication detection by name and fails closed correctly, so it is the standing
+    reopen candidate the day that grant narrows — verify with `gh api /apps/baz-app`.
 
 ### Tier D — cadence and measurement
 
@@ -520,7 +526,7 @@ them. **This is the strategic opening for TAP** — see §6d.
 
 **Short-list for TAP's profile** (solo, AI-authored, spec-rich, public repos, strong guard harness):
 
-| Tool | Adds what CodeRabbit/Codex/Claude cannot | Cost |
+| Tool | Adds what a diff reviewer cannot | Cost |
 | --- | --- | --- |
 | **import-linter** (+ **Tach**) | A *proof* on every commit that layering holds. Custom contract types subclass `Contract` and receive the full Grimp import graph → bespoke invariants emit violation counts the ratchet harness already consumes. Tach adds **symbol-level `[[interfaces]]`** — the only way to express "the service layer is the only mutation path." Use `exhaustive = true` so a new app can't escape the model. | Free (BSD-2 / MIT) |
 | **gh-aw multi-lens review** | The only route to a reviewer that knows what `req-fips-crypto-bom` means. **Graduated out of GitHub Next into the main GitHub org** (MIT, 4.9k stars). Agent job runs read-only; safe-outputs handlers execute privileged actions; threat-detection on by default. Its own `pr-code-quality-reviewer.md` is a working MIT coordinator with **KEEP/HARDEN/DROP** triage; `test-quality-sentinel.md` is a deterministic test rubric. Public-repo runners are free → cost is tokens only. **Pin above 0.71.3** (retired billing-bug releases). | ~$5–10/mo tokens |
@@ -528,10 +534,13 @@ them. **This is the strategic opening for TAP** — see §6d.
 | **CodeScene Community** | **Change coupling** — detects apps that are *behaviourally* coupled because they co-change, even with no import between them. Exactly the sideways-dependency smell that survives a clean import-linter run; nothing else measures it. Code Health is the only metric here with peer-reviewed validation. | Free for OSS |
 | **StrictDoc** | Implements almost exactly TAP's model already — see §6d. | Free (Apache-2.0) |
 
-**Do NOT add a fourth generic diff reviewer** (Greptile, Cursor Bugbot, Baz, Bito, Graphite):
-marginal signal near zero over the three already planned; **all have moved to consumption billing
+**Do NOT add another generic diff reviewer** (Greptile, Cursor Bugbot, Baz, Bito, Graphite):
+marginal signal near zero over the seated reviewers; **all have moved to consumption billing
 within ~a year**, and a 95%-AI-authored codebase is precisely the workload that model bills
-hardest; and each executes review on vendor infrastructure.
+hardest. Since 2026-08-13 there is a harder objection: **every one of them requests
+`contents: write`**, which the roster rejects outright (`req-cicd-ai-review-ensemble-4`). Baz
+(`baz-app`) included — so the duplication-detection recommendation below is blocked on permissions,
+not on merit.
 
 **Corrections to earlier notes in this doc:**
 - **CodeRabbit OSS tier is two SKUs.** The *Free* plan is PR-summarization only; the separate

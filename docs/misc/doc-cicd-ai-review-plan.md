@@ -13,10 +13,11 @@ update-triggers:
 assumes:
   - The PR promote flow (promote-to-main.sh → PR → `gate` required check → auto-merge) is the road to main
 provides: |
-  The integration plan behind spec-cicd-ai-review.md: the recommended three-reviewer roster and
-  why, the security framing (what AI review defends against and honestly doesn't), how reviewers
-  wire into the existing gate/auto-merge machinery, the phased rollout, and the key research
-  findings with sources — so a future reader gets the reasoning, not just the requirements.
+  The reasoning record behind spec-cicd-ai-review.md — how the roster was arrived at, including the
+  2026-08-12 roster that was later overturned and why. The security framing (what AI review defends
+  against and honestly doesn't), how reviewers wire into the existing gate/auto-merge machinery, the
+  phased rollout, and the key research findings with sources. For what to actually install, read
+  doc-cicd-reviewer-rollout-plan.md; for current canon, read the spec.
 ---
 
 # AI Reviewer Ensemble — Integration Plan
@@ -26,7 +27,41 @@ sam-dev research session; three-agent sweep of CodeRabbit, the OpenAI/Anthropic 
 and the best-practices landscape). Sibling plan: [doc-cicd-root-of-trust-plan.md](doc-cicd-root-of-trust-plan.md)
 (who watches these watchers).
 
-## Recommendation
+> ## ⚠️ The roster below was overturned on 2026-08-13
+>
+> **This document is kept as the reasoning record, not as the plan.** The current roster is
+> **Copilot code review + Codex via `openai/codex-action`**, with **Codacy + SonarQube Cloud** as
+> read-only security observability. The executable plan is
+> [doc-cicd-reviewer-rollout-plan.md](doc-cicd-reviewer-rollout-plan.md); current canon is the spec.
+>
+> **What overturned it:** a sweep of every candidate's actual GitHub App permissions
+> (`gh api /apps/<slug> --jq '.permissions'`) rather than its marketing. CodeRabbit's App requests
+> `contents: write`; so do Greptile, Cursor, Graphite, Sourcery, Trunk, Devin, Ellipsis, DeepSource,
+> Snyk, Socket, CodeAnt, Pixeebot and Reviewbot. The Codex *cloud* connector — the seat recommended
+> below — wants `contents: write` **plus `workflows: write` plus `actions: write`**, the broadest
+> grant surveyed. Only `codacy-production`, `sonarqubecloud` and `difflens` came back
+> `contents: read`.
+>
+> **Three conclusions worth carrying, because each reverses something argued below:**
+>
+> 1. **The permission question dominates the quality question.** Every seat below was chosen on
+>    review quality and model independence, with the trust cost noted as a column. It turned out to
+>    be the filter, not a column — and it eliminated nearly the entire market in one pass.
+> 2. **"Runs on vendor infrastructure" was the wrong safety property.** It is argued below as the
+>    strongest form of least privilege. It is not: vendor infra bought "no TAP secret at risk" by
+>    handing the vendor a write key to every repo in the org. A read-only job in our own CI holding
+>    one rotatable API key is strictly smaller. `req-cicd-ai-review-ensemble-4` was rewritten from
+>    "No CI-Resident Reviewer" to "No Reviewer Holds Code Write" for exactly this reason.
+> 3. **Marketing is not evidence, and neither is reputation.** One command against GitHub's own
+>    registry contradicted several vendors' positioning. That check is now canon for *any* App on
+>    the org (`req-cicd-ai-review-least-privilege-4`), not just reviewers.
+>
+> Also settled on the way: Korbit's vendor is dead, and `gemini-code-assist` sunset 2026-07-17 —
+> two candidates that failed for reasons no permission check would have caught.
+>
+> Everything below this line is the 2026-08-12 record, unedited except for this banner.
+
+## Recommendation *(superseded 2026-08-13 — see banner)*
 
 **Decided 2026-08-12.** Run **two** AI reviewers on every code-bearing PR to `main`:
 **CodeRabbit** (free full Pro on public repos — summaries, walkthroughs, hygiene, bundled scanners)
@@ -75,7 +110,7 @@ person" — SLSA's two-party rule means two *humans*.
 > the same wave as the blocking flip. The two changes belong together. (Now owned by
 > [spec-cicd-root-of-trust.md](../../specs/spec-cicd-root-of-trust.md).)
 
-## The roster: two seats, two lenses, two vendors
+## The roster: two seats, two lenses, two vendors *(superseded 2026-08-13 — see banner)*
 
 The one rule the literature agrees on: **the author model must not be the only reviewer family**.
 Models miss their own errors ~64% of the time, and same-family review inflates pass rates 9–17
@@ -119,7 +154,7 @@ review** (comments only; GitHub itself won't let it satisfy review requirements)
 Cloudflare-style self-built coordinator is the eventual leading-edge upgrade if reviewer volume ever
 justifies it — deliberate overbuild-avoidance for now.
 
-## Why CodeRabbit still makes the cut, eyes open
+## Why CodeRabbit still makes the cut, eyes open *(superseded 2026-08-13 — it did not; see banner)*
 
 In January 2025, researchers at Kudelski Security achieved remote code execution on CodeRabbit's
 production servers *through a pull request* — they submitted a PR containing a malicious Rubocop
@@ -202,7 +237,7 @@ unreviewable file is a finding, not a skip** — a PR adding binary blobs or ima
 gets flagged by the reviewers rather than silently passed over. TAP has almost no legitimate
 binary churn, so this costs nearly nothing.
 
-## Rollout
+## Rollout *(superseded 2026-08-13 — see doc-cicd-reviewer-rollout-plan.md)*
 
 1. **Phase 0 — land the spec, provision the one account** (~half a day; specs-tier PR). Review and
    promote `specs/spec-cicd-ai-review.md`. Provision **ChatGPT Plus** for Codex — that is the only
