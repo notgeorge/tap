@@ -492,6 +492,16 @@ _UNBUILT_STATUSES = frozenset({"Proposed", "Backlog"})
 #: coverage bucket. Counting it as built-without-evidence was the miscount that made the
 #: unevidenced number unreadable.
 DOCTRINE_STATUSES = frozenset({"In Force"})
+#: Contested — the spec's statement and the implementation disagree, and a human has not
+#: yet ruled which is right (`req-tap-traceability-disputed`). A fourth bucket, disjoint
+#: from all three above, because every existing bucket's behavior is wrong for a dispute:
+#: `built` would blend it into awaiting-evidence debt (or count a claim as satisfaction),
+#: `unbuilt` treats evidence as an anomaly when a dispute *should* carry a pointer to the
+#: contested code, and `doctrine` rejects claims outright — erasing that pointer. Claims
+#: on a disputed requirement are pointers, never resolution; the only exits are a human
+#: ruling that edits the spec (hash changes, claims report `Outdated`, re-verify) or the
+#: code (re-stamp after review). Both exits force the re-read. The count trends to zero.
+DISPUTED_STATUSES = frozenset({"Disputed"})
 
 
 @dataclass(frozen=True)
@@ -579,6 +589,16 @@ def doctrine(repo_root: Path, evidence: dict[str, Evidence] | None = None) -> li
     return [e for e in _evidence_or_scan(repo_root, evidence).values() if e.declared in DOCTRINE_STATUSES]
 
 
+def disputed(repo_root: Path, evidence: dict[str, Evidence] | None = None) -> list[Evidence]:
+    """Requirements whose spec text and implementation disagree, awaiting a human ruling.
+
+    Listed with whatever evidence they carry — a dispute *should* name the contested code
+    via a claim — but evidence never resolves a dispute, so nothing here feeds the
+    built/unbuilt coverage counts (`req-tap-traceability-disputed`).
+    """
+    return [e for e in _evidence_or_scan(repo_root, evidence).values() if e.declared in DISPUTED_STATUSES]
+
+
 def claimed_doctrine(repo_root: Path, evidence: dict[str, Evidence] | None = None) -> list[Evidence]:
     """Doctrine requirements carrying an implementation claim — `Unwanted` coverage.
 
@@ -627,17 +647,22 @@ def render_evidence_markdown(repo_root: Path) -> str:
     unearned = sorted(unearned_verified(repo_root, evidence), key=lambda e: e.rid)
 
     doctrinal = doctrine(repo_root, evidence)
+    contested = sorted(disputed(repo_root, evidence), key=lambda e: e.rid)
     lines = [
         EVIDENCE_BEGIN,
         "",
         f"**{len(evidence)}** requirements · **{len(doctrinal)}** standing doctrine · "
+        f"**{len(contested)}** disputed · "
         f"**{len(evidenced)}** carry evidence · "
         f"**{sum(1 for e in evidenced if e.classes == 2)}** carry both classes · "
         f"**{len(built_without)}** declared built with none.",
         "",
-        "Four separate facts, deliberately not blended into one percentage. **Doctrine** is "
+        "Separate facts, deliberately not blended into one percentage. **Doctrine** is "
         'outside the coverage question — in force now, never "completed", expecting '
-        "conformance rather than an implementation. **Declared built with none** is context, "
+        "conformance rather than an implementation. **Disputed** marks a spec-versus-"
+        "implementation disagreement awaiting a human ruling — its claims are pointers to "
+        "the contested code, never resolution, and the count should trend to zero. "
+        "**Declared built with none** is context, "
         "not a defect list: claims are opt-in and scarce by design "
         "(`req-tap-traceability-scope`), so it measures how much of the corpus has been "
         "deliberately targeted, not how much is wrong. Collapsing these into a single "
@@ -650,6 +675,21 @@ def render_evidence_markdown(repo_root: Path) -> str:
         impl = ", ".join(f"`{c.qualname}`" for c in e.implemented_by) or "—"
         acids = ", ".join(f"`{a}`" for a in e.verified_acids) or "—"
         lines.append(f"| `{e.rid}` | {e.declared or '—'} | {e.derived} | {impl} | {acids} |")
+
+    lines += [
+        "",
+        "**Disputed** — the spec and the implementation disagree; each entry pairs with a "
+        "row in the requirement-review ledger and a section in its owning spec "
+        "(`req-tap-traceability-disputed`):",
+    ]
+    if contested:
+        lines += ["", "| Requirement | Contested code (claims) | Verified by |", "| --- | --- | --- |"]
+        for e in contested:
+            impl = ", ".join(f"`{c.qualname}`" for c in e.implemented_by) or "—"
+            acids = ", ".join(f"`{a}`" for a in e.verified_acids) or "—"
+            lines.append(f"| `{e.rid}` | {impl} | {acids} |")
+    else:
+        lines += ["", "None."]
 
     lines += [
         "",

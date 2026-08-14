@@ -16,6 +16,7 @@ from tap.spec_trace import (
     EVIDENCE_END,
     claimed_doctrine,
     collect_evidence,
+    disputed,
     doctrine,
     invalid_claims,
     render_evidence_markdown,
@@ -158,6 +159,53 @@ def test_doctrine_without_a_claim_is_clean(tmp_path: Path) -> None:
     tree = _tree(tmp_path, status="In Force", test=True)
     assert claimed_doctrine(tree) == []
     assert invalid_claims(tree) == []
+
+
+# --- disputed (`req-tap-traceability-disputed`) --------------------------------------
+
+
+def test_disputed_is_in_no_coverage_bucket(tmp_path: Path) -> None:
+    """Disputed is where "code exists" and "requirement satisfied" come apart.
+
+    Built would blend a claimless dispute into awaiting-evidence debt; unbuilt would treat
+    its evidence as an anomaly; doctrine would reject its claims. Fourth bucket, own list.
+    """
+    tree = _tree(tmp_path, status="Disputed")
+    assert [e.rid for e in disputed(tree)] == ["req-example-alpha"]
+    assert unevidenced_built(tree) == []
+    assert under_declared(tree) == []
+    assert doctrine(tree) == []
+    assert unearned_verified(tree) == []
+
+
+def test_claiming_disputed_is_a_pointer_not_a_defect(tmp_path: Path) -> None:
+    """Unlike doctrine, a claim on a disputed requirement must validate — it is how a
+    reader finds the contested implementation. But it never resolves the dispute: the
+    requirement stays in the disputed list with the claim attached.
+    """
+    tree = _tree(tmp_path, status="Disputed", claim=True)
+    assert invalid_claims(tree) == []
+    entries = disputed(tree)
+    assert [e.rid for e in entries] == ["req-example-alpha"]
+    assert entries[0].implemented_by  # the pointer survives
+    assert unevidenced_built(tree) == []  # and still feeds no coverage bucket
+
+
+def test_disputed_with_full_evidence_stays_disputed(tmp_path: Path) -> None:
+    """Both evidence classes present and it still exits nothing — only a human ruling
+    (a spec edit or a code re-stamp) leaves the status.
+    """
+    tree = _tree(tmp_path, status="Disputed", claim=True, test=True)
+    assert [e.rid for e in disputed(tree)] == ["req-example-alpha"]
+    assert unearned_verified(tree) == []
+    assert under_declared(tree) == []
+
+
+def test_report_renders_disputed_section(tmp_path: Path) -> None:
+    rendered = render_evidence_markdown(_tree(tmp_path, status="Disputed", claim=True))
+    assert "**1** disputed" in rendered
+    assert "**Disputed**" in rendered
+    assert "`req-example-alpha`" in rendered
 
 
 # --- the report ----------------------------------------------------------------------

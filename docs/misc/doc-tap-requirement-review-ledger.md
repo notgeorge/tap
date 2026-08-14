@@ -4,8 +4,10 @@ audience: [developer, llm]
 covers:
   - ../../specs/spec-tap-requirement-traceability.md
   - req-tap-traceability-scope
+  - req-tap-traceability-disputed
 update-triggers:
   - A collapse, refactor, or audit finds code making a choice no requirement governs — add a row here and the detail section in the owning spec
+  - A requirement is marked `Disputed` — add its row here in the same change (req-tap-traceability-disputed-3)
   - A listed decision is made — record the outcome in the owning spec, then strike the row
   - An owning spec's "Requirement Review Needed" section is renamed or moved
 ---
@@ -34,11 +36,23 @@ every site want to change together?* Same purpose is not required — the secret
 is read by three callers that find, load, and refuse-to-commit, and a rename must move all
 three. Same value is not sufficient — see below.
 
+## Ledger rows come in two kinds
+
+1. **Ungoverned choice** — code makes a choice no requirement governs (the placement entry
+   below). The question is whether a requirement should exist.
+2. **Disputed requirement** — a requirement exists and its implementation disagrees with it.
+   The spec entry carries `Status: Disputed` (`req-tap-traceability-disputed`), the owning
+   spec's `Requirement Review Needed` section names the code site and the disagreement, and
+   the row lands here in the same change. The question is which side is right.
+
+Both kinds resolve the same way: a human ruling recorded in the owning spec, then the row
+moves to Resolved.
+
 ## Open
 
-| # | Decision | Owning spec | Surfaced |
-| :---: | --- | --- | :---: |
-| 1 | Default graph placement — is `cytoscape:cose` a system-wide default, a per-consumer choice, or neither? | [spec-viz-panel.md](../../tap_viz/specs/spec-viz-panel.md) → *Requirement Review Needed* → Default graph placement | 2026-08-14 |
+| # | Kind | Decision | Owning spec | Surfaced |
+| :---: | --- | --- | --- | :---: |
+| 1 | Ungoverned choice | Default graph placement — is `cytoscape:cose` a system-wide default, a per-consumer choice, or neither? | [spec-viz-panel.md](../../tap_viz/specs/spec-viz-panel.md) → *Requirement Review Needed* → Default graph placement | 2026-08-14 |
 
 ## Related backlogs
 
