@@ -436,7 +436,7 @@ boot` phase sequencer are entirely *Proposed*.
 
 **Enforcement:** a production-shape test (no ambient actor) asserting registration either isn't
 invoked at import or fails closed loudly; a lint forbidding graph-managed writes inside any
-`apps.py` `ready()` (enforces `req-plugin-load-v0-ready-readonly`); a boot-actor authority test
+`apps.py` `ready()` (enforces `req-tap-plugin-load-v0-ready-readonly`); a boot-actor authority test
 (`tap_bootloader` cannot `policy.can(grid.delete/grid.purge)` directly); a CI ordering assertion.
 
 **Relation to core:** inherits the model for sub-era 3 (named-actor boot); **adds** the

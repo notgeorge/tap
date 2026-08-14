@@ -428,8 +428,6 @@ Separate facts, deliberately not blended into one percentage. **Doctrine** is ou
 | `req-grid-table-classification.sec` | Implemented | Verified | `classified_models` | `req-grid-table-classification.sec-6` |
 | `req-grid-traversal-exec-row-materialization` | Implemented | Implemented | `materialize_rows` | — |
 | `req-grift-envelope-validation` | In Development | Implemented | `parse_envelope_for_write` | — |
-| `req-plugin-arch-source-secret` | Implemented | Implemented | `<module>` | — |
-| `req-plugin-load-v0-ready-chain` | Implemented | Tested | — | `req-plugin-load-v0-ready-chain-1`, `req-plugin-load-v0-ready-chain-2` |
 | `req-service-boundary-guard` | Proposed | Implemented | `<module>` | — |
 | `req-tap-auth-passkey-dev-bootstrap` | Implemented | Tested | — | `req-tap-auth-passkey-dev-bootstrap-1`, `req-tap-auth-passkey-dev-bootstrap-10`, `req-tap-auth-passkey-dev-bootstrap-11`, `req-tap-auth-passkey-dev-bootstrap-13`, `req-tap-auth-passkey-dev-bootstrap-14`, `req-tap-auth-passkey-dev-bootstrap-15`, `req-tap-auth-passkey-dev-bootstrap-3`, `req-tap-auth-passkey-dev-bootstrap-4`, `req-tap-auth-passkey-dev-bootstrap-6`, `req-tap-auth-passkey-dev-bootstrap-7`, `req-tap-auth-passkey-dev-bootstrap-8`, `req-tap-auth-passkey-dev-bootstrap-9` |
 | `req-tap-auth-passkey-enrollment` | Proposed | Tested | — | `req-tap-auth-passkey-enrollment-1`, `req-tap-auth-passkey-enrollment-2`, `req-tap-auth-passkey-enrollment-3`, `req-tap-auth-passkey-enrollment-6`, `req-tap-auth-passkey-enrollment-8` |
@@ -448,6 +446,8 @@ Separate facts, deliberately not blended into one percentage. **Doctrine** is ou
 | `req-tap-json-loader` | Implemented | Implemented | `<module>` | — |
 | `req-tap-json-scanner` | Implemented | Implemented | `scan_json_files` | — |
 | `req-tap-logging-config-location` | Proposed | Implemented | `build_logging_config` | — |
+| `req-tap-plugin-arch-source-secret` | Implemented | Implemented | `<module>` | — |
+| `req-tap-plugin-load-v0-ready-chain` | Implemented | Tested | — | `req-tap-plugin-load-v0-ready-chain-1`, `req-tap-plugin-load-v0-ready-chain-2` |
 | `req-tap-tree-scanner-substrate` | Proposed | Implemented | `<module>` | — |
 | `req-web-page-dim` | Implemented | Implemented | `<module>` | — |
 

@@ -1,4 +1,4 @@
-# Reusable per-plugin CI (req-plugin-extdev-repo-ci, spec-plugin-external-development.md).
+# Reusable per-plugin CI (req-tap-plugin-extdev-repo-ci, spec-tap-plugin-external-development.md).
 #
 # The CI an EXTERNAL plugin repository runs against a KNOWN-GOOD core on free generic
 # runners. A plugin repo's own workflow is a thin caller:

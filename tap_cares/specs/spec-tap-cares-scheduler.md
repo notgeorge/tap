@@ -114,7 +114,7 @@ This requirement is about scheduler-specific dependency management only. It does
 | --- | --- | :---: | --- | --- |
 | req-tap-cares-scheduler-dependencies-1 | croniter Dependency | Implemented | Cron parsing, validation, and slot iteration use the `croniter` library, added through uv. | One parser binds write-time validation to tick-time evaluation so they cannot disagree. |
 | req-tap-cares-scheduler-dependencies-2 | Task Backend Cross-Ref | Implemented | The task backend (Steady Queue) is spec'd in `spec-tap-cares-task-backend.md`; the scheduler depends on whatever DEP 0014 backend that spec selects. | Replaceable infra; scheduler spec does not own the choice. |
-| req-tap-cares-scheduler-dependencies-3 | Workspace-Compatible | Implemented | If the uv workspace/plugin-dependency pattern lands first, scheduler dependency installation follows that pattern. | Cross-reference `tap_plugins/specs/spec-plugin-architecture.md` `req-plugin-arch-python-deps`. |
+| req-tap-cares-scheduler-dependencies-3 | Workspace-Compatible | Implemented | If the uv workspace/plugin-dependency pattern lands first, scheduler dependency installation follows that pattern. | Cross-reference `tap_plugins/specs/spec-tap-plugin-architecture.md` `req-tap-plugin-arch-python-deps`. |
 | req-tap-cares-scheduler-dependencies-4 | State Boundary Unchanged | Implemented | Adding a task backend dependency does not make the backend the durable schedule store. | |
 
 ## Schedule Model

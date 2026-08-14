@@ -97,7 +97,7 @@ Each Django application owns a `tests/` directory containing tests for the behav
 | `tap_api` | `tap_api/tests/` | API endpoints, serialization, auth, versioning, plugin API mounting |
 | `tap_web` | `tap_web/tests/` | Web shell, panels, editors, page rendering, template behavior |
 | `tap_viz` | `tap_viz/tests/` | Visualization models, views, Cytoscape integration |
-| `plugins/<name>` | `plugins/<name>/tests/` | Plugin-specific behavior: custom editors, search runners, domain logic. See `spec-plugin-testing.md`. |
+| `plugins/<name>` | `plugins/<name>/tests/` | Plugin-specific behavior: custom editors, search runners, domain logic. See `spec-tap-plugin-testing.md`. |
 
 Each `tests/` directory must contain an `__init__.py`.
 
@@ -303,7 +303,7 @@ Plugin tests live in `plugins/<name>/tests/` and are discovered via the `plugins
 
 Plugin tests fall into two categories:
 
-1. **Plugin validation tests** — standardized tests provided by the plugin system (`tap_plugins`) that any plugin can run to verify structural correctness. See `spec-plugin-testing.md` in `tap_plugins/specs/`.
+1. **Plugin validation tests** — standardized tests provided by the plugin system (`tap_plugins`) that any plugin can run to verify structural correctness. See `spec-tap-plugin-testing.md` in `tap_plugins/specs/`.
 
 2. **Plugin-specific tests** — hand-written tests for net-new functionality unique to the plugin (custom editors, search runners, domain logic).
 

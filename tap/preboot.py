@@ -271,7 +271,7 @@ def _uv_install_args(entry: dict[str, Any]) -> list[str]:
     if stype == "path":
         return [*_uv_pip_install(), str(REPO_ROOT / source["path"])]
     if stype == "wheelhouse":
-        # Offline / airgapped (req-plugin-arch-sources-6): install by version from a
+        # Offline / airgapped (req-tap-plugin-arch-sources-6): install by version from a
         # mounted directory of pre-built wheels. --no-index forbids PyPI so a missing
         # wheel (plugin or its Tier-0 deps) fails loud instead of silently fetching;
         # no network, no credential. The filesystem twin of the `index` path.
@@ -309,7 +309,7 @@ def _run_install(args: list[str], cred: GitCredential | None) -> subprocess.Comp
     """Run one ``uv pip install``, feeding git credentials via ``GIT_ASKPASS`` when present.
 
     The token is passed to the child through the askpass env overlay only — never in
-    ``args`` (which preboot logs) and never in the URL (`req-plugin-arch-source-secret-4`).
+    ``args`` (which preboot logs) and never in the URL (`req-tap-plugin-arch-source-secret-4`).
     """
     # Scrub uv-run leakage from the child env: on the CI runner `uv run` launches
     # preboot WITHOUT activation env (no VIRTUAL_ENV, no venv-first PATH) while on
@@ -441,7 +441,7 @@ def _resolve_tap_plugins(entries: list[dict[str, Any]], discovered: dict[str, st
 
 
 # =============================================================================
-# Conformance gate (req-plugin-arch-identity-5): dist == entry-key == namespace == manifest slug
+# Conformance gate (req-tap-plugin-arch-identity-5): dist == entry-key == namespace == manifest slug
 # =============================================================================
 
 
@@ -504,7 +504,7 @@ def _read_manifest_requires_tap(manifest_path: Path) -> str | None:
 
 
 def _conformance_gate(entries: list[dict[str, Any]], discovered: dict[str, str]) -> None:
-    """Fail closed unless every plugin's four identities agree (`req-plugin-arch-identity-5`).
+    """Fail closed unless every plugin's four identities agree (`req-tap-plugin-arch-identity-5`).
 
     Distribution name (``tap-plugin-<slug>``), entry-point key, import namespace segment
     (``tap_plugin.<slug>``), and manifest ``slug`` must all equal the install slug. Owners
@@ -530,7 +530,7 @@ def _conformance_gate(entries: list[dict[str, Any]], discovered: dict[str, str])
             raise PrebootError(
                 f"conformance gate: plugin '{slug}' AppConfig '{app_config}' is not under the "
                 f"'{NAMESPACE_PACKAGE}.{slug}' namespace (got top='{top}', segment='{segment}'). "
-                f"The import namespace segment must equal the slug (req-plugin-arch-identity-3)."
+                f"The import namespace segment must equal the slug (req-tap-plugin-arch-identity-3)."
             )
 
         manifest_slug = _manifest_slug(entry, dist)
@@ -544,7 +544,7 @@ def _conformance_gate(entries: list[dict[str, Any]], discovered: dict[str, str])
 
 
 # =============================================================================
-# Compatibility-floor gate (req-plugin-extdev-compat-floor): requires_tap
+# Compatibility-floor gate (req-tap-plugin-extdev-compat-floor): requires_tap
 # =============================================================================
 
 
@@ -557,7 +557,7 @@ def _requires_tap_gate(entries: list[dict[str, Any]]) -> None:
     ``engines.vscode`` model: reject at boot with a legible message, never load-then-crash
     deep in operation. Plugins that declare no floor are skipped (allowed in v0). The core
     version is resolved lazily and only when a plugin actually declares a floor, so a
-    profile of floor-less plugins never depends on it. See ``spec-plugin-external-development.md``.
+    profile of floor-less plugins never depends on it. See ``spec-tap-plugin-external-development.md``.
     """
     from tap.core_version import CoreVersionError, core_satisfies_requires_tap, core_tap_version
 
@@ -642,7 +642,7 @@ def _reconciliation_guard(entries: list[dict[str, Any]], discovered: dict[str, s
 
 
 # =============================================================================
-# Dependency consistency gate (req-plugin-arch-dependencies-4)
+# Dependency consistency gate (req-tap-plugin-arch-dependencies-4)
 # =============================================================================
 
 
@@ -655,7 +655,7 @@ def _installed_version(slug: str) -> str | None:
 def _dependency_consistency_guard(entries: list[dict[str, Any]]) -> None:
     """Fail closed on plugin dependency divergence (declared vs observed vs install order).
 
-    The Tier-1 sibling of ``_reconciliation_guard`` (spec ``req-plugin-arch-dependencies-4``).
+    The Tier-1 sibling of ``_reconciliation_guard`` (spec ``req-tap-plugin-arch-dependencies-4``).
     Cross-checks three facts already in hand — each plugin's manifest ``depends_on``
     (declared intent), the AST-observed ``tap_plugin.<other>`` imports (derived code graph,
     ``tap.plugin_deps``), and the profile install order — and raises ``PrebootError`` on:
@@ -667,7 +667,7 @@ def _dependency_consistency_guard(entries: list[dict[str, Any]]) -> None:
     Scoped to in-repo plugin packages by construction (a fully-extracted site-packages
     plugin is out of the scanner's reach — the same caveat the log/authz scanners carry).
     Captures CODE dependencies only; the runtime-*data* (collector-produced) ordering
-    stays profile-explicit by design (``req-plugin-arch-dependencies-3``).
+    stays profile-explicit by design (``req-tap-plugin-arch-dependencies-3``).
     """
     install_order = [e["slug"] for e in entries]
     packages = plugin_deps.discover_plugin_packages(REPO_ROOT)

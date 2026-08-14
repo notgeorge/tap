@@ -284,7 +284,7 @@ In the **consuming plugin's** GRIFT directory (e.g. `plugins/genericom/grift/pag
 
 ### Iterating on a panel instance
 
-Per `req-plugin-arch-iterative-dev`:
+Per `req-tap-plugin-arch-iterative-dev`:
 
 - **Version bump** (always valid): create a new batch with a fresh `batch_entity_id` and a bumped name (`v0.1.0` → `v0.2.0`). Node and edge entity IDs inside the batch stay stable so upsert applies.
 - **Force re-import** (DEBUG-only): `import_plugin_grift <plugin> --force-batches=<batch_id>`.

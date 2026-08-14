@@ -198,7 +198,7 @@ Development Commands
     docker compose exec web uv run python manage.py migrate
 
     # Seed plugin data (required after migrate — plugins no longer auto-import in ready();
-    # see req-plugin-load-v0-ready-readonly. Spawn script does this automatically.)
+    # see req-tap-plugin-load-v0-ready-readonly. Spawn script does this automatically.)
     docker compose exec web uv run python manage.py import_plugin_grift --all
 
     # Create superuser

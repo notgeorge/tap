@@ -1,6 +1,6 @@
 """Plugin manifest reader and validator for tap-plugin.toml.
 
-Implements req-plugin-manifest-v0-* from spec-plugin-manifest-v0.md.
+Implements req-tap-plugin-manifest-v0-* from spec-tap-plugin-manifest-v0.md.
 
 Public API:
     load_manifest(plugin_root) -> PluginManifest
@@ -61,7 +61,7 @@ class DependencyEntry:
     registration (or import-time code) needs present first. ``min_version`` is an
     optional PEP 440 floor; ``optional`` marks a soft dependency (absence tolerated);
     ``note`` documents *why* the dependency exists (AI-/security-readable intent).
-    See spec-plugin-architecture.md req-plugin-arch-dependencies-2.
+    See spec-tap-plugin-architecture.md req-tap-plugin-arch-dependencies-2.
     """
 
     slug: str
@@ -152,7 +152,7 @@ class FipsDeclaration:
       the author acknowledges (e.g. ``["libsodium"]``), for precision + legibility.
 
     Absent ``[fips]`` = undeclared: the scan still runs, and a detected non-validated provider is a
-    conformance *warning* (declare it), never assumed compatible. See ``req-plugin-manifest-v0-fips``.
+    conformance *warning* (declare it), never assumed compatible. See ``req-tap-plugin-manifest-v0-fips``.
     """
 
     status: str
@@ -251,7 +251,7 @@ def _parse_requires_tap(raw_value: Any, manifest_path: Path) -> str | None:
     core (``tap``) versions this plugin supports. Absent → None (no declared floor,
     allowed in v0). A malformed specifier is a hard manifest error — the shared
     validator in ``tap.core_version`` is the single specifier-parsing implementation,
-    reused by the pre-boot compatibility gate. See ``req-plugin-extdev-compat-floor``.
+    reused by the pre-boot compatibility gate. See ``req-tap-plugin-extdev-compat-floor``.
     """
     if raw_value is None:
         return None
@@ -490,7 +490,7 @@ def _parse_boot_records(raw_boot: Any, manifest_path: Path) -> list[BootRecordEn
 
 
 def _parse_fips(raw_value: Any, manifest_path: Path) -> FipsDeclaration | None:
-    """Parse the optional ``[fips]`` table — the author's declared crypto posture (req-plugin-manifest-v0-fips).
+    """Parse the optional ``[fips]`` table — the author's declared crypto posture (req-tap-plugin-manifest-v0-fips).
 
     ``status`` is required and must be ``compatible`` or ``uses-nonvalidated``. A ``reason`` is
     MANDATORY (non-empty) when ``status = "uses-nonvalidated"`` — an author acknowledging non-FIPS

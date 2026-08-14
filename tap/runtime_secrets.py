@@ -26,7 +26,7 @@ the structural reason a caller records is unchanged.
 Secret material is returned in memory only; this module never logs ``data``.
 
 The manifest is always read from disk, but a manifest may route its *value* to an
-external store via ``metadata.source`` (``req-plugin-depres-sources``): the source-aware
+external store via ``metadata.source`` (``req-tap-plugin-depres-sources``): the source-aware
 entry point :func:`resolve_secret_envelope` dispatches to a registered provider in
 ``tap.secret_sources`` (disk built-in, cloud stores plugin-contributed) and returns the
 fetched value in ``data``. Absent a source, behavior is unchanged (inline ``data``). The
@@ -145,7 +145,7 @@ def parse_secret_envelope(payload: Any, path: Path) -> SecretEnvelope:
         declared = metadata["max_bytes"]
         if isinstance(declared, bool) or not isinstance(declared, int) or declared <= 0:
             raise RuntimeSecretError(f"Secret file {path}: metadata.max_bytes must be a positive integer when present.")
-    # Source-routing (req-plugin-depres-sources-7): a manifest may route its VALUE to an
+    # Source-routing (req-tap-plugin-depres-sources-7): a manifest may route its VALUE to an
     # external source. `source` names the provider (absent/"disk" => inline `data`);
     # `source_ref` is that provider's opaque locator. Validate shape here so a malformed
     # routing fails loud at parse, identically on every read path.

@@ -1,4 +1,4 @@
-"""Read-only plugin registry/report service (req-plugin-arch-install-registry -3/-5).
+"""Read-only plugin registry/report service (req-tap-plugin-arch-install-registry -3/-5).
 
 The single service-layer source for "what plugins is this instance running, from where,
 in what shape, and how do they depend on each other." A SERIALIZATION of facts Django +

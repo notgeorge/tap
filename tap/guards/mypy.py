@@ -91,7 +91,7 @@ class MypyRatchet(CeilingRatchet):
         # stack actually has; the all-plugins CI lane (test_all installs everything)
         # filters nothing and enforces the full set. Mirrors tap.plugin_testing.
         # requires_plugins + req-dev-validation-all-plugins-lane; a step toward the
-        # per-owner baselines in spec-plugin-validation-distribution.
+        # per-owner baselines in spec-tap-plugin-validation-distribution.
         from tap.guards.base import ratchet_ceiling, read_baseline_set
         from tap.plugin_testing import installed_plugin_slugs
 

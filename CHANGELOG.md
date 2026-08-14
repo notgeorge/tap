@@ -18,7 +18,7 @@
 
 ### Documentation
 
-* **plugins:** spec-plugin-lifecycle-v1 DRAFT — transactional plugin load/update wrapper ([af77348](https://github.com/unified-systems-com/tap/commit/af77348326acd3b9991b7d78ed91df9ab96c4a01))
+* **plugins:** spec-tap-plugin-lifecycle-v1 DRAFT — transactional plugin load/update wrapper ([af77348](https://github.com/unified-systems-com/tap/commit/af77348326acd3b9991b7d78ed91df9ab96c4a01))
 
 ## [0.1.1](https://github.com/unified-systems-com/tap/compare/v0.1.0...v0.1.1) (2026-08-12)
 

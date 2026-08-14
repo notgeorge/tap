@@ -53,7 +53,7 @@ jobs:
   # lanes git-install anonymously — no credential, no Secrets Manager round-trip. The
   # plugin-pull machinery (routing manifest + provider preinstall + ambient-creds export,
   # driven by a needs_plugin_pull matrix flag) was removed here the same day; a fork that
-  # installs PRIVATE plugins wants it back — see req-plugin-arch-source-secret-5 and this
+  # installs PRIVATE plugins wants it back — see req-tap-plugin-arch-source-secret-5 and this
   # file's git history at a73c62b9 for the worked example.
   setup:
     runs-on: ubuntu-latest

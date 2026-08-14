@@ -150,7 +150,7 @@ def test_read_profile_missing_raises() -> None:
 
 
 def test_read_plugin_owned_install_profile(tmp_path) -> None:
-    # req-plugin-arch-layout-6: a plugin may ship its own standalone boot profile that
+    # req-tap-plugin-arch-layout-6: a plugin may ship its own standalone boot profile that
     # is read as a plain file, NOT resolved through boot/ by id. Synthetic here so the
     # test stays decoupled from any specific plugin's records (the former genericom
     # example was deleted with that plugin).
@@ -213,7 +213,7 @@ def test_resolve_tap_plugins_happy() -> None:
     assert got == ["tap_plugin.genericom.apps.GenericomConfig"]
 
 
-# --- Conformance gate (req-plugin-arch-identity-5) ----------------------------
+# --- Conformance gate (req-tap-plugin-arch-identity-5) ----------------------------
 
 
 def test_namespace_segment() -> None:
@@ -258,7 +258,7 @@ def test_conformance_gate_manifest_slug_mismatch(monkeypatch: pytest.MonkeyPatch
         preboot._conformance_gate(_conformance_entries(), discovered)
 
 
-# --- Compatibility-floor gate (req-plugin-extdev-compat-floor) ----------------
+# --- Compatibility-floor gate (req-tap-plugin-extdev-compat-floor) ----------------
 
 
 def _compat_entries() -> list[dict[str, object]]:

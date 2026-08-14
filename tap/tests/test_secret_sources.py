@@ -1,5 +1,5 @@
-"""Tests for the pluggable secret-source seam (spec-plugin-dependency-resolution.md
-req-plugin-depres-sources / -trust) and its runtime_secrets dispatch.
+"""Tests for the pluggable secret-source seam (spec-tap-plugin-dependency-resolution.md
+req-tap-plugin-depres-sources / -trust) and its runtime_secrets dispatch.
 
 These exercise the CORE seam with an in-process fake source — no cloud SDK, no install —
 so they run in every lane. The AWS provider itself is tested in the aws_secrets_source
@@ -112,7 +112,7 @@ def test_provider_exception_wrapped():
 
 
 # --------------------------------------------------------------------------- #
-# trust allow-list (req-plugin-depres-trust-2)
+# trust allow-list (req-tap-plugin-depres-trust-2)
 # --------------------------------------------------------------------------- #
 
 

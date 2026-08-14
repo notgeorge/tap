@@ -123,7 +123,7 @@ def first_party_source_roots(project_root: Path) -> list[Path]:
                 roots.append(child)  # legacy flat layout
                 continue
             # Package-mode: manifest sits inside the PEP 420 namespace at
-            # plugins/<slug>/tap_plugin/<pkg>/tap-plugin.toml (req-plugin-arch-identity-3).
+            # plugins/<slug>/tap_plugin/<pkg>/tap-plugin.toml (req-tap-plugin-arch-identity-3).
             namespace_dir = child / "tap_plugin"
             if namespace_dir.is_dir():
                 roots.extend(sorted(m.parent for m in namespace_dir.glob("*/tap-plugin.toml")))

@@ -60,7 +60,7 @@ regressed while closing the gaps:
 - **Least-privilege, per-lane IAM** — each CI lane grants only what it tests
   (`req-dev-validation-product-line-lanes-4`).
 - **Secrets discipline** — none in the repo, a pluggable Secrets-Manager seam, health-probe
-  validation (`req-plugin-depres-sources`, [spec-tap-cares-secrets](../tap_cares/specs/spec-tap-cares-secrets.md)).
+  validation (`req-tap-plugin-depres-sources`, [spec-tap-cares-secrets](../tap_cares/specs/spec-tap-cares-secrets.md)).
 - **Dependency pinning** — `uv.lock`.
 - **Environment parity** — one Docker image across dev and CI.
 - **Testing depth ahead of the field** — the gryphon correctness ladder (differential
@@ -425,8 +425,8 @@ standard formats and signing the ecosystem consumes. Grafana signing every plugi
 nearest-neighbor precedent. Sequenced after `req-cicd-build-once-artifact` (you sign and
 attest the artifact you publish).
 
-**Plugin release signing lands here.** `req-plugin-extdev-signing`
-(`spec-plugin-external-development.md`) — signed plugin release tags / boot-record digests
+**Plugin release signing lands here.** `req-tap-plugin-extdev-signing`
+(`spec-tap-plugin-external-development.md`) — signed plugin release tags / boot-record digests
 verified at install, closing the moved-tag / compromised-repo gap — is the plugin-artifact
 face of this same signing capability. It is **pinned to the GitHub-org refactor** because the
 publisher/signing identity is org-rooted: building it before the org exists means rebuilding

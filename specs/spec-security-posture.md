@@ -10,7 +10,7 @@ The core doctrine is:
 
 Three observations drive this:
 
-- **The cost of a defensive edge is lowest at construction time.** Making "every operation has a named actor" a structural invariant *before* anonymous code paths exist is far cheaper than paring them out after they have spread (`req-tap-auth-actor-model`). Naming plugin tables `<slug>__*` *during* a rename we're already doing costs ~nothing and unlocks per-plugin DB guards forever (`spec-plugin-type-ownership-v0.md`). The same edge added a year later is a migration, an audit, and a coordination problem.
+- **The cost of a defensive edge is lowest at construction time.** Making "every operation has a named actor" a structural invariant *before* anonymous code paths exist is far cheaper than paring them out after they have spread (`req-tap-auth-actor-model`). Naming plugin tables `<slug>__*` *during* a rename we're already doing costs ~nothing and unlocks per-plugin DB guards forever (`spec-tap-plugin-type-ownership-v0.md`). The same edge added a year later is a migration, an audit, and a coordination problem.
 - **You cannot enumerate future attack classes, but cheap edges are insurance against the whole space.** We do not know which attacks we will want to defend against. A foundational, build-once edge laid now is coverage we did not have to predict — it is there when the threat materializes, without an emergency.
 - **Asymmetric reversibility.** If a cheap edge turns out to be over-built, *relaxing* it later is a small, safe change. If a needed edge was omitted, *adding* it later is a large, risky retrofit (often after an incident). When unsure, prefer the edge — you can always relax.
 
@@ -65,7 +65,7 @@ These were chosen *because* they were cheap-at-construction and build-once, not 
 - **Least-privilege bootloader bundle** (`req-boot-phases`) — boot gets exactly what it needs, no `grid.purge`/`grid.delete`, bounding the blast radius of a boot bug.
 - **`is_superuser` is not a TAP-service bypass** (`req-tap-auth-policy`) — the recovery floor is preserved in Django admin while the service boundary refuses the god-bit.
 - **Bidirectional built-in-key constraint** (`req-tap-auth-builtins`) — closed a privilege-escalation path (an ordinary user reserving a built-in key) at the cost of one DB constraint.
-- **Per-plugin DB-table naming** (`spec-plugin-type-ownership-v0.md`, `req-plugin-type-db-affordance`) — near-free during the plugin refactor's rename; foundation for per-plugin DB guards.
+- **Per-plugin DB-table naming** (`spec-tap-plugin-type-ownership-v0.md`, `req-tap-plugin-type-db-affordance`) — near-free during the plugin refactor's rename; foundation for per-plugin DB guards.
 - **Guard meta-integrity — the machinery that enforces every edge above is itself fenced** (`req-dev-validation-meta-integrity`) — laid while the CI surface was fresh: `.github/CODEOWNERS` fences the guard/validation machinery to owner-review, and a guard-integrity guard makes a neutered or deleted guard fail CI. Tamper-*evident* today (the in-repo half); the tamper-*blocking* half is the deferred out-of-band edge named below.
 - **CI runner least privilege — the job is the token boundary** (`req-cicd-runner-least-privilege`, laid 2026-08-10 while the workflow surface was open): read-only default `GITHUB_TOKEN`, explicit per-workflow grants, write scopes only in jobs that contain nothing else, third-party actions SHA-pinned (the 2026-03-19 trivy-action tag-retarget compromise is the demand signal), scan-job checkouts non-persisting. Companion doctrine, decided in the same discussion: **prefer controls from parties already inside the trust boundary** — a control's trust-delta (new roots added) is part of its cost.
 
@@ -208,7 +208,7 @@ Status: `Proposed`
 ## Relationship To Other Specs
 
 - **`spec-tap-auth-v0.md`** — the densest application of this doctrine (named actors, on-by-default authz, least privilege, recovery floor). Many of its choices are this doctrine in action; in particular it instantiates `req-sec-email-not-identity` via `req-tap-auth-email-not-identity` (the express auth rule), the `req-tap-auth-user-lookup` id-keyed selector convention, and `req-tap-auth-external-identity` (durable `(provider, sub)`).
-- **`spec-plugin-type-ownership-v0.md`** — the per-plugin DB-guard foundation (`req-plugin-type-db-affordance`) is a canonical "cheap edge during work already underway."
+- **`spec-tap-plugin-type-ownership-v0.md`** — the per-plugin DB-guard foundation (`req-tap-plugin-type-db-affordance`) is a canonical "cheap edge during work already underway."
 - **`spec-tap-boot-v0.md`** (`req-boot-trust`) — the explicit statement of where trust is *granted* by design; the honest-accepted-risk counterpart.
 - **`spec-tap-flaw-v0.md`** — the mechanism for surfacing when a structural edge is violated at runtime (e.g. `unguarded_operation`).
 - **`spec-tap-logging.md`** — hosts the reserved `CONCERN` `message_code` and the `concern(...)` helper that `req-sec-concern-gaps` builds on, plus the shared `req-tap-logging-domain-tags` routing vocabulary that `CONCERN` and `FLAW` both inherit.

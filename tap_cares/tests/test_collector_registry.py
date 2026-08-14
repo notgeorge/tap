@@ -64,7 +64,7 @@ def _register(key, cls, **kwargs):
     register_collector requires name and description per
     req-tap-cares-collector-registration-3, but these registry-mechanics tests
     only care about the in-memory (ScopedRegistry) side. register_collector is
-    read-only at runtime now (req-plugin-load-v0-ready-readonly): it records the
+    read-only at runtime now (req-tap-plugin-load-v0-ready-readonly): it records the
     node descriptor but writes no grid node, so these tests need no DB. The on-grid
     node is materialized separately by reconcile_collector_nodes (see
     TestReconcileCollectorNodes).
@@ -257,7 +257,7 @@ class TestRegisterCollector:
 
 # ---------------------------------------------------------------------------
 # reconcile_collector_nodes — the deferred grid-side half of dual existence
-# (req-plugin-load-v0-ready-readonly, req-tap-auth-actor-model)
+# (req-tap-plugin-load-v0-ready-readonly, req-tap-auth-actor-model)
 # ---------------------------------------------------------------------------
 
 
