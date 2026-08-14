@@ -20,8 +20,6 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 from django.template.loader import render_to_string
 
-from tap_viz.placement import DEFAULT_PLACEMENT
-
 logger = logging.getLogger(__name__)
 
 
@@ -196,7 +194,7 @@ def _render_graph_panel_context(
         return {
             "graph_nodes_json": safe_json([]),
             "graph_edges_json": safe_json([]),
-            "graph_placement": DEFAULT_PLACEMENT,
+            "graph_placement": "cytoscape:cose",
             "graph_error": "No layout linked to this panel (USES_LAYOUT edge missing).",
         }
 
@@ -205,7 +203,7 @@ def _render_graph_panel_context(
         return {
             "graph_nodes_json": safe_json([]),
             "graph_edges_json": safe_json([]),
-            "graph_placement": DEFAULT_PLACEMENT,
+            "graph_placement": "cytoscape:cose",
             "graph_error": "No search linked to this layout (USES_SEARCH edge missing).",
         }
 
@@ -234,11 +232,11 @@ def _render_graph_panel_context(
         return {
             "graph_nodes_json": safe_json([]),
             "graph_edges_json": safe_json([]),
-            "graph_placement": DEFAULT_PLACEMENT,
+            "graph_placement": "cytoscape:cose",
             "graph_error": f"Search execution failed: {exc}",
         }
 
-    placement = layout.definition.get("presentation", {}).get("placement", DEFAULT_PLACEMENT)
+    placement = layout.definition.get("presentation", {}).get("placement", "cytoscape:cose")
 
     # Pass through panel.config.height so the graph_panel template gets the
     # same sizing affordance synthetic pages would otherwise lose. Uses the

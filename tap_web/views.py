@@ -12,7 +12,6 @@ from django.views.decorators.http import require_http_methods
 
 from tap_auth.errors import AuthzError
 from tap_grid.caller_context import require_caller_context
-from tap_viz.placement import DEFAULT_PLACEMENT
 from tap_web.models import Page
 from tap_web.navigation import build_breadcrumb
 from tap_web.page import get_landing_page, get_page_by_slug, get_page_panels, parse_panel_url_id
@@ -483,7 +482,7 @@ def _get_neighborhood_context(entity_id: object) -> dict[str, Any]:
         return {
             "graph_nodes_json": safe_json([]),
             "graph_edges_json": safe_json([]),
-            "graph_placement": DEFAULT_PLACEMENT,
+            "graph_placement": "cytoscape:cose",
             "graph_error": f"Graph context failed: {exc}",
             "graph_context_id": str(entity_id),
         }
@@ -491,7 +490,7 @@ def _get_neighborhood_context(entity_id: object) -> dict[str, Any]:
     return {
         "graph_nodes_json": safe_json(nodes_raw),
         "graph_edges_json": safe_json(edges_raw),
-        "graph_placement": DEFAULT_PLACEMENT,
+        "graph_placement": "cytoscape:cose",
         "graph_error": None,
         "graph_context_id": str(entity_id),
     }

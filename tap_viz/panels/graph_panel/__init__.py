@@ -27,7 +27,6 @@ import logging
 import re
 from typing import TYPE_CHECKING, Any
 
-from tap_viz.placement import DEFAULT_PLACEMENT
 from tap_web.utils import safe_json
 
 # Accept only a narrow set of height values from panel config so the value can
@@ -206,7 +205,7 @@ class GraphPanelType:
             return _error_ctx(f"Search execution failed: {exc}")
 
         presentation = layout.definition.get("presentation", {})
-        placement = presentation.get("placement", DEFAULT_PLACEMENT)
+        placement = presentation.get("placement", "cytoscape:cose")
         nesting_enabled = presentation.get("nesting", {}).get("enabled", False)
 
         node_list = list(nodes.values())
@@ -394,7 +393,7 @@ def _error_ctx(message: str) -> dict[str, Any]:
         "graph_edges_json": safe_json([]),
         "graph_projection_json": safe_json(None),
         "graph_inputs_json": safe_json({}),
-        "graph_placement": DEFAULT_PLACEMENT,
+        "graph_placement": "cytoscape:cose",
         "graph_height": _DEFAULT_PANEL_HEIGHT,
         "graph_error": message,
     }

@@ -481,6 +481,38 @@ The following items are intentionally deferred:
 - runtime graph editing
 - layout editor behavior
 
+## Requirement Review Needed
+
+Open questions where the code makes a choice no requirement governs. Recorded, not decided.
+Indexed across all specs in
+[doc-tap-requirement-review-ledger.md](../../docs/misc/doc-tap-requirement-review-ledger.md).
+
+### Default graph placement
+
+`"cytoscape:cose"` is written out eight times across `tap_viz/panels/graph_panel/__init__.py`,
+`tap_web/synthetic.py`, and `tap_web/views.py`. No requirement owns the value: the only
+mention anywhere in the specs is the evidence note on `req-viz-panel-landing-default-3`,
+which scopes it to the landing page's initial view.
+
+A 2026-08-14 attempt to collapse the eight sites to one constant was reverted, because they
+are not one fact. They serve three distinct roles:
+
+| Role | Sites | What it means |
+| --- | :---: | --- |
+| Layout fallback | 2 | A layout exists but its `presentation` names no placement. |
+| Error-context filler | 5 | Set on an error return. **Never read** — both templates branch on `graph_error` and return before `data-placement` is emitted. |
+| A view's own choice | 1 | The hub-and-spoke object-context graph, success path. No layout, no fallback — the view picks its algorithm. |
+
+Collapsing these couples them: changing hub-and-spoke's algorithm (e.g. to `concentric`,
+arguably more apt for that topology) would silently change every layout fallback with it.
+
+Decisions required:
+
+1. Is a system-wide default placement a real requirement, or is placement always a
+   per-consumer choice?
+2. If system-wide, does the hub-and-spoke view opt out, or is it bound by it?
+3. Should the five error paths set `graph_placement` at all, given it is never rendered?
+
 ## Status Vocabulary
 
 | Status States |  |
