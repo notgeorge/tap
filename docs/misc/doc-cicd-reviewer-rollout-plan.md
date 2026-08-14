@@ -161,20 +161,39 @@ This is the org-wide floor mechanism, and it is a ruleset — no App install any
 > **Org Settings → Repository → Rulesets → New branch ruleset**
 
 - **Target repositories:** all (inclusion pattern `*`) — the floor applies everywhere by design.
-- **Target branches:** `main`.
+- **Target branches:** default branch.
 - **Branch rules → check "Automatically request Copilot code review."**
 - **Check "Review new pushes"** — otherwise Copilot reviews a PR exactly once and never looks at
   what you push afterwards, which is precisely how a payload lands on the second commit.
-- **Review effort: "Balanced,"** not "Lite." Balanced does deeper analysis of security-sensitive
-  code, and security is the job.
 - Leave "Review draft pull requests" off unless the noise proves tolerable.
+- Leave "Restrict deletions" and "Block force pushes" checked (GitHub pre-checks them, and they
+  match what `protect-default-branches` already enforces org-wide). **Check nothing else** — in
+  particular not "Require a pull request before merging", which would be a real behaviour change
+  across all 16 repos, and not "Require status checks to pass", which is repo-specific (`tap`'s
+  `gate` is handled by its own repo-level `main-required-checks` ruleset).
+- Bypass list: empty.
+
+**Those two sub-options are the only ones the rule carries.** Review effort is NOT a ruleset
+property — it is set in Step 1c below. (An earlier draft of this run sheet listed it here; that was
+wrong. Effort levels only went GA 2026-08-07.)
+
+`copilot_code_review` is a standalone rule type, not nested under "require a pull request", so this
+adds a reviewer without changing merge behaviour anywhere.
 
 Org-wide is the decision — do not use the repo-level equivalent (**Settings → Rules → Rulesets**),
 which exists only as a trial affordance we chose against.
 
-### 1c. Enable custom instructions for review
+### 1c. Review effort and custom instructions — one page, org level
 
-> **Repo Settings → Copilot → Code review** → enable the use of custom instructions.
+> **Org Settings → Code, planning, and automation → Copilot → Code review**
+
+- **Review effort level: "Balanced,"** not "Lite." Balanced routes to a higher-reasoning model for
+  deeper analysis of complex logic and security-sensitive code, and security is the job. Setting it
+  at the **org** level makes it the inherited default for every repo; a repo can override it later
+  if one ever genuinely needs to.
+- **Enable the use of custom instructions.** Without this,
+  [`.github/copilot-instructions.md`](../../.github/copilot-instructions.md) is inert — Copilot
+  reviews, but generically, ignoring the entire malicious-change lens.
 
 ### 1d. Land the instruction files — DONE 2026-08-14
 
