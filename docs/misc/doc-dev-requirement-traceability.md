@@ -351,7 +351,7 @@ Assembled from the above; **not decided**.
 
 ```python
 def grid_table_names() -> frozenset[str]:
-    """TAP-IMPLEMENTS: req-grid-table-classification@2 ("Grid table classification")
+    """TAP-IMPLEMENTS: req-grid-table-classification.sec@2 ("Grid table classification")
 
     The one derivation of "which tables are grid tables".
     """

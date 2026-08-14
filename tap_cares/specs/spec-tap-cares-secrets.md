@@ -396,10 +396,10 @@ or collector spec. The consumer supplies that schema at its own boundary via
 consumer-side spec + schema change, not an edit to this spec.
 
 The reference example is the AWS static-credentials kind
-(`aws_static_access_key`), owned by
-`plugins/aws_core/specs/spec-aws-core-secrets.md`
-(`req-aws-core-secret-aws-static`). It was previously enumerated here as
-`req-tap-cares-secrets-aws-static`; that requirement and its ACIDs were
+(`aws_static_access_key`), owned by the aws_core plugin's
+`spec-aws-core-secrets.md` (its aws-static secret requirement; the plugin and
+its specs now live in the aws_core plugin repo). It was previously enumerated
+here as a local aws-static requirement; that requirement and its ACIDs were
 relocated to `aws_core` when this ownership boundary was made explicit, so the
 generic subsystem carries no AWS-specific shape.
 
@@ -409,7 +409,7 @@ generic subsystem carries no AWS-specific shape.
 | --- | --- | :---: | --- | --- |
 | req-tap-cares-secrets-consumer-kinds-1 | Subsystem Owns Mechanics | Implemented | File discovery, registry, resolution, `require_secret_kind`, redaction, and string `kind` dispatch are `tap_cares`-owned and kind-agnostic. | |
 | req-tap-cares-secrets-consumer-kinds-2 | Consumer Owns Shape | Implemented | A kind's `data` fields and validation JSON Schema live in the consuming plugin/collector spec and are supplied to `require_secret_kind(..., data_schema=...)`; this spec enumerates none. | `data_schema` is a caller-supplied parameter, not a `tap_cares` constant. |
-| req-tap-cares-secrets-consumer-kinds-3 | Reference Example | Implemented | `aws_static_access_key` is owned by `spec-aws-core-secrets.md` `req-aws-core-secret-aws-static`; this spec links it as the example, not the definition. | Relocated from `req-tap-cares-secrets-aws-static`. |
+| req-tap-cares-secrets-consumer-kinds-3 | Reference Example | Implemented | `aws_static_access_key` is owned by the aws_core plugin's `spec-aws-core-secrets.md` (its aws-static secret requirement); this spec links it as the example, not the definition. | Relocated from this spec's former local aws-static requirement. |
 
 ## Consumer-First Scoping
 ----

@@ -345,7 +345,8 @@ developers' repos will actually hold.
   **Decision: do not rewrite history for this.** An account id is not a credential, and the
   codebase already takes that position in `account_mismatch_error` — *"Account ids are
   non-secret identifiers and are safe to surface in the message"* — while
-  `req-aws-core-secret-aws-static-5` has operators writing their own into a config file.
+  the aws-static secret requirement (`spec-aws-core-secrets.md`, aws_core plugin repo)
+  has operators writing their own into a config file.
   Rewriting ~1,200 commits of core to hide a value we classify as non-secret is a bad trade.
 
   **And HEAD is not being scrubbed either (decided 2026-08-08).** A tree-level scrub is

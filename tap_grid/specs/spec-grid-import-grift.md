@@ -682,7 +682,7 @@ The importer's force-reimport report must include:
 
 ### Future
 
-Authoritative-importer semantics — "this importer owns dimension X; sweep anything present in X not in this import" — is a related but distinct concern. The common case (a recurring AWS pull that wants its absences honored as deletions) is expected to be solvable by using a stable `batch_entity.entity_id` per source and force re-importing on each pull: the batch-scoped sweep then naturally handles absences. If a use case emerges that cannot be expressed this way, a separate `req-grid-import-grift-authoritative` extension can land.
+Authoritative-importer semantics — "this importer owns dimension X; sweep anything present in X not in this import" — is a related but distinct concern. The common case (a recurring AWS pull that wants its absences honored as deletions) is expected to be solvable by using a stable `batch_entity.entity_id` per source and force re-importing on each pull: the batch-scoped sweep then naturally handles absences. If a use case emerges that cannot be expressed this way, a separate authoritative-importer extension requirement can land (RID minted then).
 
 ## Sweep Purge
 ----

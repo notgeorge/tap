@@ -307,7 +307,7 @@ Formal definition of what single and double clicks do on graph objects.
 Single click behavior depends on the click target:
 
 - **Status badge** (`[_is_status_badge]`): opens the info window for the host node ([spec-viz-status-badge-info.md](spec-viz-status-badge-info.md)). Clicking the same badge while the window is open closes it.
-- **Node** (host body, with or without badges): no built-in action. The single-tap slot on a host body is reserved for plugins/projections to bind their own behavior on entity types they own (e.g. the Genericom AWS top-level projection navigates EC2 body taps to the per-instance page; see `req-genericom-ec2-aws-toplevel-click` in `spec-genericom-ec2-projection.md`). Default Cytoscape selection still applies.
+- **Node** (host body, with or without badges): no built-in action. The single-tap slot on a host body is reserved for plugins/projections to bind their own behavior on entity types they own (e.g. the Genericom AWS top-level projection navigates EC2 body taps to the per-instance page; see the EC2 top-level click requirement in `spec-genericom-ec2-projection.md`, genericom plugin repo). Default Cytoscape selection still applies.
 - **Edge**: no action. Edges are not clickable for navigation or popover purposes in v0.
 - **Empty canvas**: default Cytoscape behavior (deselect).
 
@@ -330,7 +330,7 @@ Manual double-tap detection in `panel-graph.js` and the Firefox native `dblclick
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
 | req-viz-panel-click-semantics-1 | Badge Click Opens Info Window | Implemented | Single click on a status badge opens the host's info window. | Wired in `panel-graph.js` tap handler |
-| req-viz-panel-click-semantics-2 | Badged Host Click Opens Info Window | Deprecated | Single click on a badged host no longer opens the info window. The host-body tap slot is reserved for plugins/projections. | Removed in the badge-only-trigger refactor (see `req-genericom-ec2-aws-toplevel-click`). |
+| req-viz-panel-click-semantics-2 | Badged Host Click Opens Info Window | Deprecated | Single click on a badged host no longer opens the info window. The host-body tap slot is reserved for plugins/projections. | Removed in the badge-only-trigger refactor (see the EC2 top-level click requirement in `spec-genericom-ec2-projection.md`, genericom plugin repo). |
 | req-viz-panel-click-semantics-3 | Unbadged Host Click Is No-Op | Implemented | Single click on a node with no active status badges takes no navigation or window action. | Default selection still applies |
 | req-viz-panel-click-semantics-4 | Navigation Removed | Implemented | The previous `/object/...` navigation on node tap is fully removed. | `panel-graph.js` `go()` branch deleted |
 | req-viz-panel-click-semantics-5 | Double Tap Unchanged | Implemented | Double-tap on a node in a projection panel continues to trigger the projection elevation transition. | `tap-double` event on nodes |

@@ -457,7 +457,7 @@ Three independent reasons it cannot work:
 
 The structural variant (same RID in two files that don't import each other) also fails: **~2%
 precision at 13% recall**, and its logic is **inverted** — the *fixes* created the co-citation that
-didn't exist before (the D1 collapse minted `req-grid-table-classification`, now cited in exactly
+didn't exist before (the D1 collapse minted `req-grid-table-classification.sec`, now cited in exactly
 the two files that share the collapsed source). **RID co-citation marks a correctly-collapsed
 single source, not a duplicate.**
 
@@ -488,7 +488,7 @@ about boot"), so it generates leads, not findings.
    function that IS the authoritative derivation of a requirement's fact:
    ```python
    def grid_table_names() -> frozenset[str]:
-       """IMPLEMENTS: req-grid-table-classification — the one derivation of 'which tables are grid tables'."""
+       """IMPLEMENTS: req-grid-table-classification.sec — the one derivation of 'which tables are grid tables'."""
    ```
    The guard is then trivial and near-100% precision: **two `IMPLEMENTS:` for the same RID in
    different modules, without a `TAP-KNOWN-DUPE(...)` tag, is a finding.** Exact complement to the

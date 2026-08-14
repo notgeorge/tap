@@ -250,7 +250,7 @@ Tests are connected to spec acceptance criteria through pytest markers.
 Tests reference acceptance criteria using `@pytest.mark.spec`:
 
 ```python
-@pytest.mark.spec("req-grid-dimension-core-1")
+@pytest.mark.spec("req-example-dimension-core-1")
 def test_dimensions_json_shape():
     ...
 ```

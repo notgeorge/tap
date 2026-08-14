@@ -717,7 +717,7 @@ class BaseModel(models.Model):
           `Entity.objects.create(...)`. This makes the prespecified-id create
           path land at version=1, matching the auto-create branch. Internal
           control-flow signal only — not derived from any input. See
-          req-grid-service-batch single-bump invariant.
+          req-grid-service-batch-occ-2 single-bump invariant.
 
         FLIP: update_flip_map() is called before the DB write so flip_map changes
         are always atomic with the field changes that triggered them.

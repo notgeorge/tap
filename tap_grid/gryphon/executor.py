@@ -237,8 +237,9 @@ def explain_gryphon_raw(
 
     Returns ``{"envelope": <canonical envelope>, "sql": <SqlCapture>}``. The
     ``sql`` value is the ordered, stage-labelled sequence of SELECT statements
-    the executor issued — the basis of the Gridkin expected-SQL snapshot
-    (``spec-gridkin-v0.md``, ``req-gridkin-explain-snapshot``) and the future
+    the executor issued — the basis of the Gridkin expected-SQL snapshot (the
+    explain-snapshot requirement of ``spec-gridkin-v0.md``, in the
+    gryphon_playground plugin repo) and the future
     ``gryphon explain`` developer surface (Gryphon wishlist H3).
 
     The executor runs unchanged; the SQL is observed via a

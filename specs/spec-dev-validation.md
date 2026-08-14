@@ -226,7 +226,7 @@ Status: `Implemented`
 
 Known-broken state is enumerated in a committed manifest, never held in human memory. The gate exits non-zero on any failure **not** listed, and also on any listed entry that no longer fails (stale entries are removed so the manifest ratchets toward zero). Each entry carries a one-line reason and owning context. The manifest is seeded at landing with whatever is genuinely known-broken at that moment — possibly empty.
 
-This requirement also **names, once, the house convention** the repository has independently reached for repeatedly: a *bounded, reviewed, in-repo manifest that ratchets down* is TAP's canonical mechanism for honest coverage accounting. Its instances are the log-site-ID baseline (`spec-tap-logging.md`), the authz-coverage baseline (`spec-tap-auth-v0.md` `req-tap-auth-policy-9`), the direct-write-coverage baseline (`tap/guards/baselines/direct_write.txt`), the Gryphon executor branch-coverage floor (`tap_grid/gryphon/coverage-baseline.json`, `req-gridkin-executor-branch-coverage`), this known-broken manifest, canary-set membership ([Canary Test Tier](#canary-test-tier)), and honest `CI-unguarded` spec-status labeling (`spec-tap-cares-task-backend.md`). New honesty mechanisms SHOULD follow this pattern rather than invent a parallel one — and, per [Reusable Ratchet Harness](#reusable-ratchet-harness), should increasingly share its *implementation*, not just its shape.
+This requirement also **names, once, the house convention** the repository has independently reached for repeatedly: a *bounded, reviewed, in-repo manifest that ratchets down* is TAP's canonical mechanism for honest coverage accounting. Its instances are the log-site-ID baseline (`spec-tap-logging.md`), the authz-coverage baseline (`spec-tap-auth-v0.md` `req-tap-auth-policy-9`), the direct-write-coverage baseline (`tap/guards/baselines/direct_write.txt`), the Gryphon executor branch-coverage floor (`tap_grid/gryphon/coverage-baseline.json`, per the Gridkin executor-branch-coverage requirement in the gryphon_playground plugin repo), this known-broken manifest, canary-set membership ([Canary Test Tier](#canary-test-tier)), and honest `CI-unguarded` spec-status labeling (`spec-tap-cares-task-backend.md`). New honesty mechanisms SHOULD follow this pattern rather than invent a parallel one — and, per [Reusable Ratchet Harness](#reusable-ratchet-harness), should increasingly share its *implementation*, not just its shape.
 
 #### Acceptance Criteria
 
@@ -429,8 +429,8 @@ without taxing every unrelated local edit.
    skips migrate/create-DB between local runs. A *separate* shared-seed "fast Gridkin"
    lane (seed a fixture once, run its read-only scenarios against it) would collapse
    much of the per-scenario cost — a speed lane only, since it trades away the
-   per-scenario isolation `req-gridkin-runner-contract-2` requires of the canonical
-   suite.
+   per-scenario isolation the Gridkin runner contract (`spec-gridkin-v0.md`,
+   gryphon_playground plugin repo) requires of the canonical suite.
 4. **Test-impact analysis for the affected lane — `pytest-testmon`.** Runs only tests
    whose covered code changed (same lineage as the branch-coverage data the ratchets
    now collect). A local accelerator for deciding *what to run fast*, never a

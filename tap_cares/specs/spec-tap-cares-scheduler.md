@@ -455,7 +455,7 @@ The provenance model on `CollectionJob` is a small pair of fields:
 
 Scheduled runs do **not** set `manual_run`. Their provenance is the inbound `TRIGGERED_JOB` edge from the `ScheduleFire`, which is the canonical scheduler-trigger record. A future API trigger source would extend the same pattern (likely an `api_run` flag or an analogous edge).
 
-The full schema, validation, and migration story for `manual_run` / `manual_run_source` therefore lives in the **collector** specification — see `spec-tap-cares-collector.md` `req-tap-cares-collector-manual-run-provenance` (to be authored alongside scheduler implementation). The scheduler spec only asserts the handoff contract.
+The full schema, validation, and migration story for `manual_run` / `manual_run_source` therefore lives in the **collector** specification — see `spec-tap-cares-collector.md` (`req-tap-cares-collector-run-collection-9` and `req-tap-cares-collector-job-model-21`, its Manual Run Provenance criteria). The scheduler spec only asserts the handoff contract.
 
 ### Acceptance Criteria
 

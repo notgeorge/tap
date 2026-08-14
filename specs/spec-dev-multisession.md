@@ -250,13 +250,13 @@ This requirement adds an opt-in continue-on-error mode so developers iterating o
 - `--strict` (default for spawn): exit non-zero on the first failed bundle and abort. Matches today's behavior.
 - `--continue-on-error`: import every bundle the validator accepts, log each failure inline, and exit non-zero at the end with a one-line summary of what failed. Spawn does **not** use this mode by default — it's invoked manually after spawn (`scripts/dc exec web uv run python manage.py import_plugin_grift --all --continue-on-error`) when the developer wants a partial seed for plugin development.
 
-The motivating event: 2026-05-06, a `genericom/ec2-internals.grift.json` bundle failed `envelope_payload_name_mismatch` validation; spawn step 6 wrote a red error line but exited 0, and the session looked "ready" with silently-missing data. Layer 1 of the fix (`req-dev-multisession-spawn-script-5` below) made the import command exit non-zero. This requirement is the optional layer 2.
+The motivating event: 2026-05-06, a `genericom/ec2-internals.grift.json` bundle failed `envelope_payload_name_mismatch` validation; spawn step 6 wrote a red error line but exited 0, and the session looked "ready" with silently-missing data. Layer 1 of the fix — a spawn-script acceptance criterion since folded into this requirement (`req-dev-multisession-spawn-import-strict-1` below) — made the import command exit non-zero. This requirement is the optional layer 2.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-dev-multisession-spawn-import-strict-1 | Strict-by-default | Backlog | `import_plugin_grift` exits non-zero on first failed bundle when `--continue-on-error` is not passed. | Already implemented as part of req-dev-multisession-spawn-script-5. |
+| req-dev-multisession-spawn-import-strict-1 | Strict-by-default | Backlog | `import_plugin_grift` exits non-zero on first failed bundle when `--continue-on-error` is not passed. | Already implemented as part of the layer-1 spawn-script fix (a former spawn-script ACID, retired into this requirement). |
 | req-dev-multisession-spawn-import-strict-2 | Continue-on-error flag | Backlog | `--continue-on-error` causes the command to attempt every bundle and exit non-zero at the end with a per-bundle summary. | |
 | req-dev-multisession-spawn-import-strict-3 | Spawn defaults to strict | Backlog | `scripts/spawn-session.sh` invokes import without `--continue-on-error`, so a bad bundle aborts the spawn and fires the failure trap. | |
 

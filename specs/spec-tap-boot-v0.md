@@ -351,7 +351,7 @@ The whole profile is validated before any of it is applied.
 - A `--dry-run` / `plan` mode runs both validation layers and reports the planned actions (which sections, which population steps, in what order) **without mutating** state. It is the **best current plan, not a guarantee** — like Terraform's plan, state can drift between plan and apply, so a dry-run is advisory.
 - Dry-run defaults to **offline / no outbound**: schema + semantic validation + local plan only. Live checks (provider reachability, OIDC discovery, upstream probes) are opt-in via an explicit `--live-checks`, never the default.
 - Failures are loud and machine-readable: the error names the offending section/field/step so a zero-touch caller (or an AI operator) can correct the profile and re-run deterministically.
-- Validation is independent of where the profile came from (boot-embedded today; a standalone source later, per `req-tap-auth-config-source`) — the validator operates on the loaded document, not its origin.
+- Validation is independent of where the profile came from (boot-embedded today; a standalone source later, per the secondary non-boot config-source item in `spec-tap-auth-v0.md`'s Backlog) — the validator operates on the loaded document, not its origin.
 
 #### Acceptance Criteria
 
@@ -844,7 +844,7 @@ Longer-horizon:
 - **CLI-flag override layer** for boot variables (`req-boot-variable-resolution`) — the convention reserves `flag > env > profile > default`; the env layer is wired first (dev-disable needs it), the flag layer when a single-run override first needs one.
 - Profile inheritance / composition (multiple profiles, overlays, base+override).
 - Satellite / headless boot variants (where no human admin is expected; intersects `req-tap-auth-boot` relaxations).
-- Standalone (non-boot-embedded) config source for sections (intersects `req-tap-auth-config-source`).
+- Standalone (non-boot-embedded) config source for sections (intersects the secondary non-boot config-source item in `spec-tap-auth-v0.md`'s Backlog).
 
 ## Status Vocabulary
 
