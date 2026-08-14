@@ -1,6 +1,11 @@
 # Copilot review instructions — TAP
 
-Spec: `specs/spec-cicd-ai-review.md`. Copilot is TAP's **daily-life reviewer seat** — summaries,
+> **Dormant as of 2026-08-14.** No Copilot seat is active on `unified-systems-com`: code review on
+> org-owned repositories needs Copilot Business, and GitHub paused self-serve Copilot Business for
+> Team organizations on 2026-04-22. This file is kept because it costs nothing and applies the
+> moment a seat exists. The lens below is live on the Codex seat, which is the one actually running.
+
+Spec: `specs/spec-cicd-ai-review.md`. Copilot is TAP's intended **daily-life reviewer seat** — summaries,
 correctness, hygiene — running alongside a Codex seat that carries the same lens from a location a
 PR cannot edit. Both are advisory; nothing here blocks a merge, and no reviewer's Approve is
 load-bearing.

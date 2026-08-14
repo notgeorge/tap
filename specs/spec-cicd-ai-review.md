@@ -252,14 +252,21 @@ different vendors**, chosen so that the reviewer set is independent of the autho
   preference to be traded against review quality — it is the property that makes a steered or
   compromised reviewer degrade to "wrong comment" instead of "compromised repository", and it
   eliminated nearly the entire market (see the permission sweep in the ledger above).
-- **v0 roster (REBUILT 2026-08-13 — two reviewing seats, two security-observability seats):**
-  1. **GitHub Copilot code review** — the daily-life seat: summaries, correctness, hygiene.
-     First-party, so **there is no third-party App and no new standing grant**; enabled by an
-     org-wide ruleset. Advisory always — GitHub itself will not let it satisfy a required review.
-     **Explicitly NOT the independence leg** (Anthropic models are among those it routes to, and
-     the seat is not vendor-pinned in a way we can verify).
-  2. **OpenAI Codex via `openai/codex-action`** — the independence leg, and the only seat that
-     satisfies `req-cicd-ai-review-ensemble-2`. Runs in TAP's CI under a `permissions:` block we
+- **v0 roster (REBUILT 2026-08-13; Copilot PARKED 2026-08-14 — one reviewing seat, two
+  security-observability seats):**
+  1. ~~**GitHub Copilot code review**~~ — **PARKED, not rejected.** It cleared the permission filter
+     on the strongest possible terms (first-party, no App, no standing grant) and remains the
+     preferred daily-life seat. It is unreachable for provisioning reasons, not design ones:
+     **GitHub paused self-serve Copilot Business sign-ups for Free and Team organizations on
+     2026-04-22**, `unified-systems-com` is on the Team plan, and Copilot code review on
+     organization-owned repositories requires Copilot Business or Enterprise on the org — a personal
+     Copilot Pro subscription covers personal repos only. The org Copilot settings section does not
+     render at all, which also puts the unlicensed-member metered route out of reach, since those
+     policies live inside it. **Reopen condition:** GitHub resumes self-serve for Team orgs, or TAP
+     takes a dedicated enterprise account for Copilot Business through GitHub sales (~$19/seat/mo;
+     add users at enterprise level to avoid the separate GHEC per-user charge).
+  2. **OpenAI Codex via `openai/codex-action`** — the independence leg, the only seat that
+     satisfies `req-cicd-ai-review-ensemble-2`, and **currently the only reviewing seat at all**. Runs in TAP's CI under a `permissions:` block we
      author and GitHub enforces (`contents: read` on the model job; `pull-requests: write` on a
      separate job that runs no model), `safety-strategy: read-only`. Billed as API usage.
   3. **Codacy** and **SonarQube Cloud** — security *observability*, not reviewers. Third-party Apps,
@@ -284,10 +291,13 @@ different vendors**, chosen so that the reviewer set is independent of the autho
   `claude-code-action` v1.0.94) are the reason any such seat would be configured per
   `req-cicd-ai-review-ensemble-5` rather than the reason to refuse it. Revisit if the Phase-2
   observation window shows a dedicated lens catching a class the seated reviewers miss.
-- Count votes honestly: correlated errors mean the two reviewing seats ≈ 1.5 effective independent
-  opinions. Diversity of *prompt/lens* (hygiene + summaries vs independent correctness) is
-  deliberate, and both seats carry the malicious-change instructions rather than one specialist
-  holding them.
+- **Count votes honestly, and right now the count is one.** With Copilot parked there is a single
+  reviewing seat, so `req-cicd-ai-review-ensemble-1` is **not met** — see the named exception in its
+  acceptance criteria. The ensemble's redundancy argument ("a steered reviewer is contradicted by
+  the others") does not currently hold; what remains is one non-Anthropic reviewer carrying the
+  malicious-change lens, which is still strictly better than the zero reviewers TAP had before, and
+  is stated as that rather than dressed up. When a second seat lands, correlated errors mean two
+  vendors ≈ 1.5 effective independent opinions, not 2.
 - **Alternatives on the shelf, all now blocked by the hard filter.** *Greptile* (whole-codebase
   context; its experimental **Model Inversion** auto-detects the authoring agent from commit
   trails/branch prefixes and routes review to the opposing family — this spec's independence rule,
@@ -304,7 +314,7 @@ different vendors**, chosen so that the reviewer set is independent of the autho
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-cicd-ai-review-ensemble-1 | Two Vendors Minimum | Proposed | Every code-bearing PR to main is reviewed by ≥2 AI reviewers from different vendors. | Docs-tier PRs MAY be exempt (change-tier). |
+| req-cicd-ai-review-ensemble-1 | Two Vendors Minimum | Proposed | Every code-bearing PR to main is reviewed by ≥2 AI reviewers from different vendors. | **NOT MET as of 2026-08-14** — Copilot is parked on a GitHub provisioning block (self-serve Copilot Business paused for Team orgs since 2026-04-22), leaving Codex as the only reviewing seat. Named rather than quietly relaxed: the requirement stands, the reality does not meet it, and the gap closes when a second seat lands. Docs-tier PRs MAY be exempt (change-tier). |
 | req-cicd-ai-review-ensemble-2 | Non-Author Vendor | Proposed | While Claude is the primary authoring model, ≥1 reviewer is non-Anthropic. | The independence leg. |
 | req-cicd-ai-review-ensemble-3 | Malicious-Change Lens | Proposed | EVERY seated reviewer runs explicit malicious-change/smuggling instructions, not generic review prompts. | The #1-with-a-bullet job; carried by config on both seats, not by a specialist agent. |
 | req-cicd-ai-review-ensemble-4 | No Reviewer Holds Code Write | Proposed | No seated reviewer — App or action — holds `contents: write` or any other write path to code. Verified per seat with `gh api /apps/<slug>` (Apps) or an explicit `permissions:` block (actions) before install. | **Amended 2026-08-13**, replacing "No CI-Resident Reviewer At v0". The original forbade CI residency as a proxy for this property; the permission sweep showed the proxy inverted — the all-vendor rosters all required `contents: write`, while a CI-resident action can be pinned read-only. The reasoning is preserved in `doc-cicd-ai-review-plan.md`. |
@@ -613,6 +623,16 @@ defined:
   as guard meta-integrity (`req-dev-validation-meta-integrity`).
 - **Reviewer availability.** A required external reviewer adds an outage mode to shipping; accepted
   with the loud break-glass (`req-cicd-ai-review-gate-4`).
+- **There is currently one reviewing seat, not two.** `req-cicd-ai-review-ensemble-1` is unmet while
+  Copilot is parked, so the ensemble's core redundancy property — a steered or mistaken reviewer
+  being contradicted by another vendor — does not hold today. A single reviewer that is wrong is
+  simply wrong. This is the most significant open gap in the spec and should not be read past.
+- **Vendor provisioning is a live dependency, and it moves faster than this spec.** Between
+  2026-04-22 and 2026-08-07 GitHub paused self-serve Copilot Business for Team orgs, replaced
+  premium requests with AI Credits (2026-06-01), and shipped review effort levels — three changes
+  that each invalidated part of a plan written against then-current docs. The permission sweep is
+  durable; provisioning detail is not, and must be re-verified at the moment of install rather than
+  trusted from a run sheet.
 - **A PR can soften its own Copilot review**, because Copilot reads instructions from the head
   branch. Bounded, not closed: the security lens sits on the base-branch seat
   (`req-cicd-ai-review-untrusted-content-4`) and reviewer-config edits are findings

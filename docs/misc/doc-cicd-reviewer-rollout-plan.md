@@ -34,13 +34,14 @@ after the roster was rebuilt from scratch on permission evidence — see
 
 | Seat | What it is | Job | Cost | Status |
 | --- | --- | --- | --- | --- |
-| **Copilot code review** | First-party GitHub | Daily-life: summaries, correctness, hygiene | $10/mo Pro | Licensed 2026-08-14; ruleset pending |
+| ~~**Copilot code review**~~ | First-party GitHub | Daily-life: summaries, correctness, hygiene | Needs Copilot Business, ~$19/seat/mo | **PARKED 2026-08-14** — self-serve blocked |
 | **Codex** (`openai/codex-action`) | Runs in our CI, permissions we write | The independence leg + the malicious-change lens | API usage (trivial at ~44 PRs/mo) | To install |
 | **Codacy** | Third-party App, `contents: read` | Security observability — SAST, SCA, secrets, duplication | Free, unlimited public repos | To install |
 | **SonarQube Cloud** | Third-party App, `contents: read` | Security observability — rules, vulnerabilities, quality gate | Free, all open source | To install |
 
-Total recurring cost: **$120/year** (Copilot Pro) plus Codex API usage — trivial at ~44 PRs/mo.
-Codacy and SonarQube Cloud are free on public repositories with no time limit.
+Total recurring cost with Copilot parked: **Codex API usage only** — trivial at ~44 PRs/mo. Codacy
+and SonarQube Cloud are free on public repositories with no time limit. Seating Copilot later adds
+~$228/year and requires a GitHub sales conversation.
 
 ### Why this roster and not the obvious one
 
@@ -145,76 +146,46 @@ own change.
 
 ---
 
-## Step 1 — Copilot code review (10 min)
+## Step 1 — Copilot code review — PARKED 2026-08-14
 
-### 1a. Get the licence — DONE 2026-08-14
+**Do not work this step.** Copilot cleared the permission filter better than any other candidate —
+first-party, no App, no standing grant — and it is still the preferred daily-life seat. It is
+blocked on provisioning, not design:
 
-**Copilot Pro** is licensed ($10/mo — automatic review requires Pro, Pro+ or Max). Public
-repositories are exempt from the usage-based billing introduced 2026-06-01, so the per-review cost
-on our repos is zero; the $10 buys only the licence. GitHub's complimentary-Pro programme for
-verified open-source maintainers exists but is **not being pursued** — see the decision above.
+- Copilot code review on **organization-owned** repositories requires **Copilot Business or
+  Enterprise on the org**. A personal **Copilot Pro** subscription covers personal repos and your
+  own PRs only. (Pro was purchased 2026-08-14 before this was understood; it retains IDE value but
+  buys nothing for `unified-systems-com`.)
+- **GitHub paused new self-serve Copilot Business sign-ups for Free and Team organizations on
+  2026-04-22.** `unified-systems-com` is on the Team plan, so the Copilot section does not render in
+  org settings at all. No reopening date has been announced.
+- That also closes the cheaper metered route (org pays premium requests for unlicensed members'
+  reviews), because those two policies live inside the org Copilot settings that do not render.
 
-### 1b. Turn on automatic review, org-wide
+Verified against the API rather than inferred from the missing menu:
 
-This is the org-wide floor mechanism, and it is a ruleset — no App install anywhere:
+```bash
+gh api /orgs/unified-systems-com/copilot/billing
+# seat_management_setting: "unconfigured", seat_breakdown.total: 0
+gh api /orgs/unified-systems-com --jq '.plan.name'   # "team"
+```
 
-> **Org Settings → Repository → Rulesets → New branch ruleset**
+**Reopen condition — either:** GitHub resumes self-serve Copilot Business for Team orgs, **or** TAP
+takes a dedicated enterprise account for Copilot Business via GitHub sales. In the second case, keep
+the Team org separate and add users at the **enterprise** level, which buys the $19/seat/mo Copilot
+Business without triggering the separate $21/user/mo GitHub Enterprise Cloud charge.
 
-- **Target repositories:** all (inclusion pattern `*`) — the floor applies everywhere by design.
-- **Target branches:** default branch.
-- **Branch rules → check "Automatically request Copilot code review."**
-- **Check "Review new pushes"** — otherwise Copilot reviews a PR exactly once and never looks at
-  what you push afterwards, which is precisely how a payload lands on the second commit.
-- Leave "Review draft pull requests" off unless the noise proves tolerable.
-- Leave "Restrict deletions" and "Block force pushes" checked (GitHub pre-checks them, and they
-  match what `protect-default-branches` already enforces org-wide). **Check nothing else** — in
-  particular not "Require a pull request before merging", which would be a real behaviour change
-  across all 16 repos, and not "Require status checks to pass", which is repo-specific (`tap`'s
-  `gate` is handled by its own repo-level `main-required-checks` ruleset).
-- Bypass list: empty.
+`.github/copilot-instructions.md` is **landed and dormant** — it costs nothing to keep, needs no
+maintenance, and applies the moment a seat exists. Its lens is duplicated in the Codex prompt, which
+is the one actually running.
 
-**Those two sub-options are the only ones the rule carries.** Review effort is NOT a ruleset
-property — it is set in Step 1c below. (An earlier draft of this run sheet listed it here; that was
-wrong. Effort levels only went GA 2026-08-07.)
+### The wider lesson, recorded deliberately
 
-`copilot_code_review` is a standalone rule type, not nested under "require a pull request", so this
-adds a reviewer without changing merge behaviour anywhere.
-
-Org-wide is the decision — do not use the repo-level equivalent (**Settings → Rules → Rulesets**),
-which exists only as a trial affordance we chose against.
-
-### 1c. Review effort and custom instructions — one page, org level
-
-> **Org Settings → Code, planning, and automation → Copilot → Code review**
-
-- **Review effort level: "Balanced,"** not "Lite." Balanced routes to a higher-reasoning model for
-  deeper analysis of complex logic and security-sensitive code, and security is the job. Setting it
-  at the **org** level makes it the inherited default for every repo; a repo can override it later
-  if one ever genuinely needs to.
-- **Enable the use of custom instructions.** Without this,
-  [`.github/copilot-instructions.md`](../../.github/copilot-instructions.md) is inert — Copilot
-  reviews, but generically, ignoring the entire malicious-change lens.
-
-### 1d. Land the instruction files — DONE 2026-08-14
-
-**[`.github/copilot-instructions.md`](../../.github/copilot-instructions.md) is landed.** Read it
-there; it is not reproduced here, because a second copy of a security lens is a second place to
-keep in sync (derive-a-fact-once). TAP already has `AGENTS.md`, which Copilot also reads, but an
-explicit file is clearer about who the audience is.
-
-Three things were added beyond the draft this run sheet originally carried, all of them for the
-same reason — the file is read from the **head branch**, so it is reviewer configuration a PR can
-edit:
-
-- an untrusted-input preamble (the diff and its prose are attacker-controlled);
-- a reviewer-config-edits-are-findings rule that names this very file
-  (`req-cicd-ai-review-untrusted-content-5`);
-- severity discipline, so *critical* and *high* stay reserved for the security class that later
-  graduates into a blocking check.
-
-That single file is enough. Path-scoped `.github/instructions/*.instructions.md` files exist and
-support an `applyTo:` glob, but a second copy of the same lens is a third place to keep in sync —
-add one only if the paths above turn out to need genuinely different guidance.
+Three GitHub changes inside four months each invalidated part of a plan written against
+then-current documentation: self-serve pausing (2026-04-22), premium requests becoming AI Credits
+(2026-06-01), review effort levels going GA (2026-08-07). The permission sweep behind this roster is
+durable. **Provisioning detail is not** — re-verify it at the moment of install, against the API and
+the actual consent screen, rather than trusting this run sheet's prose.
 
 ---
 
