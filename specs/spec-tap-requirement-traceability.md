@@ -369,12 +369,13 @@ Generated — do not hand-edit. Regenerate with `manage.py guards --sync-evidenc
 
 <!-- BEGIN GENERATED EVIDENCE — manage.py guards --sync-evidence -->
 
-**1125** requirements · **19** standing doctrine · **15** carry evidence · **1** carry both classes · **497** declared built with none.
+**1128** requirements · **19** standing doctrine · **18** carry evidence · **1** carry both classes · **496** declared built with none.
 
 Four separate facts, deliberately not blended into one percentage. **Doctrine** is outside the coverage question — in force now, never "completed", expecting conformance rather than an implementation. **Declared built with none** is context, not a defect list: claims are opt-in and scarce by design (`req-tap-traceability-scope`), so it measures how much of the corpus has been deliberately targeted, not how much is wrong. Collapsing these into a single coverage score is what makes such a score meaningless.
 
 | Requirement | Declared | Derived | Implementation | Verified by |
 | --- | --- | --- | --- | --- |
+| `req-cicd-dco-signoff` | — | Tested | — | `req-cicd-dco-signoff-2`, `req-cicd-dco-signoff-3`, `req-cicd-dco-signoff-4` |
 | `req-grid-service-pipeline-context` | Implemented | Implemented | `require_caller_context` | — |
 | `req-grid-table-classification.sec` | Implemented | Verified | `classified_models` | `req-grid-table-classification.sec-6` |
 | `req-plugin-load-v0-ready-chain` | Implemented | Tested | — | `req-plugin-load-v0-ready-chain-1`, `req-plugin-load-v0-ready-chain-2` |
@@ -383,6 +384,7 @@ Four separate facts, deliberately not blended into one percentage. **Doctrine** 
 | `req-tap-auth-passkey-genesis` | Proposed | Tested | — | `req-tap-auth-passkey-genesis-3`, `req-tap-auth-passkey-genesis-4` |
 | `req-tap-auth-passkey-rollout` | Proposed | Tested | — | `req-tap-auth-passkey-rollout-2` |
 | `req-tap-auth-passkey-webauthn` | Proposed | Tested | — | `req-tap-auth-passkey-webauthn-10`, `req-tap-auth-passkey-webauthn-11`, `req-tap-auth-passkey-webauthn-13`, `req-tap-auth-passkey-webauthn-3`, `req-tap-auth-passkey-webauthn-7`, `req-tap-auth-passkey-webauthn-8` |
+| `req-tap-cares-secrets-files` | Implemented | Implemented | `<module>` | — |
 | `req-tap-cares-secrets-root-resolution` | Implemented | Implemented | `resolve` | — |
 | `req-tap-health-bootcheck` | Implemented | Tested | — | `req-tap-health-bootcheck-1`, `req-tap-health-bootcheck-2`, `req-tap-health-bootcheck-3`, `req-tap-health-bootcheck-4` |
 | `req-tap-health-exposure` | Implemented | Tested | — | `req-tap-health-exposure-2`, `req-tap-health-exposure-3` |
@@ -390,6 +392,7 @@ Four separate facts, deliberately not blended into one percentage. **Doctrine** 
 | `req-tap-health-probes` | Implemented | Tested | — | `req-tap-health-probes-3`, `req-tap-health-probes-7`, `req-tap-health-probes-8`, `req-tap-health-probes-9` |
 | `req-tap-health-selection` | Implemented | Tested | — | `req-tap-health-selection-1`, `req-tap-health-selection-2`, `req-tap-health-selection-3`, `req-tap-health-selection-4`, `req-tap-health-selection-5` |
 | `req-tap-health-service` | Implemented | Tested | — | `req-tap-health-service-3`, `req-tap-health-service-5` |
+| `req-web-page-dim` | Implemented | Implemented | `<module>` | — |
 
 **Declared unbuilt, but evidence exists** — reported, never failed; a requirement can be partly built, and a doctrine requirement is cited as guidance:
 
