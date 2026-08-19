@@ -34,6 +34,18 @@ Standing infrastructure that came out of it: `req-tap-known-dupes` + the `known-
 `req-grid-table-classification.sec`; `req-tap-cares-secrets-root-resolution`; the
 host-runnable stdlib-only boundary test.
 
+**Closed (2026-08-18, Tier 2 batch):** all seven findings below, with three corrections to the
+proposed collapses — the `search_readonly` collapse could NOT import from the executor in the
+settings direction (new stdlib-only leaf `tap/db_aliases.py` instead); `write_guard`'s frozenset
+could NOT import `tap_auth.capabilities` at module scope (cycle through `tap_auth.enforcement` —
+tagged `TAP-KNOWN-DUPE(write-scope-caps)` instead, and `grid.discover` was a 4th uncovered
+literal); and the seven `_write_secret` test helpers turned out to be seven DIFFERENT helpers
+sharing only the `.secret.json` suffix fact (collapsed to `SECRET_SUFFIX` imports; the helpers
+deliberately kept). `tap_admin` gained `TAP-KNOWN-DUPE(admin-role)` for boot.py's settings-time
+copy. Test families landed in `tap/pytest_harness.py` (`batch_ctx`, `make_admin_user`/
+`make_admin_client`, `isolated_registry`) + `tap_cares/tests/conftest.py`; the collapse retired
+4 baselined mypy `union-attr` debts carried by the old copies.
+
 ## Tier 1 — one-liners, no design needed
 
 | Finding | Sites | Collapse |
@@ -42,7 +54,7 @@ host-runnable stdlib-only boundary test.
 | `"cytoscape:cose"` default placement | `tap_viz/panels/graph_panel/__init__.py:208,396`; `tap_web/synthetic.py:197,206,235,239`; `tap_web/views.py:485,493` | `DEFAULT_PLACEMENT` in tap_viz |
 | `SECRET_SUFFIX = ".secret.json"` | `tap/boot_pointer.py:65`; `tap/runtime_secrets.py:46` | **Trap:** boot_pointer is stdlib-only, runtime_secrets reaches jsonschema. Needs a stdlib leaf **or** a `TAP-KNOWN-DUPE(secret-suffix)` tag — not a plain import |
 
-## Tier 2 — small, a few files
+## Tier 2 — small, a few files (CLOSED 2026-08-18 — see Status)
 
 | Finding | Sites | Collapse |
 | --- | --- | --- |

@@ -38,11 +38,10 @@ User = get_user_model()
 
 
 @pytest.fixture(autouse=True)
-def isolate_collector_registry():
-    saved = collector_registry.all()
-    collector_registry._reset_for_testing()
+def _isolate_collector_registry_autouse(isolate_collector_registry):
+    """Every test in this module manipulates the registry — isolate all of them
+    (the shared fixture lives in tests/conftest.py)."""
     yield
-    collector_registry._reset_for_testing(saved)
 
 
 def _make_collector_class(name: str = "Fake", module: str = "tap_cares.tests.fake_collector_module"):

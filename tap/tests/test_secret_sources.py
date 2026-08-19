@@ -17,6 +17,7 @@ import pytest
 
 from tap import secret_sources
 from tap.runtime_secrets import RuntimeSecretError, resolve_secret_envelope
+from tap.secret_naming import SECRET_SUFFIX
 from tap.secret_sources import (
     DISK_SOURCE,
     SecretSourceError,
@@ -53,7 +54,7 @@ def _write_secret(
     payload = {"scope": scope, "key": key, "kind": kind, "description": "test secret", "data": data}
     if metadata is not None:
         payload["metadata"] = metadata
-    path = root / f"{key}.secret.json"
+    path = root / f"{key}{SECRET_SUFFIX}"
     path.write_text(json.dumps(payload))
     return path
 
