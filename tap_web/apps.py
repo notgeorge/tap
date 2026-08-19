@@ -117,6 +117,14 @@ class TapWebConfig(AppConfig):
                 return None
 
             def get_extra_context(self, obj: Any) -> dict[str, Any]:
-                return {"edit_url_override": f"/panel/{obj.slug}--{obj.entity_id}/edit/"}
+                from django.urls import reverse
+
+                from tap_web.page import build_url_id
+
+                return {
+                    "edit_url_override": reverse(
+                        "panel-edit", kwargs={"panel_url_id": build_url_id(obj.slug, obj.entity_id)}
+                    )
+                }
 
         register_editor(_PanelEditorDescriptor())

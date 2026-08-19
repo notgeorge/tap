@@ -52,7 +52,8 @@ logger = logging.getLogger(__name__)
 # public surface. `__all__` is that surface; the public-surface ceiling ratchet
 # (tap/guards/public_surface.py) freezes it and only lets it shrink. It lists what an
 # external module genuinely imports (settings → discover_entry_points; tap_plugins →
-# dist_name_for_slug / NAMESPACE_PACKAGE / TAP_PLUGINS_ENTRY_POINT_GROUP) plus the CLI
+# dist_name_for_slug / NAMESPACE_PACKAGE / TAP_PLUGINS_ENTRY_POINT_GROUP /
+# direct_url_vcs_rev, the one PEP 610 rev derivation shared with tap_plugins.report) plus the CLI
 # orchestration entry (run_preboot / main) and the fatal-condition contract
 # (PrebootError), plus the boot-variable resolver trio (ResolvedVar / env_var_name /
 # resolve_var) — the shape req-boot-variable-resolution-4 reserved for post-Django
@@ -68,6 +69,7 @@ __all__ = [
     "NAMESPACE_PACKAGE",
     "TAP_PLUGINS_ENTRY_POINT_GROUP",
     "dist_name_for_slug",
+    "direct_url_vcs_rev",
     "discover_entry_points",
     "resolved_plugin_app_configs",
     "run_preboot",
@@ -210,14 +212,25 @@ def _installed_distribution(dist_name: str) -> importlib.metadata.Distribution |
         return None
 
 
+def direct_url_vcs_rev(info: dict[str, Any]) -> str | None:
+    """The pinned commit of a parsed PEP 610 ``direct_url.json`` record, or None.
+
+    ``commit_id`` (the resolved commit) with ``requested_revision`` fallback — the one
+    derivation of install-provenance rev, shared with `tap_plugins.report` so the
+    reboot-idempotency check (req-boot-preboot-3) and the install-registry report
+    (req-tap-plugin-arch-install-registry-3) cannot drift on what "the pinned rev" means.
+    Callers own file reading and error posture (preboot fails loud, report degrades).
+    """
+    vcs = info.get("vcs_info") or {}
+    return vcs.get("commit_id") or vcs.get("requested_revision")
+
+
 def _installed_git_rev(dist: importlib.metadata.Distribution) -> str | None:
     """Return the pinned commit id of a VCS install, or None if not a VCS install."""
     raw = dist.read_text("direct_url.json")
     if not raw:
         return None
-    info = json.loads(raw)
-    vcs = info.get("vcs_info") or {}
-    return vcs.get("commit_id") or vcs.get("requested_revision")
+    return direct_url_vcs_rev(json.loads(raw))
 
 
 def _is_satisfied(entry: dict[str, Any]) -> bool:

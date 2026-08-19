@@ -35,6 +35,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
+from tap.db_aliases import SEARCH_READONLY
+from tap_auth.capabilities import READ_CAPABILITY
 from tap_auth.enforcement import requires_capability
 from tap_grid.exceptions import SearchExecutionError
 from tap_grid.grift.subgraph import (
@@ -84,7 +86,7 @@ if TYPE_CHECKING:
 # defaults to it so a caller that omits `db_alias` cannot silently run on the
 # writable `default` connection (req-grid-traversal-exec-scope.sec-5). The stored-
 # Search path uses the same alias via `tap_grid.search._SEARCH_DB_ALIAS`.
-READONLY_DB_ALIAS = "search_readonly"
+READONLY_DB_ALIAS = SEARCH_READONLY
 
 
 def execute_gryphon(
@@ -116,7 +118,7 @@ def execute_gryphon(
     return execute_gryphon_raw(query, inputs, db_alias=db_alias, layer=layer)
 
 
-@requires_capability("grid.read", operation="execute_gryphon_raw")
+@requires_capability(READ_CAPABILITY, operation="execute_gryphon_raw")
 def execute_gryphon_raw(
     query: str,
     inputs: dict[str, Any],
@@ -225,7 +227,7 @@ def _execute_gryphon_raw_impl(
     return _execute_ast(ast, inputs, db_alias=db_alias, layer=layer)
 
 
-@requires_capability("grid.read", operation="explain_gryphon_raw")
+@requires_capability(READ_CAPABILITY, operation="explain_gryphon_raw")
 def explain_gryphon_raw(
     query: str,
     inputs: dict[str, Any],

@@ -27,7 +27,7 @@ from typing import Any
 
 from tap import plugin_deps
 from tap.jsonfiles import validate_json
-from tap.preboot import dist_name_for_slug
+from tap.preboot import direct_url_vcs_rev, dist_name_for_slug
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ def _provenance(dist_name: str) -> dict[str, Any]:
         archive = info.get("archive_info") or {}
         if vcs:
             source, mode = "git", "package"
-            commit = vcs.get("commit_id") or vcs.get("requested_revision")
+            commit = direct_url_vcs_rev(info)
         elif dir_info:
             if dir_info.get("editable"):
                 source, mode = "editable", "checkout"
