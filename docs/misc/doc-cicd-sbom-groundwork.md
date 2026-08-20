@@ -10,6 +10,8 @@ assumes:
 
 # SBOM Groundwork — Findings, Prior Art, and Decisions
 
+Spec: [spec-cicd-sbom.md](../../specs/spec-cicd-sbom.md)
+
 The empirical and research record behind [spec-cicd-sbom.md](../../specs/spec-cicd-sbom.md),
 gathered 2026-08-18 → 2026-08-20 during the v0.1.2 publish-gap incident and its follow-up.
 Everything in the spec's requirements traces to a finding or a precedent recorded here.
