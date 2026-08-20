@@ -247,7 +247,14 @@ base-branch workflow definition in base-repo context, where the secrets live. Jo
    and call the vendor API directly (OpenAI for the Codex seat, xAI for the Grok seat — no
    `codex-action`, whose actor check rejects fork authors). Prompt = the review prompt below +
    the two trust-labeled buckets. No write scope on these jobs.
-3. **Comment job** (`pull-requests: write`, runs no model) — posts each seat's advisory comment.
+3. **Deterministic screen** — mechanical binary/image/opaque-addition detection (git binary
+   markers + extension screen) posting its finding regardless of model output
+   (`req-cicd-ai-review-untrusted-content-2`). Runs even when a model seat is down.
+4. **Comment job** (`pull-requests: write`, runs no model) — posts each seat's advisory comment.
+
+**Seats fail loud** (`req-cicd-ai-review-ensemble-6`): a seat with no verdict — rate limit,
+quota exhaustion, outage, timeout, malformed response — is a red job plus an explicit "seat
+absent" marker in the posted comment, never a silent skip.
 
 Spend controls: a `concurrency` group keyed on the PR number with `cancel-in-progress: true`
 (agreed 2026-08-20), plus the hard caps at both vendors. All actions SHA-pinned
@@ -313,27 +320,32 @@ docstring style — black, ruff and mypy already gate every PR. If you found
 nothing of substance, say so in one line. State anything you could not review.
 ```
 
-### The harness repo — decided 2026-08-20
+### The harness repos — decided 2026-08-20 (two-repo split from in-flight review)
 
-The machinery lives in a **dedicated org repository** (working name `ai-review`; George names it
-at creation) per `req-cicd-ai-review-harness-repo`:
+Machinery and prompts are **separate repositories** (working names `ai-review` and
+`ai-review-prompts`; George names both at creation) per `req-cicd-ai-review-harness-repo`:
 
-- **Mixed license, declared boundary**: Apache-2.0 machinery (reusable workflows, scripts) + a
-  clearly-marked CC BY-SA 4.0 `prompts/`/`methodology/` directory for Trail-of-Bits-derived
-  content with attribution. Share-Alike never enters an Apache-2.0 tree.
+- **Machinery repo (Apache-2.0)**: reusable workflows + capture/review scripts, zero prompt
+  content, zero third-party text. Its contract with prompts is a standard directory layout.
+- **Prompts repo (own license(s) declared inside)**: prompt lists in the standard layout,
+  versioned and swapped independently of the machinery; ToB-derived material lives here under
+  CC BY-SA 4.0 with attribution. Third-party methodology enters only as vendored snapshots at
+  reviewed commits — never fetched from a third party at build/run time.
+- **The machinery pulls prompts at a pinned full-SHA ref** (declared in the consumer's
+  base-branch shim) into the standard location — the one sanctioned run-time fetch: org-owned
+  repo, full SHA, reviewed at every bump.
 - **Consumers carry two thin shims** (stage-1 capture on `pull_request`, stage-2 review on
-  `workflow_run`), each calling the harness repo's `workflow_call` workflows by **full commit
-  SHA**. Org floor: every org repo gets the shims, including the harness repo itself.
-- **Third-party methodology enters only as a vendored snapshot** pinned at a reviewed commit —
-  never fetched at build/run time. Trusting a vendor at a read hash, never at HEAD.
-- **Bring-your-own-prompts**: prompt content and vendor set are `workflow_call` inputs, so
-  external consumers take the Apache machinery with their own prompts and inherit Share-Alike
-  only if they build on ours.
+  `workflow_run`), pinning machinery AND prompts by full commit SHA. Org floor: every org repo
+  gets the shims, both harness repos included. Both repos get CODEOWNERS at creation
+  (`req-cicd-ai-review-least-privilege-5`; TAP's own CODEOWNERS was extended to the remaining
+  build plumbing — Dockerfiles, `docker/`, compose files, `.githooks/` — in this change).
+- **Bring-your-own-prompts**: any consumer points their shim at their own prompts repo/ref;
+  Share-Alike is inherited only by building on our CC BY-SA prompt files.
 
-Milestone 1 is the minimal two-seat harness reviewing real TAP PRs; the ToB-adapted prompt
-phases below are iteration 2. The workflow file names in 2b above describe the shim/reusable
-split's *behavior*; exact file naming settles at build and the committed files then supersede
-this prose.
+Milestone 1 is the minimal two-seat harness + minimal prompts repo reviewing real TAP PRs; the
+ToB-adapted prompt phases below are iteration 2. The workflow file names in 2b above describe
+the shim/reusable split's *behavior*; exact file naming settles at build and the committed files
+then supersede this prose.
 ### 2c. Validation-map row
 
 Adding a CI job means adding its row to `spec-dev-validation.md`'s Validation Map in the same change
@@ -392,11 +404,11 @@ analysis with a `SONAR_TOKEN` — a `/manage-secret` conversation, and not part 
 ## Trail of Bits methodology imports — queued 2026-08-20
 
 Researched when the harness went own-built (`trailofbits/skills`, CC BY-SA 4.0 — see the spec's
-prior-art ledger for the full entry and license discipline). With the harness repo decided
-(`req-cicd-ai-review-harness-repo`), adapted ToB text MAY live in that repo's declared CC BY-SA
-directory with attribution — and enters **only as a vendored snapshot pinned at a reviewed
-commit, never fetched at build/run time**. In TAP's Apache-2.0 tree: methodology only, our own
-words. Four imports, mapped to our surfaces:
+prior-art ledger for the full entry and license discipline). With the two-repo split decided
+(`req-cicd-ai-review-harness-repo`), adapted ToB text lives in the **prompts repo** under its
+own declared license (CC BY-SA 4.0, attributed) — entering **only as a vendored snapshot pinned
+at a reviewed commit, never fetched from a third party at build/run time**. In any Apache-2.0
+tree: methodology only, our own words. Four imports, mapped to our surfaces:
 
 1. **`fp-check`'s gated-verdict structure** → the harness prompt gains a devil's-advocate pass:
    before a finding posts, the model must argue why it might be a false positive and state what
