@@ -75,6 +75,13 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
         enforced_by="`scripts/sbom/generate.py` `check_canaries` before attestation; `tap/tests/test_sbom_generate.py`",
     ),
     DeclaredSurface(
+        surface="Plugin release SBOM (identity + conformance gates)",
+        rid="req-cicd-sbom-10",
+        cadence="Per-plugin-release (plugin-release-sbom reusable workflow)",
+        status="CI-guarded",
+        enforced_by="`scripts/sbom/plugin_release.py` fail-closed gates before wheel/SBOM attestation; `tap/tests/test_sbom_plugin_release.py`",
+    ),
+    DeclaredSurface(
         surface="Teardown correctness",
         rid="req-dev-multisession-teardown-cleanup",
         cadence="Per-despawn",
