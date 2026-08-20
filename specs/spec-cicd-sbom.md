@@ -37,10 +37,14 @@ the result, keep per-arch SBOMs standalone** — and TAP's digest-threading law
 (`req-cicd-supply-chain-provenance-1`) extends unchanged: no mutable-name hop between
 generation and signature.
 
-Scope: the published `tap-web` and `tap-db` images. Plugins are explicitly out of scope —
-the boot record is the *instance-level* BOM (which plugins, at which versions, this
-running instance loaded); the image SBOM is the *artifact-level* BOM (what every copy of
-this version contains everywhere). The two compose; neither substitutes for the other.
+Scope: the published `tap-web` and `tap-db` images today, extensible to **flavored
+ready-made images** tomorrow (req-cicd-sbom-9). The durable boundary is NOT "core vs
+plugins" — it is **baked-into-the-artifact vs added-at-runtime**: the image SBOM is the
+*artifact-level* BOM (what every copy of this version contains everywhere); the boot
+record is the *instance-level* BOM (what this running instance actually loaded). A
+ready-made image that bakes a boot profile's plugin set moves that plugin closure across
+the boundary — into the artifact, and therefore into its SBOM. Runtime-added plugins
+remain the boot record's territory. The two compose; neither substitutes for the other.
 
 ## Goals
 
@@ -63,6 +67,7 @@ this version contains everywhere). The two compose; neither substitutes for the 
 | req-cicd-sbom-6 | [Single Derivation, Format as Serialization](#single-derivation-format-as-serialization) | Proposed | One Syft scan per digest is canonical; CycloneDX primary output; SPDX only ever as a second serialization of the SAME scan |
 | req-cicd-sbom-7 | [Canary Guard](#canary-guard) | Proposed | Fail-closed publish check: expected components present, known phantoms absent — else no attestation |
 | req-cicd-sbom-8 | [Release SBOM Diffs](#release-sbom-diffs) | Deferred | Human-readable package delta per release, feeding the customer upgrade-diff contract; consumer of 1–7, not a blocker |
+| req-cicd-sbom-9 | [Flavored Ready-Made Images](#flavored-ready-made-images) | Proposed | Design constraint now, implementation with the appliance-image work: an image baking a boot profile's plugins ships an SBOM covering core + baked plugin closure, from the same declared-manifest principle |
 
 ---
 
@@ -200,11 +205,45 @@ source changes; the SBOM diff surfaces the silent package drift underneath
 (`req-cicd-product-releases`). Deferred: pure consumer of req-cicd-sbom-1..7, adds no
 constraint on them, and should be built against real release cadence.
 
+### Flavored Ready-Made Images
+----
+RID: `req-cicd-sbom-9`
+Status: `Proposed`
+
+TAP is tacking toward **ready-made appliance images**: a boot profile's plugin set baked
+into a published image (e.g. a GitHub-configuration mapping instance), pulled from the
+registry with everything installed — an adopter slots in secrets and boots. This
+requirement is a **design constraint on req-cicd-sbom-1..7 now** and an implementation
+obligation when those images ship:
+
+* A flavored image's SBOM MUST cover the core closure **plus the baked plugin closure**
+  (each plugin and its dependencies), derived by the same principle as everything else:
+  from **declared, hash-verified manifests baked in the artifact** — the core `uv.lock`
+  plus the flavor's boot-profile plugin manifest (the boot-record-as-BOM data, which
+  already names each plugin at an exact version) — never by scanning materialized
+  caches or installed trees (the wheel-cache phantom lesson applies with more force,
+  since plugin wheels ride the same cache mechanism).
+* Therefore the generation step (req-cicd-sbom-1) MUST be parameterized as *artifact ×
+  list-of-declared-manifests*, not hardcoded to "two images, one lockfile each"; the
+  canary guard (req-cicd-sbom-7) MUST take per-flavor canary lists (every baked plugin
+  present; the flavor's profile named).
+* The boot record of a ready-made instance SHOULD reference the image SBOM (by image
+  digest) for the baked set rather than restating it, and record only runtime deltas —
+  one fact, derived once, linked across layers.
+* Naming/tagging of flavored images follows the existing pipeline disciplines unchanged
+  (digest-threading, per-arch, signed attestation home).
+
+Status rationale: no flavored image exists yet, so nothing here is buildable — but
+req-cicd-sbom-1/-7's implementation must not foreclose it. The extensibility is cheap at
+design time and expensive to retrofit (the security-posture asymmetry).
+
 ## Non-Goals and Named Residuals
 
-* **Plugin SBOMs** — the boot record is the instance-level BOM; out of scope here. Future
-  seam (named, not built): the boot record references the image SBOM by digest rather
-  than restating it — one fact, derived once, linked across layers.
+* **Runtime-added plugin SBOMs** — the boot record is the instance-level BOM for
+  anything installed at boot rather than baked; out of scope here. The baked-plugin case
+  is IN scope via req-cicd-sbom-9. Future seam (named, not built): the boot record
+  references the image SBOM by digest rather than restating it — one fact, derived once,
+  linked across layers.
 * **Registry-side referrers copy** — deferred, see req-cicd-sbom-4.
 * **Build-cache poisoning** — upstream of generation entirely; named and accepted at
   `req-cicd-supply-chain-provenance-1`. An SBOM inventories what was built; it cannot
