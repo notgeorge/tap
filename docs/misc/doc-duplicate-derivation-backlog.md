@@ -67,6 +67,13 @@ copy. Test families landed in `tap/pytest_harness.py` (`batch_ctx`, `make_admin_
 
 ## Tier 3 — needs a decision before editing
 
+> **2026-08-20 evidence pass:** every row below re-verified read-only; several are wrong in
+> load-bearing details (the uuid5 site, the digest-parse risk, the raw-reader count). The
+> corrected evidence + per-row recommendations live in
+> [doc-dev-dupes-tier3-decision-brief.md](doc-dev-dupes-tier3-decision-brief.md) — rule there,
+> then edit. `TAP_LOCAL_PASSWORD_ENABLED` (last row) is **CLOSED by verification**: both halves
+> read bare `settings.TAP_LOCAL_PASSWORD_ENABLED` (views_login.py:64); the 08-13 fix was complete.
+
 | Finding | Sites | The decision |
 | --- | --- | --- |
 | Boot-profile file path | `tap/boot_records.py:49` (`RECORD_SUFFIX`), `tap/preboot.py:163-164,174`, `tap_auth/boot.py:56-57`, `tap/crypto_bom.py` (`_waivers_for_profile`), `tap_boot/profile.py:144,158,186` | Five+ spellings across three **security-load-bearing** readers (FIPS waivers, initial admins/grants, plugin install set), two of which parse the file **raw, unvalidated**. Wants one settings-free `profile_path(profile_id)`; the boundary shape decides where it lives |
@@ -80,7 +87,7 @@ copy. Test families landed in `tap/pytest_harness.py` (`batch_ctx`, `make_admin_
 
 ## Tier 4 — real refactor
 
-- **GRIFT serialization across the three read engines.** Canonical `tap_grid/grift/subgraph.py:405-470`; re-rolled at `gryphon/executor.py:1263,1294,2725` and `orm_compiler.py:208,238` (executor/orm_compiler pairs are **AST-identical**). Against the one-grid-read-path north star. Export `serialize_node_list`/`serialize_edge_list` and have all three call them; validate with the Gridkin SQL snapshots. **Unverified and worth checking first:** whether the three differ in *which fields they expose* — if so this is a data-exposure difference between engines, not hygiene.
+- **GRIFT serialization across the three read engines.** Canonical `tap_grid/grift/subgraph.py:405-470`; re-rolled at `gryphon/executor.py:1263,1294,2725` and `orm_compiler.py:208,238` (executor/orm_compiler pairs are **AST-identical**). Against the one-grid-read-path north star. Export `serialize_node_list`/`serialize_edge_list` and have all three call them; validate with the Gridkin SQL snapshots. **Verified 2026-08-20: they do NOT differ** — all three call the same six leaf serializers from `subgraph.py`; only dispatch wrappers are duplicated (executor/orm_compiler pairs still byte-identical). Downgraded to hygiene; collapse = THREE exports (`serialize_node_list`, `serialize_typed_node_list`, `serialize_edge_list`) because executor's `_serialize_typed_nodes` has its own input contract. Gridkin snapshots are out-of-repo (gryphon_playground); validate in-tree with test_grift_subgraph.py + test_grift_envelope.py. Detail: [doc-dev-dupes-tier3-decision-brief.md](doc-dev-dupes-tier3-decision-brief.md).
 - **3+ `tap-plugin.toml` parsers.** `tap/plugin_deps.py` + `tap/preboot.py` deliberately shadow `tap_plugins/manifest.py` (pre-Django boundary). Likely a `TAP-KNOWN-DUPE(manifest-parse)` tag rather than a collapse — but fix the real divergence: `DeclaredDep` drops the `note` field `DependencyEntry` keeps.
 - **Entity types in-code vs DB catalog.** `list_entity_types()` vs `EntityType.objects.all()`. Conceptual (desired vs observed state), not a collapse.
 
