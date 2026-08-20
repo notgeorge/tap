@@ -384,7 +384,7 @@ Selecting a record without a `#` resolves to a named default or fails loud — n
 ### Record Integrity + Version
 ----
 RID: `req-boot-bootstrap-record-version`
-Status: `Proposed`
+Status: `In Development`
 
 A boot record's **integrity** is a content digest held **one layer up** in the referrer, never
 inside the record; its **version** is the plugin's, not a copy. **This is the near-term buildable

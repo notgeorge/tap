@@ -615,13 +615,14 @@ Generated — do not hand-edit. Regenerate with `manage.py guards --sync-evidenc
 
 <!-- BEGIN GENERATED EVIDENCE — manage.py guards --sync-evidence -->
 
-**1133** requirements · **20** standing doctrine · **0** disputed · **73** carry evidence · **1** carry both classes · **466** declared built with none.
+**1133** requirements · **20** standing doctrine · **0** disputed · **75** carry evidence · **1** carry both classes · **465** declared built with none.
 
 Separate facts, deliberately not blended into one percentage. **Doctrine** is outside the coverage question — in force now, never "completed", expecting conformance rather than an implementation. **Disputed** marks a spec-versus-implementation disagreement awaiting a human ruling — its claims are pointers to the contested code, never resolution, and the count should trend to zero. **Declared built with none** is context, not a defect list: claims are opt-in and scarce by design (`req-tap-traceability-scope`), so it measures how much of the corpus has been deliberately targeted, not how much is wrong. Collapsing these into a single coverage score is what makes such a score meaningless.
 
 | Requirement | Declared | Derived | Implementation | Verified by |
 | --- | --- | --- | --- | --- |
 | `req-boot-bootstrap-pointer-grammar` | Proposed | Implemented | `parse_pointer` | — |
+| `req-boot-bootstrap-record-version` | In Development | Implemented | `<module>` | — |
 | `req-cicd-dco-signoff` | — | Tested | — | `req-cicd-dco-signoff-2`, `req-cicd-dco-signoff-3`, `req-cicd-dco-signoff-4` |
 | `req-cicd-runner-least-privilege` | Implemented | Implemented | `<module>` | — |
 | `req-dev-validation-collection-complete` | Implemented | Implemented | `<module>` | — |
@@ -694,6 +695,7 @@ Separate facts, deliberately not blended into one percentage. **Doctrine** is ou
 | `req-tap-traceability-uniqueness` | Implemented | Implemented | `<module>`, `duplicate_claim_groups` | — |
 | `req-tap-tree-scanner-substrate` | Proposed | Implemented | `<module>` | — |
 | `req-web-page-dim` | Implemented | Implemented | `<module>` | — |
+| `req-web-panel-obj` | Implemented | Tested | — | `req-web-panel-obj-4` |
 
 **Disputed** — the spec and the implementation disagree; each entry pairs with a row in the requirement-review ledger and a section in its owning spec (`req-tap-traceability-disputed`):
 
@@ -704,6 +706,7 @@ None.
 | Requirement | Declared | Derived |
 | --- | --- | --- |
 | `req-boot-bootstrap-pointer-grammar` | Proposed | Implemented |
+| `req-boot-bootstrap-record-version` | In Development | Implemented |
 | `req-grid-edge-schema-required` | Proposed | Implemented |
 | `req-grid-traversal-lang-envelope-paths` | In Development | Implemented |
 | `req-grift-envelope-validation` | In Development | Implemented |
@@ -727,7 +730,7 @@ Generated — do not hand-edit. Regenerate with `manage.py guards --sync-account
 
 <!-- BEGIN GENERATED ACCOUNTING — manage.py guards --sync-accounting -->
 
-**1133** requirements · **73** mapped · **20** excluded (external 1, non-python 17, process 2) · **20** doctrine · **0** disputed · **557** unbuilt · **16** retired · **447 Unaccounted**.
+**1133** requirements · **75** mapped · **20** excluded (external 1, non-python 17, process 2) · **20** doctrine · **0** disputed · **556** unbuilt · **16** retired · **446 Unaccounted**.
 
 The Unaccounted count is the Definition of Done's progress bar: it only moves down (the committed baseline grandfathers existing debt; a new requirement without a disposition fails immediately). A grandfathered entry is debt, not license — every Unaccounted requirement still needs a mapping or a documented exclusion. **Unbuilt** and **retired** derive from status — a requirement declaring itself future work or withdrawn has, by its own account, nothing to map; the moment one flips to `Implemented` without evidence or an exclusion it becomes a NEW Unaccounted entry and the ratchet fails, so claiming done is where the Definition of Done is enforced.
 
@@ -792,7 +795,6 @@ The Unaccounted count is the Definition of Done's progress bar: it only moves do
 | `tap_grid/specs/spec-grid-service.md` | 9 | 1 | 0 | 0 | 0 | 5 | 0 | 3 |
 | `tap_plugins/specs/spec-tap-plugin-type-ownership-v0.md` | 10 | 0 | 0 | 0 | 0 | 7 | 0 | 3 |
 | `tap_web/specs/spec-web-panel-security.md` | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 3 |
-| `tap_web/specs/spec-web-panel.md` | 6 | 0 | 0 | 0 | 0 | 3 | 0 | 3 |
 | `tap_web/specs/spec-web-panels-standard.md` | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 3 |
 | `specs/spec-dev-multisession-teardown.md` | 3 | 0 | 0 | 0 | 0 | 1 | 0 | 2 |
 | `specs/spec-rampart-demo-anwar.md` | 9 | 0 | 0 | 0 | 0 | 7 | 0 | 2 |
@@ -800,9 +802,10 @@ The Unaccounted count is the Definition of Done's progress bar: it only moves do
 | `specs/spec-tap-testing.md` | 9 | 0 | 0 | 0 | 0 | 7 | 0 | 2 |
 | `tap_grid/specs/spec-grid-gryphon-multihop-aggregation.md` | 11 | 8 | 0 | 0 | 0 | 1 | 0 | 2 |
 | `tap_grid/specs/spec-grid-security.md` | 7 | 1 | 0 | 0 | 0 | 4 | 0 | 2 |
+| `tap_web/specs/spec-web-panel.md` | 6 | 1 | 0 | 0 | 0 | 3 | 0 | 2 |
 | `specs/spec-cicd-hardening.md` | 13 | 2 | 6 | 0 | 0 | 4 | 0 | 1 |
 | `specs/spec-dev-multisession.md` | 15 | 0 | 10 | 0 | 0 | 4 | 0 | 1 |
-| `specs/spec-tap-boot-bootstrap.md` | 10 | 1 | 0 | 0 | 0 | 8 | 0 | 1 |
+| `specs/spec-tap-boot-bootstrap.md` | 10 | 2 | 0 | 0 | 0 | 7 | 0 | 1 |
 | `specs/spec-tap-logging.md` | 18 | 1 | 0 | 0 | 0 | 16 | 0 | 1 |
 | `specs/spec-tap-plugin-validation-distribution.md` | 6 | 0 | 0 | 0 | 0 | 5 | 0 | 1 |
 | `specs/spec-tap-requirement-traceability.md` | 11 | 9 | 1 | 0 | 0 | 0 | 0 | 1 |

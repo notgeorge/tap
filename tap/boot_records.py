@@ -1,5 +1,14 @@
 """Referrer-held integrity digests for in-package boot records (spec-tap-boot-bootstrap).
 
+TAP-IMPLEMENTS: req-boot-bootstrap-record-version@578a9202cdc7/a6ba5e61e5b8 (derivation) — the one
+home of the requirement's integrity mechanism: the canonical content digest
+(`canonical_digest_bytes`, a fixed point over sorted-key bytes), the one parse of the
+referrer's declared-digest map (`declared_record_digests`, shared by the stage-0 gate and
+the manifest validator), and the declared==computed coherence check/refresh CLI. The
+version half of the body is a design constraint (a record carries no version of its own —
+satisfied by absence; the plugin's hatch-vcs version is the pointer), so this module is the
+requirement's buildable floor in one place.
+
 A shippable boot record lives *inside* its plugin package at
 ``tap_plugin/<slug>/boot/<name>.boot.json`` (``req-boot-bootstrap-records-in-package``)
 and rides the wheel/git artifact. Its integrity is a content ``sha256`` declared **one

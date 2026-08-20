@@ -407,7 +407,6 @@ req-web-panel-entity-resolution-result-shape
 req-web-panel-entity-resolution-template
 req-web-panel-entity-resolution-tests
 req-web-panel-json-embed.sec
-req-web-panel-obj
 req-web-panel-registry
 req-web-panel-render-content.sec
 req-web-panel-static
