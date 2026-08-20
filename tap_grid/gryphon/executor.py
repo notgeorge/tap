@@ -266,7 +266,6 @@ def explain_gryphon_raw(
        :status: implemented
        :audience: agent; developer
        :affordance: debugging
-       :implements: req-grid-traversal-exec-sql-capture
        :covered-by: pytest:tap_grid/tests/test_gryphon_sql_capture.py
 
        ``explain_gryphon_raw`` runs a query and returns both the canonical
@@ -609,7 +608,6 @@ def _execute_type_scan(
        :status: implemented
        :audience: external-user; agent; developer
        :affordance: querying
-       :implements: req-grid-traversal-lang-patterns
        :covered-by: gridkin:type_scan-scan-returns-every-pg-node-in-the-fixture
 
        A node-only ``MATCH (n:entity_type)`` scans every entity of one
@@ -804,7 +802,6 @@ def _apply_order_limit_typescan_envelope(
        :status: implemented
        :audience: external-user; agent; developer
        :affordance: querying
-       :implements: req-grid-gryphon-order-by-envelope
        :covered-by: gridkin:order_by_limit_envelope-latest-emission-by-data-field-limit-1
        :limitations: Single labelled type-scan only — hub-and-spoke, edge-type scan, multi-hop, bare MATCH (n), multi-clause unions, and queries carrying NOT EXISTS / OPTIONAL MATCH keep the rejection.
 
@@ -1166,7 +1163,6 @@ def _execute_bare_type_scan(
        :status: implemented
        :audience: external-user; agent; developer
        :affordance: querying
-       :implements: req-grid-traversal-lang-bare-match
        :covered-by: gridkin:bare_match-labelless-scan-filtered-by-an-entity-type-prefix
        :limitations: Graph-envelope result only; a data-lane WHERE must be AND-joined; ORDER BY / LIMIT unsupported (v0).
 
@@ -1673,7 +1669,6 @@ def _resolve_orm_path(binding: dict[str, Any], field_path: FieldPath) -> str:
        :status: implemented
        :audience: external-user; agent; developer
        :affordance: querying
-       :implements: req-grid-traversal-lang-envelope-paths
        :covered-by: gridkin:dimensions-scan-filters-pg-node-by-a-dimension-value
        :limitations: The ``display`` lane is not addressable in WHERE/RETURN; JSON access is dot/bracket-only for now.
 
@@ -1738,7 +1733,6 @@ def _build_chain_queryset(
        :status: implemented
        :audience: external-user; agent; developer
        :affordance: querying
-       :implements: req-grid-gryphon-multihop; req-grid-gryphon-multihop-envelope
        :covered-by: gridkin:multi_hop-anchored-two-hop-chain-returns-the-root-s-reachable-subgraph
        :limitations: Variable-length (``*m..n``) and undirected chain edges parse but the executor rejects them.
 
@@ -1953,7 +1947,6 @@ def _apply_predicate_to_qs(
        :status: implemented
        :audience: external-user; agent; developer
        :affordance: querying
-       :implements: req-grid-traversal-lang-filters; req-grid-traversal-lang-combinators
        :covered-by: gridkin:combinators-parenthesized-grouping-overrides-and-or-precedence
 
        WHERE filters a pattern by comparisons (``= != < > <= >=``, ``IN``) over
@@ -2041,7 +2034,6 @@ def _apply_not_exists(
        :status: implemented
        :audience: external-user; agent; developer
        :affordance: querying
-       :implements: req-grid-gryphon-not-exists
        :covered-by: gridkin:not_exists-not-exists-excludes-targets-that-have-a-guard-edge
        :limitations: Bare ``EXISTS`` and nested ``NOT EXISTS`` are rejected.
 
@@ -2142,7 +2134,6 @@ def _is_graph_envelope_return(return_clause: ReturnClause) -> bool:
        :status: implemented
        :audience: external-user; agent; developer
        :affordance: querying
-       :implements: req-grid-traversal-lang-returns
        :covered-by: gridkin:type_scan-projection-return-of-aliased-field-paths
 
        An omitted RETURN (or one naming only bare variables) yields a graph
@@ -2451,7 +2442,6 @@ def _resolve_order_cols(
        :status: implemented
        :audience: external-user; agent; developer
        :affordance: querying
-       :implements: req-grid-gryphon-order-by; req-grid-gryphon-limit; req-grid-gryphon-order-by-envelope
        :covered-by: gridkin:order_by_limit-count-scoreboard-capped-with-limit-highest-degree-hub-only
        :limitations: Envelope ORDER BY / LIMIT is supported for a single labelled type-scan only; other envelope dispatches keep the rejection.
 
@@ -2627,7 +2617,6 @@ def _compute_rows(
        :status: implemented
        :audience: external-user; agent; developer
        :affordance: querying
-       :implements: req-grid-gryphon-count; req-grid-gryphon-rows
        :covered-by: gridkin:aggregation-count-of-pg-node-neighbors-per-hub
        :limitations: COUNT is the only aggregate; SUM / MIN / MAX / AVG and COUNT(DISTINCT) are not implemented.
 
@@ -2935,7 +2924,6 @@ def _comparison_to_q(
        :status: implemented
        :audience: external-user; agent; developer
        :affordance: querying
-       :implements: req-grid-traversal-lang-string-match
        :covered-by: gridkin:string_match-starts-with-matches-a-name-prefix
        :limitations: Case-sensitive; needle is escaped (LIKE metacharacters are literal). For regex syntax or case-insensitive matching, use ``=~`` (cap-grid-gryphon-regex).
 
@@ -2954,7 +2942,6 @@ def _comparison_to_q(
        :status: implemented
        :audience: external-user; agent; developer
        :affordance: querying
-       :implements: req-grid-traversal-lang-regex
        :covered-by: gridkin:regex_match-case-insensitive-search-via-inline-i-flag
        :limitations: Search semantics (substring; anchor with ``^...$``). PostgreSQL ARE/POSIX-family regex; no PCRE-only features; no catastrophic-pattern detection in v0; no statement_timeout default.
 
@@ -3057,7 +3044,6 @@ def _execute_optional_match(
        :status: implemented
        :audience: external-user; agent; developer
        :affordance: querying
-       :implements: req-grid-gryphon-optional-match
        :covered-by: gridkin:optional_match-optional-match-keeps-zero-match-rows-count-is-0-not-absent
        :limitations: v0 -- one node-only MATCH plus one single-hop OPTIONAL MATCH; the optional variable is COUNT-only.
 

@@ -615,7 +615,7 @@ Generated — do not hand-edit. Regenerate with `manage.py guards --sync-evidenc
 
 <!-- BEGIN GENERATED EVIDENCE — manage.py guards --sync-evidence -->
 
-**1132** requirements · **19** standing doctrine · **2** disputed · **52** carry evidence · **1** carry both classes · **484** declared built with none.
+**1133** requirements · **20** standing doctrine · **0** disputed · **52** carry evidence · **1** carry both classes · **486** declared built with none.
 
 Separate facts, deliberately not blended into one percentage. **Doctrine** is outside the coverage question — in force now, never "completed", expecting conformance rather than an implementation. **Disputed** marks a spec-versus-implementation disagreement awaiting a human ruling — its claims are pointers to the contested code, never resolution, and the count should trend to zero. **Declared built with none** is context, not a defect list: claims are opt-in and scarce by design (`req-tap-traceability-scope`), so it measures how much of the corpus has been deliberately targeted, not how much is wrong. Collapsing these into a single coverage score is what makes such a score meaningless.
 
@@ -676,10 +676,7 @@ Separate facts, deliberately not blended into one percentage. **Doctrine** is ou
 
 **Disputed** — the spec and the implementation disagree; each entry pairs with a row in the requirement-review ledger and a section in its owning spec (`req-tap-traceability-disputed`):
 
-| Requirement | Contested code (claims) | Verified by |
-| --- | --- | --- |
-| `req-cicd-product-releases` | — | — |
-| `req-sphinx-docs-capability-blocks` | — | — |
+None.
 
 **Declared unbuilt, but evidence exists** — reported, never failed; a requirement can be partly built, and a doctrine requirement is cited as guidance:
 
@@ -708,7 +705,7 @@ Generated — do not hand-edit. Regenerate with `manage.py guards --sync-account
 
 <!-- BEGIN GENERATED ACCOUNTING — manage.py guards --sync-accounting -->
 
-**1132** requirements · **52** mapped · **18** excluded (external 1, non-python 16, process 1) · **19** doctrine · **2** disputed · **558** unbuilt · **16** retired · **467 Unaccounted**.
+**1133** requirements · **52** mapped · **20** excluded (external 1, non-python 17, process 2) · **20** doctrine · **0** disputed · **558** unbuilt · **16** retired · **467 Unaccounted**.
 
 The Unaccounted count is the Definition of Done's progress bar: it only moves down (the committed baseline grandfathers existing debt; a new requirement without a disposition fails immediately). A grandfathered entry is debt, not license — every Unaccounted requirement still needs a mapping or a documented exclusion. **Unbuilt** and **retired** derive from status — a requirement declaring itself future work or withdrawn has, by its own account, nothing to map; the moment one flips to `Implemented` without evidence or an exclusion it becomes a NEW Unaccounted entry and the ratchet fails, so claiming done is where the Definition of Done is enforced.
 
@@ -757,7 +754,7 @@ The Unaccounted count is the Definition of Done's progress bar: it only moves do
 | `tap_grid/specs/spec-grid-traversal-execution.md` | 10 | 1 | 0 | 0 | 0 | 4 | 0 | 5 |
 | `tap_viz/specs/spec-viz-badges.md` | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 5 |
 | `tap_viz/specs/spec-viz-elevation.md` | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 5 |
-| `tap_viz/specs/spec-viz-panel.md` | 13 | 0 | 0 | 0 | 0 | 6 | 2 | 5 |
+| `tap_viz/specs/spec-viz-panel.md` | 14 | 0 | 0 | 1 | 0 | 6 | 2 | 5 |
 | `tap_web/specs/spec-web-editor.md` | 9 | 0 | 0 | 0 | 0 | 4 | 0 | 5 |
 | `tap_web/specs/spec-web-panel-sequence-navigation-v0.md` | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 5 |
 | `tap_web/specs/spec-web-tailwind-pipeline.md` | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 5 |
@@ -781,7 +778,7 @@ The Unaccounted count is the Definition of Done's progress bar: it only moves do
 | `specs/spec-tap-json-files.md` | 7 | 4 | 0 | 0 | 0 | 1 | 0 | 2 |
 | `specs/spec-tap-testing.md` | 9 | 0 | 0 | 0 | 0 | 7 | 0 | 2 |
 | `tap_grid/specs/spec-grid-security.md` | 7 | 1 | 0 | 0 | 0 | 4 | 0 | 2 |
-| `specs/spec-cicd-hardening.md` | 13 | 2 | 5 | 0 | 1 | 4 | 0 | 1 |
+| `specs/spec-cicd-hardening.md` | 13 | 2 | 6 | 0 | 0 | 4 | 0 | 1 |
 | `specs/spec-dev-multisession.md` | 15 | 0 | 10 | 0 | 0 | 4 | 0 | 1 |
 | `specs/spec-tap-boot-bootstrap.md` | 10 | 1 | 0 | 0 | 0 | 8 | 0 | 1 |
 | `specs/spec-tap-logging.md` | 18 | 1 | 0 | 0 | 0 | 16 | 0 | 1 |
@@ -806,7 +803,7 @@ The Unaccounted count is the Definition of Done's progress bar: it only moves do
 | `specs/spec-security-posture-corpus.md` | 12 | 0 | 0 | 0 | 0 | 12 | 0 | 0 |
 | `specs/spec-security-posture.md` | 5 | 0 | 0 | 4 | 0 | 1 | 0 | 0 |
 | `specs/spec-service-layer-boundary.md` | 9 | 1 | 0 | 0 | 0 | 8 | 0 | 0 |
-| `specs/spec-sphinx-capability-docs.md` | 8 | 0 | 0 | 0 | 1 | 7 | 0 | 0 |
+| `specs/spec-sphinx-capability-docs.md` | 8 | 0 | 1 | 0 | 0 | 7 | 0 | 0 |
 | `specs/spec-tap-callsite-identity.md` | 6 | 0 | 0 | 0 | 0 | 6 | 0 | 0 |
 | `specs/spec-tap-flaw-v0.md` | 9 | 0 | 0 | 0 | 0 | 9 | 0 | 0 |
 | `specs/spec-tap-health-v0.md` | 10 | 6 | 0 | 0 | 0 | 2 | 2 | 0 |

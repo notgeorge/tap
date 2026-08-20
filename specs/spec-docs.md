@@ -371,21 +371,16 @@ Lessons learned from the trial fold back into this spec.
 Open questions where the documentation system makes no ruling. Recorded, not decided. Indexed
 across all specs in [doc-tap-requirement-review-ledger.md](../docs/misc/doc-tap-requirement-review-ledger.md).
 
-### Retired-in-place specs
+### Retired-in-place specs — RESOLVED 2026-08-20 (George)
 
-`tap_auth/specs/spec-tap-auth-assurance-v0.md` is explicitly retired (2026-07-08, "kept for
-posterity") but lives in a living-surface path. Its heading-style `req-tap-auth-assurance-*`
-IDs scan as citations rather than definitions, making them permanent danglers — the 16-entry
-floor of the `rid-reference-integrity` baseline (2026-08-14 burn-down). Editing a retirement
-record so its own RIDs "resolve" would falsify the record, so no fix is available inside the
-current rules. The archival exclusion (`req-docs-rid-integrity-3`) covers `docs/aar/` and
-postmortems but says nothing about a retired spec kept in place.
-
-Decisions required:
-
-1. Where does a retired spec live — moved to an archival corpus, or retired in place?
-2. If retired in place, does the archival exclusion extend to specs that declare their own
-   retirement (and how is that declaration made machine-legible)?
+**Ruling: a retired spec moves to `specs/archive/`.** The location is the fact — the archival
+exclusion (`req-docs-rid-integrity-3`) now covers `archive` alongside `docs/aar/` and
+postmortems, so no scanner needs a retirement conditional and no retirement record is ever
+edited to make its RIDs "resolve." The file keeps its name (git history and inbound archival
+links survive); a big banner at its top plus the AGENTS.md exclusion note carry the
+don't-rely-on-this signal at every entry point. Executed for
+`specs/archive/spec-tap-auth-assurance-v0.md`; the 16-entry floor of the
+`rid-reference-integrity` baseline is gone with it.
 
 ## Status Vocabulary
 

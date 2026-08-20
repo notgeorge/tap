@@ -28,6 +28,8 @@ Use the OpenAI developer documentation MCP server for current OpenAI API, ChatGP
 
 For non-OpenAI frameworks and libraries, prefer official upstream documentation and current installed package behavior when the answer may depend on version.
 
+**`specs/archive/` is historical record, never canon.** Retired specs live there for the archeologists; every scanner excludes the directory. Do not load, cite, or build from anything in it — a grep hit inside `specs/archive/` is a pointer to the past, not an instruction.
+
 ## Post-Mortems & the Paladin Foundation
 
 Two co-located incident corpora live under `docs/`, answering different questions — keep them distinct and cross-link when one caused the other:

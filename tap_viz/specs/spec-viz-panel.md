@@ -33,6 +33,7 @@ The viz panel owns host/runtime concerns such as receiving resolved page inputs,
 | req-viz-panel-landing-default | [Landing Page Default](#landing-page-default) | Implemented | Default landing page should host a viz panel showing the graph in grid layout |
 | req-viz-panel-readonly | [Read-Only Runtime](#read-only-runtime) | Implemented | Viz panel runtime is read-only in v1 |
 | req-viz-panel-failure-handling | [Failure Handling](#failure-handling) | Refactoring | Viz panels fail safely within the panel shell and must distinguish panel, projection, and layout runtime failures |
+| req-viz-panel-placement-per-view | [Placement Is A Per-View Choice](#placement-is-a-per-view-choice) | In Force | No system-wide layout default exists, by design — every view names its own placement deliberately |
 
 ### Panel Hosting
 ----
@@ -481,6 +482,34 @@ The following items are intentionally deferred:
 - runtime graph editing
 - layout editor behavior
 
+### Placement Is A Per-View Choice
+----
+RID: `req-viz-panel-placement-per-view`
+Status: `In Force`
+
+**There is no system-wide graph-placement default, by design.** Every view names its own
+placement algorithm as a deliberate choice for what that particular view is meant to support.
+
+#### Implementation
+
+- The temptation this doctrine exists to resist: everyone defaults to `cose` because it looks
+  cool, and a system that defaults to it ends up looking generic. Views are intended to be
+  thoughtfully constructed, not default eye-candy — the placement is part of the thought.
+- Structurally: placement values at different sites are **values, not a shared fact**. They must
+  not be collapsed to a common constant or routed through a shared default — the 2026-08-14
+  collapse-and-revert proved the coupling failure (changing one view's algorithm silently
+  changed every fallback with it). A reviewer seeing such a collapse should point here.
+- A *layout fallback* (a layout whose `presentation` names no placement) is that layout's own
+  local decision, not a system default; it binds nobody else.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-viz-panel-placement-per-view-1 | No shared default constant | In Force | No module exports a system-wide placement default; placement strings are authored per view. | Conformance expectation — doctrine, not an implementation. |
+
+---
+
 ## Requirement Review Needed
 
 Open questions where the code makes a choice no requirement governs. Recorded, not decided.
@@ -506,12 +535,12 @@ are not one fact. They serve three distinct roles:
 Collapsing these couples them: changing hub-and-spoke's algorithm (e.g. to `concentric`,
 arguably more apt for that topology) would silently change every layout fallback with it.
 
-Decisions required:
-
-1. Is a system-wide default placement a real requirement, or is placement always a
-   per-consumer choice?
-2. If system-wide, does the hub-and-spoke view opt out, or is it bound by it?
-3. Should the five error paths set `graph_placement` at all, given it is never rendered?
+**RESOLVED 2026-08-20 (George): there is no system-wide default, by design.** Placement is
+always a per-view choice — defaulting to `cose` because it looks cool is how a product ends up
+generic, and views are meant to be thoughtfully constructed, not default eye-candy. Canonized as
+`req-viz-panel-placement-per-view` (`In Force`). The hub-and-spoke question dissolves (every
+view owns its choice); the five never-read error-path assignments remain a cleanup candidate,
+ungated by any requirement.
 
 ## Status Vocabulary
 

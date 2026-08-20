@@ -146,7 +146,6 @@ class InComparison:
        :status: implemented
        :audience: external-user; agent; developer
        :affordance: querying
-       :implements: req-grid-traversal-lang-in
        :covered-by: gridkin:in_lists-in-matches-rows-whose-data-lane-value-is-a-listed-member
 
        ``WHERE field IN [v, ...]`` tests a field against a list of values
@@ -177,7 +176,6 @@ class IsNullComparison:
        :status: implemented
        :audience: external-user; agent; developer
        :affordance: querying
-       :implements: req-grid-traversal-lang-is-null
        :covered-by: gridkin:is_null-defensive-latest-emission-filters-null-sort-field-before-order-by-desc
 
        ``WHERE field IS NULL`` and ``WHERE field IS NOT NULL`` test a field
@@ -217,7 +215,6 @@ class ObservationComparison:
        :status: implemented
        :audience: external-user; agent; developer
        :affordance: querying
-       :implements: req-grid-traversal-lang-observation
        :covered-by: gridkin:observation-is-unknown-returns-only-the-unobserved-null-observed-at-row
 
        ``WHERE field IS UNKNOWN`` selects unobserved (null) fields and
@@ -422,7 +419,6 @@ class GryphonAST:
            :status: implemented
            :audience: external-user; agent; developer
            :affordance: querying
-           :implements: req-grid-traversal-lang-params
            :covered-by: gridkin:hub_and_spoke-one-hop-undirected-neighborhood-of-the-dense-hub
 
            A query carries runtime inputs as ``$var`` references, supplied

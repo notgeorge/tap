@@ -1,6 +1,6 @@
 """Structured specification model + RID citation scanner.
 
-TAP-IMPLEMENTS: req-docs-rid-integrity@9633efb7b6ee/cbfbf76ed628 (derivation) — the one
+TAP-IMPLEMENTS: req-docs-rid-integrity@9633efb7b6ee/cf421829d681 (derivation) — the one
     parser of the spec corpus; every RID definition and citation fact derives here.
 
 The **one** parser of TAP's specification corpus (`req-docs-rid-integrity`). Three layers:
@@ -89,7 +89,10 @@ _PLACEHOLDER_PREFIX = "req-example"
 
 # Archival corpora describe the past; a retired RID cited there is a *record*, not drift
 # (`req-docs-rid-integrity-3` — the scope decision, made explicitly rather than by accident).
-_ARCHIVAL_DIR_PARTS = frozenset({"aar", "postmortems", "handoff", "handoffs"})
+# `archive` is the home for retired-in-place SPECS (ledger row 3, ruled 2026-08-20): a spec
+# retired where it stood scans as permanent dangling debt, so retirement means relocation to
+# `specs/archive/` — the location is the fact, and no scanner needs a conditional.
+_ARCHIVAL_DIR_PARTS = frozenset({"aar", "postmortems", "handoff", "handoffs", "archive"})
 
 # --- implementation claims (`req-tap-traceability-claim`) ----------------------------
 

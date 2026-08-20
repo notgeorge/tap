@@ -52,11 +52,8 @@ moves to Resolved.
 
 | # | Kind | Decision | Owning spec | Surfaced |
 | :---: | --- | --- | --- | :---: |
-| 1 | Ungoverned choice | Default graph placement — is `cytoscape:cose` a system-wide default, a per-consumer choice, or neither? | [spec-viz-panel.md](../../tap_viz/specs/spec-viz-panel.md) → *Requirement Review Needed* → Default graph placement | 2026-08-14 |
-| 2 | Disputed requirement | `req-sphinx-docs-capability-blocks` — deprecated as "never built", yet the gryphon executor/AST modules carry 10+ live `tap:capability` blocks with the retired `:implements:` field. Stay, go, or convert? Until ruled: no new blocks, and no `TAP-IMPLEMENTS` claims on functions already carrying one. | [spec-sphinx-capability-docs.md](../../specs/spec-sphinx-capability-docs.md) → *Requirement Review Needed* | 2026-08-14 |
-| 3 | Ungoverned choice | Retired-in-place specs — `spec-tap-auth-assurance-v0.md` (retired 2026-07-08) lives in a living-surface path with heading-style RIDs that scan as permanent danglers (the 16-entry floor of the RID baseline). Move to an archival corpus, extend the archival exclusion to retired-in-place specs, or leave recorded? | [spec-docs.md](../../specs/spec-docs.md) → *Requirement Review Needed* → Retired-in-place specs | 2026-08-14 |
-| 4 | Ungoverned choice | Gridkin: core test infrastructure or evictable plugin? The Gryphon corpus validates a core language (`tap_grid/gryphon/`) but lives in the evicted `gryphon_playground` repo, so core skills/docs keep needing its RIDs — the boundary rule (core cites only core) is unsatisfiable until the modeling is ruled. | [spec-tap-plugin-validation-distribution.md](../../specs/spec-tap-plugin-validation-distribution.md) → `req-tap-plugin-validation-contributed-surfaces` ("Deliberately out of scope here") | 2026-08-14 |
-| 5 | Disputed requirement | `req-cicd-product-releases` — the body says TAP core has no product-level releases (the stated pre-launch posture), yet release-please cuts tagged releases, release images publish, and the samsite adopter runs a pinned version. Is the release machinery the implementation, or was the posture overtaken without a ruling? Until ruled: no claims, no exclusion. | [spec-cicd-hardening.md](../../specs/spec-cicd-hardening.md) → *Requirement Review Needed* → Product releases exist while the requirement says they must not yet | 2026-08-20 |
+
+*(none open)*
 
 ## Related backlogs
 
@@ -69,4 +66,10 @@ table above until one is actually opened.
 
 ## Resolved
 
-*(none yet — record the outcome in the owning spec, then move the row here with its date)*
+| # | Kind | Ruling (all 2026-08-20, George) | Recorded in | Surfaced |
+| :---: | --- | --- | --- | :---: |
+| 1 | Ungoverned choice | Default graph placement: **no system-wide default, by design** — views are thoughtfully constructed, not default eye-candy. Canonized as `req-viz-panel-placement-per-view` (`In Force`). | [spec-viz-panel.md](../../tap_viz/specs/spec-viz-panel.md) | 2026-08-14 |
+| 2 | Disputed requirement | Sphinx capability-blocks: **convert** — `:implements:` stripped everywhere (ownership has one convention, `TAP-IMPLEMENTS`); blocks stay as documentation-only affordance records; requirement re-scoped `Implemented`. Gryphon claims unblocked. | [spec-sphinx-capability-docs.md](../../specs/spec-sphinx-capability-docs.md) | 2026-08-14 |
+| 3 | Ungoverned choice | Retired-in-place specs: **move to `specs/archive/`** — location is the fact, scanners exclude it, banner + AGENTS.md carry the signal, filename kept. Executed for spec-tap-auth-assurance-v0; the 16-entry RID-baseline floor is gone. | [spec-docs.md](../../specs/spec-docs.md) | 2026-08-14 |
+| 4 | Ungoverned choice | Gridkin: **the contract comes home, the corpus stays evicted** — the Gridkin spec moves to `tap_grid/specs/`, gryphon_playground keeps the corpus and cites core RIDs. Mechanical cross-repo move deferred to the next plugin-workspace session. | [spec-tap-plugin-validation-distribution.md](../../specs/spec-tap-plugin-validation-distribution.md) | 2026-08-14 |
+| 5 | Disputed requirement | Product releases: **the machinery is the implementation** — body rewritten to shipped reality, `Implemented`, mapped `non-python` to release-please.yml. SECURITY.md supported-versions found already honored; `-2` flipped to match. | [spec-cicd-hardening.md](../../specs/spec-cicd-hardening.md) | 2026-08-20 |

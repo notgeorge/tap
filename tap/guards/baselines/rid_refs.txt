@@ -25,19 +25,3 @@
 # Illustrative RIDs in prose use the reserved `req-example-*` namespace and are skipped by
 # the scanner, so documentation about the convention never lands here.
 
-tap_auth/specs/spec-tap-auth-assurance-v0.md::req-tap-auth-assurance-authn
-tap_auth/specs/spec-tap-auth-assurance-v0.md::req-tap-auth-assurance-base-save
-tap_auth/specs/spec-tap-auth-assurance-v0.md::req-tap-auth-assurance-bypass
-tap_auth/specs/spec-tap-auth-assurance-v0.md::req-tap-auth-assurance-context
-tap_auth/specs/spec-tap-auth-assurance-v0.md::req-tap-auth-assurance-decisions
-tap_auth/specs/spec-tap-auth-assurance-v0.md::req-tap-auth-assurance-delegation
-tap_auth/specs/spec-tap-auth-assurance-v0.md::req-tap-auth-assurance-dimensions-future
-tap_auth/specs/spec-tap-auth-assurance-v0.md::req-tap-auth-assurance-gates
-tap_auth/specs/spec-tap-auth-assurance-v0.md::req-tap-auth-assurance-markers
-tap_auth/specs/spec-tap-auth-assurance-v0.md::req-tap-auth-assurance-matrix
-tap_auth/specs/spec-tap-auth-assurance-v0.md::req-tap-auth-assurance-personas
-tap_auth/specs/spec-tap-auth-assurance-v0.md::req-tap-auth-assurance-plugins
-tap_auth/specs/spec-tap-auth-assurance-v0.md::req-tap-auth-assurance-rollout
-tap_auth/specs/spec-tap-auth-assurance-v0.md::req-tap-auth-assurance-scope
-tap_auth/specs/spec-tap-auth-assurance-v0.md::req-tap-auth-assurance-static-scan
-tap_auth/specs/spec-tap-auth-assurance-v0.md::req-tap-auth-assurance-surfaces

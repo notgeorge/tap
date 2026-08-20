@@ -66,7 +66,7 @@ This spec revises three decisions elsewhere for deployments that adopt passwordl
 ## Relationship To Existing Specs
 
 - `tap_auth/specs/spec-tap-auth-v0.md` — the auth system this extends (actors, capabilities, providers, policy, sessions, boot).
-- `tap_auth/specs/spec-tap-auth-assurance-v0.md` — **retired/deprecated** (its surface-centric model was rejected; see its banner). Passkey assurance does **not** depend on it: `req-tap-auth-passkey-assurance` defines its cases directly and capability-centrically. The authoritative auth model is `spec-tap-auth-v0.md` + `docs/misc/doc-auth-per-app-standards.md`.
+- `specs/archive/spec-tap-auth-assurance-v0.md` — **retired/deprecated** (its surface-centric model was rejected; see its banner). Passkey assurance does **not** depend on it: `req-tap-auth-passkey-assurance` defines its cases directly and capability-centrically. The authoritative auth model is `spec-tap-auth-v0.md` + `docs/misc/doc-auth-per-app-standards.md`.
 - `tap_plugins/specs/spec-tap-plugin-architecture.md` — `req-tap-plugin-arch-slim-install` / `req-tap-plugin-arch-python-deps`; the optional-install machinery the slim-install requirement reuses.
 - `specs/spec-dev-multisession.md` — the spawn machinery the dev bootstrap reuses (`req-dev-multisession-admin-bootstrap`).
 - `specs/spec-security-posture.md` — the cheap-edge / name-the-open-risk doctrine this spec applies.

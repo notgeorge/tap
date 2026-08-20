@@ -451,16 +451,19 @@ precedents for both faces — one signing story, two layers (image artifact + pl
 ### Product Releases
 
 RID: `req-cicd-product-releases`
-Status: `Disputed`
+Status: `Implemented`
+Trace: `non-python` — .github/workflows/release-please.yml
 
-TAP core has **no product-level releases**: plugins version and release
-(`release-plugin.sh`, semver tags, in-package boot records), but the platform itself ships
-as `main` plus the `latest`/`sha-<short>` GHCR images. That is the right pre-launch posture
-(release versioning is already named as an open tail under `req-cicd-build-once-artifact`),
-but the moment adopters pin versions, releases become a contract surface: what a version
-means, what it contains, and what is supported. The root `SECURITY.md` is a consumer of that
-contract — its supported-versions statement currently says "latest `main` only" *because*
-there are no releases, and it silently rots the day that stops being true.
+TAP core ships **product-level releases** (resolved 2026-08-20 — this body previously said
+"no product releases, the right pre-launch posture"; the 2026-08 release wave overtook that
+and George ruled the machinery IS the implementation). A release is a contract surface: what
+a version means, what it contains, and what is supported. The shipped shape: release-please
+computes the version from conventional commits and cuts semver tag + GitHub Release with
+notes when a maintainer merges the gated release PR; `publish-release-tags.yml` promotes the
+already-attested `:sha-<short>` image manifest to `:X.Y.Z` — same bytes, same digest,
+attestation intact; consumers pin `TAP_VERSION` (`-3`); and the root `SECURITY.md`
+supported-versions statement names the latest tagged release line as the supported tier —
+the consumer of the contract, updated when releases became real (`-2`).
 
 **Update 2026-08-13 — the consumer half now exists.** Releases and the machinery below are
 built; what was missing was any way for a consumer to *choose* one. `docker-compose.yml`
@@ -474,8 +477,8 @@ main's tip is the deliberate choice.
 
 | RID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-cicd-product-releases-1 | Semver product releases with release notes | Proposed | Product-level releases MUST use semantic versioning — semver git tags published as GitHub Releases, each carrying human-readable release notes that summarize major changes and name any fixed vulnerabilities. | OpenSSF Best Practices `release_notes` criterion; legitimately N/A until the first release exists. **When the first release is cut, update the project's OpenSSF Best Practices entry**: refresh the `version_unique` answer (unique versions then = the semver tags, not just SHA identifiers), confirm `version_semver`/`version_tags`, and flip `release_notes`/`release_notes_vulns` off N/A. **Machinery (2026-08-10):** the release-please PR lane (`release-please.yml` + manifest config; pre-1.0 mapping breaking→minor, feat/fix→patch — the "0.1.x warns, 0.2.0 enforces" contract language) computes the version from conventional commits and cuts tag+Release only when a maintainer merges the gated release PR; `publish-release-tags.yml` then promotes the already-attested `:sha-<short>` manifest to `:X.Y.Z` — same bytes, same digest, attestation intact. Writes ride the org-owned `tap-release-please` GitHub App (Renovate's trust model; app-token PRs trigger the required checks, default-token PRs never do and would sit unmergeable; both workflow jobs keep read-scoped tokens per req-cicd-runner-least-privilege). The release PR carries a bot `uv lock` refresh — the lock records core's own version and a version-only bump invalidates it (verified). |
-| req-cicd-product-releases-2 | SECURITY.md tracks the release model | Proposed | Cutting the first product release MUST update the root `SECURITY.md` supported-versions statement (today: latest `main` + latest published images, no backports) to name which releases receive security fixes. | The tripwire that keeps the published policy honest once a release cadence exists. |
+| req-cicd-product-releases-1 | Semver product releases with release notes | Implemented | Product-level releases MUST use semantic versioning — semver git tags published as GitHub Releases, each carrying human-readable release notes that summarize major changes and name any fixed vulnerabilities. | OpenSSF Best Practices `release_notes` criterion; legitimately N/A until the first release exists. **When the first release is cut, update the project's OpenSSF Best Practices entry**: refresh the `version_unique` answer (unique versions then = the semver tags, not just SHA identifiers), confirm `version_semver`/`version_tags`, and flip `release_notes`/`release_notes_vulns` off N/A. **Machinery (2026-08-10):** the release-please PR lane (`release-please.yml` + manifest config; pre-1.0 mapping breaking→minor, feat/fix→patch — the "0.1.x warns, 0.2.0 enforces" contract language) computes the version from conventional commits and cuts tag+Release only when a maintainer merges the gated release PR; `publish-release-tags.yml` then promotes the already-attested `:sha-<short>` manifest to `:X.Y.Z` — same bytes, same digest, attestation intact. Writes ride the org-owned `tap-release-please` GitHub App (Renovate's trust model; app-token PRs trigger the required checks, default-token PRs never do and would sit unmergeable; both workflow jobs keep read-scoped tokens per req-cicd-runner-least-privilege). The release PR carries a bot `uv lock` refresh — the lock records core's own version and a version-only bump invalidates it (verified). |
+| req-cicd-product-releases-2 | SECURITY.md tracks the release model | Implemented | Cutting the first product release MUST update the root `SECURITY.md` supported-versions statement (today: latest `main` + latest published images, no backports) to name which releases receive security fixes. | The tripwire that keeps the published policy honest once a release cadence exists. |
 | req-cicd-product-releases-3 | Consumers Pin A Version, Not A Moving Tag | Implemented | The shipped `.env` pins `tap-web` and `tap-db` to the SAME `TAP_VERSION` (one literal; both images are artifacts of one gated commit, so a mixed pair is never valid). release-please bumps that pin on release (`extra-files`), so it cannot go stale. `docker-compose.yml` REQUIRES the image vars (`:?`) rather than falling back to `:latest` — an unset var fails loudly instead of silently shipping main's tip. Development opts out explicitly: `spawn-session.sh` writes the `:latest` pair into the session's `.env.local`. | **Gotcha, verified against Compose v2:** an override MUST set both image refs, NOT `TAP_VERSION` — `.env` interpolates its refs before `.env.local` is read, so overriding the version there silently does nothing. Both the `.env` comment and the spawn heredoc say so at the point of use. |
 
 ### Continuous Delivery
@@ -563,19 +566,11 @@ load-bearing once there is a delivery cadence to improve.
 Open questions where the spec and the tree disagree. Recorded, not decided. Indexed across all
 specs in [doc-tap-requirement-review-ledger.md](../docs/misc/doc-tap-requirement-review-ledger.md).
 
-### Product releases exist while the requirement says they must not yet
+### Product releases exist while the requirement says they must not yet — RESOLVED 2026-08-20 (George)
 
-`req-cicd-product-releases` states TAP core has **no product-level releases** and names that the
-right pre-launch posture — yet the tree ships them: `release-please.yml` cuts tagged releases
-(v0.1.x), `publish-release-tags.yml` builds uncancellable release images, `.env` `TAP_VERSION`
-pins consumers to a released version, and the samsite adopter runs a pinned release today. The
-prose predates the 2026-08 release wave and was never revisited.
-
-Decisions required:
-
-1. Is the release machinery the *implementation* of this requirement (rewrite the body to
-   describe what shipped, status `Implemented`) or did the requirement's "not yet" posture get
-   overtaken without a ruling (rewrite the posture, then map)?
-2. The requirement's supported-versions obligation (`req-cicd-product-releases-2`, cited by
-   SECURITY.md) — met by the current release stream or still pending?
-3. Until ruled: status stays `Disputed`; no claims, no exclusion.
+**Ruling: the release machinery is the implementation.** Body rewritten to describe what
+shipped; status `Implemented`, mapped `non-python` to `release-please.yml` (the primary of the
+release lane). The supported-versions obligation (`-2`) was found already met — the root
+`SECURITY.md` names the latest tagged release line as the supported tier — so the tripwire had
+fired and been honored; the ACID is flipped to match. `-1`'s note about refreshing the OpenSSF
+Best Practices release answers stays as the one possibly-outstanding external click.
