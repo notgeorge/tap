@@ -92,7 +92,18 @@ registries are pointers not targets; ACID-scoped rids don't own the parent; hedg
 partial slices; two guards on one rid → claim the primary. Remaining drift-status rows
 (`Partially Implemented`, `Partial`) left deliberately — status normalization is its own pass.
 
-**Batch 4 (2026-08-20): the gryphon claim batch, 467 → 447.** Unblocked by the ledger row 2
+**Batch 5 (2026-08-20): boot + cares-secrets sweeps, 446 → 434.** (446 after the sam-dev-dupes
+session's coordinated landing — their boot_records claim + a test-cite that drained
+req-web-panel-obj.) Eleven claims on self-documenting anchors — the module headers already
+declared their requirements in prose (boot.py/orchestrator/profile for the boot family,
+loader/registry/redaction for cares-secrets, `load_secret_envelope` for the size guard) — and
+two `non-python` exclusions (spawn-bridge → spawn-session.sh, precommit → the githooks scanner,
+which is Python the claim scanner cannot reach). One anchor correction from verification: the
+search-role derivation is `tap_grid/search_role.py`, not the orchestrator that calls it.
+Deliberate skips: idempotent/trust/report/abort-signal (cross-cutting properties, no single
+derivation), secrets-shape (two parse candidates — a possible dupe surface flagged to the dupes
+session), consumer-scoping (their Tier-3 turf), install-section/population/collector-timeout
+(spread; need the deeper read). Unblocked by the ledger row 2
 ruling; the stripped `:implements:` mapping (commit `5068ce89`'s diff) was the shortlist, and
 the block authors' "canonical review anchor" placements held up under verification — 21 claims
 minted across `ast_nodes.py` (4 AST comparison nodes + `required_params`) and `executor.py`

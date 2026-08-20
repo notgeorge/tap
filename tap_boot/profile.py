@@ -1,5 +1,11 @@
 """Boot-profile loading, schema validation, and parsing.
 
+TAP-IMPLEMENTS: req-boot-profile@34f12de6a606/28dd5b575542 (derivation) — profile resolution,
+    schema validation and parsing into the runtime model happen here.
+
+TAP-IMPLEMENTS: req-boot-required-secrets@ac62eedc2788/28dd5b575542 (derivation) — the
+    declared-secret-requirements model and its Rule A resolution live here.
+
 The bootloader owns profile handling (req-boot-app): this module resolves a
 profile id to its `boot/<id>.boot.json` file, validates it against the boot-profile
 JSON Schema (shape only — semantic pre-resolution of plugin/collector keys

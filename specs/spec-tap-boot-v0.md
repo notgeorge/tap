@@ -742,6 +742,7 @@ A boot profile declares, in one top-level list, every secret its composition req
 ----
 RID: `req-boot-spawn-bridge`  
 Status: `Implemented`
+Trace: `non-python` — scripts/spawn-session.sh
 
 The dev spawn flow stands instances up through the bootloader, so dev and customer standup share one path.
 

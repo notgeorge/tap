@@ -4,7 +4,6 @@
 # Entries only leave; a NEW requirement without a disposition fails the ratchet
 # immediately and must NOT be added here. See spec-tap-requirement-traceability.md.
 req-boot-abort-signal
-req-boot-app
 req-boot-bootstrap-samsite-rehome
 req-boot-collector-timeout
 req-boot-idempotent
@@ -13,14 +12,9 @@ req-boot-obs-abort-detail
 req-boot-obs-preflight
 req-boot-obs-record
 req-boot-obs-spawn-presentation
-req-boot-phases
 req-boot-population
-req-boot-profile
 req-boot-report
-req-boot-required-secrets
-req-boot-search-role
 req-boot-secrets
-req-boot-spawn-bridge
 req-boot-trust
 req-cicd-security-scanning
 req-demo-anwar-global-ksi
@@ -221,14 +215,8 @@ req-tap-cares-secrets-consumer-kinds
 req-tap-cares-secrets-consumer-scoping
 req-tap-cares-secrets-cross-scope-concern
 req-tap-cares-secrets-history-audit
-req-tap-cares-secrets-precommit
-req-tap-cares-secrets-redaction
-req-tap-cares-secrets-registry
-req-tap-cares-secrets-resilient-load
-req-tap-cares-secrets-rotation
 req-tap-cares-secrets-scope
 req-tap-cares-secrets-shape
-req-tap-cares-secrets-size-guard
 req-tap-cares-secrets-validation
 req-tap-cares-task-backend-deployment
 req-tap-cares-task-backend-django-tasks-interface

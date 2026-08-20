@@ -615,14 +615,19 @@ Generated — do not hand-edit. Regenerate with `manage.py guards --sync-evidenc
 
 <!-- BEGIN GENERATED EVIDENCE — manage.py guards --sync-evidence -->
 
-**1133** requirements · **20** standing doctrine · **0** disputed · **75** carry evidence · **1** carry both classes · **465** declared built with none.
+**1133** requirements · **20** standing doctrine · **0** disputed · **85** carry evidence · **1** carry both classes · **455** declared built with none.
 
 Separate facts, deliberately not blended into one percentage. **Doctrine** is outside the coverage question — in force now, never "completed", expecting conformance rather than an implementation. **Disputed** marks a spec-versus-implementation disagreement awaiting a human ruling — its claims are pointers to the contested code, never resolution, and the count should trend to zero. **Declared built with none** is context, not a defect list: claims are opt-in and scarce by design (`req-tap-traceability-scope`), so it measures how much of the corpus has been deliberately targeted, not how much is wrong. Collapsing these into a single coverage score is what makes such a score meaningless.
 
 | Requirement | Declared | Derived | Implementation | Verified by |
 | --- | --- | --- | --- | --- |
+| `req-boot-app` | Implemented | Implemented | `<module>`, `<module>` | — |
 | `req-boot-bootstrap-pointer-grammar` | Proposed | Implemented | `parse_pointer` | — |
 | `req-boot-bootstrap-record-version` | In Development | Implemented | `<module>` | — |
+| `req-boot-phases` | Implemented | Implemented | `<module>` | — |
+| `req-boot-profile` | Implemented | Implemented | `<module>` | — |
+| `req-boot-required-secrets` | Implemented | Implemented | `<module>` | — |
+| `req-boot-search-role` | Implemented | Implemented | `<module>` | — |
 | `req-cicd-dco-signoff` | — | Tested | — | `req-cicd-dco-signoff-2`, `req-cicd-dco-signoff-3`, `req-cicd-dco-signoff-4` |
 | `req-cicd-runner-least-privilege` | Implemented | Implemented | `<module>` | — |
 | `req-dev-validation-collection-complete` | Implemented | Implemented | `<module>` | — |
@@ -669,7 +674,12 @@ Separate facts, deliberately not blended into one percentage. **Doctrine** is ou
 | `req-tap-cares-secrets-credential-patterns` | Implemented | Implemented | `<module>` | — |
 | `req-tap-cares-secrets-files` | Implemented | Implemented | `<module>` | — |
 | `req-tap-cares-secrets-leak-guard` | Implemented | Implemented | `<module>` | — |
+| `req-tap-cares-secrets-redaction` | Implemented | Implemented | `<module>` | — |
+| `req-tap-cares-secrets-registry` | Implemented | Implemented | `<module>` | — |
+| `req-tap-cares-secrets-resilient-load` | Implemented | Implemented | `<module>` | — |
 | `req-tap-cares-secrets-root-resolution` | Implemented | Implemented | `resolve` | — |
+| `req-tap-cares-secrets-rotation` | Implemented | Implemented | `<module>` | — |
+| `req-tap-cares-secrets-size-guard` | Implemented | Implemented | `load_secret_envelope` | — |
 | `req-tap-health-bootcheck` | Implemented | Tested | — | `req-tap-health-bootcheck-1`, `req-tap-health-bootcheck-2`, `req-tap-health-bootcheck-3`, `req-tap-health-bootcheck-4` |
 | `req-tap-health-exposure` | Implemented | Tested | — | `req-tap-health-exposure-2`, `req-tap-health-exposure-3` |
 | `req-tap-health-probe-registry` | Implemented | Tested | — | `req-tap-health-probe-registry-1`, `req-tap-health-probe-registry-5`, `req-tap-health-probe-registry-6`, `req-tap-health-probe-registry-8` |
@@ -730,15 +740,13 @@ Generated — do not hand-edit. Regenerate with `manage.py guards --sync-account
 
 <!-- BEGIN GENERATED ACCOUNTING — manage.py guards --sync-accounting -->
 
-**1133** requirements · **75** mapped · **20** excluded (external 1, non-python 17, process 2) · **20** doctrine · **0** disputed · **556** unbuilt · **16** retired · **446 Unaccounted**.
+**1133** requirements · **85** mapped · **22** excluded (external 1, non-python 19, process 2) · **20** doctrine · **0** disputed · **556** unbuilt · **16** retired · **434 Unaccounted**.
 
 The Unaccounted count is the Definition of Done's progress bar: it only moves down (the committed baseline grandfathers existing debt; a new requirement without a disposition fails immediately). A grandfathered entry is debt, not license — every Unaccounted requirement still needs a mapping or a documented exclusion. **Unbuilt** and **retired** derive from status — a requirement declaring itself future work or withdrawn has, by its own account, nothing to map; the moment one flips to `Implemented` without evidence or an exclusion it becomes a NEW Unaccounted entry and the ratchet fails, so claiming done is where the Definition of Done is enforced.
 
 | Spec | Reqs | Mapped | Excluded | Doctrine | Disputed | Unbuilt | Retired | Unaccounted |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | `tap_plugins/specs/spec-tap-plugin-validation.md` | 17 | 0 | 0 | 0 | 0 | 1 | 0 | 16 |
-| `specs/spec-tap-boot-v0.md` | 22 | 0 | 0 | 0 | 0 | 8 | 0 | 14 |
-| `tap_cares/specs/spec-tap-cares-secrets.md` | 21 | 4 | 0 | 0 | 0 | 3 | 0 | 14 |
 | `tap_grid/specs/spec-grid-import-grift.md` | 17 | 0 | 0 | 0 | 0 | 3 | 0 | 14 |
 | `tap_plugins/specs/spec-tap-plugin-architecture.md` | 27 | 1 | 0 | 0 | 0 | 14 | 0 | 12 |
 | `tap_viz/specs/spec-viz-stack.md` | 14 | 0 | 0 | 0 | 0 | 2 | 0 | 12 |
@@ -756,7 +764,9 @@ The Unaccounted count is the Definition of Done's progress bar: it only moves do
 | `tap_viz/specs/spec-viz-projection.md` | 15 | 0 | 0 | 0 | 0 | 2 | 4 | 9 |
 | `tap_web/specs/spec-web-panel-entity-resolution-v0.md` | 10 | 0 | 0 | 0 | 0 | 1 | 0 | 9 |
 | `tap_web/specs/spec-web-rendering.md` | 14 | 0 | 0 | 0 | 0 | 5 | 0 | 9 |
+| `specs/spec-tap-boot-v0.md` | 22 | 5 | 1 | 0 | 0 | 8 | 0 | 8 |
 | `tap_auth/specs/spec-tap-auth-v0.md` | 20 | 0 | 0 | 0 | 0 | 12 | 0 | 8 |
+| `tap_cares/specs/spec-tap-cares-secrets.md` | 21 | 9 | 1 | 0 | 0 | 3 | 0 | 8 |
 | `tap_grid/specs/spec-grift-v0.md` | 11 | 0 | 0 | 0 | 0 | 2 | 1 | 8 |
 | `specs/spec-fips.md` | 7 | 0 | 0 | 0 | 0 | 0 | 0 | 7 |
 | `tap_grid/specs/spec-grid-edge.md` | 9 | 1 | 0 | 0 | 0 | 1 | 0 | 7 |

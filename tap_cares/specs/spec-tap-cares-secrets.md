@@ -579,6 +579,7 @@ A documentation example or test vector that must show a real-looking token may c
 ----
 RID: `req-tap-cares-secrets-precommit`
 Status: `Implemented`
+Trace: `non-python` — .githooks/precommit_secret_scan.py
 
 Both leak scans previously ran only as `pytest` guards, which meant a credential was caught *after* the commit object existed and possibly after it was pushed to a branch. For a repository whose history is destined to become public that is the wrong side of the line: rewriting history is far more expensive than refusing the commit. The `secret-leak` guard's own docstring described it as "push-protection" and said it "fails the commit" — a comment asserting a guarantee the implementation did not provide.
 
