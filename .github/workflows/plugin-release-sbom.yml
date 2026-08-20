@@ -82,6 +82,10 @@ jobs:
         id: sbom
         run: |
           python3 -m pip install --quiet jsonschema==4.23.0
+          # Exactly-one guard: ls in a substitution silently concatenates on
+          # multiple matches, poisoning GITHUB_OUTPUT downstream.
+          count="$(ls dist/*.whl | wc -l)"
+          [ "$count" -eq 1 ] || { echo "::error::expected exactly 1 wheel in dist/, found ${count}"; exit 1; }
           wheel="$(ls dist/*.whl)"
           python3 _core/scripts/sbom/plugin_release.py \
             --slug "${{ inputs.plugin_slug }}" \
