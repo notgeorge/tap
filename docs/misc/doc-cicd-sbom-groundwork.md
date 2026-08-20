@@ -174,7 +174,7 @@ both from one scan → format is a serialization choice, not lock-in (req-cicd-s
 | Hand-authored out-of-band entries | §3.3; crypto-BOM discipline gets its first standard-format artifact | sbom-3 |
 | GitHub attest-sbom home; digest subjects; no mutable-name hops | Matches existing provenance lane (one verify story, zero new trust roots); digest-threading law extends; TOCTOU analysis: a signature binds identity to bytes, not bytes to origin — an unsigned mutable hop lets the signer launder a tamper | sbom-4 |
 | Per-arch standalone, no index merge | Pattern 5 consensus + our verified per-arch digests are the natural subjects | sbom-5 |
-| CycloneDX primary, SPDX as re-serialization only | Security-consumer gravity; derive-once (two independent scans WILL drift) | sbom-6 |
+| CycloneDX primary + SPDX emitted day one, same scan | Claude review 2026-08-20 [P2] accepted: Syft serializes both from one derivation, so deferring SPDX bought nothing — SPDX carries government/legal gravity (BuildKit-native, k8s bom); derive-once holds (two independent scans WILL drift); both attested, both schema-validated, minimum-elements battery on the primary | sbom-6 |
 | Fail-closed canary guard | Every observed failure mode was silent plausibility; convert quiet wrongness into a red publish | sbom-7 |
 | Release diffs deferred | Pure consumer of the rest; the customer upgrade-diff promise, machine-checkable | sbom-8 |
 | uv/uvx are declared components, not noise | Claude review 2026-08-20 [P1]: the crate-metadata exclusion must not swallow the executables — uv/uvx arrive via digest-pinned COPY --from (Dockerfile), i.e. out-of-band by sbom-3's own rule; declared entries with version/source-digest/path/sha256/license/purl, canary-guarded | sbom-2/-3/-7 |

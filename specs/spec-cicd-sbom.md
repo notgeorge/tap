@@ -64,7 +64,7 @@ remain the boot record's territory. The two compose; neither substitutes for the
 | req-cicd-sbom-3 | [Out-of-Band Components Declared](#out-of-band-components-declared) | Proposed | Anything entering the image outside a package manager gets a hand-authored entry — first: `fips.so` (OpenSSL 3.0.9, CMVP #4282) |
 | req-cicd-sbom-4 | [Signed Digest-Bound Home](#signed-digest-bound-home) | Proposed | `attest-sbom` per arch digest, GitHub attestation store; digest-threading law applies end to end; registry copy (if ever) must be a signed attestation, never an attachment |
 | req-cicd-sbom-5 | [Per-Arch Standalone SBOMs](#per-arch-standalone-sboms) | Proposed | One SBOM per platform digest; no merged index-level SBOM exists |
-| req-cicd-sbom-6 | [Single Derivation, Format as Serialization](#single-derivation-format-as-serialization) | Proposed | One Syft scan per digest is canonical; CycloneDX primary output; SPDX only ever as a second serialization of the SAME scan |
+| req-cicd-sbom-6 | [Single Derivation, Format as Serialization](#single-derivation-format-as-serialization) | Proposed | One Syft scan per digest is canonical; CycloneDX JSON + SPDX JSON BOTH emitted from that same scan on day one; CycloneDX primary |
 | req-cicd-sbom-7 | [Canary Guard](#canary-guard) | Proposed | Fail-closed publish check: expected components present, known phantoms absent — else no attestation |
 | req-cicd-sbom-8 | [Release SBOM Diffs](#release-sbom-diffs) | Deferred | Human-readable package delta per release, feeding the customer upgrade-diff contract; consumer of 1–7, not a blocker |
 | req-cicd-sbom-9 | [Flavored Ready-Made Images](#flavored-ready-made-images) | Proposed | Design constraint now, implementation with the appliance-image work: an image baking a boot profile's plugins ships an SBOM covering core + baked plugin closure, from the same declared-manifest principle |
@@ -198,11 +198,16 @@ RID: `req-cicd-sbom-6`
 Status: `Proposed`
 
 One Syft scan per digest is the **single derivation**; formats are serializations of it.
-Primary output: **CycloneDX** (security-consumer gravity: Dependency-Track, VEX-aware
-triage, Trivy/Grype native). SPDX MAY be emitted later for a compliance consumer, but
-only ever as a second serialization of the same scan — never a second independent scan
-(two scanners drift, and a consumer holding both learns nothing except that we disagree
-with ourselves). The derive-once rule, applied to CI artifacts.
+BOTH standard formats are emitted from that same scan, immediately: **CycloneDX JSON as
+primary** (security-consumer gravity: Dependency-Track, VEX-aware triage, Trivy/Grype
+native) and **SPDX JSON alongside it** (government/legal gravity; the format BuildKit
+emits and Kubernetes' `bom` is built on — dull interoperability is the point of an
+SBOM). Both ride the same signed attestation home (req-cicd-sbom-4) against the same
+digest; both schema-validate under req-cicd-sbom-11, with the full minimum-elements
+battery running on the primary. What remains FORBIDDEN is a second independent scan —
+two scanners drift, and a consumer holding both learns nothing except that we disagree
+with ourselves. The derive-once rule, applied to CI artifacts: one derivation, two
+serializations, zero disagreement by construction.
 
 ### Canary Guard
 ----
@@ -408,5 +413,5 @@ arrival, and this requirement names the duty its author then owes.
 * **Build-cache poisoning** — upstream of generation entirely; named and accepted at
   `req-cicd-supply-chain-provenance-1`. An SBOM inventories what was built; it cannot
   vouch that the build inputs were honest — that is provenance's job.
-* **SPDX emission** — permitted as a second serialization (req-cicd-sbom-6), not planned
-  until a consumer demands it.
+* *(SPDX emission was listed here as deferred; review moved it into day-one scope —
+  req-cicd-sbom-6 now emits both formats from the single derivation.)*
