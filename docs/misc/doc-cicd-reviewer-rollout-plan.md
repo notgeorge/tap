@@ -436,6 +436,34 @@ Optional deterministic add, queued with `actionlint`/`zizmor` in the Step 0 gap 
 `semgrep --config p/trailofbits` as an external ruleset (AGPL rules stay external; running a
 tool is not vendoring).
 
+## Injection pre-screen candidates — researched 2026-08-20
+
+Shortlist for the small vendored classifier in Step 2b's pre-screen (spec:
+`req-cicd-ai-review-untrusted-content` implementation + the prior-art ledger's pre-screen sweep):
+
+1. **PIGuard** (MIT, DeBERTa-base ~184M, ACL 2025) — the license-clean first choice, and the only
+   model *trained against* the trigger-word over-defense failure mode that PR diffs hit hardest
+   (NotInject benchmark: ~30% better than the field on benign-but-triggery text). CPU-fine in an
+   Actions job. Vet or avoid `trust_remote_code` when loading; vendor the checkpoint pinned.
+2. **Llama Prompt Guard 2 86M** — best published evals (99.8% AUC; 97.5% recall @ 1% FPR),
+   purpose-built for screening untrusted third-party content, 512-token chunked scanning. Friction:
+   gated non-OSI Llama Community License beside Apache-2.0 — verify redistribution terms at gate
+   acceptance. Candidate for a **two-model agreement ensemble** with PIGuard (flag on agreement,
+   to suppress FPs).
+3. **ProtectAI deberta-v3 v2** (Apache-2.0) — only if license purity trumps all: archived,
+   unmaintained, injection-only, documented FPs. Rejected: Rebuff (archived 2025), Lakera (SaaS
+   runtime dependency).
+
+Design consequences, regardless of model: **stage 0 is deterministic and zero-FP** — strip/flag
+hidden HTML comments and invisible/bidi Unicode ourselves (GitHub does the same before Copilot
+sees PR text); the classifier verdict is a **routing/flag signal, never a block** (evasion
+research beats every guard model; at ~44 PRs/mo nearly every alarm will be false); **measure on
+our own diffs before trusting thresholds** — TAP's tree contains injection corpora (gryphon fuzz
+strings, credential patterns) that are worst-case benign inputs. Prior art check (GitInject,
+arXiv 2606.09935): no classifier was validated as sufficient against real agent-workflow attacks;
+structural mitigation + human review carried the weight — which the two-stage design already is.
+Nobody ships an ML injection pre-screen on PR content today; this seat would be early.
+
 ## Verification checklist
 
 ```bash

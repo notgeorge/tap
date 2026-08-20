@@ -140,6 +140,20 @@ under its own declared license (CC BY-SA 4.0, attributed), never in an Apache-2.
 `semgrep-rules` and Buttercup are AGPL-3.0 — run `p/trailofbits` as an external ruleset /
 separate service only, never vendored.
 
+**The injection pre-screen sweep (2026-08-20).** Small dedicated injection-classifier models are
+real and CI-runnable on CPU: **PIGuard** (MIT, ACL 2025, ~184M — trained specifically against the
+trigger-word false-positive mode that PR diffs hit hardest), **Llama Prompt Guard 2 86M** (the
+evals leader, purpose-built for screening untrusted third-party content, 512-token chunked
+scanning — but gated under the non-OSI Llama Community License), ProtectAI's Apache-2.0 DeBERTa
+(archived, unmaintained). Rebuff is archived; Lakera is a SaaS runtime dependency and out.
+Sobering context that shapes the design: guard-model evasion research demonstrates up to 100%
+bypass; the GitInject study of real attacks on AI-agent GitHub workflows validated NO classifier
+as sufficient (structural mitigations + human review carried the weight); and at TAP's PR volume
+the base rate makes most alarms false — so the pre-screen is a cost-raiser and routing signal,
+never a gate. No reviewer vendor ships an ML injection pre-screen on PR content: this niche is
+unoccupied, and the Unified AI Review harness would be early. Shortlist and design consequences:
+run sheet.
+
 **First-party as a permission strategy.** GitHub Copilot code review is not a third-party App at
 all: automatic review is turned on by an org *ruleset*, so there is no new standing grant and no
 vendor holding an App private key. That property — not its review quality — is why it takes the
@@ -579,8 +593,9 @@ design absorbs a steered verdict rather than pretending to prevent steering.
   must not soften it, because the compromised-maintainer machine is this spec's #1 threat.
 - **Injection pre-screen, before the seats (2026-08-20).** The harness runs a cheap dedicated
   detection pass over the PR's text and diff BEFORE the model seats: a small vendored
-  injection-classifier model (candidates under evaluation in the run sheet; pinned per
-  `req-cicd-ai-review-harness-repo-2`, CPU-class so it runs even when seats are down) plus
+  injection-classifier model (shortlist researched 2026-08-20, PIGuard/MIT first — see the run
+  sheet; pinned per `req-cicd-ai-review-harness-repo-2`, CPU-class so it runs even when seats
+  are down) plus
   deterministic indicator checks — hidden HTML comments, invisible/bidi characters, image
   alt-text payloads, instruction-like imperatives aimed at reader-agents. A hit does not
   suppress the review — the seats still run, forewarned by the flag — it escalates
@@ -806,6 +821,12 @@ defined:
   unmet until the two-stage harness lands Codex + Grok on every PR; until then a wrong review is
   uncontradicted and a fork PR is unreviewed. This is the most significant open gap in the spec
   and should not be read past.
+- **The injection pre-screen raises attacker cost; it is not a wall.** Published evasion research
+  beats every guard-model class (up to 100% bypass with adversarial perturbations), and at TAP's
+  PR volume the false-positive base rate means most pre-screen alarms will be false — which is
+  exactly why a hit flags, routes, and escalates but never blocks or suppresses the review, and
+  why the zero-FP deterministic layer (stripping/flagging hidden comments and invisible Unicode)
+  sits in front of the classifier.
 - **The two-stage harness's safety is a set of maintained invariants, not a GitHub default.** The
   pwn-request class is excluded by construction (privileged context never executes PR content),
   but a future edit that adds a checkout to the privileged stage, unpacks an artifact, or trusts
