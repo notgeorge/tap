@@ -48,19 +48,21 @@ The DoD into the spec's Philosophy; `req-tap-traceability-disposition` and
 `req-tap-traceability-accounting` authored (`Proposed`); `req-tap-traceability-scope` amended —
 the "needs no code" deferral expired when the denominator was declared. This document.
 
-### Wave B — the engine (next)
+### Wave B — the engine (DONE 2026-08-20)
 
-Build what Wave A specified, in this order:
+Everything Wave A specified, built in its stated order — hash-neutral `Trace:` parsing landed
+first, then the disposition parser (closed vocabulary, near-miss fail-closed, mandatory
+payloads, contradiction and derived-bucket checks), then the accounting (`## Accounting Report`
+generated block, drift-tested, `manage.py guards --sync-accounting`) with the Unaccounted
+ratchet (`tap/guards/baselines/unaccounted_rids.txt`, fail-closed for new requirements). Two
+new guards (`disposition-integrity`, `unaccounted-requirements`) in the Validation Map; both
+requirements flipped to `Implemented`.
 
-1. **Hash-neutral `Trace:` parsing first** (`req-tap-traceability-disposition-2`) — the exclusion
-   from the content hash MUST land before any bulk marker application, or triage churns every
-   existing claim's spec hash. This is the one hard sequencing constraint in the plan.
-2. The disposition parser: closed vocabulary, near-miss fail-closed, mandatory payloads,
-   evidence-contradiction and derived-bucket-rejection checks (`-1`, `-3`, `-4`).
-3. The accounting: every requirement in one bucket, generated + drift-tested with per-spec
-   sub-counts, Unaccounted baseline ratchet — grandfathered for existing debt, fail-closed for
-   new requirements (`req-tap-traceability-accounting`).
-4. Flip both requirements to `Implemented`; Validation Map rows land in the same change.
+**Starting number: 1,072 Unaccounted** (of 1,132: 39 mapped, 1 excluded, 19 doctrine, 1
+disputed). Dogfood landed with the engine: the convention's own machinery now carries 18
+claims on the traceability requirements it implements (the `_CONVENTION_MODULES` exclusion
+narrowed to the test fixtures), and `req-tap-traceability-minting` — implemented in bash —
+is the first live `Trace: non-python` disposition.
 
 ### Wave C — bulk triage, batched by spec (the long middle)
 

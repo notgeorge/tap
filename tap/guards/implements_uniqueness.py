@@ -1,5 +1,8 @@
 """Implementation-claim uniqueness guard — `req-tap-traceability-uniqueness`.
 
+TAP-IMPLEMENTS: req-tap-traceability-uniqueness@d2f65eaa2072/39193e03c3fc (enforcement) —
+    the guard that fails duplicate claims lacking a shared known-dupe group.
+
 **Two modules claiming the same `(requirement, role)` is the anti-pattern this whole
 convention exists to make structural.** One fact, one authoritative derivation.
 

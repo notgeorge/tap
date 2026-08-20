@@ -53,9 +53,7 @@ def _tree(tmp_path: Path, *, status: str, claim: bool = False, test: bool = Fals
 
     source = ""
     if claim:
-        from tap.spec_trace import load_corpus
-
-        from tap.spec_trace import CODE_HASH_PLACEHOLDER
+        from tap.spec_trace import CODE_HASH_PLACEHOLDER, load_corpus
 
         digest = load_corpus(tmp_path).requirements["req-example-alpha"].content_hash
         source += (

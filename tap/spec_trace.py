@@ -1,15 +1,21 @@
 """Structured specification model + RID citation scanner.
 
-The **one** parser of TAP's specification corpus (`req-docs-rid-integrity`). Two halves:
+The **one** parser of TAP's specification corpus (`req-docs-rid-integrity`). Three layers:
 
 - **Definition side** — `load_corpus()` reads every spec into a `Requirement` per `RID:`
   heading, carrying its status, its acceptance-criteria ids (ACIDs), its normalized body,
-  and a content hash over that body. `tap.guards.base.defined_requirement_rids()` delegates
-  here rather than keeping a second regex pair, so "what RIDs exist" is derived once.
+  a content hash over that body, and its coverage disposition (the `Trace:` marker).
+  `tap.guards.base.defined_requirement_rids()` delegates here rather than keeping a second
+  regex pair, so "what RIDs exist" is derived once.
 - **Reference side** — `collect_citations()` finds every `req-*` token cited in the living
   surfaces (first-party Python comments/docstrings, specs, non-archival docs, agent
   guides, scripts), and `collect_spec_markers()` finds every `@pytest.mark.spec(...)`
   argument. Both are what the integrity guards subtract the definition side from.
+- **Ownership and accounting** — `collect_claims()` promotes chosen citations to
+  implementation claims and checks both their fingerprints (spec hash and code hash);
+  `collect_evidence()` derives per-requirement status from claims and test-cited ACIDs;
+  `accounting()` places every requirement in exactly one Definition-of-Done bucket
+  (`spec-tap-requirement-traceability.md`).
 
 Design constraints, all inherited from the tree-scanner substrate (`spec-tap-tree-scanner.md`):
 stdlib only, **no Django import**, safe to call pre-boot. The repo root arrives as a
@@ -49,6 +55,16 @@ _RID_BODY = r"req-[a-z0-9]+(?:-[a-z0-9]+)*(?:\.[a-z0-9]+(?:-[a-z0-9]+)*)*"
 _RID_HEADING = re.compile(rf"^RID:\s*`?({_RID_BODY})`?", re.MULTILINE)
 _TABLE_CELL = re.compile(rf"^\|\s*({_RID_BODY})\s*\|", re.MULTILINE)
 _STATUS_LINE = re.compile(r"^Status:\s*`?([A-Za-z ]+?)`?\s*$", re.MULTILINE)
+# The coverage-disposition marker (`req-tap-traceability-disposition`): a `Trace:` line
+# beside `Status:` naming why a requirement legitimately maps to no code. Excluded from
+# the content hash exactly as `Status:` is — metadata on its own lifecycle — and that
+# exclusion landed BEFORE any marker did: bulk triage must never churn claim spec-hashes.
+_TRACE_LINE = re.compile(r"^Trace:\s*`?([a-z-]+)`?\s*(?:—\s*(.+?))?\s*$", re.MULTILINE)
+# Anything that looks like an attempted marker. A near-miss must fail loudly, not be
+# skipped — the claim-shape lesson (`req-tap-traceability-disposition-1`). Anchored to
+# line start so prose *about* the convention (always mid-line or backtick-prefixed in
+# the owning spec) never trips it.
+_TRACE_NEAR_MISS = re.compile(r"^\s*Trace[sd]?\s*:", re.IGNORECASE)
 # A requirement's section ends at the next heading of level 3 or shallower. Level-4+
 # headings (`#### Acceptance Criteria`, `#### Implementation`) are *inside* the
 # requirement — stopping at those would cut every ACID table out of its own parent.
@@ -93,17 +109,13 @@ _CLAIM_RE = re.compile(rf"{_CLAIM_TOKEN}:\s*({_RID_BODY})@([0-9a-f]{{12}})/([0-9
 # — the documented failure mode of clippy's `SAFTEY:` hole (`req-tap-traceability-claim-3`).
 _CLAIM_NEAR_MISS_RE = re.compile(r"TAP[-_ ]?IMPLEMENT(?:S|ED|ATION)?\b", re.IGNORECASE)
 
-# The modules that *implement* the convention necessarily spell the token out in prose.
-# Excluding them is the same self-reference dodge `known_dupes.py` and `record_site.py`
-# make; without it the scanner reports its own documentation as malformed claims.
+# The TEST modules of the convention build claim-shaped fixture strings; excluding them is
+# the self-reference dodge `known_dupes.py` and `record_site.py` make. The convention's
+# PRODUCTION modules are deliberately NOT excluded — they carry real claims on the
+# traceability requirements they implement (the dogfood mandate), which the concatenated
+# `_CLAIM_TOKEN` idiom makes safe: their prose never spells the needle.
 _CONVENTION_MODULES = frozenset(
     {
-        "tap/spec_trace.py",
-        "tap/guards/implements_shape.py",
-        "tap/guards/implements_integrity.py",
-        "tap/guards/implements_uniqueness.py",
-        "tap/guards/implements_staleness.py",
-        "tap/guards/implements_code_staleness.py",
         "tap/tests/test_spec_trace.py",
         "tap/tests/test_implements_claims.py",
     }
@@ -176,7 +188,11 @@ def _strip_docstrings(node: ast.AST) -> ast.AST:
 
 
 def code_hash_of(node: ast.AST) -> str:
-    """The code-side fingerprint of a claimed scope (`req-tap-traceability-code-staleness`).
+    """The code-side fingerprint of a claimed scope.
+
+    TAP-IMPLEMENTS: req-tap-traceability-code-staleness@edce7b8f372e/2c51494e66b3 (derivation) —
+        the one derivation of the code hash; the collector, the resync tool and the guard all
+        compare against what this computes.
 
     `semantic_hash` over a positions-stripped `ast.dump` of the scope — the callsite-identity
     recipe, so formatting, comments and pure moves never churn the digest while any semantic
@@ -228,6 +244,9 @@ class _DocstringVisitor(ast.NodeVisitor):
 def collect_claims(repo_root: Path, source_roots: list[Path]) -> tuple[list[Claim], list[MalformedClaim]]:
     """Every well-formed claim, and every line that tried to be one and failed.
 
+    TAP-IMPLEMENTS: req-tap-traceability-claim@5b3a517c247e/eddeebeecca5 (derivation) — the one
+        parser of the claim grammar; every guard and tool reads claims through this.
+
     Read from source via `ast.get_docstring`, never from `__doc__`: `python -OO` discards
     docstrings, and `functools.wraps` copies them, so a wrapper would silently inherit the
     claim of the function it wraps (`req-tap-traceability-claim-2`).
@@ -265,6 +284,28 @@ def collect_claims(repo_root: Path, source_roots: list[Path]) -> tuple[list[Clai
     return claims, malformed
 
 
+# --- coverage dispositions (`req-tap-traceability-disposition`) ----------------------
+
+#: The closed exclusion vocabulary. Categories whose payload names a thing make it
+#: mandatory (LOBSTER's rule: an exclusion whose target cannot be pointed at is an
+#: assertion nothing can check). Doctrine, disputed, archival and mapped are DERIVED
+#: buckets — a hand-written marker on any of them is a defect, never a fifth category.
+DISPOSITION_CATEGORIES = frozenset({"process", "narrative", "non-python", "external"})
+#: Categories whose payload is mandatory, mapped to what the payload must be.
+_PAYLOAD_REQUIRED = {
+    "non-python": "the implementing file's repo-relative path",
+    "external": "the repo, plugin slug, or system name",
+}
+
+
+@dataclass(frozen=True)
+class Disposition:
+    """A requirement's documented reason for mapping to no code."""
+
+    category: str
+    payload: str | None
+
+
 @dataclass(frozen=True)
 class Requirement:
     """One requirement, as defined by an `RID:` heading in a spec."""
@@ -275,6 +316,7 @@ class Requirement:
     acids: tuple[str, ...]
     body: str
     content_hash: str
+    disposition: Disposition | None = None
 
 
 @dataclass(frozen=True)
@@ -284,6 +326,11 @@ class SpecCorpus:
     requirements: dict[str, Requirement]
     acids: frozenset[str]
     other_ids: frozenset[str]
+    #: Disposition defects found while parsing — near-miss lines, unknown categories,
+    #: missing mandatory payloads, markers on derived buckets. Formatted `path:line — why`
+    #: (or `rid — why` where the line is not the natural anchor); consumed by the
+    #: disposition-integrity guard, which fails on any entry.
+    trace_problems: tuple[str, ...] = ()
 
     @property
     def defined(self) -> frozenset[str]:
@@ -319,13 +366,48 @@ def spec_files(repo_root: Path) -> list[Path]:
 
 
 def _normalize(body: str) -> str:
-    """Whitespace-collapsed requirement text, with the `Status:` line removed.
+    """Whitespace-collapsed requirement text, with the `Status:` and `Trace:` lines removed.
 
-    Status is excluded deliberately: it is metadata *about* the requirement, it moves on
-    its own lifecycle, and the derived-status work computes it from evidence — so hashing
-    it would make every claim self-churn the moment a status advanced.
+    Both are excluded deliberately: they are metadata *about* the requirement, moving on
+    their own lifecycles — status is derived from evidence, and the disposition marker is
+    applied in bulk during triage (`req-tap-traceability-disposition-2`). Hashing either
+    would churn every claim's spec hash for a change with no requirement-meaning in it.
     """
-    return " ".join(_STATUS_LINE.sub("", body).split())
+    return " ".join(_TRACE_LINE.sub("", _STATUS_LINE.sub("", body)).split())
+
+
+def _parse_disposition(
+    body: str, status: str | None, where: str, repo_root: Path, problems: list[str]
+) -> Disposition | None:
+    """One requirement's `Trace:` disposition, validated fail-closed.
+
+    TAP-IMPLEMENTS: req-tap-traceability-disposition@54d4185ba383/d6ba4a775fc0 (derivation) — the
+        one parser of the `Trace:` grammar and its closed vocabulary.
+
+    Every defect lands in ``problems`` rather than raising: the corpus must stay loadable
+    with a bad marker in it — the disposition-integrity guard is what turns the list red.
+    """
+    matches = _TRACE_LINE.findall(body)
+    if not matches:
+        return None
+    if len(matches) > 1:
+        problems.append(f"{where} — carries {len(matches)} `Trace:` lines; a requirement has one disposition")
+    category, payload = matches[0][0], matches[0][1].strip() or None
+    if category not in DISPOSITION_CATEGORIES:
+        problems.append(f"{where} — `Trace:` category {category!r} is not one of {sorted(DISPOSITION_CATEGORIES)}")
+        return None
+    if category in _PAYLOAD_REQUIRED and payload is None:
+        problems.append(f"{where} — `Trace: {category}` requires a payload: {_PAYLOAD_REQUIRED[category]}")
+        return None
+    if category == "non-python" and payload is not None and not (repo_root / payload).exists():
+        problems.append(f"{where} — `Trace: non-python` names {payload!r}, which does not exist in the tree")
+    # Derived buckets reject hand-written markers — one source per fact
+    # (`req-tap-traceability-disposition-4`). Doctrine/Disputed derive from status; the
+    # archival check derives from location (vacuously true today: `spec_files` yields no
+    # archival paths, and retired-in-place specs use heading-style RIDs that never parse).
+    if status in DOCTRINE_STATUSES or status in DISPUTED_STATUSES:
+        problems.append(f"{where} — `Trace:` marker on a {status} requirement; that bucket is derived, never marked")
+    return Disposition(category=category, payload=payload)
 
 
 def load_corpus(repo_root: Path) -> SpecCorpus:
@@ -333,10 +415,15 @@ def load_corpus(repo_root: Path) -> SpecCorpus:
     requirements: dict[str, Requirement] = {}
     all_cells: set[str] = set()
     claimed_acids: set[str] = set()
+    trace_problems: list[str] = []
 
     for path in spec_files(repo_root):
         text = path.read_text(encoding="utf-8")
         all_cells.update(_TABLE_CELL.findall(text))
+        rel = path.relative_to(repo_root).as_posix()
+        for lineno, line in enumerate(text.splitlines(), start=1):
+            if _TRACE_NEAR_MISS.match(line) and not _TRACE_LINE.match(line):
+                trace_problems.append(f"{rel}:{lineno} — attempts the `Trace:` grammar and misses: {line.strip()!r}")
 
         headings = list(_RID_HEADING.finditer(text))
         for index, match in enumerate(headings):
@@ -361,13 +448,17 @@ def load_corpus(repo_root: Path) -> SpecCorpus:
                 )
             )
             claimed_acids.update(acids)
+            status = status_match.group(1).strip() if status_match else None
             requirements[rid] = Requirement(
                 rid=rid,
                 spec_path=path,
-                status=status_match.group(1).strip() if status_match else None,
+                status=status,
                 acids=acids,
                 body=body,
                 content_hash=semantic_hash(_normalize(body)),
+                disposition=_parse_disposition(
+                    body, status, f"{path.relative_to(repo_root).as_posix()} ({rid})", repo_root, trace_problems
+                ),
             )
 
     other_ids = all_cells - set(requirements) - claimed_acids
@@ -375,6 +466,7 @@ def load_corpus(repo_root: Path) -> SpecCorpus:
         requirements=requirements,
         acids=frozenset(claimed_acids),
         other_ids=frozenset(other_ids),
+        trace_problems=tuple(trace_problems),
     )
 
 
@@ -502,6 +594,9 @@ def invalid_claims(repo_root: Path) -> list[tuple[Claim, str]]:
 def stale_claims(repo_root: Path) -> list[tuple[Claim, str]]:
     """Claims whose recorded hash no longer matches their requirement (`Outdated`).
 
+    TAP-IMPLEMENTS: req-tap-traceability-staleness@79b27e46feb7/ba798e2267c4 (derivation) — the
+        one comparison of a claim's recorded spec hash against the requirement's current one.
+
     Returns `(claim, expected_hash)`. A claim on a requirement that does not resolve is
     *not* reported here — that is `invalid_claims`' finding, and reporting it twice would
     make one defect look like two.
@@ -536,6 +631,10 @@ def drifted_claims(repo_root: Path) -> list[Claim]:
 
 def duplicate_claim_groups(repo_root: Path) -> dict[tuple[str, str], list[Claim]]:
     """`(rid, role)` -> claims, for every pair claimed by more than one module.
+
+    TAP-IMPLEMENTS: req-tap-traceability-uniqueness@d2f65eaa2072/82c65736b53e (derivation) — the
+        one derivation of "which claims collide"; the uniqueness guard only formats what
+        this returns.
 
     Within-module repeats collapse first: a conditional definition legitimately declares
     the same claim twice in one file (`req-tap-traceability-uniqueness-3`).
@@ -610,7 +709,12 @@ class Evidence:
 
 
 def collect_evidence(repo_root: Path) -> dict[str, Evidence]:
-    """Per-requirement evidence: implementation claims and verified acceptance criteria."""
+    """Per-requirement evidence: implementation claims and verified acceptance criteria.
+
+    TAP-IMPLEMENTS: req-tap-traceability-status@c380067ae093/9ddc8365896e (derivation) — the one
+        derivation of "what the tree can show about a requirement"; derived status, the
+        gate and both reports read from this.
+    """
     corpus = load_corpus(repo_root)
     roots = python_scan_roots(repo_root)
     claims, _ = collect_claims(repo_root, roots)
@@ -665,6 +769,9 @@ def doctrine(repo_root: Path, evidence: dict[str, Evidence] | None = None) -> li
 def disputed(repo_root: Path, evidence: dict[str, Evidence] | None = None) -> list[Evidence]:
     """Requirements whose spec text and implementation disagree, awaiting a human ruling.
 
+    TAP-IMPLEMENTS: req-tap-traceability-disputed@1f95cfa95af4/041c0d3d59c5 (derivation) — the
+        one derivation of the disputed bucket; the report section and the accounting read it.
+
     Listed with whatever evidence they carry — a dispute *should* name the contested code
     via a claim — but evidence never resolves a dispute, so nothing here feeds the
     built/unbuilt coverage counts (`req-tap-traceability-disputed`).
@@ -702,12 +809,135 @@ def unevidenced_built(repo_root: Path, evidence: dict[str, Evidence] | None = No
     ]
 
 
+# --- full-corpus accounting (`req-tap-traceability-accounting`) ----------------------
+
+#: The disjoint, total bucket vocabulary. Every requirement lands in exactly one.
+ACCOUNTING_BUCKETS = ("mapped", "excluded", "doctrine", "disputed", "unaccounted")
+
+
+def contradicted_dispositions(repo_root: Path, evidence: dict[str, Evidence] | None = None) -> list[Evidence]:
+    """Excluded requirements that carry evidence anyway (`req-tap-traceability-disposition-3`).
+
+    Marking a requirement excluded costs the ability to claim it — the `claimed_doctrine`
+    lesson: a flag that only ever removes a check is a flag nobody maintains. Resolving the
+    contradiction means removing whichever side is wrong, and both edits are review-visible.
+    """
+    corpus = load_corpus(repo_root)
+    return [
+        e
+        for e in _evidence_or_scan(repo_root, evidence).values()
+        if e.classes and (req := corpus.requirements.get(e.rid)) is not None and req.disposition is not None
+    ]
+
+
+def bucket_of(requirement: Requirement, evidence: Evidence) -> str:
+    """The one accounting bucket this requirement lands in — disjoint and total.
+
+    TAP-IMPLEMENTS: req-tap-traceability-accounting@7b8b04a02859/a0b1eb6fd1d7 (derivation) — the
+        one derivation of the bucket; the ratchet's measure and the report both call this.
+
+    A derivation, never a judgment call: doctrine and disputed derive from status, mapped
+    from evidence, excluded from the disposition marker, and what remains is Unaccounted.
+    (Evidence outranks a disposition only for bucketing determinism — carrying both is a
+    contradiction the disposition-integrity guard fails independently.)
+    """
+    if requirement.status in DOCTRINE_STATUSES:
+        return "doctrine"
+    if requirement.status in DISPUTED_STATUSES:
+        return "disputed"
+    if evidence.classes:
+        return "mapped"
+    if requirement.disposition is not None:
+        return "excluded"
+    return "unaccounted"
+
+
+def accounting(repo_root: Path) -> dict[str, str]:
+    """Every corpus requirement's bucket, rid -> bucket (`req-tap-traceability-accounting-1`)."""
+    corpus = load_corpus(repo_root)
+    evidence = collect_evidence(repo_root)
+    return {rid: bucket_of(req, evidence[rid]) for rid, req in corpus.requirements.items()}
+
+
+def unaccounted_rids(repo_root: Path) -> set[str]:
+    """The Unaccounted set — the ratchet's measure, keyed by RID alone (location is navigation)."""
+    return {rid for rid, bucket in accounting(repo_root).items() if bucket == "unaccounted"}
+
+
+ACCOUNTING_BEGIN = "<!-- BEGIN GENERATED ACCOUNTING — manage.py guards --sync-accounting -->"
+ACCOUNTING_END = "<!-- END GENERATED ACCOUNTING -->"
+
+
+def render_accounting_markdown(repo_root: Path) -> str:
+    """The full-corpus accounting — every requirement in one bucket, with a denominator.
+
+    TAP-IMPLEMENTS: req-tap-traceability-accounting@7b8b04a02859/f1f4ff6b7270 (surface) — the
+        committed, drift-tested progress bar the Definition of Done is read from.
+
+    The complement of the evidence report: that one is read for contradictions, this one
+    for progress. The headline is the Unaccounted count — the Definition of Done's
+    progress bar — and the per-spec sub-counts drive triage batching.
+    """
+    corpus = load_corpus(repo_root)
+    evidence = collect_evidence(repo_root)
+    buckets = {rid: bucket_of(req, evidence[rid]) for rid, req in corpus.requirements.items()}
+
+    by_spec: dict[str, dict[str, int]] = {}
+    for rid, bucket in buckets.items():
+        spec = corpus.requirements[rid].spec_path.relative_to(repo_root).as_posix()
+        row = by_spec.setdefault(spec, dict.fromkeys(ACCOUNTING_BUCKETS, 0))
+        row[bucket] += 1
+
+    totals = dict.fromkeys(ACCOUNTING_BUCKETS, 0)
+    for row in by_spec.values():
+        for bucket, count in row.items():
+            totals[bucket] += count
+
+    excluded_by_category: dict[str, int] = {}
+    for req in corpus.requirements.values():
+        if buckets[req.rid] == "excluded" and req.disposition is not None:
+            excluded_by_category[req.disposition.category] = excluded_by_category.get(req.disposition.category, 0) + 1
+    category_note = (
+        " (" + ", ".join(f"{c} {n}" for c, n in sorted(excluded_by_category.items())) + ")"
+        if excluded_by_category
+        else ""
+    )
+
+    lines = [
+        ACCOUNTING_BEGIN,
+        "",
+        f"**{len(buckets)}** requirements · **{totals['mapped']}** mapped · "
+        f"**{totals['excluded']}** excluded{category_note} · "
+        f"**{totals['doctrine']}** doctrine · **{totals['disputed']}** disputed · "
+        f"**{totals['unaccounted']} Unaccounted**.",
+        "",
+        "The Unaccounted count is the Definition of Done's progress bar: it only moves down "
+        "(the committed baseline grandfathers existing debt; a new requirement without a "
+        "disposition fails immediately). A grandfathered entry is debt, not license — every "
+        "Unaccounted requirement still needs a mapping or a documented exclusion.",
+        "",
+        "| Spec | Reqs | Mapped | Excluded | Doctrine | Disputed | Unaccounted |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    for spec in sorted(by_spec, key=lambda s: (-by_spec[s]["unaccounted"], s)):
+        row = by_spec[spec]
+        lines.append(
+            f"| `{spec}` | {sum(row.values())} | {row['mapped']} | {row['excluded']} | "
+            f"{row['doctrine']} | {row['disputed']} | {row['unaccounted']} |"
+        )
+    lines += ["", ACCOUNTING_END]
+    return "\n".join(lines)
+
+
 EVIDENCE_BEGIN = "<!-- BEGIN GENERATED EVIDENCE — manage.py guards --sync-evidence -->"
 EVIDENCE_END = "<!-- END GENERATED EVIDENCE -->"
 
 
 def render_evidence_markdown(repo_root: Path) -> str:
     """The generated evidence report — declared status against what the tree can show.
+
+    TAP-IMPLEMENTS: req-tap-traceability-status@c380067ae093/1b1e9ca6ad5e (surface) — the
+        committed, drift-tested report is the convention's visible consumer.
 
     Deliberately compact: it lists only requirements that *have* evidence, plus the
     contradictions, rather than all ~1,100 rows. A report nobody can read is a report

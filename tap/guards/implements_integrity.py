@@ -1,5 +1,8 @@
 """Implementation-claim integrity guard — `req-tap-traceability-roles`.
 
+TAP-IMPLEMENTS: req-tap-traceability-roles@b5cafbafd29e/039a6c207f5a (enforcement) — the
+    guard that fails unresolvable requirements and out-of-vocabulary roles.
+
 A claim must name a requirement that exists and a role from the closed vocabulary
 (`derivation` / `enforcement` / `surface`).
 

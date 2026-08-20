@@ -112,8 +112,8 @@ directly — see `req-tap-traceability-uniqueness`.
 | req-tap-traceability-code-staleness | [Claims Detect Code Change](#claims-detect-code-change) | Implemented | Content hash of the claimed scope's AST; a semantically edited scope orphans its claims — the code end of the link, fingerprinted like the spec end |
 | req-tap-traceability-minting | [Minted, Not Typed](#minted-not-typed) | Implemented | `scripts/implements-tag` emits the complete pre-hashed line |
 | req-tap-traceability-scope | [Scarce And Targeted](#scarce-and-targeted) | Implemented | Claims are opt-in per requirement; a missing claim is never, by itself, a defect — the disposition system accounts for the rest |
-| req-tap-traceability-disposition | [Coverage Disposition](#coverage-disposition) | Proposed | A `Trace:` line beside `Status:` for requirements that legitimately map to no code — closed vocabulary, excluded from the content hash, contradicted by evidence |
-| req-tap-traceability-accounting | [Full-Corpus Accounting](#full-corpus-accounting) | Proposed | Every requirement in exactly one bucket — mapped, excluded, doctrine, disputed, or Unaccounted; Unaccounted is baselined and ratchets to zero, fail-closed for new requirements |
+| req-tap-traceability-disposition | [Coverage Disposition](#coverage-disposition) | Implemented | A `Trace:` line beside `Status:` for requirements that legitimately map to no code — closed vocabulary, excluded from the content hash, contradicted by evidence |
+| req-tap-traceability-accounting | [Full-Corpus Accounting](#full-corpus-accounting) | Implemented | Every requirement in exactly one bucket — mapped, excluded, doctrine, disputed, or Unaccounted; Unaccounted is baselined and ratchets to zero, fail-closed for new requirements |
 | req-tap-traceability-status | [Status Follows Evidence](#status-follows-evidence) | Implemented | A generated evidence report; `Verified` requires two independent evidence classes |
 | req-tap-traceability-disputed | [The Disputed Status](#the-disputed-status) | Implemented | A fourth status bucket for spec-versus-implementation disagreement — claims are pointers, never resolution; every entry pairs with a review-ledger row |
 
@@ -337,6 +337,7 @@ re-stamping is cheap.
 ----
 RID: `req-tap-traceability-minting`
 Status: `Implemented`
+Trace: `non-python` — scripts/implements-tag
 
 `scripts/implements-tag` emits the complete, pre-hashed claim line. **A claim is never hand-typed.**
 
@@ -409,7 +410,7 @@ deliberately not a coverage program.
 ### Coverage Disposition
 ----
 RID: `req-tap-traceability-disposition`
-Status: `Proposed`
+Status: `Implemented`
 
 A requirement that legitimately maps to no code carries a **`Trace:` line beside `Status:`** in
 its requirement block — directly under the `Status:` line, e.g.
@@ -458,17 +459,17 @@ doctrine (`Status: In Force`), disputed (`Status: Disputed`), archival location,
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-traceability-disposition-1 | Closed vocabulary, fail-closed | Proposed | A `Trace:` category outside the vocabulary, a near-miss spelling, or a missing mandatory payload fails the parse. | |
-| req-tap-traceability-disposition-2 | Hash-neutral | Proposed | Adding, editing or removing a `Trace:` line leaves the requirement's content hash unchanged. | Must precede bulk triage. |
-| req-tap-traceability-disposition-3 | Exclusion contradicts evidence | Proposed | A requirement carrying both a `Trace:` line and any evidence (claim or test-cited ACID) fails. | Marking excluded costs the ability to claim. |
-| req-tap-traceability-disposition-4 | Derived buckets reject markers | Proposed | A `Trace:` line on a doctrine, disputed, or archival requirement fails. | One source per fact. |
+| req-tap-traceability-disposition-1 | Closed vocabulary, fail-closed | Implemented | A `Trace:` category outside the vocabulary, a near-miss spelling, or a missing mandatory payload fails the parse. | |
+| req-tap-traceability-disposition-2 | Hash-neutral | Implemented | Adding, editing or removing a `Trace:` line leaves the requirement's content hash unchanged. | Must precede bulk triage. |
+| req-tap-traceability-disposition-3 | Exclusion contradicts evidence | Implemented | A requirement carrying both a `Trace:` line and any evidence (claim or test-cited ACID) fails. | Marking excluded costs the ability to claim. |
+| req-tap-traceability-disposition-4 | Derived buckets reject markers | Implemented | A `Trace:` line on a doctrine, disputed, or archival requirement fails. | One source per fact. |
 
 ---
 
 ### Full-Corpus Accounting
 ----
 RID: `req-tap-traceability-accounting`
-Status: `Proposed`
+Status: `Implemented`
 
 A generated accounting places **every requirement in the corpus in exactly one bucket** — mapped,
 excluded (by category), doctrine, disputed, or **Unaccounted** — and the Unaccounted count is a
@@ -496,9 +497,9 @@ contradictions, the other for progress.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-traceability-accounting-1 | Every requirement, one bucket | Proposed | The accounting assigns each corpus requirement exactly one of: mapped, excluded, doctrine, disputed, Unaccounted. | Disjoint and total, derived not judged. |
-| req-tap-traceability-accounting-2 | Unaccounted ratchets to zero | Proposed | The Unaccounted set is baselined; an entry leaving the set cannot return, and a new requirement without a disposition fails. | Fail-closed for new, grandfathered for old. |
-| req-tap-traceability-accounting-3 | Progress is visible | Proposed | The accounting is generated, committed, and drift-tested, with per-spec sub-counts. | The consumer that keeps triage honest. |
+| req-tap-traceability-accounting-1 | Every requirement, one bucket | Implemented | The accounting assigns each corpus requirement exactly one of: mapped, excluded, doctrine, disputed, Unaccounted. | Disjoint and total, derived not judged. |
+| req-tap-traceability-accounting-2 | Unaccounted ratchets to zero | Implemented | The Unaccounted set is baselined; an entry leaving the set cannot return, and a new requirement without a disposition fails. | Fail-closed for new, grandfathered for old. |
+| req-tap-traceability-accounting-3 | Progress is visible | Implemented | The accounting is generated, committed, and drift-tested, with per-spec sub-counts. | The consumer that keeps triage honest. |
 
 ---
 
@@ -597,7 +598,7 @@ Generated — do not hand-edit. Regenerate with `manage.py guards --sync-evidenc
 
 <!-- BEGIN GENERATED EVIDENCE — manage.py guards --sync-evidence -->
 
-**1132** requirements · **19** standing doctrine · **1** disputed · **30** carry evidence · **1** carry both classes · **498** declared built with none.
+**1132** requirements · **19** standing doctrine · **1** disputed · **39** carry evidence · **1** carry both classes · **491** declared built with none.
 
 Separate facts, deliberately not blended into one percentage. **Doctrine** is outside the coverage question — in force now, never "completed", expecting conformance rather than an implementation. **Disputed** marks a spec-versus-implementation disagreement awaiting a human ruling — its claims are pointers to the contested code, never resolution, and the count should trend to zero. **Declared built with none** is context, not a defect list: claims are opt-in and scarce by design (`req-tap-traceability-scope`), so it measures how much of the corpus has been deliberately targeted, not how much is wrong. Collapsing these into a single coverage score is what makes such a score meaningless.
 
@@ -631,6 +632,15 @@ Separate facts, deliberately not blended into one percentage. **Doctrine** is ou
 | `req-tap-logging-config-location` | Proposed | Implemented | `build_logging_config` | — |
 | `req-tap-plugin-arch-source-secret` | Implemented | Implemented | `<module>` | — |
 | `req-tap-plugin-load-v0-ready-chain` | Implemented | Tested | — | `req-tap-plugin-load-v0-ready-chain-1`, `req-tap-plugin-load-v0-ready-chain-2` |
+| `req-tap-traceability-accounting` | Implemented | Implemented | `<module>`, `bucket_of`, `render_accounting_markdown` | — |
+| `req-tap-traceability-claim` | Implemented | Implemented | `<module>`, `collect_claims` | — |
+| `req-tap-traceability-code-staleness` | Implemented | Implemented | `<module>`, `code_hash_of` | — |
+| `req-tap-traceability-disposition` | Implemented | Implemented | `<module>`, `_parse_disposition` | — |
+| `req-tap-traceability-disputed` | Implemented | Implemented | `disputed` | — |
+| `req-tap-traceability-roles` | Implemented | Implemented | `<module>` | — |
+| `req-tap-traceability-staleness` | Implemented | Implemented | `<module>`, `stale_claims` | — |
+| `req-tap-traceability-status` | Implemented | Implemented | `<module>`, `collect_evidence`, `render_evidence_markdown` | — |
+| `req-tap-traceability-uniqueness` | Implemented | Implemented | `<module>`, `duplicate_claim_groups` | — |
 | `req-tap-tree-scanner-substrate` | Proposed | Implemented | `<module>` | — |
 | `req-web-page-dim` | Implemented | Implemented | `<module>` | — |
 
@@ -659,6 +669,150 @@ Separate facts, deliberately not blended into one percentage. **Doctrine** is ou
 None.
 
 <!-- END GENERATED EVIDENCE -->
+
+## Accounting Report
+
+Generated — do not hand-edit. Regenerate with `manage.py guards --sync-accounting`.
+
+<!-- BEGIN GENERATED ACCOUNTING — manage.py guards --sync-accounting -->
+
+**1132** requirements · **39** mapped · **1** excluded (non-python 1) · **19** doctrine · **1** disputed · **1072 Unaccounted**.
+
+The Unaccounted count is the Definition of Done's progress bar: it only moves down (the committed baseline grandfathers existing debt; a new requirement without a disposition fails immediately). A grandfathered entry is debt, not license — every Unaccounted requirement still needs a mapping or a documented exclusion.
+
+| Spec | Reqs | Mapped | Excluded | Doctrine | Disputed | Unaccounted |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `tap_plugins/specs/spec-tap-plugin-architecture.md` | 27 | 1 | 0 | 0 | 0 | 26 |
+| `specs/spec-tap-boot-v0.md` | 22 | 0 | 0 | 0 | 0 | 22 |
+| `tap_auth/specs/spec-tap-auth-v0.md` | 20 | 0 | 0 | 0 | 0 | 20 |
+| `tap_cares/specs/spec-tap-cares-collector.md` | 20 | 0 | 0 | 0 | 0 | 20 |
+| `tap_grid/specs/spec-grid-traversal-language.md` | 20 | 0 | 0 | 0 | 0 | 20 |
+| `tap_cares/specs/spec-tap-cares-secrets.md` | 21 | 2 | 0 | 0 | 0 | 19 |
+| `specs/spec-tap-logging.md` | 18 | 1 | 0 | 0 | 0 | 17 |
+| `tap_grid/specs/spec-grid-import-grift.md` | 17 | 0 | 0 | 0 | 0 | 17 |
+| `tap_plugins/specs/spec-tap-plugin-validation.md` | 17 | 0 | 0 | 0 | 0 | 17 |
+| `tap_grid/specs/spec-grid-entity.md` | 16 | 0 | 0 | 0 | 0 | 16 |
+| `specs/spec-dev-multisession.md` | 15 | 0 | 0 | 0 | 0 | 15 |
+| `specs/spec-dev-validation.md` | 15 | 0 | 0 | 0 | 0 | 15 |
+| `tap_viz/specs/spec-viz-projection.md` | 15 | 0 | 0 | 0 | 0 | 15 |
+| `tap_cares/specs/spec-tap-cares-v0.md` | 14 | 0 | 0 | 0 | 0 | 14 |
+| `tap_viz/specs/spec-viz-stack.md` | 14 | 0 | 0 | 0 | 0 | 14 |
+| `tap_web/specs/spec-web-panel-client-state.md` | 14 | 0 | 0 | 0 | 0 | 14 |
+| `tap_web/specs/spec-web-rendering.md` | 14 | 0 | 0 | 0 | 0 | 14 |
+| `tap_cares/specs/spec-tap-cares-administrivia.md` | 13 | 0 | 0 | 0 | 0 | 13 |
+| `tap_grid/specs/spec-grid-dimension-pocket-BACKLOG.md` | 13 | 0 | 0 | 0 | 0 | 13 |
+| `tap_viz/specs/spec-viz-panel.md` | 13 | 0 | 0 | 0 | 0 | 13 |
+| `tap_web/specs/spec-web-chrome.md` | 13 | 0 | 0 | 0 | 0 | 13 |
+| `tap_web/specs/spec-web-navigation.md` | 13 | 0 | 0 | 0 | 0 | 13 |
+| `specs/spec-cicd-hardening.md` | 13 | 1 | 0 | 0 | 0 | 12 |
+| `specs/spec-security-posture-corpus.md` | 12 | 0 | 0 | 0 | 0 | 12 |
+| `specs/spec-tap-package-security-v0-BACKLOG.md` | 12 | 0 | 0 | 0 | 0 | 12 |
+| `specs/spec-tap-plugin-dependency-resolution.md` | 12 | 0 | 0 | 0 | 0 | 12 |
+| `tap_auth/specs/spec-tap-auth-user-management-v0.md` | 12 | 0 | 0 | 0 | 0 | 12 |
+| `tap_cares/specs/spec-tap-cares-scheduler.md` | 12 | 0 | 0 | 0 | 0 | 12 |
+| `tap_plugins/specs/spec-tap-plugin-manifest-v0.md` | 12 | 0 | 0 | 0 | 0 | 12 |
+| `tap_viz/specs/spec-viz-nested-projection.md` | 12 | 0 | 0 | 0 | 0 | 12 |
+| `specs/spec-docs.md` | 11 | 0 | 0 | 0 | 0 | 11 |
+| `tap_cares/specs/spec-tap-cares-task-backend.md` | 11 | 0 | 0 | 0 | 0 | 11 |
+| `tap_grid/specs/spec-grid-gryphon-multihop-aggregation.md` | 11 | 0 | 0 | 0 | 0 | 11 |
+| `tap_grid/specs/spec-grid-service-batch.md` | 11 | 0 | 0 | 0 | 0 | 11 |
+| `tap_grid/specs/spec-grift-v0.md` | 11 | 0 | 0 | 0 | 0 | 11 |
+| `tap_viz/specs/spec-viz-layouts.md` | 11 | 0 | 0 | 0 | 0 | 11 |
+| `tap_web/specs/spec-web-page.md` | 12 | 1 | 0 | 0 | 0 | 11 |
+| `tap_grid/specs/spec-grid-service-write.md` | 10 | 0 | 0 | 0 | 0 | 10 |
+| `tap_grid/specs/spec-grid-sqlite-portability-BACKLOG.md` | 10 | 0 | 0 | 0 | 0 | 10 |
+| `tap_plugins/specs/spec-tap-plugin-type-ownership-v0.md` | 10 | 0 | 0 | 0 | 0 | 10 |
+| `tap_viz/specs/spec-viz-arrangement.md` | 10 | 0 | 0 | 0 | 0 | 10 |
+| `tap_web/specs/spec-web-panel-entity-resolution-v0.md` | 10 | 0 | 0 | 0 | 0 | 10 |
+| `specs/spec-cicd-root-of-trust.md` | 9 | 0 | 0 | 0 | 0 | 9 |
+| `specs/spec-rampart-demo-anwar.md` | 9 | 0 | 0 | 0 | 0 | 9 |
+| `specs/spec-tap-boot-bootstrap.md` | 10 | 1 | 0 | 0 | 0 | 9 |
+| `specs/spec-tap-flaw-v0.md` | 9 | 0 | 0 | 0 | 0 | 9 |
+| `specs/spec-tap-testing.md` | 9 | 0 | 0 | 0 | 0 | 9 |
+| `tap_grid/specs/spec-grid-search.md` | 9 | 0 | 0 | 0 | 0 | 9 |
+| `tap_grid/specs/spec-grid-traversal-execution.md` | 10 | 1 | 0 | 0 | 0 | 9 |
+| `tap_plugins/specs/spec-tap-plugin-load-lifecycle-v0.md` | 10 | 1 | 0 | 0 | 0 | 9 |
+| `tap_viz/specs/spec-viz-system.md` | 9 | 0 | 0 | 0 | 0 | 9 |
+| `tap_web/specs/spec-web-editor.md` | 9 | 0 | 0 | 0 | 0 | 9 |
+| `specs/spec-cicd-ai-review.md` | 8 | 0 | 0 | 0 | 0 | 8 |
+| `specs/spec-service-layer-boundary.md` | 9 | 1 | 0 | 0 | 0 | 8 |
+| `tap_grid/specs/spec-grid-edge.md` | 9 | 1 | 0 | 0 | 0 | 8 |
+| `tap_grid/specs/spec-grid-service.md` | 9 | 1 | 0 | 0 | 0 | 8 |
+| `tap_grid/specs/spec-grift-envelope.md` | 9 | 1 | 0 | 0 | 0 | 8 |
+| `tap_viz/specs/spec-viz-nesting.md` | 8 | 0 | 0 | 0 | 0 | 8 |
+| `tap_web/specs/spec-web-batch-viewer-v0.md` | 8 | 0 | 0 | 0 | 0 | 8 |
+| `tap_web/specs/spec-web-panels-standard-table.md` | 8 | 0 | 0 | 0 | 0 | 8 |
+| `tap_web/specs/spec-web-viewer.md` | 8 | 0 | 0 | 0 | 0 | 8 |
+| `specs/spec-dev-boot-collectors.md` | 7 | 0 | 0 | 0 | 0 | 7 |
+| `specs/spec-dev-multisession-diagnose.md` | 7 | 0 | 0 | 0 | 0 | 7 |
+| `specs/spec-dev-plugin-workspace.md` | 7 | 0 | 0 | 0 | 0 | 7 |
+| `specs/spec-fips.md` | 7 | 0 | 0 | 0 | 0 | 7 |
+| `specs/spec-sphinx-capability-docs.md` | 8 | 0 | 0 | 0 | 1 | 7 |
+| `tap_grid/specs/spec-grid-dual-existence.md` | 7 | 0 | 0 | 0 | 0 | 7 |
+| `tap_grid/specs/spec-grid-service-delete.md` | 7 | 0 | 0 | 0 | 0 | 7 |
+| `tap_grid/specs/spec-grid-user-BACKLOG.md` | 7 | 0 | 0 | 0 | 0 | 7 |
+| `tap_grid/specs/spec-grid-uuid-selection.md` | 7 | 0 | 0 | 0 | 0 | 7 |
+| `tap_grid/specs/spec-grift-subgraph.md` | 7 | 0 | 0 | 0 | 0 | 7 |
+| `tap_plugins/specs/spec-disclosure-flags-v0.md` | 7 | 0 | 0 | 0 | 0 | 7 |
+| `tap_viz/specs/spec-viz-align-distribute.md` | 7 | 0 | 0 | 0 | 0 | 7 |
+| `tap_viz/specs/spec-viz-shadows.md` | 7 | 0 | 0 | 0 | 0 | 7 |
+| `tap_viz/specs/spec-viz-status-badge-info.md` | 7 | 0 | 0 | 0 | 0 | 7 |
+| `tap_web/specs/spec-web-panel-data-export.md` | 7 | 0 | 0 | 0 | 0 | 7 |
+| `specs/spec-tap-callsite-identity.md` | 6 | 0 | 0 | 0 | 0 | 6 |
+| `specs/spec-tap-plugin-validation-distribution.md` | 6 | 0 | 0 | 0 | 0 | 6 |
+| `specs/spec.md` | 6 | 0 | 0 | 0 | 0 | 6 |
+| `tap_auth/specs/spec-tap-auth-passkey-v0.md` | 11 | 5 | 0 | 0 | 0 | 6 |
+| `tap_grid/specs/spec-grid-flip.md` | 6 | 0 | 0 | 0 | 0 | 6 |
+| `tap_grid/specs/spec-grid-history-timetravel-BACKLOG.md` | 6 | 0 | 0 | 0 | 0 | 6 |
+| `tap_grid/specs/spec-grid-hotlink.md` | 6 | 0 | 0 | 0 | 0 | 6 |
+| `tap_grid/specs/spec-grid-keystone.md` | 7 | 1 | 0 | 0 | 0 | 6 |
+| `tap_grid/specs/spec-grid-registry.md` | 6 | 0 | 0 | 0 | 0 | 6 |
+| `tap_grid/specs/spec-grid-security.md` | 7 | 1 | 0 | 0 | 0 | 6 |
+| `tap_grid/specs/spec-grid-user-context-BACKLOG.md` | 6 | 0 | 0 | 0 | 0 | 6 |
+| `tap_grid/specs/spec-grid-user-saml-BACKLOG.md` | 6 | 0 | 0 | 0 | 0 | 6 |
+| `tap_viz/specs/spec-viz-label-sizing-BACKLOG.md` | 6 | 0 | 0 | 0 | 0 | 6 |
+| `tap_web/specs/spec-web-panel.md` | 6 | 0 | 0 | 0 | 0 | 6 |
+| `tap_grid/specs/spec-grid-aliases-BACKLOG.md` | 5 | 0 | 0 | 0 | 0 | 5 |
+| `tap_grid/specs/spec-grid-history.md` | 5 | 0 | 0 | 0 | 0 | 5 |
+| `tap_grid/specs/spec-grid-icon.md` | 5 | 0 | 0 | 0 | 0 | 5 |
+| `tap_grid/specs/spec-grid-node.md` | 5 | 0 | 0 | 0 | 0 | 5 |
+| `tap_grid/specs/spec-grid-perspective-BACKLOG.md` | 5 | 0 | 0 | 0 | 0 | 5 |
+| `tap_plugins/specs/spec-tap-plugin-external-development.md` | 5 | 0 | 0 | 0 | 0 | 5 |
+| `tap_plugins/specs/spec-tap-plugin-testing.md` | 5 | 0 | 0 | 0 | 0 | 5 |
+| `tap_viz/specs/spec-viz-badges.md` | 5 | 0 | 0 | 0 | 0 | 5 |
+| `tap_viz/specs/spec-viz-elevation.md` | 5 | 0 | 0 | 0 | 0 | 5 |
+| `tap_web/specs/spec-web-panel-sequence-navigation-v0.md` | 5 | 0 | 0 | 0 | 0 | 5 |
+| `tap_web/specs/spec-web-tailwind-pipeline.md` | 5 | 0 | 0 | 0 | 0 | 5 |
+| `tap_web/specs/spec-web-time-display.md` | 5 | 0 | 0 | 0 | 0 | 5 |
+| `specs/spec-ai-integration.md` | 9 | 0 | 0 | 5 | 0 | 4 |
+| `specs/spec-dev-multisession-onboarding-doc.md` | 4 | 0 | 0 | 0 | 0 | 4 |
+| `specs/spec-dev-multisession-smoketest.md` | 4 | 0 | 0 | 0 | 0 | 4 |
+| `specs/spec-dev-playwright-refresh-doc.md` | 4 | 0 | 0 | 0 | 0 | 4 |
+| `specs/spec-tap-boot-observability.md` | 4 | 0 | 0 | 0 | 0 | 4 |
+| `specs/spec-tap-health-v0.md` | 10 | 6 | 0 | 0 | 0 | 4 |
+| `specs/spec-tap-json-files.md` | 7 | 3 | 0 | 0 | 0 | 4 |
+| `tap_grid/specs/spec-grid-service-read.md` | 4 | 0 | 0 | 0 | 0 | 4 |
+| `tap_web/specs/spec-web-panels-chart.md` | 4 | 0 | 0 | 0 | 0 | 4 |
+| `tap_web/specs/spec-web-panels-standard-flip.md` | 4 | 0 | 0 | 0 | 0 | 4 |
+| `tap_web/specs/spec-web-panels-standard-history.md` | 4 | 0 | 0 | 0 | 0 | 4 |
+| `specs/spec-dev-multisession-teardown.md` | 3 | 0 | 0 | 0 | 0 | 3 |
+| `specs/spec-dev-playwright-refresh.md` | 3 | 0 | 0 | 0 | 0 | 3 |
+| `specs/spec-tap-static-assets.md` | 3 | 0 | 0 | 0 | 0 | 3 |
+| `specs/spec-tap-tree-scanner.md` | 4 | 1 | 0 | 0 | 0 | 3 |
+| `tap_grid/specs/spec-grid-dimension.md` | 3 | 0 | 0 | 0 | 0 | 3 |
+| `tap_grid/specs/spec-grid-service-errors.md` | 3 | 0 | 0 | 0 | 0 | 3 |
+| `tap_grid/specs/spec-grift-seed-ids-real-uuid7.md` | 3 | 0 | 0 | 0 | 0 | 3 |
+| `tap_web/specs/spec-web-panel-security.md` | 3 | 0 | 0 | 0 | 0 | 3 |
+| `tap_web/specs/spec-web-panels-standard.md` | 3 | 0 | 0 | 0 | 0 | 3 |
+| `specs/spec-req-template.md` | 2 | 0 | 0 | 0 | 0 | 2 |
+| `specs/spec-security-posture.md` | 5 | 0 | 0 | 4 | 0 | 1 |
+| `specs/spec-tap-known-dupes.md` | 1 | 0 | 0 | 0 | 0 | 1 |
+| `specs/spec-tap-requirement-traceability.md` | 11 | 9 | 1 | 0 | 0 | 1 |
+| `specs/spec-tap-settings.md` | 1 | 0 | 0 | 0 | 0 | 1 |
+| `tap_plugins/specs/spec-tap-plugin-lifecycle-v1.md` | 1 | 0 | 0 | 0 | 0 | 1 |
+| `specs/spec-roadmap.md` | 10 | 0 | 0 | 10 | 0 | 0 |
+
+<!-- END GENERATED ACCOUNTING -->
 
 ## Relationship To Other Specs
 

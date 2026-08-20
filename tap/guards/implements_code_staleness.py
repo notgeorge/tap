@@ -1,5 +1,8 @@
 """Implementation-claim code staleness guard — `req-tap-traceability-code-staleness`.
 
+TAP-IMPLEMENTS: req-tap-traceability-code-staleness@edce7b8f372e/4685f95c180c (enforcement) —
+    the guard that fails Drifted and Unstamped claims until re-verified and re-stamped.
+
 The inverse direction of `implements_staleness`: a claim also carries a fingerprint of the
 **code it sits on** — `semantic_hash` over the claimed scope's positions-stripped AST, all
 docstrings excluded. When the scope is semantically edited, the claim reports `Drifted`:

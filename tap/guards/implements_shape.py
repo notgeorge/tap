@@ -1,5 +1,8 @@
 """Implementation-claim shape guard — `req-tap-traceability-claim`.
 
+TAP-IMPLEMENTS: req-tap-traceability-claim@5b3a517c247e/d0ab55728c49 (enforcement) — the guard
+    that fails malformed and near-miss claims closed.
+
 A line that attempts the claim grammar and misses is a **failure**, not a line to skip.
 
 This is the lesson clippy's safety-comment lint learned the hard way: `// SAFTEY:` reports

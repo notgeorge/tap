@@ -63,8 +63,19 @@ class Command(BaseCommand):
                 "spec-tap-requirement-traceability.md (reviewed changes only)."
             ),
         )
+        parser.add_argument(
+            "--sync-accounting",
+            action="store_true",
+            help=(
+                "Write the generated full-corpus accounting into the marked block in "
+                "spec-tap-requirement-traceability.md (reviewed changes only)."
+            ),
+        )
 
     def handle(self, *args: Any, **options: Any) -> None:
+        if options["sync_accounting"]:
+            self._sync_accounting()
+            return
         if options["sync_evidence"]:
             self._sync_evidence()
             return
@@ -126,6 +137,27 @@ class Command(BaseCommand):
             ) from exc
         path.write_text(before + render_evidence_markdown(REPO_ROOT) + after, encoding="utf-8")
         self.stdout.write("Synced the generated evidence report into spec-tap-requirement-traceability.md.")
+
+    def _sync_accounting(self) -> None:
+        """Replace the marked block in the traceability spec with the full-corpus accounting.
+
+        The evidence report's complement: that one is read for contradictions, this one for
+        progress — the Unaccounted headline is the Definition of Done's progress bar
+        (`req-tap-traceability-accounting-3`).
+        """
+        from tap.spec_trace import ACCOUNTING_BEGIN, ACCOUNTING_END, render_accounting_markdown
+
+        path = REPO_ROOT / "specs" / "spec-tap-requirement-traceability.md"
+        text = path.read_text(encoding="utf-8")
+        try:
+            before, rest = text.split(ACCOUNTING_BEGIN, 1)
+            _, after = rest.split(ACCOUNTING_END, 1)
+        except ValueError as exc:
+            raise CommandError(
+                f"Could not find the accounting markers ({ACCOUNTING_BEGIN!r} … {ACCOUNTING_END!r}) in {path}."
+            ) from exc
+        path.write_text(before + render_accounting_markdown(REPO_ROOT) + after, encoding="utf-8")
+        self.stdout.write("Synced the generated accounting into spec-tap-requirement-traceability.md.")
 
     def _sync_map(self) -> None:
         """Replace the marked block in spec-dev-validation.md with the generated Map."""
