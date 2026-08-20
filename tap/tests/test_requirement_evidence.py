@@ -55,10 +55,13 @@ def _tree(tmp_path: Path, *, status: str, claim: bool = False, test: bool = Fals
     if claim:
         from tap.spec_trace import load_corpus
 
+        from tap.spec_trace import CODE_HASH_PLACEHOLDER
+
         digest = load_corpus(tmp_path).requirements["req-example-alpha"].content_hash
         source += (
             f'def derive():\n    """Derives it.\n\n'
-            f'    {_TOKEN}: req-example-alpha@{digest} (derivation) — the one place.\n    """\n\n\n'
+            f"    {_TOKEN}: req-example-alpha@{digest}/{CODE_HASH_PLACEHOLDER} (derivation) — the one place."
+            f'\n    """\n\n\n'
         )
     if test:
         source += 'import pytest\n\n\n@pytest.mark.spec("req-example-alpha-1")\ndef test_it():\n    pass\n'

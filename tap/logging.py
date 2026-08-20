@@ -243,7 +243,7 @@ def build_logging_config(
 ) -> dict[str, Any]:
     """Build the `dictConfig`-shaped dict for `settings.LOGGING`.
 
-    TAP-IMPLEMENTS: req-tap-logging-config-location@2eec970aa550 (derivation) — the one
+    TAP-IMPLEMENTS: req-tap-logging-config-location@2eec970aa550/51ee0f46ed71 (derivation) — the one
         assembly of the logging config; ``settings.LOGGING`` is this function's return
         value and nothing else composes the dict.
 

@@ -3,12 +3,20 @@
 #
 # A claim declares that a function IS the authoritative derivation of a requirement's fact:
 #
-#   TAP-IMPLEMENTS: req-grid-table-classification.sec@a3f9c1d2e5b7 (derivation) — <why>
+#   TAP-IMPLEMENTS: req-grid-table-classification.sec@a3f9c1d2e5b7/0f9e8d7c6b5a (derivation) — <why>
 #
-# The hash is a digest of the requirement's text. When the requirement changes, every claim
-# still carrying the old hash reports Outdated and the implementation must be re-read
-# against the new wording. That is the whole point: a link that merely exists is not a link
-# that is true (req-tap-traceability-staleness).
+# The claim fingerprints BOTH ends of the link (@<spec-hash>/<code-hash>). The spec hash is
+# a digest of the requirement's text: when the requirement changes, the claim reports
+# Outdated and the implementation must be re-read against the new wording
+# (req-tap-traceability-staleness). The code hash is a digest of the claimed scope's
+# positions-stripped AST: when the code is semantically edited, the claim reports Drifted
+# and must be re-verified against the requirement (req-tap-traceability-code-staleness).
+# Either way, a link that merely exists is not a link that is true.
+#
+# Minting emits a placeholder (------------) in the code-hash position — the code hash can
+# only be computed from where the claim actually lands. Paste the line into the docstring,
+# then run --resync <path> to stamp it; an unstamped claim fails the code-staleness guard,
+# so the second step cannot be forgotten.
 #
 # NEVER hand-type a claim. Gerrit's Change-Id essentially never rots and draws no
 # complaints because a hook mints it; the kernel's hand-typed Fixes: has needed a
@@ -19,9 +27,9 @@
 # Spec: specs/spec-tap-requirement-traceability.md (req-tap-traceability-minting).
 #
 # Usage:
-#   scripts/implements-tag <rid> [role]     # print a complete, pre-hashed claim line
-#   scripts/implements-tag --check          # list malformed, unresolvable and stale claims
-#   scripts/implements-tag --resync <path>  # re-stamp stale claims in a file, after review
+#   scripts/implements-tag <rid> [role]     # print a pre-hashed claim line (code hash: placeholder)
+#   scripts/implements-tag --check          # list malformed, unresolvable, stale and drifted claims
+#   scripts/implements-tag --resync <path>  # re-stamp stale/drifted/unstamped claims in a file, after review
 
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
@@ -34,7 +42,9 @@ sys.path.insert(0, str(Path.cwd()))
 
 from tap.spec_trace import (  # noqa: E402
     CLAIM_ROLES,
+    CODE_HASH_PLACEHOLDER,
     collect_claims,
+    drifted_claims,
     invalid_claims,
     load_corpus,
     malformed_claims,
@@ -61,6 +71,15 @@ if args[0] == "--check":
     for claim, expected in stale_claims(repo_root):
         print(f"OUTDATED   {claim.where(repo_root)}  |  {claim.rid} @{claim.recorded_hash} -> @{expected}")
         problems += 1
+    for claim in drifted_claims(repo_root):
+        if claim.unstamped:
+            print(f"UNSTAMPED  {claim.where(repo_root)}  |  {claim.rid} — minted, never resynced; run --resync")
+        else:
+            print(
+                f"DRIFTED    {claim.where(repo_root)}  |  {claim.rid} code @{claim.recorded_code_hash} "
+                f"-> @{claim.code_hash}"
+            )
+        problems += 1
     if problems == 0:
         claims, _ = collect_claims(repo_root, python_scan_roots(repo_root))
         print(f"{len(claims)} claim(s), all well-formed, resolving and current.")
@@ -72,24 +91,37 @@ if args[0] == "--resync":
         print("--resync needs a path", file=sys.stderr)
         sys.exit(2)
     target = Path(args[1]).resolve()
+    corpus = load_corpus(repo_root)
+    claims, _ = collect_claims(repo_root, python_scan_roots(repo_root))
+    # Line-addressed, not whole-file replace: two scopes in one file can carry byte-identical
+    # claim strings (same rid, both unstamped) while needing DIFFERENT code hashes, and a
+    # global replace would stamp both sites with the first scope's digest.
+    lines = target.read_text(encoding="utf-8").splitlines(keepends=True)
     rewritten = 0
-    text = target.read_text(encoding="utf-8")
-    for claim, expected in stale_claims(repo_root):
+    for claim in claims:
         if claim.path.resolve() != target:
             continue
-        old = f"{claim.rid}@{claim.recorded_hash}"
-        new = f"{claim.rid}@{expected}"
-        if old in text:
-            text = text.replace(old, new)
-            rewritten += 1
-            print(f"resynced {claim.rid}: @{claim.recorded_hash} -> @{expected}")
+        requirement = corpus.requirements.get(claim.rid)
+        # An unresolvable rid is invalid_claims' finding; keep its spec hash as recorded.
+        spec_hash = requirement.content_hash if requirement is not None else claim.recorded_hash
+        old = f"{claim.rid}@{claim.recorded_hash}/{claim.recorded_code_hash}"
+        new = f"{claim.rid}@{spec_hash}/{claim.code_hash}"
+        index = claim.lineno - 1
+        if old == new or not (0 <= index < len(lines)) or old not in lines[index]:
+            continue
+        lines[index] = lines[index].replace(old, new)
+        rewritten += 1
+        print(
+            f"resynced {claim.rid} ({claim.qualname}): "
+            f"@{claim.recorded_hash}/{claim.recorded_code_hash} -> @{spec_hash}/{claim.code_hash}"
+        )
     if rewritten:
-        target.write_text(text, encoding="utf-8")
+        target.write_text("".join(lines), encoding="utf-8")
         print(f"\n{rewritten} claim(s) re-stamped in {args[1]}.")
-        print("Re-read the implementation against the new requirement text before committing —")
+        print("Re-verify the implementation against the requirement text before committing —")
         print("the re-stamp records that you checked, it does not check for you.")
     else:
-        print(f"no stale claims in {args[1]}")
+        print(f"no stale, drifted or unstamped claims in {args[1]}")
     sys.exit(0)
 
 # --- mint ----------------------------------------------------------------------------
@@ -109,5 +141,9 @@ if requirement is None:
         print(f"{rid} is not defined in any spec.", file=sys.stderr)
     sys.exit(2)
 
-print(f"TAP-IMPLEMENTS: {rid}@{requirement.content_hash} ({role}) — <why this is the one derivation>")
+print(f"TAP-IMPLEMENTS: {rid}@{requirement.content_hash}/{CODE_HASH_PLACEHOLDER} ({role}) — <why this is the one derivation>")
+print(
+    "after pasting into the docstring, stamp the code hash:  scripts/implements-tag --resync <file>",
+    file=sys.stderr,
+)
 PY

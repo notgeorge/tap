@@ -31,6 +31,7 @@ citations. This file is its own first dogfood.
 from __future__ import annotations
 
 import ast
+import copy
 import re
 import tokenize
 from collections.abc import Iterator
@@ -80,7 +81,13 @@ CLAIM_ROLES = frozenset({"derivation", "enforcement", "surface"})
 # Assembled by concatenation so this module — and anything quoting the grammar — never
 # matches its own source. Same idiom as `tap/guards/known_dupes.py`.
 _CLAIM_TOKEN = "TAP-" + "IMPLEMENTS"
-_CLAIM_RE = re.compile(rf"{_CLAIM_TOKEN}:\s*({_RID_BODY})@([0-9a-f]{{12}})\s*\(([a-z]+)\)")
+#: What `implements-tag` mints in the code-hash position before the claim is placed. The
+#: code hash can only be computed from the claim's *actual* placement, so minting emits
+#: this and `--resync` stamps the real digest once the claim is in its docstring
+#: (`req-tap-traceability-code-staleness-3`). A placeholder is well-formed but fails the
+#: code-staleness guard, so an unstamped claim cannot be forgotten.
+CODE_HASH_PLACEHOLDER = "-" * 12
+_CLAIM_RE = re.compile(rf"{_CLAIM_TOKEN}:\s*({_RID_BODY})@([0-9a-f]{{12}})/([0-9a-f]{{12}}|-{{12}})\s*\(([a-z]+)\)")
 # Anything that *looks* like an attempt. A near-miss must fail loudly rather than be
 # skipped: a misspelled tag otherwise reports "no claim here" and the typo goes unnoticed
 # — the documented failure mode of clippy's `SAFTEY:` hole (`req-tap-traceability-claim-3`).
@@ -96,6 +103,7 @@ _CONVENTION_MODULES = frozenset(
         "tap/guards/implements_integrity.py",
         "tap/guards/implements_uniqueness.py",
         "tap/guards/implements_staleness.py",
+        "tap/guards/implements_code_staleness.py",
         "tap/tests/test_spec_trace.py",
         "tap/tests/test_implements_claims.py",
     }
@@ -108,10 +116,20 @@ class Claim:
 
     rid: str
     recorded_hash: str
+    #: The code-side fingerprint the claim was stamped with (`@<spec-hash>/<code-hash>`),
+    #: or `CODE_HASH_PLACEHOLDER` when minted but not yet resynced.
+    recorded_code_hash: str
     role: str
     qualname: str
     path: Path
     lineno: int
+    #: The claimed scope's *current* code hash, computed from the tree at collection time.
+    code_hash: str
+
+    @property
+    def unstamped(self) -> bool:
+        """Minted but never resynced — the code-hash position still holds the placeholder."""
+        return self.recorded_code_hash == CODE_HASH_PLACEHOLDER
 
     def where(self, repo_root: Path) -> str:
         rel = self.path.relative_to(repo_root).as_posix()
@@ -138,12 +156,46 @@ class MalformedClaim:
         return f"{self.path.relative_to(repo_root).as_posix()}:{self.lineno}"
 
 
+_DOCSTRING_OWNERS = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+
+
+def _strip_docstrings(node: ast.AST) -> ast.AST:
+    """Remove every docstring in the subtree, in place. Callers pass a deep copy."""
+    for child in ast.walk(node):
+        if not isinstance(child, _DOCSTRING_OWNERS):
+            continue
+        body = child.body
+        if (
+            body
+            and isinstance(body[0], ast.Expr)
+            and isinstance(body[0].value, ast.Constant)
+            and isinstance(body[0].value.value, str)
+        ):
+            del body[0]
+    return node
+
+
+def code_hash_of(node: ast.AST) -> str:
+    """The code-side fingerprint of a claimed scope (`req-tap-traceability-code-staleness`).
+
+    `semantic_hash` over a positions-stripped `ast.dump` of the scope — the callsite-identity
+    recipe, so formatting, comments and pure moves never churn the digest while any semantic
+    edit does. Every docstring in the subtree is excluded, not just the claimed scope's own:
+    the claim line lives *inside* a docstring, so hashing docstrings would make stamping the
+    hash change the hash (a fixpoint), and a nested claim's re-stamp would cascade-churn every
+    enclosing claim. The accepted blind spot — a docstring-only edit does not churn — is
+    documentation, not behavior.
+    """
+    stripped = _strip_docstrings(copy.deepcopy(node))
+    return semantic_hash(ast.dump(stripped, include_attributes=False))
+
+
 class _DocstringVisitor(ast.NodeVisitor):
-    """Collects (qualname, docstring, lineno) for every module, class and function."""
+    """Collects (qualname, docstring, lineno, node) for every module, class and function."""
 
     def __init__(self) -> None:
         self.scope: list[str] = []
-        self.found: list[tuple[str, str, int]] = []
+        self.found: list[tuple[str, str, int, ast.AST]] = []
 
     def _record(self, node: ast.AST, qualname: str) -> None:
         doc = ast.get_docstring(node, clean=False)  # type: ignore[arg-type]
@@ -151,7 +203,7 @@ class _DocstringVisitor(ast.NodeVisitor):
             return
         body = getattr(node, "body", None)
         lineno = getattr(body[0], "lineno", 1) if body else 1
-        self.found.append((qualname, doc, lineno))
+        self.found.append((qualname, doc, lineno, node))
 
     def visit_Module(self, node: ast.Module) -> None:
         self._record(node, "<module>")
@@ -188,19 +240,24 @@ def collect_claims(repo_root: Path, source_roots: list[Path]) -> tuple[list[Clai
             continue
         visitor = _DocstringVisitor()
         visitor.visit(parsed.tree)
-        for qualname, doc, doc_lineno in visitor.found:
+        for qualname, doc, doc_lineno, node in visitor.found:
+            scope_hash: str | None = None  # computed once per claimed scope, only when claimed
             for offset, line in enumerate(doc.splitlines()):
                 lineno = doc_lineno + offset
                 match = _CLAIM_RE.search(line)
                 if match is not None:
+                    if scope_hash is None:
+                        scope_hash = code_hash_of(node)
                     claims.append(
                         Claim(
                             rid=match.group(1),
                             recorded_hash=match.group(2),
-                            role=match.group(3),
+                            recorded_code_hash=match.group(3),
+                            role=match.group(4),
                             qualname=qualname,
                             path=parsed.path,
                             lineno=lineno,
+                            code_hash=scope_hash,
                         )
                     )
                 elif _CLAIM_NEAR_MISS_RE.search(line):
@@ -459,6 +516,22 @@ def stale_claims(repo_root: Path) -> list[tuple[Claim, str]]:
         if claim.recorded_hash != requirement.content_hash:
             stale.append((claim, requirement.content_hash))
     return stale
+
+
+def drifted_claims(repo_root: Path) -> list[Claim]:
+    """Claims whose recorded code hash no longer matches the claimed scope (`Drifted`).
+
+    The inverse direction of `stale_claims`: there the *requirement* moved under the claim;
+    here the *code* did, and the claim asserts verification of a scope that no longer exists
+    as verified. Includes unstamped claims (the mint placeholder never matches a real digest)
+    — consumers split the two via `Claim.unstamped`, because the operator message differs.
+
+    Deliberately independent of the spec corpus: a claim whose requirement fails to resolve
+    is `invalid_claims`' finding, but its code can drift too, and those are different defects
+    on different ends of the link.
+    """
+    claims, _ = collect_claims(repo_root, python_scan_roots(repo_root))
+    return [c for c in claims if c.recorded_code_hash != c.code_hash]
 
 
 def duplicate_claim_groups(repo_root: Path) -> dict[tuple[str, str], list[Claim]]:

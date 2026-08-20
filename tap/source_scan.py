@@ -1,6 +1,6 @@
 """Shared source-scanning primitives for TAP's static, tree-walking checks.
 
-TAP-IMPLEMENTS: req-tap-tree-scanner-substrate@8b611e0366de (derivation) — the one home of
+TAP-IMPLEMENTS: req-tap-tree-scanner-substrate@8b611e0366de/1f2595e8d933 (derivation) — the one home of
 the parse-driver / decorator / call-name / scope-stack mechanics every tree scanner shares;
 a scanner hand-rolling any of the four is the duplication this module exists to end.
 

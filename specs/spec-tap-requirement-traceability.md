@@ -91,6 +91,7 @@ directly — see `req-tap-traceability-uniqueness`.
 | req-tap-traceability-roles | [Role Vocabulary](#role-vocabulary) | Implemented | A closed set — a requirement is often realized at several layers, all legitimately |
 | req-tap-traceability-uniqueness | [One Claim Per Role](#one-claim-per-role) | Implemented | Duplicate claims fail unless every site carries a `TAP-KNOWN-DUPE` group |
 | req-tap-traceability-staleness | [Claims Detect Requirement Change](#claims-detect-requirement-change) | Implemented | Content hash of the requirement; a changed requirement orphans its claims |
+| req-tap-traceability-code-staleness | [Claims Detect Code Change](#claims-detect-code-change) | Implemented | Content hash of the claimed scope's AST; a semantically edited scope orphans its claims — the code end of the link, fingerprinted like the spec end |
 | req-tap-traceability-minting | [Minted, Not Typed](#minted-not-typed) | Implemented | `scripts/implements-tag` emits the complete pre-hashed line |
 | req-tap-traceability-scope | [Scarce And Targeted](#scarce-and-targeted) | Implemented | Claims are opt-in per requirement; absence is never a defect |
 | req-tap-traceability-status | [Status Follows Evidence](#status-follows-evidence) | Implemented | A generated evidence report; `Verified` requires two independent evidence classes |
@@ -110,12 +111,15 @@ a requirement's fact:
 def grid_tables() -> set[str]:
     """Every table the grid owns.
 
-    TAP-IMPLEMENTS: req-example-alpha@a3f9c1d2e5b7 (derivation) — the read backstop and the
-        search-role grant both read this; neither may re-derive the set.
+    TAP-IMPLEMENTS: req-example-alpha@a3f9c1d2e5b7/0f9e8d7c6b5a (derivation) — the read backstop
+        and the search-role grant both read this; neither may re-derive the set.
     """
 ```
 
-Grammar: `TAP-IMPLEMENTS: <rid>@<hash> (<role>) — <reason>`.
+Grammar: `TAP-IMPLEMENTS: <rid>@<spec-hash>/<code-hash> (<role>) — <reason>`. The claim
+fingerprints **both ends of the link**: the requirement's text (`req-tap-traceability-staleness`)
+and the claimed scope's code (`req-tap-traceability-code-staleness`), each verified together at
+stamp time.
 
 #### Implementation
 
@@ -138,7 +142,7 @@ Grammar: `TAP-IMPLEMENTS: <rid>@<hash> (<role>) — <reason>`.
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-traceability-claim-1 | Claim grammar | Implemented | A claim is `TAP-IMPLEMENTS: <rid>@<hash> (<role>) — <reason>` in a function, class or module docstring. | |
+| req-tap-traceability-claim-1 | Claim grammar | Implemented | A claim is `TAP-IMPLEMENTS: <rid>@<spec-hash>/<code-hash> (<role>) — <reason>` in a function, class or module docstring. | The single-hash form is malformed — it fails closed, never parses as a claim without a code fingerprint. |
 | req-tap-traceability-claim-2 | Parsed from source | Implemented | Claims are read via `ast.get_docstring()` from source, never from `__doc__` at runtime. | `-OO` and `functools.wraps` both corrupt the runtime reading. |
 | req-tap-traceability-claim-3 | Near-misses fail closed | Implemented | A malformed claim fails the shape guard rather than being skipped. | ~60% of real-world tag failures are shape, not staleness. |
 
@@ -254,6 +258,61 @@ acceptance-criteria table — meaning lives there, narrative does not.
 
 ---
 
+### Claims Detect Code Change
+----
+RID: `req-tap-traceability-code-staleness`
+Status: `Implemented`
+
+A claim also carries a **content hash of the code it sits on**. When the claimed scope is
+semantically edited, every claim still stamped with the old hash reports `Drifted` — the code must
+be re-verified against the requirement, then re-stamped.
+
+This is the inverse direction of `req-tap-traceability-staleness`, and without it the whole
+convention has a blind side: rewrite a claimed function so it no longer does what the requirement
+says, and every spec-side check stays green, because the spec never moved. The claim asserts "this
+scope was verified against this text" — fingerprinting both ends is what makes that assertion
+un-fakeable over time. Doorstop is the prior art: its links carry a SHA-256 of the linked item at
+last review, and a changed item makes the link *suspect* until a human re-reviews and re-stamps.
+
+#### Implementation
+
+- **The digest is the callsite-identity recipe** (`req-tap-callsite-identity-discriminator`):
+  `semantic_hash` over a positions-stripped `ast.dump` of the claimed scope — function, class or
+  module, whatever owns the docstring. Formatting, comments and pure moves never churn the digest;
+  any semantic edit does. `black` waves and file reorganizations cost nothing.
+- **Every docstring in the subtree is excluded from the digest**, not just the claimed scope's own.
+  The claim line lives *inside* a docstring, so hashing docstrings would make stamping the hash
+  change the hash (a fixpoint problem — the mirror of excluding the `Status:` line from the spec
+  hash), and a nested claim's re-stamp would cascade-churn every enclosing claim.
+- **Minting emits a placeholder** (`------------`) in the code-hash position. The code hash can
+  only be computed from the claim's *actual* placement, which the mint tool cannot know; the flow
+  is paste, then `scripts/implements-tag --resync <path>`, which stamps the digest from where the
+  claim really landed. An unstamped claim is well-formed but **fails this guard**, so the second
+  step cannot be forgotten — placeholder-then-resync keeps "minted, not typed" honest without
+  asking the author to hand-type a qualname.
+- The guard is a hard lint, no baseline: a drifted claim is always actionable, and the fix is one
+  command. `--check` reports the two states distinctly (`DRIFTED` vs `UNSTAMPED`) because the
+  operator action differs in emphasis: one is a re-verification, the other an unfinished mint.
+
+**Named residuals.** The hash detects edits **to the claimed scope only** — behavior drifting in a
+callee, or the requirement violated elsewhere entirely, never touches the claimed AST and stays
+green; the test-cited-ACID evidence class remains the behavioral check. Docstring-only edits do not
+churn (documentation, not behavior — accepted). A *module*-level claim churns on any semantic edit
+anywhere in the module; deliberate, and the same aggressive-precision bet as hashing the whole
+requirement body: if the whole module is the derivation, any edit to it deserves the re-read, and
+re-stamping is cheap.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-traceability-code-staleness-1 | Changed code orphans claims | Implemented | A semantic edit to a claimed scope makes every claim stamped with the prior code hash report `Drifted`. | The code end of the ASPICE "existence is not consistency" principle. |
+| req-tap-traceability-code-staleness-2 | Cosmetic edits do not churn | Implemented | Formatting, comments, docstring edits and pure moves leave the code hash unchanged. | Positions-stripped AST, docstrings excluded. |
+| req-tap-traceability-code-staleness-3 | Placeholder fails closed | Implemented | A claim carrying the mint placeholder parses but fails the code-staleness guard until `--resync` stamps it. | The forgettable second step, made unforgettable. |
+| req-tap-traceability-code-staleness-4 | Re-stamp is self-stable | Implemented | Stamping or re-stamping a claim never changes the code hash being stamped. | Docstrings are outside the digest, so the write is a fixpoint. |
+
+---
+
 ### Minted, Not Typed
 ----
 RID: `req-tap-traceability-minting`
@@ -265,8 +324,10 @@ Status: `Implemented`
 
 - The shape is `scripts/log-site-id`'s exactly: bash plus inline stdlib `python3`, anchored at the
   git toplevel, bare copy-pasteable output, a header naming its RID and spec.
-- Modes: emit a claim for a RID and role; `--check` to list stale and dangling claims; `--resync` to
-  re-stamp a claim after a reviewed spec change.
+- Modes: emit a claim for a RID and role (spec hash current, code hash as the mint placeholder —
+  see `req-tap-traceability-code-staleness-3`); `--check` to list malformed, dangling, stale,
+  drifted and unstamped claims; `--resync` to re-stamp both hashes after a reviewed spec or code
+  change.
 - Advertised in the **Developer token tools** block of both `CLAUDE.md` and `AGENTS.md`, alongside
   `scripts/uuid7` and `scripts/log-site-id`. This is not decoration: the AGENTS.md evaluation
   measured tools *named* in the context file being used 1.6 times per instance versus under 0.01
@@ -279,8 +340,8 @@ Status: `Implemented`
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-traceability-minting-1 | Tool emits the complete line | Implemented | `scripts/implements-tag <rid> [role]` prints a full claim with the current hash. | |
-| req-tap-traceability-minting-2 | Re-stamp is one command | Implemented | `--resync` updates a stale claim's hash after review. | Friction belongs in the review, not the mechanics. |
+| req-tap-traceability-minting-1 | Tool emits the complete line | Implemented | `scripts/implements-tag <rid> [role]` prints a full claim with the current spec hash and the code-hash placeholder. | |
+| req-tap-traceability-minting-2 | Re-stamp is one command | Implemented | `--resync` updates a claim's spec and code hashes after review — stale, drifted and unstamped alike. | Friction belongs in the review, not the mechanics. |
 | req-tap-traceability-minting-3 | Advertised to agents | Implemented | The tool is listed in the developer-token-tools block of `CLAUDE.md` and `AGENTS.md`. | Named tools get used; unnamed ones do not. |
 
 ---
@@ -414,7 +475,7 @@ Generated — do not hand-edit. Regenerate with `manage.py guards --sync-evidenc
 
 <!-- BEGIN GENERATED EVIDENCE — manage.py guards --sync-evidence -->
 
-**1129** requirements · **19** standing doctrine · **1** disputed · **30** carry evidence · **1** carry both classes · **497** declared built with none.
+**1130** requirements · **19** standing doctrine · **1** disputed · **30** carry evidence · **1** carry both classes · **498** declared built with none.
 
 Separate facts, deliberately not blended into one percentage. **Doctrine** is outside the coverage question — in force now, never "completed", expecting conformance rather than an implementation. **Disputed** marks a spec-versus-implementation disagreement awaiting a human ruling — its claims are pointers to the contested code, never resolution, and the count should trend to zero. **Declared built with none** is context, not a defect list: claims are opt-in and scarce by design (`req-tap-traceability-scope`), so it measures how much of the corpus has been deliberately targeted, not how much is wrong. Collapsing these into a single coverage score is what makes such a score meaningless.
 

@@ -1342,7 +1342,7 @@ class Keystone(BaseModel):
     def validate(self) -> None:
         """Self-describing-context contract (req-grid-keystone-validation).
 
-        TAP-IMPLEMENTS: req-grid-keystone-validation@5d6b0a36a8c2 (derivation) — the
+        TAP-IMPLEMENTS: req-grid-keystone-validation@5d6b0a36a8c2/a6d8edf0891f (derivation) — the
             whole-record hook is the one place the three context rules are derived;
             every service-layer / GRIFT write reaches them through full_validate().
 

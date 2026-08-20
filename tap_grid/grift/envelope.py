@@ -103,7 +103,7 @@ class SplitPayload:
 def parse_envelope_for_write(env: dict[str, Any]) -> SplitPayload:
     """Split an envelope into Entity / BaseModel write payloads.
 
-    TAP-IMPLEMENTS: req-grift-envelope-validation@e5bea30bacdf (derivation) — the spec names
+    TAP-IMPLEMENTS: req-grift-envelope-validation@e5bea30bacdf/4765a95f6f3f (derivation) — the spec names
         this function as the canonical implementation; any future envelope-shaped write API
         routes through it rather than reinventing the validate-and-split logic.
 

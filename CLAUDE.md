@@ -268,9 +268,13 @@ Developer token tools (use these instead of hand-rolling identifiers)
                                — mint an implementation claim declaring that a function IS
                                  the authoritative derivation of a requirement's fact
                                  (req-tap-traceability-minting). Roles: derivation |
-                                 enforcement | surface. Also --check (list malformed /
-                                 unresolvable / stale claims) and --resync <path> (re-stamp
-                                 after a reviewed spec change). Never hand-type the hash.
+                                 enforcement | surface. Claims fingerprint BOTH ends
+                                 (@<spec-hash>/<code-hash>); mint emits a code-hash
+                                 placeholder — paste, then --resync <path> stamps it (an
+                                 unstamped claim fails the guard). Also --check (list
+                                 malformed / unresolvable / stale / drifted claims) and
+                                 --resync <path> (re-stamp after a reviewed spec or code
+                                 change). Never hand-type a hash.
 
 Documentation (specs ↔ docs alignment)
     Specs (specs/, <app>/specs/) are authoritative for behavior. Docs (docs/) are derived how-to surfaces.

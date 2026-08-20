@@ -92,6 +92,7 @@ block. Rich per-surface rationale lives in each owning spec and in each guard's
 | Family-B public surface (pre-boot/boot) | `req-service-boundary-family-b-surface` | Per-commit (`pytest`) | CI-guarded | `tap.guards.public_surface` (via `tap/tests/test_guards.py`) |
 | FIPS mode enforcement (declared vs actual) | `req-cicd-base-image-lifecycle-6` | Per-boot (`docker/entrypoint.sh`) | Boot-gated (fail-closed) | `tap.fips` (`python -m tap.fips`): executes crypto and asserts a non-approved primitive is refused when TAP_FIPS_MODE=1 — proves the declared mode is enforced, never inspects files (D13/D15); TAP-ABORT on mismatch |
 | Guard-system integrity | `req-dev-validation-meta-integrity-3` | Per-commit (`pytest`) | CI-guarded | `tap.guards.guard_integrity` (via `tap/tests/test_guards.py`) |
+| Implementation claim code staleness | `req-tap-traceability-code-staleness` | Per-commit (`pytest`) | CI-guarded | `tap.guards.implements_code_staleness` (via `tap/tests/test_guards.py`) |
 | Implementation claim integrity | `req-tap-traceability-roles` | Per-commit (`pytest`) | CI-guarded | `tap.guards.implements_integrity` (via `tap/tests/test_guards.py`) |
 | Implementation claim shape | `req-tap-traceability-claim` | Per-commit (`pytest`) | CI-guarded | `tap.guards.implements_shape` (via `tap/tests/test_guards.py`) |
 | Implementation claim staleness | `req-tap-traceability-staleness` | Per-commit (`pytest`) | CI-guarded | `tap.guards.implements_staleness` (via `tap/tests/test_guards.py`) |
