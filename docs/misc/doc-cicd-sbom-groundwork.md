@@ -125,6 +125,14 @@ that produced `req-cicd-supply-chain-provenance-2` (spec-cicd-hardening.md):
   attested bytes" was implied by image immutability, never verified at use. The fix is
   a build-time hash manifest of the seed + fail-closed entrypoint verification before
   seeding (TAP-ABORT on mismatch).
+* **Tightened on review (Codex 2026-08-20, accepted in full):** verification is a full
+  bidirectional reconciliation (mismatch + missing + EXTRA files — a padded seed must
+  not pass); manifest keys on relative paths and excludes itself (generated under
+  `/root/.cache/uv`, verified under `/opt/uv-cache-seed`); absent seed MAY degrade,
+  present-but-invalid MUST abort (the entrypoint's "degrades cleanly" comment splits
+  accordingly); verifier is stdlib-only Python (pre-venv, BusyBox-proof); result is
+  machine-legible boot evidence, with an early pre-boot scratch record satisfying the
+  before-tap.preboot timing.
 * **Deliberately NOT closed:** the uv-cache VOLUME after seeding is host-trust domain —
   an attacker who can write a Docker volume can equally patch the venv or the running
   process, so re-verification there adds no security boundary. Cache misses fall back
