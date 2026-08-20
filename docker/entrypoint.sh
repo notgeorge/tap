@@ -30,11 +30,25 @@ emit_abort() { echo "TAP-ABORT: $1: $2" >&2; }
 # below then CREATES the venv itself (the long-proven runtime path) but installs
 # the expensive FIPS-mandated source builds (cryptography --no-binary,
 # psycopg[c]) from cached wheels in seconds instead of compiling for ~5 minutes.
-# Only fires on an empty cache volume, and a stale or absent seed degrades
-# cleanly: uv compiles whatever the cache can't supply.
-if [[ -d /opt/uv-cache-seed && -z "$(ls -A /root/.cache/uv 2>/dev/null)" ]]; then
-  echo "==> Seeding uv cache from image (/opt/uv-cache-seed -> /root/.cache/uv)..."
-  cp -a /opt/uv-cache-seed/. /root/.cache/uv/
+# Only fires on an empty cache volume. Semantics split by presence
+# (req-cicd-supply-chain-provenance-2): an ABSENT seed degrades cleanly — uv
+# downloads/compiles with uv.lock hash verification; a PRESENT seed is verified
+# against its build-time manifest first (full bidirectional reconciliation:
+# mismatch, missing, extra), and present-but-INVALID is a fail-closed abort —
+# inside an immutable image that means corruption or tamper, never staleness.
+if [[ -z "$(ls -A /root/.cache/uv 2>/dev/null)" ]]; then
+  if [[ -d /opt/uv-cache-seed ]]; then
+    echo "==> Verifying wheel-cache seed against its build-time manifest..."
+    if python3 /usr/local/lib/tap/seed_manifest.py verify /opt/uv-cache-seed /opt/uv-cache-seed.manifest.json; then
+      echo "==> Seeding uv cache from image (/opt/uv-cache-seed -> /root/.cache/uv)..."
+      cp -a /opt/uv-cache-seed/. /root/.cache/uv/
+    else
+      emit_abort seed-verify "wheel-cache seed does not match its build-time manifest (see above) — image corruption or tamper; refusing to seed or serve"
+      exit 1
+    fi
+  else
+    echo "==> No wheel-cache seed in image — uv will download/compile (slow path, uv.lock hash-verified)."
+  fi
 fi
 
 echo "==> Syncing Python dependencies (uv sync --all-packages)..."

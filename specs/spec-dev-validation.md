@@ -118,6 +118,7 @@ block. Rich per-surface rationale lives in each owning spec and in each guard's
 | System FIPS-provider gate (core + all plugins, global) | `req-fips-crypto-bom-system-gate` | Per-boot (`docker/entrypoint.sh`, when `TAP_FIPS_MODE=1`) | Boot-gated (fail-closed) | `python -m tap.crypto_bom --gate`: under FIPS mode, scans the assembled environment (core + every installed plugin) and TAP-ABORTs on any non-validated provider unless an OPERATOR `fips_waivers` entry (boot profile, mandatory reason) excuses it — a plugin cannot excuse itself (declare-vs-decide) |
 | Teardown correctness | `req-dev-multisession-teardown-cleanup` | Per-despawn | Manual (CI-unguarded by design) | `spec-dev-multisession-teardown.md` documented procedure |
 | Web render smoke (login/landing) | `req-web-nav-chrome-read-free-3` | Per-commit (`pytest -m smoke`) | CI-guarded | `tap_auth/tests/test_login_wall.py` (`@pytest.mark.smoke`) |
+| Wheel-cache seed integrity (verify-before-seed) | `req-cicd-supply-chain-provenance-2` | Per-boot (entrypoint) + per-commit (`pytest`) | CI-guarded | `docker/seed_manifest.py` verify in `docker/entrypoint.sh` (fail-closed TAP-ABORT); `tap/tests/test_seed_manifest.py` |
 | Workflow least privilege (token boundary) | `req-cicd-runner-least-privilege` | Per-commit (`pytest`) | CI-guarded | `tap.guards.workflow_least_privilege` (via `tap/tests/test_guards.py`) |
 
 <!-- END GENERATED MAP -->

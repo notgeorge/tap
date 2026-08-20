@@ -54,6 +54,13 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
         enforced_by="`spec-dev-multisession-smoketest.md` documented procedure",
     ),
     DeclaredSurface(
+        surface="Wheel-cache seed integrity (verify-before-seed)",
+        rid="req-cicd-supply-chain-provenance-2",
+        cadence="Per-boot (entrypoint) + per-commit (`pytest`)",
+        status="CI-guarded",
+        enforced_by="`docker/seed_manifest.py` verify in `docker/entrypoint.sh` (fail-closed TAP-ABORT); `tap/tests/test_seed_manifest.py`",
+    ),
+    DeclaredSurface(
         surface="Teardown correctness",
         rid="req-dev-multisession-teardown-cleanup",
         cadence="Per-despawn",
