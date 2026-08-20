@@ -247,9 +247,14 @@ base-branch workflow definition in base-repo context, where the secrets live. Jo
    and call the vendor API directly (OpenAI for the Codex seat, xAI for the Grok seat — no
    `codex-action`, whose actor check rejects fork authors). Prompt = the review prompt below +
    the two trust-labeled buckets. No write scope on these jobs.
-3. **Deterministic screen** — mechanical binary/image/opaque-addition detection (git binary
-   markers + extension screen) posting its finding regardless of model output
-   (`req-cicd-ai-review-untrusted-content-2`). Runs even when a model seat is down.
+3. **Deterministic screens + injection pre-screen** — mechanical binary/image/opaque-addition
+   detection (git binary markers + extension screen,
+   `req-cicd-ai-review-untrusted-content-2`) and the injection pre-screen: a small vendored
+   injection-classifier (candidate models being evaluated — see the import queue) plus
+   deterministic indicator checks (hidden HTML comments, invisible/bidi characters, alt-text
+   payloads, reader-agent-aimed imperatives). Findings post regardless of model output; an
+   injection hit also fails the run red and escalates out-of-band
+   (`req-cicd-ai-review-untrusted-content-7`). Runs even when the model seats are down.
 4. **Comment job** (`pull-requests: write`, runs no model) — posts each seat's advisory comment.
 
 **Seats fail loud** (`req-cicd-ai-review-ensemble-6`): a seat with no verdict — rate limit,
@@ -320,16 +325,18 @@ docstring style — black, ruff and mypy already gate every PR. If you found
 nothing of substance, say so in one line. State anything you could not review.
 ```
 
-### The harness repos — decided 2026-08-20 (two-repo split from in-flight review)
+### The Unified AI Review repos — named 2026-08-20 (two-repo split from in-flight review)
 
-Machinery and prompts are **separate repositories** (working names `ai-review` and
-`ai-review-prompts`; George names both at creation) per `req-cicd-ai-review-harness-repo`:
+Machinery and prompts are **separate repositories** — **`unified-ai-review`** and
+**`unified-ai-review-prompts`** (the Unified brand on these public, reusable surfaces is
+deliberate) — per `req-cicd-ai-review-harness-repo`:
 
 - **Machinery repo (Apache-2.0)**: reusable workflows + capture/review scripts, zero prompt
   content, zero third-party text. Its contract with prompts is a standard directory layout.
 - **Prompts repo (own license(s) declared inside)**: prompt lists in the standard layout,
-  versioned and swapped independently of the machinery; ToB-derived material lives here under
-  CC BY-SA 4.0 with attribution. Third-party methodology enters only as vendored snapshots at
+  organized as **named prompt packs** (`security` first; quality/best-practices/standards packs
+  backlogged on the spec radar), versioned and swapped independently of the machinery;
+  ToB-derived material lives here under CC BY-SA 4.0 with attribution. Third-party methodology enters only as vendored snapshots at
   reviewed commits — never fetched from a third party at build/run time.
 - **The machinery pulls prompts at a pinned full-SHA ref** (declared in the consumer's
   base-branch shim) into the standard location — the one sanctioned run-time fetch: org-owned

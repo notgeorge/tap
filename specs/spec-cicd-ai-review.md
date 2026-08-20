@@ -460,6 +460,14 @@ the reviewer class, plus the trust-delta doctrine applied to third-party reviewe
   "improve" build plumbing get the heaviest scrutiny in the review — plumbing is where one change
   defeats every other control, and reviewer prompts already flag such diffs as findings
   (`req-cicd-ai-review-untrusted-content-5`).
+- **Plumbing is static by SOP; inbound plumbing PRs are anomalies.** The org's `.github`
+  repository (org-wide defaults: SECURITY.md, PVR config) and every repo's `.github/**` change
+  rarely, and only from maintainer sessions — nobody issues PRs against them as standard
+  operating procedure. GitHub cannot prevent a PR from being *opened*, so the gate is layered:
+  CODEOWNERS makes merge impossible without George's explicit review, reviewer prompts flag the
+  diff as a finding in its own right (`req-cicd-ai-review-untrusted-content-5`), and an
+  unsolicited third-party PR touching plumbing is treated as a probe — reviewed under that
+  assumption and escalated out-of-band (`req-cicd-ai-review-untrusted-content-7`).
 
 #### Acceptance Criteria
 
@@ -479,8 +487,9 @@ RID: `req-cicd-ai-review-harness-repo`
 Status: `Proposed`
 
 The harness machinery is **wholly independent of its prompts** — implemented as **two dedicated
-repositories in `unified-systems-com`** (working names `ai-review` and `ai-review-prompts`; final
-names are George's call at creation), consumed by every org repo through thin shim workflows.
+repositories in `unified-systems-com`**: **`unified-ai-review`** (machinery) and
+**`unified-ai-review-prompts`** (prompts). Named 2026-08-20; the **Unified** brand on these
+public, reusable surfaces is deliberate. Consumed by every org repo through thin shim workflows.
 Decided 2026-08-20 (the two-repo split the same day, from in-flight review): the machinery/prompt
 split is what lets others maintain their own prompt lists, and the prompts repo is also where
 non-Apache licenses live.
@@ -492,7 +501,9 @@ non-Apache licenses live.
   ours, wholly reusable. Its contract with prompts is a **standard directory layout** it pulls
   prompt lists into and reads from.
 - **The prompts repo (its own license(s), declared inside it).** Prompt lists in the standard
-  layout, tracked, versioned, and swapped **independently of the machinery**.
+  layout, organized as **named prompt packs** — `security` is pack #1, deliberately not the only
+  or the last: code-quality, best-practices, and standards packs ride the same mechanism
+  (backlogged on the radar). Tracked, versioned, and swapped **independently of the machinery**.
   Trail-of-Bits-derived material lives here under CC BY-SA 4.0 with attribution, alongside our
   own prompts under our terms. (Creative Commons itself recommends against CC licenses for
   software; the CC license holds prose/prompts, never code.)
@@ -566,6 +577,17 @@ design absorbs a steered verdict rather than pretending to prevent steering.
   reasoning. The standing rule: **identity may raise scrutiny, never lower it.** "First-time
   contributor, young account, touching `.github/**`" sharpens review; "author is the maintainer"
   must not soften it, because the compromised-maintainer machine is this spec's #1 threat.
+- **Injection pre-screen, before the seats (2026-08-20).** The harness runs a cheap dedicated
+  detection pass over the PR's text and diff BEFORE the model seats: a small vendored
+  injection-classifier model (candidates under evaluation in the run sheet; pinned per
+  `req-cicd-ai-review-harness-repo-2`, CPU-class so it runs even when seats are down) plus
+  deterministic indicator checks — hidden HTML comments, invisible/bidi characters, image
+  alt-text payloads, instruction-like imperatives aimed at reader-agents. A hit does not
+  suppress the review — the seats still run, forewarned by the flag — it escalates
+  (`req-cicd-ai-review-untrusted-content-7`).
+- **Injection is a finding with an out-of-band response path.** A malicious input aimed at the
+  reviewers is not an ordinary review finding to be argued down in the PR thread the attacker
+  controls: it fails the run red and raises a signal outside the PR conversation, loudly.
 - Injection degrades to "wrong verdict": the gate (`req-cicd-ai-review-gate`) fails closed on a
   *missing* verdict, and a forged *approving* verdict from one reviewer still faces the other
   reviewers and the human — which is why approve-the-backdoor is named, not solved, in
@@ -602,6 +624,7 @@ deliberately not engineered around:**
 | req-cicd-ai-review-untrusted-content-4 | Base-Branch Instructions For The Security Seat | Proposed | The seat carrying the malicious-change lens reads its instructions from a location the PR under review cannot edit — the base/default-branch workflow file, not a checked-out file. | Copilot reads head-branch instructions; the harness seats do not. Put the security job on the immune seats. The harness repo (`req-cicd-ai-review-harness-repo`) strengthens this further: instructions live in a repo the PR under review cannot touch at all. |
 | req-cicd-ai-review-untrusted-content-5 | Reviewer-Config Edits Are Findings | Proposed | Every seat's instructions flag any diff touching reviewer or CI configuration as a finding in its own right. | A PR editing its own review must be visible even when the edit looks benign. |
 | req-cicd-ai-review-untrusted-content-6 | Identity Raises Scrutiny, Never Lowers It | Proposed | Reviewer prompts consume author/PR metadata as trust-labeled input; heightened-scrutiny rules key off identity signals, but no identity signal relaxes review depth or severity. | Compromised maintainer = threat #1; a trusted-author shortcut would blind the control exactly where it matters most. |
+| req-cicd-ai-review-untrusted-content-7 | Injection Attempts Escalate Out-Of-Band | Proposed | Detected injection indicators — from the pre-screen or reported by a seat — fail the run red AND raise a signal outside the PR conversation (a security-labeled alert to the maintainer; a verdict-ledger CONCERN record), never only a PR comment the attacker can argue with. | Malicious inputs get a response path outside the standard PR flow, loud and clear. |
 
 ---
 
@@ -838,6 +861,23 @@ built; each names its watch trigger:
   rails — and currently vanishes into job logs. Investigate detectability (org audit-log
   streaming; wrapping the comment job's API surface; runner egress logs) and raise denials as a
   first-class alert if a detection point exists. Cheap-edge candidate the moment one does.
+- **Standard prompt packs beyond security.** The prompts repo's pack mechanism
+  (`req-cicd-ai-review-harness-repo`) is the delivery vehicle for code-quality, best-practices,
+  and standards-conformance review — security is the first use case, not the only or the last.
+  Backlogged until the security pack has run through the observation window; packs then land as
+  additions to the prompts repo, no machinery change. Watch trigger: the first hygiene want that
+  black/ruff/mypy and Copilot do not already cover.
+- **Practicable reviewer confidence.** Self-reported model confidence is not trustworthy —
+  verbalized confidence is poorly calibrated and overconfidence is the documented norm — and API
+  logprobs do not map cleanly onto long-form review judgments, so a "confidence: 85%" line in a
+  review narrative would be decoration, not information. The practicable substitutes, in order:
+  **cross-seat agreement** (both vendors independently flag it), **devil's-advocate survival**
+  (the fp-check-style gate a finding must pass before posting), and **empirical calibration** —
+  track per-seat, per-severity precision against George's accept/dismiss decisions during the
+  observation window (`req-cicd-ai-review-graduation`) and report *measured* precision ("this
+  seat's high-severity findings have been right 7 of 9 times") instead of model-claimed
+  confidence. Watch trigger: vendors exposing calibrated verdict scores with published
+  calibration data.
 
 ## Relationship To Other Specs
 
