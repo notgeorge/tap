@@ -86,45 +86,59 @@ def verify(tree: Path, manifest_path: Path) -> dict[str, object]:
     counts and one structural failure line — the diagnostic dump then shows
     exactly what the verifier could and could not see.
     """
-    report: dict[str, object] = {
-        "failures": [],
-        "declared": 0,
-        "observed": 0,
-        "missing": [],
-        "extra": [],
-        "mismatched": [],
-    }
-    failures: list[str] = report["failures"]  # type: ignore[assignment]
+    failures: list[str] = []
+    missing: list[str] = []
+    extra: list[str] = []
+    mismatched: list[str] = []
+    declared_count = 0
+    observed_count = 0
+
+    def report() -> dict[str, object]:
+        return {
+            "failures": failures,
+            "declared": declared_count,
+            "observed": observed_count,
+            "missing": missing,
+            "extra": extra,
+            "mismatched": mismatched,
+        }
+
     if not manifest_path.is_file():
         failures.append(f"manifest missing: {manifest_path}")
-        return report
+        return report()
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        declared = manifest["files"]
+        declared: dict[str, str] = manifest["files"]
         fmt = manifest["format"]
     except (json.JSONDecodeError, KeyError, TypeError) as exc:
         failures.append(f"manifest unreadable: {exc}")
-        return report
+        return report()
     if fmt != MANIFEST_FORMAT:
         failures.append(f"manifest format {fmt!r} != expected {MANIFEST_FORMAT!r}")
-        return report
-    report["declared"] = len(declared)
+        return report()
+    declared_count = len(declared)
     if not tree.is_dir():
         failures.append(f"seed tree missing: {tree}")
-        return report
+        return report()
 
     actual = _walk_files(tree)
-    report["observed"] = len(actual)
-    report["missing"] = sorted(set(declared) - set(actual))
-    report["extra"] = sorted(set(actual) - set(declared))
-    report["mismatched"] = sorted(rel for rel in set(declared) & set(actual) if declared[rel] != actual[rel])
-    for rel in report["missing"]:  # type: ignore[union-attr]
+    observed_count = len(actual)
+    missing.extend(sorted(set(declared) - set(actual)))
+    extra.extend(sorted(set(actual) - set(declared)))
+    mismatched.extend(sorted(rel for rel in set(declared) & set(actual) if declared[rel] != actual[rel]))
+    for rel in missing:
         failures.append(f"MISSING from seed: {rel}")
-    for rel in report["extra"]:  # type: ignore[union-attr]
+    for rel in extra:
         failures.append(f"EXTRA unmanifested file: {rel}")
-    for rel in report["mismatched"]:  # type: ignore[union-attr]
+    for rel in mismatched:
         failures.append(f"HASH MISMATCH: {rel}")
-    return report
+    return report()
+
+
+def _as_str_list(value: object) -> list[str]:
+    """Narrow a report field back to its concrete type (dict[str, object] boundary)."""
+    assert isinstance(value, list)
+    return value
 
 
 def main(argv: list[str]) -> int:
@@ -133,7 +147,7 @@ def main(argv: list[str]) -> int:
         return 0
     if len(argv) == 4 and argv[1] == "verify":
         report = verify(Path(argv[2]), Path(argv[3]))
-        failures: list[str] = report["failures"]  # type: ignore[assignment]
+        failures = _as_str_list(report["failures"])
         if failures:
             # Diagnostic dump: the whole story, bounded — what the manifest
             # declared, what the tree actually held, per-class counts with
@@ -149,7 +163,7 @@ def main(argv: list[str]) -> int:
                 ("extra", "EXTRA unmanifested"),
                 ("mismatched", "HASH MISMATCH"),
             ]:
-                members: list[str] = report[klass]  # type: ignore[assignment]
+                members = _as_str_list(report[klass])
                 if not members:
                     continue
                 print(f"seed-verify: {label}: {len(members)} file(s)", file=sys.stderr)
@@ -165,9 +179,9 @@ def main(argv: list[str]) -> int:
                 "result": "failed",
                 "declared": report["declared"],
                 "observed": report["observed"],
-                "missing": len(report["missing"]),  # type: ignore[arg-type]
-                "extra": len(report["extra"]),  # type: ignore[arg-type]
-                "mismatched": len(report["mismatched"]),  # type: ignore[arg-type]
+                "missing": len(_as_str_list(report["missing"])),
+                "extra": len(_as_str_list(report["extra"])),
+                "mismatched": len(_as_str_list(report["mismatched"])),
             }
             print(f"seed-verify: FAILED {json.dumps(evidence)}", file=sys.stderr)
             return 1
