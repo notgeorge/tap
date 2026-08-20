@@ -142,8 +142,19 @@ stay excluded under req-cicd-sbom-2; the executables do not.)
 Each declared entry carries, at minimum: component name, **version**, **source** (for
 copied binaries: the upstream image ref + digest; for self-built: the pinned source URL),
 **file path in the image**, **SHA-256 of the file**, **license**, and a **purl/CPE where
-one exists**. The declaration lives alongside the Dockerfile that introduces the
-component, so the digest-pin bump and the SBOM entry change in the same diff.
+one exists**.
+
+The declarations are **one small structured supplemental-manifest format** — not prose,
+not per-entry ad-hoc files: a single manifest per image, living alongside the Dockerfile
+that introduces its components (so a digest-pin bump and its SBOM entry change in the
+same diff), **validated against a committed JSON Schema at load** (the standing TAP rule
+for structured formats: schema + loader validation + descriptions on the top level and
+every entry, for AI and security readers), **merged into the generated CycloneDX during
+the single derivation** (req-cicd-sbom-1/-6 — the merge is part of generation, never a
+post-hoc edit to an attested document), and covered both ways: canaries (req-cicd-sbom-7)
+prove the merged entries survived into the output; the detection gate (req-cicd-sbom-12)
+proves the manifest matches what the Dockerfiles actually introduce. A schema-invalid
+manifest fails the publish exactly like a failed canary.
 
 This requirement is the general rule; the guard for it is req-cicd-sbom-7's canary check
 (a missing declared component fails the publish).
