@@ -10,6 +10,8 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 
+import pytest
+
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _spec = importlib.util.spec_from_file_location(
     "sbom_plugin_release", _REPO_ROOT / "scripts" / "sbom" / "plugin_release.py"
@@ -47,11 +49,13 @@ def test_slug_to_dist_convention() -> None:
     assert plug.dist_name_for("samsite") == "tap-plugin-samsite"
 
 
+@pytest.mark.spec("req-cicd-sbom-10-1")
 def test_identity_gate_passes_on_matching_wheel() -> None:
     doc = _wheel_cdx("tap-plugin-aws-core", "0.4.1")
     assert plug.check_plugin_identity(doc, "aws_core", "0.4.1") == []
 
 
+@pytest.mark.spec("req-cicd-sbom-10-1")
 def test_identity_gate_catches_version_mismatch() -> None:
     """Tag says 0.4.2, wheel built 0.4.1 (e.g. shallow checkout broke hatch-vcs)."""
     doc = _wheel_cdx("tap-plugin-aws-core", "0.4.1")
@@ -59,12 +63,14 @@ def test_identity_gate_catches_version_mismatch() -> None:
     assert any("version mismatch" in p for p in problems)
 
 
+@pytest.mark.spec("req-cicd-sbom-10-2")
 def test_identity_gate_catches_absent_plugin_component() -> None:
     doc = _wheel_cdx("something-else", "1.0")
     problems = plug.check_plugin_identity(doc, "aws_core", "0.4.1")
     assert any("ABSENT" in p for p in problems)
 
 
+@pytest.mark.spec("req-cicd-sbom-10-2")
 def test_identity_gate_catches_phantoms() -> None:
     doc = _wheel_cdx("tap-plugin-aws-core", "0.4.1")
     components = doc["components"]
@@ -74,6 +80,7 @@ def test_identity_gate_catches_phantoms() -> None:
     assert any("phantom" in p for p in problems)
 
 
+@pytest.mark.spec("req-cicd-sbom-10-3")
 def test_minimum_elements_lite_exempts_dependency_graph() -> None:
     """A wheel declares requirements; it does not resolve them — no graph required."""
     doc = _wheel_cdx("tap-plugin-aws-core", "0.4.1")
@@ -81,6 +88,7 @@ def test_minimum_elements_lite_exempts_dependency_graph() -> None:
     assert plug.check_minimum_elements_wheel(doc) == []
 
 
+@pytest.mark.spec("req-cicd-sbom-10-3")
 def test_minimum_elements_lite_still_fails_closed_on_structure() -> None:
     doc = _wheel_cdx("tap-plugin-aws-core", "0.4.1")
     plug.inject_coverage(doc, "x")
