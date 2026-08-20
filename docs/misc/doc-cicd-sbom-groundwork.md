@@ -141,6 +141,18 @@ that produced `req-cicd-supply-chain-provenance-2` (spec-cicd-hardening.md):
   process, so re-verification there adds no security boundary. Cache misses fall back
   to PyPI with lock-hash verification, so the degraded path stays verified.
 
+### 3.5 Implementation smoke findings (2026-08-20, pre-CI)
+
+Built and proven live against `tap-web@sha256:78836f3d…` (arm64): 173 components =
+100 apk + 69 pypi (the exact uv.lock closure — `+python-package-cataloger` DOES fire
+on image scans when explicitly selected, confirming the -1 design) + 3 declared
+out-of-band + `tap` itself at the built version; 123 dependency edges; both formats
+schema-validate; phantom canaries absent. One trap caught by our own gate before CI
+ever ran: syft's CycloneDX serialization emits every file as a name-only component
+(~13.8k entries) unless `SYFT_FILE_METADATA_SELECTION=none` — a file inventory
+masquerading as package claims, and the minimum-elements check correctly refused it.
+The fix lives at the derivation, not the checks. Second trap, caught by the PR #86 lean-boot gate: the compose dev stack runs the ENTRYPOINT from the bind-mounted tree while the image lags — so new-verifier-plus-legacy-image (seed, no manifest) is a normal designed state, and the original abort-on-absent-manifest semantics bricked it. Amended three-way: valid → seed; invalid manifest → abort; NO manifest → never seed unverified bytes, warn, degrade to the lock-hash-verified slow path (manifest-stripping is not a distinct attack — whoever could strip it could modify the seed).
+
 ## 4. Prior art — the five patterns in the wild
 
 1. **Generate-and-attest, GitHub-native** (anchore/sbom-action → actions/attest-sbom):
