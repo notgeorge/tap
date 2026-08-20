@@ -166,6 +166,9 @@ Development Commands
     # (anonymous, multi-arch, pre-compiled wheel cache inside — no local compile). Rebuild locally
     # only when changing the Dockerfiles: scripts/dc build web (this shadows the published
     # tag on your host until the next scripts/dc pull web). See publish-images.yml.
+    # The base compose file is PULL-ONLY: `up` hard-fails on a missing pinned tag instead of
+    # silently building. Building is opt-in via the docker-compose.build.yml overlay, which
+    # `scripts/dc build` stacks automatically (`up -d --build` no longer builds TAP images).
 
     # Start all services
     docker compose up
