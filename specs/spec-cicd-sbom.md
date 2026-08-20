@@ -69,6 +69,9 @@ remain the boot record's territory. The two compose; neither substitutes for the
 | req-cicd-sbom-8 | [Release SBOM Diffs](#release-sbom-diffs) | Deferred | Human-readable package delta per release, feeding the customer upgrade-diff contract; consumer of 1–7, not a blocker |
 | req-cicd-sbom-9 | [Flavored Ready-Made Images](#flavored-ready-made-images) | Proposed | Design constraint now, implementation with the appliance-image work: an image baking a boot profile's plugins ships an SBOM covering core + baked plugin closure, from the same declared-manifest principle |
 | req-cicd-sbom-10 | [Plugin-Declared SBOMs](#plugin-declared-sboms) | Proposed | Declare-vs-decide: plugin release CI declares an attested per-release SBOM; the system verifies and composes, never re-derives blindly; bake-time combined lock is the single derivation for flavored images |
+| req-cicd-sbom-11 | [Standards Conformance Validation](#standards-conformance-validation) | Proposed | Schema-validate the CycloneDX document + fail-closed minimum-elements field checks (CISA/NSA 2026); canaries catch TAP-specific lies, this catches malformed valid-looking SBOMs |
+| req-cicd-sbom-12 | [Out-of-Band Detection Gate](#out-of-band-detection-gate) | Proposed | Declaration is DETECTED, never remembered: Dockerfile-derived out-of-band inventory + image-level unknowns budget both reconcile against declarations, fail-closed |
+| req-cicd-sbom-13 | [Ecosystem Coverage](#ecosystem-coverage) | Proposed | Every package ecosystem in an artifact has a lockfile-grade declared manifest its SBOM slice derives from; vendored JS is the named existing gap; new ecosystems are caught by the -12 gate |
 
 ---
 
@@ -208,7 +211,9 @@ canary list, refusing to publish on any miss:
 Rationale: every failure mode observed in the groundwork was *silent plausibility* — a
 scan that succeeds and emits confident garbage. The canary guard converts "the SBOM
 quietly went wrong" (cataloger regressed in a Syft bump, cache path moved, augmentation
-step dropped) into a red publish. At implementation time this check is a validation
+step dropped) into a red publish. Canaries are deliberately TAP-specific truths; generic
+structural well-formedness is req-cicd-sbom-11's job — the two validate different
+failure classes at the same gate point. At implementation time this check is a validation
 surface and gets its Validation Map row (spec-dev-validation.md) in the same change.
 
 ### Release SBOM Diffs
@@ -287,6 +292,99 @@ COMPOSES — it never re-derives blindly and never trusts blindly.
   identity `req-plugin-extdev-signing` lands (spec-plugin-external-development.md);
   no new trust machinery is invented here, and nothing blocks on it — unsigned-but-
   attested-by-CI is the interim posture, upgraded when that wave ships.
+
+### Standards Conformance Validation
+----
+RID: `req-cicd-sbom-11`
+Status: `Proposed`
+
+Before attesting, each generated SBOM MUST pass, fail-closed at the same gate point as
+the canary guard:
+
+* **Schema validation** of the CycloneDX document against its declared spec version.
+* **Minimum-elements field checks** (CISA/NSA 2026 minimum elements): format name +
+  version, SBOM/document version, generating tool name + version, generation
+  timestamp/context, author, per-component **identifiers** (purl/CPE where they exist)
+  and **hashes**, **dependency relationships** (the graph, not a flat list — the
+  generation step of req-cicd-sbom-1/-6 MUST emit it; lockfiles carry the edges), and a
+  **coverage/completeness statement** naming what the document does and does not cover
+  (the known-unknowns discipline — SPDX-style NOASSERTION honesty in CycloneDX terms).
+* **Signature mapping stated, not pretended:** the minimum-elements "author signature"
+  is satisfied at the ATTESTATION layer (req-cicd-sbom-4's Sigstore-signed statement
+  binding document to digest and workflow identity), not by an in-document signature.
+  The conformance check verifies the document is *attestable* (hash-stable,
+  schema-valid); the signature lives one layer up. If a consumer ever requires
+  in-document signing, that is a named extension, not a silent gap.
+
+Division of labor with req-cicd-sbom-7: canaries catch TAP-specific lies (a plausible
+SBOM missing `tap` itself); conformance catches malformed valid-looking documents (a
+structurally hollow SBOM full of unidentifiable components). Both are validation
+surfaces → Validation Map rows at implementation.
+
+### Out-of-Band Detection Gate
+----
+RID: `req-cicd-sbom-12`
+Status: `Proposed`
+
+req-cicd-sbom-3's declaration duty MUST be **detected, never remembered**. Relying on an
+author to recall the supplemental-entry rule while editing a Dockerfile is the opt-in
+failure mode this spec exists to kill; the out-of-band inventory is deterministically
+derivable, so derive it:
+
+* **Authoring-time (Dockerfile-derived inventory).** Every out-of-band introduction
+  site is statically enumerable from the Dockerfiles: `COPY --from=<external image>`
+  (digest-pinned binary imports — `uv`/`uvx` today) and `COPY --from=<builder stage>`
+  (self-built artifacts — `fips.so` today). A guard reconciles that derived set against
+  the declared entries, both directions, and fails on any unmatched member (same
+  harness family as the TAP-KNOWN-DUPE and workflow guards; ratchet-style, no
+  baseline exceptions).
+* **Publish-time (image-level unknowns budget).** After generation, every executable
+  and shared object in the scanned image MUST be accounted for: owned by an apk
+  package, a member of the locked closure, or covered by a declared entry. The
+  remainder — Syft's `unknowns` class, where `fips.so` surfaced in the groundwork —
+  MUST be empty; any unclassified executable is a red publish. This is
+  `req-fips-crypto-bom`'s fail-closed-on-unclassified discipline generalized from
+  crypto providers to all executable content, and it is ecosystem-agnostic by
+  construction: a hand-built binary in ANY language trips it on arrival.
+* **Deterministic source-built marking (Python).** The set of Python packages built
+  from source is derivable, not declarable: `[tool.uv] no-binary-package` plus the
+  lock's sdist entries name them. The SBOM MUST mark those components as
+  built-from-source (with the build context), derived from that configuration — never
+  hand-maintained.
+
+### Ecosystem Coverage
+----
+RID: `req-cicd-sbom-13`
+Status: `Proposed`
+
+Every package ecosystem present in a published artifact MUST have a **lockfile-grade
+declared manifest** — pinned versions plus content hashes — from which its SBOM slice
+derives (the req-cicd-sbom-2 principle, generalized beyond Python). An ecosystem with no
+such manifest is not "not covered"; it is a gap the req-cicd-sbom-12 unknowns budget and
+this requirement make loud.
+
+Current inventory, honestly stated:
+
+* **Python** — covered: `uv.lock`, hash-verified, the -2 derivation.
+* **Vendored JavaScript — the NAMED EXISTING GAP.** Third-party JS ships as vendored
+  minified files (`tap_web/static/tap_web/js/lib/tabulator.min.js`, `echarts.min.js`,
+  peers in tap_viz and plugins) with **no manifest at all** — versions live in spec
+  prose at best, invisible to any scanner and any diff. Closing it requires a declared
+  vendored-assets manifest (per file: name, version, upstream source URL, sha256,
+  license) that doubles as the SBOM input and is guard-reconciled against the actual
+  `static/**/lib/` contents, both directions — the -12 pattern applied to a directory
+  the unknowns budget cannot see (minified JS is not executable-format content).
+  Plugins vendoring JS inherit the same manifest duty via req-cicd-sbom-10.
+* **Rust (first-party, future)** — the mechanism inverts the `uv` noise story: for a
+  binary TAP builds, `cargo-auditable`'s embedded metadata IS the lockfile-grade
+  manifest, and its crate closure is INCLUDED (the -2 exclusion applies only to
+  third-party tool binaries whose closure is not ours).
+* **TypeScript (future)** — compiles into the JS story; its manifest is the npm-family
+  lockfile (`package-lock.json`/`pnpm-lock.yaml`) the moment one exists, at which
+  point the vendored-assets manifest for its outputs derives from it.
+
+New ecosystems need no spec amendment to be caught: an unmanifested binary trips -12 on
+arrival, and this requirement names the duty its author then owes.
 
 ## Non-Goals and Named Residuals
 
