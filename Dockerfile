@@ -42,7 +42,7 @@ FROM cgr.dev/chainguard/wolfi-base:latest@sha256:8e8fe4b9b989b03daaa4305dba54a1b
 # Wolfi's apk repo flakes under load (observed 2026-08-16: HTTP 403s mid-install;
 # 2026-08-20: fetch error on one package) — bounded retry with backoff, failing
 # closed after 3 attempts. apk add is idempotent across retries.
-RUN for i in 1 2 3; do apk add --no-cache build-base perl linux-headers curl && break || { [ "$i" -eq 3 ] && exit 1; echo "apk repo flake — retry $i"; sleep $((i*10)); }; done
+RUN for i in 1 2 3; do apk add --no-cache build-base perl linux-headers curl && break || { echo "apk add failed (attempt $i/3)" >&2; [ "$i" -eq 3 ] && exit 1; sleep $((i*10)); }; done
 WORKDIR /build
 RUN curl -fsSL https://github.com/openssl/openssl/releases/download/openssl-3.0.9/openssl-3.0.9.tar.gz -o o.tgz \
  && tar xf o.tgz
@@ -105,7 +105,7 @@ RUN for i in 1 2 3; do \
     pkgconf \
     python-3.14-dev \
     postgresql-dev \
-      && break || { [ "$i" -eq 3 ] && exit 1; echo "apk repo flake — retry $i"; sleep $((i*10)); }; \
+      && break || { echo "apk add failed (attempt $i/3)" >&2; [ "$i" -eq 3 ] && exit 1; sleep $((i*10)); }; \
     done
 
 # Copy the UV binary from the official UV image (no package manager needed).
