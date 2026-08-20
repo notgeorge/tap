@@ -41,7 +41,7 @@ def _manifest_for(tree: Path, tmp_path: Path) -> Path:
 
 def test_roundtrip_valid_seed_verifies_clean(seed_tree: Path, tmp_path: Path) -> None:
     manifest = _manifest_for(seed_tree, tmp_path)
-    assert seed_manifest.verify(seed_tree, manifest) == []
+    assert seed_manifest.verify(seed_tree, manifest)["failures"] == []
 
 
 def test_relocated_tree_still_verifies(seed_tree: Path, tmp_path: Path) -> None:
@@ -51,20 +51,20 @@ def test_relocated_tree_still_verifies(seed_tree: Path, tmp_path: Path) -> None:
     manifest = _manifest_for(seed_tree, tmp_path)
     relocated = tmp_path / "opt" / "uv-cache-seed"
     shutil.copytree(seed_tree, relocated)
-    assert seed_manifest.verify(relocated, manifest) == []
+    assert seed_manifest.verify(relocated, manifest)["failures"] == []
 
 
 def test_hash_mismatch_detected(seed_tree: Path, tmp_path: Path) -> None:
     manifest = _manifest_for(seed_tree, tmp_path)
     (seed_tree / "archive-v0" / "ab" / "wheel.whl").write_bytes(b"tampered")
-    failures = seed_manifest.verify(seed_tree, manifest)
+    failures = seed_manifest.verify(seed_tree, manifest)["failures"]
     assert any("HASH MISMATCH" in f and "wheel.whl" in f for f in failures)
 
 
 def test_missing_file_detected(seed_tree: Path, tmp_path: Path) -> None:
     manifest = _manifest_for(seed_tree, tmp_path)
     (seed_tree / "empty.marker").unlink()
-    failures = seed_manifest.verify(seed_tree, manifest)
+    failures = seed_manifest.verify(seed_tree, manifest)["failures"]
     assert any("MISSING" in f and "empty.marker" in f for f in failures)
 
 
@@ -72,12 +72,12 @@ def test_extra_unmanifested_file_detected(seed_tree: Path, tmp_path: Path) -> No
     """A padded seed must not pass as 'mostly fine' — extra files fail too."""
     manifest = _manifest_for(seed_tree, tmp_path)
     (seed_tree / "archive-v0" / "smuggled.whl").write_bytes(b"payload")
-    failures = seed_manifest.verify(seed_tree, manifest)
+    failures = seed_manifest.verify(seed_tree, manifest)["failures"]
     assert any("EXTRA" in f and "smuggled.whl" in f for f in failures)
 
 
 def test_absent_manifest_is_invalid_not_stale(seed_tree: Path, tmp_path: Path) -> None:
-    failures = seed_manifest.verify(seed_tree, tmp_path / "nope.json")
+    failures = seed_manifest.verify(seed_tree, tmp_path / "nope.json")["failures"]
     assert failures and "manifest missing" in failures[0]
 
 
@@ -97,7 +97,7 @@ def test_generate_is_deterministic(seed_tree: Path, tmp_path: Path) -> None:
 def test_corrupt_manifest_json_is_a_failure(seed_tree: Path, tmp_path: Path) -> None:
     bad = tmp_path / "bad.json"
     bad.write_text("{not json")
-    failures = seed_manifest.verify(seed_tree, bad)
+    failures = seed_manifest.verify(seed_tree, bad)["failures"]
     assert failures and "unreadable" in failures[0]
 
 
@@ -109,9 +109,41 @@ def test_cli_verify_emits_boot_evidence(seed_tree: Path, tmp_path: Path, capsys:
     assert evidence == {"tap_boot_evidence": "seed-verify", "result": "ok", "files": 3}
 
 
-def test_cli_verify_failure_exit_code(seed_tree: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_cli_verify_failure_exit_code_and_diagnostics(
+    seed_tree: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A red verify dumps the whole story: declared/observed counts, per-class
+    counts with samples, and a machine-legible failure evidence line."""
     manifest = _manifest_for(seed_tree, tmp_path)
     (seed_tree / "CACHEDIR.TAG").write_text("altered")
+    (seed_tree / "empty.marker").unlink()
+    (seed_tree / "smuggled.bin").write_bytes(b"x")
     rc = seed_manifest.main(["seed_manifest.py", "verify", str(seed_tree), str(manifest)])
     assert rc == 1
-    assert "FAILED" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "manifest declares 3 file(s); observed 3" in err
+    assert "MISSING from seed: 1 file(s)" in err and "empty.marker" in err
+    assert "EXTRA unmanifested: 1 file(s)" in err and "smuggled.bin" in err
+    assert "HASH MISMATCH: 1 file(s)" in err and "CACHEDIR.TAG" in err
+    evidence = json.loads(err.rsplit("seed-verify: FAILED ", 1)[1].splitlines()[0])
+    assert evidence == {
+        "tap_boot_evidence": "seed-verify",
+        "result": "failed",
+        "declared": 3,
+        "observed": 3,
+        "missing": 1,
+        "extra": 1,
+        "mismatched": 1,
+    }
+
+
+def test_cli_diagnostic_sample_cap(seed_tree: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """Bounded dump: at most 10 samples per class, with an '… and N more' tail."""
+    manifest = _manifest_for(seed_tree, tmp_path)
+    for i in range(14):
+        (seed_tree / f"pad{i:02}.bin").write_bytes(b"x")
+    rc = seed_manifest.main(["seed_manifest.py", "verify", str(seed_tree), str(manifest)])
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "EXTRA unmanifested: 14 file(s)" in err
+    assert "… and 4 more" in err

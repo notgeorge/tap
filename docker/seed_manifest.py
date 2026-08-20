@@ -75,31 +75,56 @@ def generate(tree: Path, out: Path) -> dict[str, object]:
     return manifest
 
 
-def verify(tree: Path, manifest_path: Path) -> list[str]:
-    """Full bidirectional reconciliation; returns failures (empty = valid)."""
+def verify(tree: Path, manifest_path: Path) -> dict[str, object]:
+    """Full bidirectional reconciliation.
+
+    Returns a report dict: {"failures": [...], "declared": N, "observed": N,
+    "missing": [...], "extra": [...], "mismatched": [...]} — empty "failures"
+    means valid. The class lists carry EVERY member (callers cap the display);
+    "failures" is the flat human-readable form. On a structural problem
+    (manifest missing/unreadable/format, tree missing) the report has zero
+    counts and one structural failure line — the diagnostic dump then shows
+    exactly what the verifier could and could not see.
+    """
+    report: dict[str, object] = {
+        "failures": [],
+        "declared": 0,
+        "observed": 0,
+        "missing": [],
+        "extra": [],
+        "mismatched": [],
+    }
+    failures: list[str] = report["failures"]  # type: ignore[assignment]
     if not manifest_path.is_file():
-        return [f"manifest missing: {manifest_path} (a seed without its manifest is invalid, not stale)"]
+        failures.append(f"manifest missing: {manifest_path}")
+        return report
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         declared = manifest["files"]
         fmt = manifest["format"]
     except (json.JSONDecodeError, KeyError, TypeError) as exc:
-        return [f"manifest unreadable: {exc}"]
+        failures.append(f"manifest unreadable: {exc}")
+        return report
     if fmt != MANIFEST_FORMAT:
-        return [f"manifest format {fmt!r} != expected {MANIFEST_FORMAT!r}"]
+        failures.append(f"manifest format {fmt!r} != expected {MANIFEST_FORMAT!r}")
+        return report
+    report["declared"] = len(declared)
     if not tree.is_dir():
-        return [f"seed tree missing: {tree}"]
+        failures.append(f"seed tree missing: {tree}")
+        return report
 
     actual = _walk_files(tree)
-    failures: list[str] = []
-    for rel in sorted(set(declared) - set(actual)):
+    report["observed"] = len(actual)
+    report["missing"] = sorted(set(declared) - set(actual))
+    report["extra"] = sorted(set(actual) - set(declared))
+    report["mismatched"] = sorted(rel for rel in set(declared) & set(actual) if declared[rel] != actual[rel])
+    for rel in report["missing"]:  # type: ignore[union-attr]
         failures.append(f"MISSING from seed: {rel}")
-    for rel in sorted(set(actual) - set(declared)):
+    for rel in report["extra"]:  # type: ignore[union-attr]
         failures.append(f"EXTRA unmanifested file: {rel}")
-    for rel in sorted(set(declared) & set(actual)):
-        if declared[rel] != actual[rel]:
-            failures.append(f"HASH MISMATCH: {rel}")
-    return failures
+    for rel in report["mismatched"]:  # type: ignore[union-attr]
+        failures.append(f"HASH MISMATCH: {rel}")
+    return report
 
 
 def main(argv: list[str]) -> int:
@@ -107,16 +132,48 @@ def main(argv: list[str]) -> int:
         generate(Path(argv[2]), Path(argv[3]))
         return 0
     if len(argv) == 4 and argv[1] == "verify":
-        failures = verify(Path(argv[2]), Path(argv[3]))
+        report = verify(Path(argv[2]), Path(argv[3]))
+        failures: list[str] = report["failures"]  # type: ignore[assignment]
         if failures:
+            # Diagnostic dump: the whole story, bounded — what the manifest
+            # declared, what the tree actually held, per-class counts with
+            # capped samples, then one machine-legible failure evidence line.
+            print(
+                f"seed-verify: manifest declares {report['declared']} file(s); "
+                f"observed {report['observed']} in the seed tree",
+                file=sys.stderr,
+            )
+            _CAP = 10
+            for klass, label in [
+                ("missing", "MISSING from seed"),
+                ("extra", "EXTRA unmanifested"),
+                ("mismatched", "HASH MISMATCH"),
+            ]:
+                members: list[str] = report[klass]  # type: ignore[assignment]
+                if not members:
+                    continue
+                print(f"seed-verify: {label}: {len(members)} file(s)", file=sys.stderr)
+                for rel in members[:_CAP]:
+                    print(f"seed-verify:   {rel}", file=sys.stderr)
+                if len(members) > _CAP:
+                    print(f"seed-verify:   … and {len(members) - _CAP} more", file=sys.stderr)
             for line in failures:
-                print(f"seed-verify: {line}", file=sys.stderr)
-            print(f"seed-verify: FAILED ({len(failures)} problem(s))", file=sys.stderr)
+                if not any(line.startswith(p) for p in ("MISSING", "EXTRA", "HASH")):
+                    print(f"seed-verify: {line}", file=sys.stderr)  # structural problems, verbatim
+            evidence = {
+                "tap_boot_evidence": "seed-verify",
+                "result": "failed",
+                "declared": report["declared"],
+                "observed": report["observed"],
+                "missing": len(report["missing"]),  # type: ignore[arg-type]
+                "extra": len(report["extra"]),  # type: ignore[arg-type]
+                "mismatched": len(report["mismatched"]),  # type: ignore[arg-type]
+            }
+            print(f"seed-verify: FAILED {json.dumps(evidence)}", file=sys.stderr)
             return 1
-        count = len(json.loads(Path(argv[3]).read_text(encoding="utf-8"))["files"])
         # Machine-legible boot evidence (req-cicd-supply-chain-provenance-2): emitted
         # here, pre-tap.preboot; the boot-record surface absorbs it when available.
-        print(json.dumps({"tap_boot_evidence": "seed-verify", "result": "ok", "files": count}))
+        print(json.dumps({"tap_boot_evidence": "seed-verify", "result": "ok", "files": report["declared"]}))
         return 0
     print("usage: seed_manifest.py generate <tree> <out-manifest> | verify <tree> <manifest>", file=sys.stderr)
     return 2

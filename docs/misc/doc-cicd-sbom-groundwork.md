@@ -151,7 +151,7 @@ schema-validate; phantom canaries absent. One trap caught by our own gate before
 ever ran: syft's CycloneDX serialization emits every file as a name-only component
 (~13.8k entries) unless `SYFT_FILE_METADATA_SELECTION=none` — a file inventory
 masquerading as package claims, and the minimum-elements check correctly refused it.
-The fix lives at the derivation, not the checks.
+The fix lives at the derivation, not the checks. Second trap, caught by the PR #86 lean-boot gate: the compose dev stack runs the ENTRYPOINT from the bind-mounted tree while the image lags — so new-verifier-plus-legacy-image (seed, no manifest) is a normal designed state, and the original abort-on-absent-manifest semantics bricked it. Amended three-way: valid → seed; invalid manifest → abort; NO manifest → never seed unverified bytes, warn, degrade to the lock-hash-verified slow path (manifest-stripping is not a distinct attack — whoever could strip it could modify the seed).
 
 ## 4. Prior art — the five patterns in the wild
 
