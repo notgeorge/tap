@@ -105,6 +105,29 @@ scratchpad at time of writing; the numbers below are the durable summary.
 the most compliance-significant binary in the image would appear nowhere. Hence
 req-cicd-sbom-3 (hand-authored supplemental entries) — no scanner will ever fix this.
 
+### 3.4 Cache trust chain (analysis, 2026-08-20 review)
+
+Where the wheel-cache seed's integrity actually comes from, layer by layer — the analysis
+that produced `req-cicd-supply-chain-provenance-2` (spec-cicd-hardening.md):
+
+* **Build-time — verified.** `deps-warm` runs `uv sync --frozen`; every sdist/wheel uv
+  acquires is checked against the sha256 recorded in `uv.lock` (git-reviewed, gated).
+  The FIPS source compiles happen inside the attested build; the seed ships as an
+  immutable image layer under the digest + SLSA provenance + Trivy scan.
+* **Build-time residuals (named at provenance-1, unchanged):** compile OUTPUT is not
+  hash-checkable (source verified, emitted wheel covered only by runner trust) and the
+  Docker layer cache could poison `deps-warm` before any digest exists.
+* **Boot-time — the gap provenance-2 closes.** The entrypoint's seed copy was a bare
+  `cp` with no verification, and warm-cache `uv sync` does NOT re-verify hashes on
+  cache hits (lock hashes verify at acquisition, not reuse). "First boot runs the
+  attested bytes" was implied by image immutability, never verified at use. The fix is
+  a build-time hash manifest of the seed + fail-closed entrypoint verification before
+  seeding (TAP-ABORT on mismatch).
+* **Deliberately NOT closed:** the uv-cache VOLUME after seeding is host-trust domain —
+  an attacker who can write a Docker volume can equally patch the venv or the running
+  process, so re-verification there adds no security boundary. Cache misses fall back
+  to PyPI with lock-hash verification, so the degraded path stays verified.
+
 ## 4. Prior art — the five patterns in the wild
 
 1. **Generate-and-attest, GitHub-native** (anchore/sbom-action → actions/attest-sbom):
@@ -163,6 +186,9 @@ only). They compose; neither substitutes for the other.
   `packages:write` surface.
 * **Compromised runner** — tampered bytes at birth; no downstream digest/signature
   discipline helps. Addressed by pinned actions, least-privilege tokens, provenance.
+* **Wheel-cache seed at boot** — WAS a residual (bare `cp`, no verification at use);
+  now specced as `req-cicd-supply-chain-provenance-2` (see §3.4). The post-seed VOLUME
+  stays a named host-trust residual.
 * **db-Dockerfile PR coverage** — a PR editing docker/postgres/Dockerfile is not
   exercised by CI (db image never built from the PR tree). Pre-existing, named at PR #78.
 * **Registry-side SBOM copy** for mirrored/air-gapped consumers — deferred; signed-only
