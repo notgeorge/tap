@@ -103,11 +103,16 @@ declared-package (lockfile) cataloger explicitly enabled for the scan.
 The SBOM MUST NOT contain the wheel-cache or tool-binary phantom inventory. At minimum
 the scan excludes `/opt/uv-cache-seed/**` (unpacked-wheel `dist-info` masquerading as
 installed packages: build backends, vendored internals, multi-version duplicates, test
-fixtures) and the `uv`/`uvx` binaries' embedded Rust-crate metadata. Rationale: the cache
-is *available bytes*, not *running software*; its inventory approximates the closure
-while missing real members (`colorama`, `tzdata`, `tap` itself) and adding ~31 phantoms —
-and it vanishes entirely if the cache-seeding strategy changes. An SBOM must never be
-load-bearing on an accident.
+fixtures) and the ~1,012 Rust-crate entries of **embedded cargo-auditable metadata**
+inside the `uv`/`uvx` binaries — the tool's own dependency closure, not the artifact's.
+The exclusion is the embedded *metadata*, NEVER the executables themselves: `uv` and
+`uvx` are real, load-bearing components of the image and MUST appear in the SBOM — as
+declared out-of-band entries under req-cicd-sbom-3, since they arrive by digest-pinned
+`COPY --from` rather than a package manager. Rationale for the cache exclusion: the
+cache is *available bytes*, not *running software*; its inventory approximates the
+closure while missing real members (`colorama`, `tzdata`, `tap` itself) and adding ~31
+phantoms — and it vanishes entirely if the cache-seeding strategy changes. An SBOM must
+never be load-bearing on an accident.
 
 ### Out-of-Band Components Declared
 ----
@@ -125,6 +130,17 @@ infer it (verified: it surfaces only as an uncataloged-file unknown), yet it is 
 compliance-significant binary TAP ships. Its SBOM entry is the first machine-readable
 artifact of the crypto-BOM discipline (`req-fips-crypto-bom`, spec-fips.md): the crypto
 provider inventory, in a standard format, per artifact.
+
+Second members: the **`uv` and `uvx` executables** in the web image, copied by
+digest-pinned `COPY --from` from the upstream `ghcr.io/astral-sh/uv` image — outside any
+package manager, therefore declared. (Their ~1,012 embedded cargo-auditable crate entries
+stay excluded under req-cicd-sbom-2; the executables do not.)
+
+Each declared entry carries, at minimum: component name, **version**, **source** (for
+copied binaries: the upstream image ref + digest; for self-built: the pinned source URL),
+**file path in the image**, **SHA-256 of the file**, **license**, and a **purl/CPE where
+one exists**. The declaration lives alongside the Dockerfile that introduces the
+component, so the digest-pin bump and the SBOM entry change in the same diff.
 
 This requirement is the general rule; the guard for it is req-cicd-sbom-7's canary check
 (a missing declared component fails the publish).
@@ -182,9 +198,10 @@ Status: `Proposed`
 Before attesting, the pipeline MUST verify each generated SBOM **fail-closed** against a
 canary list, refusing to publish on any miss:
 
-* web MUST contain: `tap` at the built version, `django`, the `fips.so` supplemental
-  entry, and a known apk canary (e.g. `openssl`);
-* db MUST contain: `postgresql-16` and the `fips.so` supplemental entry;
+* web MUST contain: `tap` at the built version, `django`, a known apk canary (e.g.
+  `openssl`), and **every declared out-of-band component** (req-cicd-sbom-3: `fips.so`,
+  `uv`, `uvx`);
+* db MUST contain: `postgresql-16` and its declared out-of-band component (`fips.so`);
 * both MUST NOT contain known-phantom markers (e.g. `my-test-package`, any
   `/opt/uv-cache-seed` location).
 
