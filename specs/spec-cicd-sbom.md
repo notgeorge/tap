@@ -62,7 +62,7 @@ remain the boot record's territory. The two compose; neither substitutes for the
 | req-cicd-sbom-1 | [Curated Standalone Generation](#curated-standalone-generation) | Proposed | Pinned standalone Syft against verified per-arch digests; BuildKit `sbom: true` is FORBIDDEN for these images |
 | req-cicd-sbom-2 | [Closure Accuracy](#closure-accuracy) | Proposed | Locked Python closure IN (uv.lock cataloger); wheel-cache + uv-binary phantoms OUT (path excludes) |
 | req-cicd-sbom-3 | [Out-of-Band Components Declared](#out-of-band-components-declared) | Proposed | Anything entering the image outside a package manager gets a hand-authored entry — first: `fips.so` (OpenSSL 3.0.9, CMVP #4282) |
-| req-cicd-sbom-4 | [Signed Digest-Bound Home](#signed-digest-bound-home) | Proposed | `attest-sbom` per arch digest, GitHub attestation store; digest-threading law applies end to end; registry copy (if ever) must be a signed attestation, never an attachment |
+| req-cicd-sbom-4 | [Signed Digest-Bound Home](#signed-digest-bound-home) | Proposed | `actions/attest` (sbom-path) per arch digest, GitHub attestation store; digest-threading law applies end to end; registry copy (if ever) must be a signed attestation, never an attachment |
 | req-cicd-sbom-5 | [Per-Arch Standalone SBOMs](#per-arch-standalone-sboms) | Proposed | One SBOM per platform digest; no merged index-level SBOM exists |
 | req-cicd-sbom-6 | [Single Derivation, Format as Serialization](#single-derivation-format-as-serialization) | Proposed | One Syft scan per digest is canonical; CycloneDX JSON + SPDX JSON BOTH emitted from that same scan on day one; CycloneDX primary |
 | req-cicd-sbom-7 | [Canary Guard](#canary-guard) | Proposed | Fail-closed publish check: expected components present, known phantoms absent — else no attestation |
@@ -165,7 +165,8 @@ RID: `req-cicd-sbom-4`
 Status: `Proposed`
 
 SBOMs are published as **signed attestations in the GitHub attestation store**
-(`actions/attest-sbom`), subject = the verified per-arch image digest — the same home,
+(`actions/attest` with `sbom-path` — the boring-current action; `actions/attest-sbom`
+is deprecated in its favor), subject = the verified per-arch image digest — the same home,
 identity root, and `gh attestation verify` story as the existing SLSA provenance. No new
 trust roots.
 
@@ -208,7 +209,9 @@ docker buildx imagetools inspect ghcr.io/unified-systems-com/tap-web:X.Y.Z \
 gh attestation verify oci://ghcr.io/unified-systems-com/tap-web@sha256:<digest> \
   --owner unified-systems-com \
   --predicate-type https://cyclonedx.org/bom          # primary (CycloneDX)
-#   --predicate-type https://spdx.dev/Document        # the SPDX serialization
+#   --predicate-type https://spdx.dev/Document/v2.3   # the SPDX serialization
+# (Use the EXACT predicate URI the attestation was emitted with — for SPDX 2.3
+#  that is the versioned https://spdx.dev/Document/v2.3, not the bare form.)
 ```
 
 (The plain provenance verify, no `--predicate-type`, continues to work unchanged for
@@ -328,9 +331,11 @@ COMPOSES — it never re-derives blindly and never trusts blindly.
   (req-cicd-sbom-7), never a silent preference for either side — disagreement between
   declaration and derivation is precisely the signal worth stopping for.
 * **Trust rides the signing wave.** Plugin SBOM attestations inherit the org-rooted
-  identity `req-plugin-extdev-signing` lands (spec-plugin-external-development.md);
-  no new trust machinery is invented here, and nothing blocks on it — unsigned-but-
-  attested-by-CI is the interim posture, upgraded when that wave ships.
+  identity `req-plugin-extdev-signing` lands
+  (`tap_plugins/specs/spec-plugin-external-development.md`); no new trust machinery
+  is invented here, and nothing blocks on it — GitHub-attested by CI is the interim
+  posture; org-rooted plugin publisher identity hardening lands with
+  `req-plugin-extdev-signing`.
 
 ### Standards Conformance Validation
 ----
@@ -340,7 +345,10 @@ Status: `Proposed`
 Before attesting, each generated SBOM MUST pass, fail-closed at the same gate point as
 the canary guard:
 
-* **Schema validation** of the CycloneDX document against its declared spec version.
+* **Schema validation of BOTH emitted documents** against their declared spec
+  versions — CycloneDX against the bom schema, SPDX against the SPDX JSON schema
+  (vendored, pinned copies: a conformance gate that fetches its schemas from the
+  network at publish time would be its own supply-chain hole).
 * **Minimum-elements field checks** (CISA/NSA 2026 minimum elements): format name +
   version, SBOM/document version, generating tool name + version, generation
   timestamp/context, author, per-component **identifiers** (purl/CPE where they exist)
