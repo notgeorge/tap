@@ -81,6 +81,17 @@ The method is now a repeatable skill: **`tap/skills/triage-requirements/`** (`/t
 carrying the decision tree (status-first → guard-rid claims → spec-names-its-file → commit
 co-occurrence → test-cite → exclusion → deliberate skip) and the earned traps.
 
+**Batch 2 (2026-08-20): 509 → 495.** The guard-rid shortlist run corpus-wide: 7 guards claimed
+their own requirements (collection-completeness, json-naming, known-dupes, mypy-ratchet,
+rid-integrity, secret-leak, secret-pattern) plus `tap.spec_trace` claiming the
+rid-integrity derivation it already declared in prose. Then `spec-dev-validation`: the Map
+(`tap/guards/report.py`), the ratchet harness (`tap/ratchet.py`), and three claims on the
+cold-boot gate command whose header names all three requirements; `gate-lean` and the promote
+hook excluded as `non-python`. Four shortlist refinements folded into the skill: declared-surface
+registries are pointers not targets; ACID-scoped rids don't own the parent; hedging headers are
+partial slices; two guards on one rid → claim the primary. Remaining drift-status rows
+(`Partially Implemented`, `Partial`) left deliberately — status normalization is its own pass.
+
 Spec-by-spec lanes, priority order: security-posture / FIPS / service-boundary → `tap_auth` /
 `tap_boot` → remaining apps → the tail. For each requirement: claim it, test-cite it, or mark
 its `Trace:` disposition. Candidate generation via commit co-occurrence (the RID's authoring

@@ -1,5 +1,8 @@
 """Referenced-RID integrity ratchet — `spec-docs.md` (`req-docs-rid-integrity`).
 
+TAP-IMPLEMENTS: req-docs-rid-integrity@9633efb7b6ee/55d3fc8f1180 (enforcement) — the guard
+    that fails a `req-*` citation resolving to no defined requirement.
+
 Every `req-*` token cited in a living surface — a first-party Python docstring or comment,
 a spec cross-reference, a non-archival doc, an agent guide — must resolve to a requirement
 or acceptance criterion actually defined in the specs.

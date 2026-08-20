@@ -614,7 +614,7 @@ Generated — do not hand-edit. Regenerate with `manage.py guards --sync-evidenc
 
 <!-- BEGIN GENERATED EVIDENCE — manage.py guards --sync-evidence -->
 
-**1132** requirements · **19** standing doctrine · **1** disputed · **40** carry evidence · **1** carry both classes · **496** declared built with none.
+**1132** requirements · **19** standing doctrine · **1** disputed · **52** carry evidence · **1** carry both classes · **484** declared built with none.
 
 Separate facts, deliberately not blended into one percentage. **Doctrine** is outside the coverage question — in force now, never "completed", expecting conformance rather than an implementation. **Disputed** marks a spec-versus-implementation disagreement awaiting a human ruling — its claims are pointers to the contested code, never resolution, and the count should trend to zero. **Declared built with none** is context, not a defect list: claims are opt-in and scarce by design (`req-tap-traceability-scope`), so it measures how much of the corpus has been deliberately targeted, not how much is wrong. Collapsing these into a single coverage score is what makes such a score meaningless.
 
@@ -623,6 +623,14 @@ Separate facts, deliberately not blended into one percentage. **Doctrine** is ou
 | `req-boot-bootstrap-pointer-grammar` | Proposed | Implemented | `parse_pointer` | — |
 | `req-cicd-dco-signoff` | — | Tested | — | `req-cicd-dco-signoff-2`, `req-cicd-dco-signoff-3`, `req-cicd-dco-signoff-4` |
 | `req-cicd-runner-least-privilege` | Implemented | Implemented | `<module>` | — |
+| `req-dev-validation-collection-complete` | Implemented | Implemented | `<module>` | — |
+| `req-dev-validation-known-broken` | Implemented | Implemented | `<module>` | — |
+| `req-dev-validation-map` | Implemented | Implemented | `<module>` | — |
+| `req-dev-validation-mypy-ratchet` | Implemented | Implemented | `<module>` | — |
+| `req-dev-validation-ratchet-harness` | Implemented | Implemented | `<module>` | — |
+| `req-dev-validation-real-backend` | Implemented | Implemented | `<module>` | — |
+| `req-dev-validation-smoke-gate` | Implemented | Implemented | `<module>` | — |
+| `req-docs-rid-integrity` | Implemented | Implemented | `<module>`, `<module>` | — |
 | `req-grid-edge-schema-required` | Proposed | Implemented | `validate_edge_properties` | — |
 | `req-grid-keystone-validation` | Implemented | Implemented | `Keystone.validate` | — |
 | `req-grid-service-pipeline-context` | Implemented | Implemented | `require_caller_context` | — |
@@ -635,7 +643,9 @@ Separate facts, deliberately not blended into one percentage. **Doctrine** is ou
 | `req-tap-auth-passkey-genesis` | Proposed | Tested | — | `req-tap-auth-passkey-genesis-3`, `req-tap-auth-passkey-genesis-4` |
 | `req-tap-auth-passkey-rollout` | Proposed | Tested | — | `req-tap-auth-passkey-rollout-2` |
 | `req-tap-auth-passkey-webauthn` | Proposed | Tested | — | `req-tap-auth-passkey-webauthn-10`, `req-tap-auth-passkey-webauthn-11`, `req-tap-auth-passkey-webauthn-13`, `req-tap-auth-passkey-webauthn-3`, `req-tap-auth-passkey-webauthn-7`, `req-tap-auth-passkey-webauthn-8` |
+| `req-tap-cares-secrets-credential-patterns` | Implemented | Implemented | `<module>` | — |
 | `req-tap-cares-secrets-files` | Implemented | Implemented | `<module>` | — |
+| `req-tap-cares-secrets-leak-guard` | Implemented | Implemented | `<module>` | — |
 | `req-tap-cares-secrets-root-resolution` | Implemented | Implemented | `resolve` | — |
 | `req-tap-health-bootcheck` | Implemented | Tested | — | `req-tap-health-bootcheck-1`, `req-tap-health-bootcheck-2`, `req-tap-health-bootcheck-3`, `req-tap-health-bootcheck-4` |
 | `req-tap-health-exposure` | Implemented | Tested | — | `req-tap-health-exposure-2`, `req-tap-health-exposure-3` |
@@ -645,7 +655,9 @@ Separate facts, deliberately not blended into one percentage. **Doctrine** is ou
 | `req-tap-health-service` | Implemented | Tested | — | `req-tap-health-service-3`, `req-tap-health-service-5` |
 | `req-tap-json-discovery` | Implemented | Implemented | `discover_json_files` | — |
 | `req-tap-json-loader` | Implemented | Implemented | `<module>` | — |
+| `req-tap-json-naming` | Implemented | Implemented | `<module>` | — |
 | `req-tap-json-scanner` | Implemented | Implemented | `scan_json_files` | — |
+| `req-tap-known-dupes` | Implemented | Implemented | `<module>` | — |
 | `req-tap-logging-config-location` | Proposed | Implemented | `build_logging_config` | — |
 | `req-tap-plugin-arch-source-secret` | Implemented | Implemented | `<module>` | — |
 | `req-tap-plugin-load-v0-ready-chain` | Implemented | Tested | — | `req-tap-plugin-load-v0-ready-chain-1`, `req-tap-plugin-load-v0-ready-chain-2` |
@@ -694,20 +706,19 @@ Generated — do not hand-edit. Regenerate with `manage.py guards --sync-account
 
 <!-- BEGIN GENERATED ACCOUNTING — manage.py guards --sync-accounting -->
 
-**1132** requirements · **40** mapped · **16** excluded (external 1, non-python 14, process 1) · **19** doctrine · **1** disputed · **531** unbuilt · **16** retired · **509 Unaccounted**.
+**1132** requirements · **52** mapped · **18** excluded (external 1, non-python 16, process 1) · **19** doctrine · **1** disputed · **531** unbuilt · **16** retired · **495 Unaccounted**.
 
 The Unaccounted count is the Definition of Done's progress bar: it only moves down (the committed baseline grandfathers existing debt; a new requirement without a disposition fails immediately). A grandfathered entry is debt, not license — every Unaccounted requirement still needs a mapping or a documented exclusion. **Unbuilt** and **retired** derive from status — a requirement declaring itself future work or withdrawn has, by its own account, nothing to map; the moment one flips to `Implemented` without evidence or an exclusion it becomes a NEW Unaccounted entry and the ratchet fails, so claiming done is where the Definition of Done is enforced.
 
 | Spec | Reqs | Mapped | Excluded | Doctrine | Disputed | Unbuilt | Retired | Unaccounted |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | `tap_grid/specs/spec-grid-traversal-language.md` | 20 | 0 | 0 | 0 | 0 | 2 | 0 | 18 |
-| `tap_cares/specs/spec-tap-cares-secrets.md` | 21 | 2 | 0 | 0 | 0 | 3 | 0 | 16 |
 | `tap_plugins/specs/spec-tap-plugin-architecture.md` | 27 | 1 | 0 | 0 | 0 | 10 | 0 | 16 |
 | `tap_plugins/specs/spec-tap-plugin-validation.md` | 17 | 0 | 0 | 0 | 0 | 1 | 0 | 16 |
 | `specs/spec-tap-boot-v0.md` | 22 | 0 | 0 | 0 | 0 | 8 | 0 | 14 |
+| `tap_cares/specs/spec-tap-cares-secrets.md` | 21 | 4 | 0 | 0 | 0 | 3 | 0 | 14 |
 | `tap_grid/specs/spec-grid-import-grift.md` | 17 | 0 | 0 | 0 | 0 | 3 | 0 | 14 |
 | `tap_viz/specs/spec-viz-stack.md` | 14 | 0 | 0 | 0 | 0 | 2 | 0 | 12 |
-| `specs/spec-dev-validation.md` | 15 | 0 | 0 | 0 | 0 | 4 | 0 | 11 |
 | `tap_cares/specs/spec-tap-cares-administrivia.md` | 13 | 0 | 0 | 0 | 0 | 2 | 0 | 11 |
 | `tap_cares/specs/spec-tap-cares-collector.md` | 20 | 0 | 0 | 0 | 0 | 9 | 0 | 11 |
 | `tap_cares/specs/spec-tap-cares-scheduler.md` | 12 | 0 | 0 | 0 | 0 | 1 | 0 | 11 |
@@ -758,7 +769,6 @@ The Unaccounted count is the Definition of Done's progress bar: it only moves do
 | `specs/spec-cicd-hardening.md` | 13 | 2 | 5 | 0 | 0 | 3 | 0 | 3 |
 | `specs/spec-dev-playwright-refresh.md` | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 3 |
 | `specs/spec-dev-plugin-workspace.md` | 7 | 0 | 0 | 0 | 0 | 4 | 0 | 3 |
-| `specs/spec-tap-json-files.md` | 7 | 3 | 0 | 0 | 0 | 1 | 0 | 3 |
 | `specs/spec-tap-plugin-validation-distribution.md` | 6 | 0 | 0 | 0 | 0 | 3 | 0 | 3 |
 | `tap_grid/specs/spec-grid-dimension.md` | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 3 |
 | `tap_grid/specs/spec-grid-service-errors.md` | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 3 |
@@ -768,14 +778,14 @@ The Unaccounted count is the Definition of Done's progress bar: it only moves do
 | `tap_web/specs/spec-web-panel-security.md` | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 3 |
 | `tap_web/specs/spec-web-panels-standard.md` | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 3 |
 | `specs/spec-dev-multisession-teardown.md` | 3 | 0 | 0 | 0 | 0 | 1 | 0 | 2 |
+| `specs/spec-dev-validation.md` | 15 | 7 | 2 | 0 | 0 | 4 | 0 | 2 |
 | `specs/spec-rampart-demo-anwar.md` | 9 | 0 | 0 | 0 | 0 | 7 | 0 | 2 |
+| `specs/spec-tap-json-files.md` | 7 | 4 | 0 | 0 | 0 | 1 | 0 | 2 |
 | `specs/spec-tap-testing.md` | 9 | 0 | 0 | 0 | 0 | 7 | 0 | 2 |
 | `tap_grid/specs/spec-grid-security.md` | 7 | 1 | 0 | 0 | 0 | 4 | 0 | 2 |
 | `tap_plugins/specs/spec-tap-plugin-external-development.md` | 5 | 0 | 0 | 0 | 0 | 3 | 0 | 2 |
 | `specs/spec-dev-multisession.md` | 15 | 0 | 10 | 0 | 0 | 4 | 0 | 1 |
-| `specs/spec-docs.md` | 11 | 0 | 0 | 0 | 0 | 10 | 0 | 1 |
 | `specs/spec-tap-boot-bootstrap.md` | 10 | 1 | 0 | 0 | 0 | 8 | 0 | 1 |
-| `specs/spec-tap-known-dupes.md` | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
 | `specs/spec-tap-plugin-dependency-resolution.md` | 12 | 0 | 0 | 0 | 0 | 11 | 0 | 1 |
 | `specs/spec-tap-requirement-traceability.md` | 11 | 9 | 1 | 0 | 0 | 0 | 0 | 1 |
 | `tap_cares/specs/spec-tap-cares-v0.md` | 14 | 0 | 0 | 0 | 0 | 13 | 0 | 1 |
@@ -791,6 +801,7 @@ The Unaccounted count is the Definition of Done's progress bar: it only moves do
 | `specs/spec-dev-multisession-onboarding-doc.md` | 4 | 0 | 0 | 0 | 0 | 4 | 0 | 0 |
 | `specs/spec-dev-multisession-smoketest.md` | 4 | 0 | 0 | 0 | 0 | 4 | 0 | 0 |
 | `specs/spec-dev-playwright-refresh-doc.md` | 4 | 0 | 0 | 0 | 0 | 4 | 0 | 0 |
+| `specs/spec-docs.md` | 11 | 1 | 0 | 0 | 0 | 10 | 0 | 0 |
 | `specs/spec-req-template.md` | 2 | 0 | 0 | 0 | 0 | 2 | 0 | 0 |
 | `specs/spec-roadmap.md` | 10 | 0 | 0 | 10 | 0 | 0 | 0 | 0 |
 | `specs/spec-security-posture-corpus.md` | 12 | 0 | 0 | 0 | 0 | 12 | 0 | 0 |
@@ -800,6 +811,7 @@ The Unaccounted count is the Definition of Done's progress bar: it only moves do
 | `specs/spec-tap-callsite-identity.md` | 6 | 0 | 0 | 0 | 0 | 6 | 0 | 0 |
 | `specs/spec-tap-flaw-v0.md` | 9 | 0 | 0 | 0 | 0 | 9 | 0 | 0 |
 | `specs/spec-tap-health-v0.md` | 10 | 6 | 0 | 0 | 0 | 2 | 2 | 0 |
+| `specs/spec-tap-known-dupes.md` | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `specs/spec-tap-package-security-v0-BACKLOG.md` | 12 | 0 | 0 | 0 | 0 | 12 | 0 | 0 |
 | `specs/spec-tap-settings.md` | 1 | 0 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `specs/spec-tap-static-assets.md` | 3 | 0 | 0 | 0 | 0 | 3 | 0 | 0 |

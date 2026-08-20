@@ -1,5 +1,8 @@
 """Known-dupe group integrity guard — `req-tap-known-dupes`.
 
+TAP-IMPLEMENTS: req-tap-known-dupes@fb68deb20642/00562c03b3cb (enforcement) — the guard
+    that fails an undeclared duplicate-derivation group.
+
 Intentional duplicate derivations (an import boundary forbids one shared
 function) are tagged ``TAP-KNOWN-DUPE(<group-id>)`` at every site. This guard
 keeps the tags honest: every group id found in code must have at least two code

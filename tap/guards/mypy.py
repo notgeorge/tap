@@ -1,5 +1,8 @@
 """Static-typing (mypy) ceiling ratchet — freeze the baseline, block new errors.
 
+TAP-IMPLEMENTS: req-dev-validation-mypy-ratchet@fa630990c5bc/09ec6f90dc32 (enforcement) —
+    the per-file+error-code ceiling ratchet over the strict-mode baseline.
+
 `strict = true` is set in pyproject but nothing gated on it, so mypy drifted to
 ~1200 errors — overwhelmingly django-stubs friction (Django's dynamic ORM: `.objects`,
 `._meta`, subclass fields via `BaseModel`) and test-fixture `no-untyped-call` cascade,

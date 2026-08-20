@@ -32,7 +32,20 @@ Work spec-by-spec. For each Unaccounted requirement, in this order:
 2. **Is there an obvious enforcement claim?** Check the guard registry: a `Guard` subclass whose
    `rid` names this requirement is a pre-verified claim candidate — the guard→requirement edge
    was already authored and machine-checked. Mint `(enforcement)` on the guard module.
-   `grep -rn 'rid = "req-' tap/guards/ */guards/` is the shortlist.
+   `grep -rniE '^\s*rid = "req-' tap/guards/ */guards/` is the shortlist. Four refinements the
+   shortlist needs (each earned in batch 2):
+   - **Declared-surface registries are pointers, never targets.** `tap/guards/surfaces.py` rows
+     declare that a surface exists elsewhere (a workflow, a script) — claiming the registry
+     would map the requirement to a table of contents.
+   - **A rid naming an ACID enforces one criterion, not the requirement.** A guard on
+     `req-x-15` does not own `req-x`; claiming the parent is over-claim. Leave it.
+   - **A hedging header is a partial slice.** A guard whose docstring says "`req-a` +
+     `spec-b.md`" enforces a piece of each — skip rather than stretch.
+   - **Two guards, one rid: claim THE primary.** The uniqueness guard would trip anyway; the
+     sub-guard defending the primary's ledger is support, not a second owner.
+   The inverse also pays: a module whose header says "Spec: … (`req-a`, `req-b`, `req-c`)" and
+   calls itself "the single artifact" supports one claim per named requirement, each with its
+   own role — the gate command carried three.
 3. **Does the spec name its implementation?** Grep the requirement body for `scripts/`, `.yml`,
    `.py`, module paths. Spec build-notes ("lives in `tap/foo.py`", "`scripts/spawn-session.sh`
    provisions…") make the mapping obvious: a Python target gets a claim; a shell/YAML/compose

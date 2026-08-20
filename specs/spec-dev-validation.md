@@ -461,6 +461,7 @@ without taxing every unrelated local edit.
 ----
 RID: `req-dev-validation-lean-boot`
 Status: `Implemented`
+Trace: `non-python` — scripts/gate-lean
 
 The cold-boot gate ([Cold-Boot Smoke Gate](#cold-boot-smoke-gate)) runs inside the **already-running stack's venv** — a per-compose-project named volume (`venv:/app/.venv`) that holds whatever the container's boot profile installed (the full `test_all` union under the promote gate). That venv-sharing is a **structural blind spot** for one failure class: a **core** (`tap_*`) module that imports a **plugin-only** dependency (e.g. `requests`, `jwt`, `boto3`). In a full venv the leaked package is already importable, so the import silently succeeds and the leak stays invisible — yet a real **lean deployment** (the `core` product baseline, a customer with a minimal plugin set, or a plugin evicted to its own repo) would fail to boot with `ModuleNotFoundError`. Booting `core` *in-process* inside the full-venv gate has **zero teeth** here; only a genuinely separate, lean-**installed** environment catches it.
 
@@ -574,6 +575,7 @@ on its own scaffolding erodes trust in every red. Feeds the flaky-test-tracking 
 ----
 RID: `req-dev-validation-promote-hook`
 Status: `Implemented`
+Trace: `non-python` — scripts/promote-to-main.sh
 
 The promote path MUST run the gate before advancing `origin/main` and refuse to push on red. This covers `scripts/promote-to-main.sh`, `scripts/promote-all-sessions.sh` (via the per-session script), and the documented manual fallback sequence. **As built the promote path composes three validation surfaces** (Step 2.5): the **full pytest lane** (`scripts/test --gryphon` — `--gryphon` forces the Gryphon corpus on unconditionally so the gate never inherits the local relevance-skip of `req-dev-validation-suite-tiers-5`) — which catches unit/functional regressions the cold-boot cycle structurally cannot (e.g. a stale collector key red'ing a unit test — the exact class that shipped to `main` red *because no promote gate existed yet*: the 2026-07-02 collector-identity refactor left the module-path key in `test_orchestrator.py`'s `_KSI_COLLECTOR` fixture, and the ungated promote published it) — then the **cold-boot gate** (`scripts/gate`), then the **lean-boot independence gate** (`scripts/gate-lean`, [above](#lean-boot-independence-gate)) which catches the core→plugin-dep import-leakage class the full-venv cold-boot gate structurally cannot. All three must be green; any red aborts before the atomic push. This is the reciprocal of `req-dev-multisession-promote-gate` in [spec-dev-multisession.md](spec-dev-multisession.md): that spec owns the requirement *on the promote workflow*; this requirement owns the gate *contract it invokes*. The two cross-reference and MUST stay consistent.
 
