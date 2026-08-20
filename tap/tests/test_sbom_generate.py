@@ -63,6 +63,7 @@ FAKE_HASHES = {"openssl-fips-provider": "a" * 64, "uv": "b" * 64, "uvx": "c" * 6
 
 
 @pytest.mark.parametrize("path", [WEB_SUPPLEMENTAL, DB_SUPPLEMENTAL], ids=["web", "db"])
+@pytest.mark.spec("req-cicd-sbom-3-1")
 def test_committed_supplemental_manifests_validate(path: Path) -> None:
     manifest = gen.load_supplemental(path)
     assert manifest["format"] == "tap-sbom-supplemental/1"
@@ -73,6 +74,7 @@ def test_web_supplemental_declares_the_three_components() -> None:
     assert names == ["openssl-fips-provider", "uv", "uvx"]
 
 
+@pytest.mark.spec("req-cicd-sbom-3-2")
 def test_supplemental_schema_rejects_missing_required_field(tmp_path: Path) -> None:
     import jsonschema
 
@@ -87,6 +89,7 @@ def test_supplemental_schema_rejects_missing_required_field(tmp_path: Path) -> N
 # --- injection + schema validation ------------------------------------------
 
 
+@pytest.mark.spec("req-cicd-sbom-3-3")
 def test_injected_cdx_schema_validates_and_carries_hashes() -> None:
     supplemental = gen.load_supplemental(WEB_SUPPLEMENTAL)
     doc = gen.inject_cdx(_minimal_cdx(_web_base_components()), supplemental, FAKE_HASHES, coverage="test coverage")
@@ -101,6 +104,7 @@ def test_injected_cdx_schema_validates_and_carries_hashes() -> None:
     assert any(p["name"] == "tap:coverage" for p in doc["metadata"]["properties"])
 
 
+@pytest.mark.spec("req-cicd-sbom-3-3")
 def test_injected_spdx_schema_validates_with_describes_edges() -> None:
     supplemental = gen.load_supplemental(DB_SUPPLEMENTAL)
     base = {
@@ -121,6 +125,7 @@ def test_injected_spdx_schema_validates_with_describes_edges() -> None:
 # --- conformance (req-cicd-sbom-11) ------------------------------------------
 
 
+@pytest.mark.spec("req-cicd-sbom-11-1")
 def test_minimum_elements_pass_on_conformant_doc() -> None:
     supplemental = gen.load_supplemental(WEB_SUPPLEMENTAL)
     doc = gen.inject_cdx(_minimal_cdx(_web_base_components()), supplemental, FAKE_HASHES, coverage="x")
@@ -137,6 +142,7 @@ def test_minimum_elements_pass_on_conformant_doc() -> None:
         (lambda d: d["components"][0].pop("version"), "missing name or version"),
     ],
 )
+@pytest.mark.spec("req-cicd-sbom-11-1")
 def test_minimum_elements_fail_closed(mutate, expected: str) -> None:
     supplemental = gen.load_supplemental(WEB_SUPPLEMENTAL)
     doc = gen.inject_cdx(_minimal_cdx(_web_base_components()), supplemental, FAKE_HASHES, coverage="x")
@@ -145,6 +151,7 @@ def test_minimum_elements_fail_closed(mutate, expected: str) -> None:
     assert any(expected in p for p in problems), problems
 
 
+@pytest.mark.spec("req-cicd-sbom-11-2")
 def test_purl_flood_detected() -> None:
     supplemental = gen.load_supplemental(WEB_SUPPLEMENTAL)
     bare: list[dict[str, object]] = [
@@ -157,12 +164,14 @@ def test_purl_flood_detected() -> None:
 # --- canaries (req-cicd-sbom-7) ----------------------------------------------
 
 
+@pytest.mark.spec("req-cicd-sbom-7-1")
 def test_canaries_pass_on_honest_web_doc() -> None:
     supplemental = gen.load_supplemental(WEB_SUPPLEMENTAL)
     doc = gen.inject_cdx(_minimal_cdx(_web_base_components()), supplemental, FAKE_HASHES, coverage="x")
     assert gen.check_canaries(doc, "tap-web", supplemental) == []
 
 
+@pytest.mark.spec("req-cicd-sbom-7-2")
 def test_dropped_supplemental_component_is_a_red() -> None:  # every declared entry is a canary
     supplemental = gen.load_supplemental(WEB_SUPPLEMENTAL)
     doc = _minimal_cdx(_web_base_components())  # no injection performed
@@ -170,6 +179,7 @@ def test_dropped_supplemental_component_is_a_red() -> None:  # every declared en
     assert any("openssl-fips-provider" in p for p in problems)
 
 
+@pytest.mark.spec("req-cicd-sbom-7-3")
 def test_missing_tap_itself_is_a_red() -> None:
     supplemental = gen.load_supplemental(WEB_SUPPLEMENTAL)
     doc = gen.inject_cdx(
@@ -181,6 +191,7 @@ def test_missing_tap_itself_is_a_red() -> None:
     assert any("tap" == p.split(": ")[-1] for p in gen.check_canaries(doc, "tap-web", supplemental))
 
 
+@pytest.mark.spec("req-cicd-sbom-7-4")
 def test_phantom_name_is_a_red() -> None:
     supplemental = gen.load_supplemental(WEB_SUPPLEMENTAL)
     doc = gen.inject_cdx(
@@ -189,6 +200,7 @@ def test_phantom_name_is_a_red() -> None:
     assert any("forbidden phantom" in p for p in gen.check_canaries(doc, "tap-web", supplemental))
 
 
+@pytest.mark.spec("req-cicd-sbom-7-4")
 def test_forbidden_location_is_a_red() -> None:
     supplemental = gen.load_supplemental(WEB_SUPPLEMENTAL)
     smuggled = _component("sneaky")
@@ -197,6 +209,7 @@ def test_forbidden_location_is_a_red() -> None:
     assert any("forbidden /opt/uv-cache-seed" in p for p in gen.check_canaries(doc, "tap-web", supplemental))
 
 
+@pytest.mark.spec("req-cicd-sbom-11-3")
 def test_minimum_elements_accepts_legacy_tools_array() -> None:
     """CycloneDX also serializes metadata.tools as a legacy array — no AttributeError."""
     supplemental = gen.load_supplemental(WEB_SUPPLEMENTAL)
