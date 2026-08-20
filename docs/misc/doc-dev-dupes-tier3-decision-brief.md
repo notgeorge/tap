@@ -153,7 +153,7 @@ downstream consumers listed in the scout record).
 | F3 | Recognizer collapse | Shared vocab in `tap/source_scan.py`; add `update_or_create`/`aupdate_or_create` both sides; set-diff | — |
 | F4a | `tap_secrets` gap | Fix now, one line, scoped to `scan_json_files` | — |
 | F4b | Predicate collapse + authz `migrations` | `default_out_of_scope()` in source_scan; authz declares `migrations=False` for now | — |
-| F5 | Digest-parse collapse | `declared_record_digests()` in boot_records; duplicate names = hard error | — |
+| F5 | Digest-parse collapse | `declared_record_digests()` in boot_records; duplicate names = hard error | **Ruled: rec (George, 2026-08-20); landed. Claim-minting rider DEFERRED — the claims machinery is mid-rewrite in a concurrent session** |
 | F6 | `qualify()` | In `tap/registry.py`; uuid5 site isolated commit + UUID diff; tap_boot site tagged | — |
 | F7 | — | Closed by verification | ✓ |
 | T4 | GRIFT collapse | Downgraded to hygiene; three exported helpers; in-tree test validation | — |

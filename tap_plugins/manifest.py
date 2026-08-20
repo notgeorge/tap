@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from tap.boot_records import BootRecordManifestError, declared_record_digests
 from tap.jsonfiles import JsonFileError, load_json_file, load_schema
 
 logger = logging.getLogger(__name__)
@@ -454,37 +455,29 @@ def _parse_boot_records(raw_boot: Any, manifest_path: Path) -> list[BootRecordEn
     """
     if not isinstance(raw_boot, dict):
         raise PluginManifestError(f"'boot' must be a table in {manifest_path}")
-    raw_records = raw_boot.get("records", [])
-    if not isinstance(raw_records, list):
-        raise PluginManifestError(f"'boot.records' must be an array of tables in {manifest_path}")
+    # Name/duplicate/sha256 structure is the shared declared-digest parse
+    # (tap.boot_records.declared_record_digests — the same semantics the stage-0
+    # integrity gate and the coherence guard apply); this validator adds the
+    # manifest-only checks on top: unknown keys and the description contract.
+    try:
+        digests = declared_record_digests({"boot": raw_boot})
+    except BootRecordManifestError as exc:
+        raise PluginManifestError(f"{exc} in {manifest_path}") from exc
 
     entries: list[BootRecordEntry] = []
-    seen: set[str] = set()
-    for item in raw_records:
-        if not isinstance(item, dict):
-            raise PluginManifestError(f"each boot.records entry must be a table in {manifest_path}")
+    for item in raw_boot.get("records", []):
         unknown = set(item) - _BOOT_RECORD_KEYS
         if unknown:
             raise PluginManifestError(f"boot.records entry has unknown keys {sorted(unknown)} in {manifest_path}")
 
-        name = item.get("name")
-        if not isinstance(name, str) or not name:
-            raise PluginManifestError(f"boot.records entry must have a non-empty string 'name' in {manifest_path}")
-        if name in seen:
-            raise PluginManifestError(f"Duplicate boot record name '{name}' in {manifest_path}")
-        seen.add(name)
-
+        name = item["name"]
         description = item.get("description")
         if not isinstance(description, str) or not description:
             raise PluginManifestError(
                 f"boot.records '{name}' must have a non-empty string 'description' in {manifest_path}"
             )
 
-        sha256 = item.get("sha256", "")
-        if not isinstance(sha256, str):
-            raise PluginManifestError(f"boot.records '{name}' sha256 must be a string in {manifest_path}")
-
-        entries.append(BootRecordEntry(name=name, description=description, sha256=sha256))
+        entries.append(BootRecordEntry(name=name, description=description, sha256=digests[name]))
 
     return entries
 
