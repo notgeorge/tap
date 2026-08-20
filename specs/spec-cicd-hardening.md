@@ -118,6 +118,8 @@ cheap-edge doctrine; the rest are the larger deploy-half build, rightly deferred
 ### Source Base Images Off Anonymous Docker Hub
 
 RID: `req-cicd-base-image-sourcing`
+Status: `Implemented`
+Trace: `non-python` — docker/postgres/Dockerfile
 
 The promote gate's cloud CI (`product-lines.yml`, the `test_all` lane gating **every** promote
 to `origin/main`) builds the web image on a GitHub Actions runner, and that build pulled its
@@ -238,6 +240,8 @@ which indexes `-5`/`-6` in its FIPS Requirement Map.
 ### Enforce The Gate Server-Side
 
 RID: `req-cicd-branch-protection`
+Status: `Implemented`
+Trace: `external` — GitHub repository rulesets (protect-default-branches, main-required-checks)
 
 **Implemented 2026-08-09 as two layered repository rulesets** on the default branch:
 `protect-default-branches` (pre-existing: deletion + force-push blocked for **everyone**,
@@ -292,6 +296,7 @@ rework; it rides naturally with the mandatory-PR flip and the `-3` code-owner-re
 ### Runner Least Privilege
 
 RID: `req-cicd-runner-least-privilege`
+Status: `Implemented`
 
 **The job is the token boundary.** Every GitHub Actions job receives its own short-lived
 `GITHUB_TOKEN`; per-job `permissions:` blocks are therefore a real, enforced isolation
@@ -373,6 +378,8 @@ the [security posture](spec-security-posture.md).
 ### Automate Dependency Updates
 
 RID: `req-cicd-dep-automation`
+Status: `Implemented`
+Trace: `non-python` — renovate.json5
 
 TAP pins (`uv.lock`) but pinned dependencies rot — security patches do not land until
 someone notices. **Implemented 2026-08-09 (PR-only)**: self-hosted Renovate (see
@@ -386,6 +393,8 @@ it), and the update PRs flow through the `pull_request` product-lines gate, whic
 ### Build Once, Promote The Artifact
 
 RID: `req-cicd-build-once-artifact`
+Status: `Implemented`
+Trace: `non-python` — .github/workflows/publish-images.yml
 
 **Implemented for the dev/CI artifact (2026-08-09).** `.github/workflows/publish-images.yml`
 builds `tap-web` + `tap-db` (TAP_FIPS=1, multi-arch amd64+arm64 on native runners) on every
@@ -411,6 +420,8 @@ app, not just plugins).
 ### Sign Artifacts, Emit SBOM
 
 RID: `req-cicd-supply-chain-provenance`
+Status: `Implemented`
+Trace: `non-python` — .github/workflows/publish-images.yml
 
 **First slice implemented (2026-08-09):** the published `tap-web`/`tap-db` images carry
 SLSA Build L2 provenance via `actions/attest-build-provenance` (Sigstore public-good
@@ -468,6 +479,7 @@ main's tip is the deliberate choice.
 ### Continuous Delivery
 
 RID: `req-cicd-continuous-delivery`
+Status: `Backlog`
 
 The entire deploy half is unbuilt: no staging/prod **environments**, no deploy automation,
 no **progressive delivery** (canary/blue-green), no **rollback** path, no product-level
@@ -479,6 +491,7 @@ not a blind spot. TAP has **CI, not CI/CD**: "promote to main" is *integration*,
 ### Live Instances In CI For Operational Testing
 
 RID: `req-cicd-live-instance-testing`
+Status: `Backlog`
 
 Stand up **running TAP instances as part of the CI process** and operate them as test
 targets — the class of validation that only exists against a live product, not a test
@@ -510,6 +523,7 @@ the OpenSSF Scorecard fuzzing check (Schemathesis/Hypothesis are recognized engi
 ### Measure The Pipeline
 
 RID: `req-cicd-pipeline-observability`
+Status: `Backlog`
 
 No measurement of the four **DORA metrics** (deployment frequency, lead time for changes,
 change-failure rate, MTTR) and no systematic **flaky-test tracking** (flakes are fixed

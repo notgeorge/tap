@@ -194,7 +194,10 @@ def test_every_requirement_gets_exactly_one_bucket(tmp_path: Path) -> None:
     buckets = accounting(tree)
     corpus = load_corpus(tree)
     assert set(buckets) == set(corpus.requirements)
-    assert all(b in {"mapped", "excluded", "doctrine", "disputed", "unaccounted"} for b in buckets.values())
+    assert all(
+        b in {"mapped", "excluded", "doctrine", "disputed", "unbuilt", "retired", "unaccounted"}
+        for b in buckets.values()
+    )
 
 
 def test_buckets_derive_from_status_evidence_and_marker(tmp_path: Path) -> None:
@@ -202,10 +205,40 @@ def test_buckets_derive_from_status_evidence_and_marker(tmp_path: Path) -> None:
     assert accounting(_tree(tmp_path, status="In Force"))["req-example-alpha"] == "doctrine"
     assert accounting(_tree(tmp_path, status="Disputed"))["req-example-alpha"] == "disputed"
     assert accounting(_tree(tmp_path, trace="Trace: `process`"))["req-example-alpha"] == "excluded"
+    assert accounting(_tree(tmp_path, status="Proposed"))["req-example-alpha"] == "unbuilt"
+    assert accounting(_tree(tmp_path, status="Backlog"))["req-example-alpha"] == "unbuilt"
+    assert accounting(_tree(tmp_path, status="Deprecated"))["req-example-alpha"] == "retired"
 
     tree = _tree(tmp_path)
     (tree / "tap" / "mod.py").write_text(_claim_module(tree), encoding="utf-8")
     assert accounting(tree)["req-example-alpha"] == "mapped"
+
+
+def test_flipping_to_implemented_without_evidence_enters_unaccounted(tmp_path: Path) -> None:
+    """THE enforcement property: claiming done is where the DoD bites.
+
+    An unbuilt requirement is accounted by its own status; the moment it declares
+    `Implemented` with neither evidence nor an exclusion, it becomes a new Unaccounted
+    entry — which the ratchet fails, because new entries are never grandfathered.
+    """
+    tree = _tree(tmp_path, status="Proposed")
+    assert unaccounted_rids(tree) == set()
+
+    spec = tree / "specs" / "spec-example.md"
+    spec.write_text(spec.read_text(encoding="utf-8").replace("`Proposed`", "`Implemented`"), encoding="utf-8")
+    assert unaccounted_rids(tree) == {"req-example-alpha"}
+
+
+def test_marker_placed_at_birth_survives_the_flip(tmp_path: Path) -> None:
+    """A process requirement carries its exclusion from birth — flipping its status later
+    needs no triage, because the marker outranks the unbuilt derivation."""
+    tree = _tree(tmp_path, status="Proposed", trace="Trace: `process` — humans conform")
+    assert accounting(tree)["req-example-alpha"] == "excluded"
+    assert load_corpus(tree).trace_problems == ()
+
+    spec = tree / "specs" / "spec-example.md"
+    spec.write_text(spec.read_text(encoding="utf-8").replace("`Proposed`", "`Implemented`"), encoding="utf-8")
+    assert accounting(tree)["req-example-alpha"] == "excluded"
 
 
 def test_unaccounted_rids_is_the_ratchet_measure(tmp_path: Path) -> None:

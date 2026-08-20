@@ -39,6 +39,7 @@ the DoD demands only that it lands in exactly one.
 | 2026-08-20 | Doorstop model for code-side staleness (`@<spec-hash>/<code-hash>`), placeholder-then-resync minting | George |
 | 2026-08-20 | Exclusion marker lives spec-side: `Trace:` line beside `Status:` in the requirement block | George |
 | 2026-08-20 | Exclusion vocabulary: `process`, `narrative`, `non-python` (mandatory path), `external` (mandatory name); doctrine/disputed/archival/mapped derived, never hand-marked | George |
+| 2026-08-20 | `unbuilt` + `retired` become derived buckets (status IS the disposition for future/withdrawn work); consequence: flipping to `Implemented` without evidence or exclusion fails the ratchet — the DoD enforced at the flip | session (Wave C), pending George ratify |
 
 ## Waves
 
@@ -64,7 +65,21 @@ claims on the traceability requirements it implements (the `_CONVENTION_MODULES`
 narrowed to the test fixtures), and `req-tap-traceability-minting` — implemented in bash —
 is the first live `Trace: non-python` disposition.
 
-### Wave C — bulk triage, batched by spec (the long middle)
+### Wave C — bulk triage, batched by spec (IN PROGRESS — 1,072 → 509 after batch 1)
+
+**Batch 1 (2026-08-20):** the structural move first — 528 unbuilt + 16 retired drained by the
+derived buckets (a requirement declaring itself future work or withdrawn is accounted by its own
+status) — then hand-triage of `spec-cicd-hardening` (9: statuses restored from prose, 5
+`non-python`/`external` exclusions, 3 `Backlog`, 1 enforcement claim on the workflow
+least-privilege guard) and `spec-dev-multisession` (10: 9 `non-python` script exclusions, 1
+`process`). Skips recorded: `req-cicd-security-scanning` + `req-cicd-base-image-lifecycle`
+(mixed-surface), `req-cicd-product-releases` (stale prose — says "no product releases" while
+tagged releases ship; **Disputed lead** for the review ledger),
+`req-dev-multisession-browser-disambiguation` (mixed shell + web surface).
+
+The method is now a repeatable skill: **`tap/skills/triage-requirements/`** (`/triage-requirements`),
+carrying the decision tree (status-first → guard-rid claims → spec-names-its-file → commit
+co-occurrence → test-cite → exclusion → deliberate skip) and the earned traps.
 
 Spec-by-spec lanes, priority order: security-posture / FIPS / service-boundary → `tap_auth` /
 `tap_boot` → remaining apps → the tail. For each requirement: claim it, test-cite it, or mark

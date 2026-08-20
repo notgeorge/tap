@@ -653,7 +653,14 @@ def duplicate_claim_groups(repo_root: Path) -> dict[tuple[str, str], list[Claim]
 #: only one this module gates on, because it is the only one that asserts *verification*.
 _BUILT_STATUSES = frozenset({"Implemented", "Verified"})
 #: Statuses that assert the requirement is NOT yet built — evidence contradicts them.
-_UNBUILT_STATUSES = frozenset({"Proposed", "Backlog"})
+#: "In Development" and "Approved for Development" are corpus-observed drift variants of
+#: the same claim ("this is future or in-flight work, not done"); recognizing them here
+#: keeps the accounting honest without blessing them as preferred vocabulary.
+_UNBUILT_STATUSES = frozenset({"Proposed", "Backlog", "In Development", "Approved for Development"})
+#: Statuses that assert the requirement has been WITHDRAWN — no mapping is ever expected,
+#: and its history is the record. (A withdrawal the implementation appears to contradict
+#: is a `Disputed` case, not a retired one — see the sphinx capability-blocks dispute.)
+RETIRED_STATUSES = frozenset({"Deprecated", "Deprecating", "Retired"})
 #: Standing doctrine — in effect now, never "completed", and expecting *conformance* from
 #: other work rather than an implementation of its own. The convention is Python's, whose
 #: PEP 1 gives Informational and Process PEPs a status of `Active` precisely because they
@@ -812,7 +819,13 @@ def unevidenced_built(repo_root: Path, evidence: dict[str, Evidence] | None = No
 # --- full-corpus accounting (`req-tap-traceability-accounting`) ----------------------
 
 #: The disjoint, total bucket vocabulary. Every requirement lands in exactly one.
-ACCOUNTING_BUCKETS = ("mapped", "excluded", "doctrine", "disputed", "unaccounted")
+#: `unbuilt` and `retired` are derived from status: a requirement declaring itself future
+#: work (or withdrawn) has, by its own account, nothing to map — that is a disposition the
+#: status already documents, never a gap. The load-bearing consequence: flipping a
+#: requirement to `Implemented` without evidence or a `Trace:` exclusion moves it INTO
+#: Unaccounted, where the ratchet fails it as a new entry — the Definition of Done is
+#: enforced at the moment a requirement claims to be done.
+ACCOUNTING_BUCKETS = ("mapped", "excluded", "doctrine", "disputed", "unbuilt", "retired", "unaccounted")
 
 
 def contradicted_dispositions(repo_root: Path, evidence: dict[str, Evidence] | None = None) -> list[Evidence]:
@@ -833,7 +846,7 @@ def contradicted_dispositions(repo_root: Path, evidence: dict[str, Evidence] | N
 def bucket_of(requirement: Requirement, evidence: Evidence) -> str:
     """The one accounting bucket this requirement lands in — disjoint and total.
 
-    TAP-IMPLEMENTS: req-tap-traceability-accounting@7b8b04a02859/a0b1eb6fd1d7 (derivation) — the
+    TAP-IMPLEMENTS: req-tap-traceability-accounting@49d9ea52a167/87dd8028e43c (derivation) — the
         one derivation of the bucket; the ratchet's measure and the report both call this.
 
     A derivation, never a judgment call: doctrine and disputed derive from status, mapped
@@ -849,6 +862,12 @@ def bucket_of(requirement: Requirement, evidence: Evidence) -> str:
         return "mapped"
     if requirement.disposition is not None:
         return "excluded"
+    if requirement.status in _UNBUILT_STATUSES:
+        return "unbuilt"
+    if requirement.status in RETIRED_STATUSES:
+        return "retired"
+    # A status outside every vocabulary (drift: "Partial", "Open", a missing Status line)
+    # lands here deliberately — normalizing it is triage work the count must surface.
     return "unaccounted"
 
 
@@ -871,7 +890,7 @@ ACCOUNTING_END = "<!-- END GENERATED ACCOUNTING -->"
 def render_accounting_markdown(repo_root: Path) -> str:
     """The full-corpus accounting — every requirement in one bucket, with a denominator.
 
-    TAP-IMPLEMENTS: req-tap-traceability-accounting@7b8b04a02859/f1f4ff6b7270 (surface) — the
+    TAP-IMPLEMENTS: req-tap-traceability-accounting@49d9ea52a167/439d52dc82ee (surface) — the
         committed, drift-tested progress bar the Definition of Done is read from.
 
     The complement of the evidence report: that one is read for contradictions, this one
@@ -909,21 +928,27 @@ def render_accounting_markdown(repo_root: Path) -> str:
         f"**{len(buckets)}** requirements · **{totals['mapped']}** mapped · "
         f"**{totals['excluded']}** excluded{category_note} · "
         f"**{totals['doctrine']}** doctrine · **{totals['disputed']}** disputed · "
+        f"**{totals['unbuilt']}** unbuilt · **{totals['retired']}** retired · "
         f"**{totals['unaccounted']} Unaccounted**.",
         "",
         "The Unaccounted count is the Definition of Done's progress bar: it only moves down "
         "(the committed baseline grandfathers existing debt; a new requirement without a "
         "disposition fails immediately). A grandfathered entry is debt, not license — every "
-        "Unaccounted requirement still needs a mapping or a documented exclusion.",
+        "Unaccounted requirement still needs a mapping or a documented exclusion. **Unbuilt** "
+        "and **retired** derive from status — a requirement declaring itself future work or "
+        "withdrawn has, by its own account, nothing to map; the moment one flips to "
+        "`Implemented` without evidence or an exclusion it becomes a NEW Unaccounted entry "
+        "and the ratchet fails, so claiming done is where the Definition of Done is enforced.",
         "",
-        "| Spec | Reqs | Mapped | Excluded | Doctrine | Disputed | Unaccounted |",
-        "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Spec | Reqs | Mapped | Excluded | Doctrine | Disputed | Unbuilt | Retired | Unaccounted |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for spec in sorted(by_spec, key=lambda s: (-by_spec[s]["unaccounted"], s)):
         row = by_spec[spec]
         lines.append(
             f"| `{spec}` | {sum(row.values())} | {row['mapped']} | {row['excluded']} | "
-            f"{row['doctrine']} | {row['disputed']} | {row['unaccounted']} |"
+            f"{row['doctrine']} | {row['disputed']} | {row['unbuilt']} | {row['retired']} | "
+            f"{row['unaccounted']} |"
         )
     lines += ["", ACCOUNTING_END]
     return "\n".join(lines)
