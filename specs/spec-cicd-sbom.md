@@ -68,6 +68,7 @@ remain the boot record's territory. The two compose; neither substitutes for the
 | req-cicd-sbom-7 | [Canary Guard](#canary-guard) | Proposed | Fail-closed publish check: expected components present, known phantoms absent — else no attestation |
 | req-cicd-sbom-8 | [Release SBOM Diffs](#release-sbom-diffs) | Deferred | Human-readable package delta per release, feeding the customer upgrade-diff contract; consumer of 1–7, not a blocker |
 | req-cicd-sbom-9 | [Flavored Ready-Made Images](#flavored-ready-made-images) | Proposed | Design constraint now, implementation with the appliance-image work: an image baking a boot profile's plugins ships an SBOM covering core + baked plugin closure, from the same declared-manifest principle |
+| req-cicd-sbom-10 | [Plugin-Declared SBOMs](#plugin-declared-sboms) | Proposed | Declare-vs-decide: plugin release CI declares an attested per-release SBOM; the system verifies and composes, never re-derives blindly; bake-time combined lock is the single derivation for flavored images |
 
 ---
 
@@ -236,6 +237,39 @@ obligation when those images ship:
 Status rationale: no flavored image exists yet, so nothing here is buildable — but
 req-cicd-sbom-1/-7's implementation must not foreclose it. The extensibility is cheap at
 design time and expensive to retrofit (the security-posture asymmetry).
+
+### Plugin-Declared SBOMs
+----
+RID: `req-cicd-sbom-10`
+Status: `Proposed`
+
+Plugins declare their own SBOMs, on the **declare-vs-decide** pattern the manifest
+`[fips]` table established: the author's pipeline DECLARES, the system VERIFIES and
+COMPOSES — it never re-derives blindly and never trusts blindly.
+
+* **Declaration at release time.** The shared plugin release lane (plugin CI /
+  `release-plugin.sh`) generates each plugin's SBOM from its own declared manifests
+  (pyproject + lock), CycloneDX, published as a signed attestation against the release
+  artifact — the same `attest-sbom` home and verify story as core (req-cicd-sbom-4).
+  Identity keys on (package name, exact version): the boot-record entry key, so every
+  layer joins on the same fact.
+* **Composition, not re-scanning.** A flavored image build (req-cicd-sbom-9) VERIFIES
+  each baked plugin's release-SBOM attestation; a running instance's boot record
+  REFERENCES plugin SBOMs by digest/purl rather than restating them. Instance BOM =
+  image-SBOM reference + per-plugin SBOM references + runtime deltas.
+* **Derive-once at bake time.** A flavored image's true closure is the SINGLE bake-time
+  resolution of core + plugins together (shared dependencies dedupe; version conflicts
+  are the deps gate's job). The flavored artifact's SBOM therefore generates from that
+  combined bake-time lock — one derivation. Plugin-declared release SBOMs serve the
+  other two consumers: runtime (non-baked) installs, and the cross-check.
+* **Declared-vs-derived cross-check.** What the bake derived MUST reconcile with what
+  each baked plugin's author declared; a mismatch is a canary-guard red
+  (req-cicd-sbom-7), never a silent preference for either side — disagreement between
+  declaration and derivation is precisely the signal worth stopping for.
+* **Trust rides the signing wave.** Plugin SBOM attestations inherit the org-rooted
+  identity `req-plugin-extdev-signing` lands (spec-plugin-external-development.md);
+  no new trust machinery is invented here, and nothing blocks on it — unsigned-but-
+  attested-by-CI is the interim posture, upgraded when that wave ships.
 
 ## Non-Goals and Named Residuals
 

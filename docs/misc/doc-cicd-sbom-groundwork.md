@@ -144,6 +144,7 @@ both from one scan → format is a serialization choice, not lock-in (req-cicd-s
 | CycloneDX primary, SPDX as re-serialization only | Security-consumer gravity; derive-once (two independent scans WILL drift) | sbom-6 |
 | Fail-closed canary guard | Every observed failure mode was silent plausibility; convert quiet wrongness into a red publish | sbom-7 |
 | Release diffs deferred | Pure consumer of the rest; the customer upgrade-diff promise, machine-checkable | sbom-8 |
+| Plugin-declared SBOMs | George 2026-08-20 (review): declare-vs-decide (the manifest [fips] precedent) — plugin release CI declares an attested SBOM keyed (name, version) = the boot-record key; system verifies + composes; flavored images derive ONCE from the bake-time combined lock, with a declared-vs-derived reconciliation as a canary red; trust inherits req-plugin-extdev-signing when it lands | sbom-10 |
 | Extensible to ready-made appliance images | George 2026-08-20: profile-baked plugin images are on the roadmap; the artifact/runtime boundary (not core/plugin) is the durable line — baked plugin closures enter the image SBOM via the same declared-manifest principle (boot-record data as the manifest); parameterize generation + canaries per flavor now, cheap at design time / expensive to retrofit | sbom-9 |
 
 Layered-BOM model (scope boundary, refined 2026-08-20): the durable line is
