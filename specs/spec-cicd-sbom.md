@@ -68,7 +68,7 @@ remain the boot record's territory. The two compose; neither substitutes for the
 | req-cicd-sbom-7 | [Canary Guard](#canary-guard) | Implemented | Fail-closed publish check: expected components present, known phantoms absent — else no attestation |
 | req-cicd-sbom-8 | [Release SBOM Diffs](#release-sbom-diffs) | Deferred | Human-readable package delta per release, feeding the customer upgrade-diff contract; consumer of 1–7, not a blocker |
 | req-cicd-sbom-9 | [Flavored Ready-Made Images](#flavored-ready-made-images) | Proposed | Design constraint now, implementation with the appliance-image work: an image baking a boot profile's plugins ships an SBOM covering core + baked plugin closure, from the same declared-manifest principle |
-| req-cicd-sbom-10 | [Plugin-Declared SBOMs](#plugin-declared-sboms) | Proposed | Declare-vs-decide: plugin release CI declares an attested per-release SBOM; the system verifies and composes, never re-derives blindly; bake-time combined lock is the single derivation for flavored images |
+| req-cicd-sbom-10 | [Plugin-Declared SBOMs](#plugin-declared-sboms) | Partial | Declare-vs-decide: plugin release CI declares an attested per-release SBOM; the system verifies and composes, never re-derives blindly; bake-time combined lock is the single derivation for flavored images |
 | req-cicd-sbom-11 | [Standards Conformance Validation](#standards-conformance-validation) | Implemented | Schema-validate the CycloneDX document + fail-closed minimum-elements field checks (CISA/NSA 2026); canaries catch TAP-specific lies, this catches malformed valid-looking SBOMs |
 | req-cicd-sbom-12 | [Out-of-Band Detection Gate](#out-of-band-detection-gate) | Proposed | Declaration is DETECTED, never remembered: Dockerfile-derived out-of-band inventory + image-level unknowns budget both reconcile against declarations, fail-closed |
 | req-cicd-sbom-13 | [Ecosystem Coverage](#ecosystem-coverage) | Proposed | Every package ecosystem in an artifact has a lockfile-grade declared manifest its SBOM slice derives from; vendored JS is the named existing gap; new ecosystems are caught by the -12 gate |
@@ -307,7 +307,20 @@ design time and expensive to retrofit (the security-posture asymmetry).
 ### Plugin-Declared SBOMs
 ----
 RID: `req-cicd-sbom-10`
-Status: `Proposed`
+Status: `Partial`
+
+**Declaration half BUILT and live-proven 2026-08-20**: the reusable release lane
+(`.github/workflows/plugin-release-sbom.yml` + `scripts/sbom/plugin_release.py`) is
+wired as a tag-triggered thin caller in ALL 12 plugin repos; pilot release
+tap-plugin-aws-core v0.4.2 carries verified wheel provenance + both SBOM attestation
+predicates (`gh attestation verify <wheel> --owner unified-systems-com
+[--predicate-type …]`). A wheel SBOM covers the plugin at its exact version plus
+DECLARED dependency requirements — resolution deliberately absent (coverage statement
+says where resolution truth lives). Remaining for Full: the composition half
+(flavored-image bake-time derivation + boot records referencing release SBOMs by
+digest — rides the appliance arc, req-cicd-sbom-9) and `tap-plugin-aws-secrets-source`
+(no CI caller today — the secret-source dist releases outside the plugin lane; named
+gap). Original requirement text follows.
 
 Plugins declare their own SBOMs, on the **declare-vs-decide** pattern the manifest
 `[fips]` table established: the author's pipeline DECLARES, the system VERIFIES and
