@@ -313,12 +313,27 @@ docstring style — black, ruff and mypy already gate every PR. If you found
 nothing of substance, say so in one line. State anything you could not review.
 ```
 
-### Reusability is a design goal, named early
+### The harness repo — decided 2026-08-20
 
-The harness is being built to be **extractable into its own repository** as a reusable workflow
-(`workflow_call`): the two-stage machinery is generic, the prompt and vendor set are the
-per-consumer parameters ("bring your own prompts"). Build choices should avoid TAP-hardcoding
-where a parameter is free; actual extraction is demand-gated and not part of this rollout.
+The machinery lives in a **dedicated org repository** (working name `ai-review`; George names it
+at creation) per `req-cicd-ai-review-harness-repo`:
+
+- **Mixed license, declared boundary**: Apache-2.0 machinery (reusable workflows, scripts) + a
+  clearly-marked CC BY-SA 4.0 `prompts/`/`methodology/` directory for Trail-of-Bits-derived
+  content with attribution. Share-Alike never enters an Apache-2.0 tree.
+- **Consumers carry two thin shims** (stage-1 capture on `pull_request`, stage-2 review on
+  `workflow_run`), each calling the harness repo's `workflow_call` workflows by **full commit
+  SHA**. Org floor: every org repo gets the shims, including the harness repo itself.
+- **Third-party methodology enters only as a vendored snapshot** pinned at a reviewed commit —
+  never fetched at build/run time. Trusting a vendor at a read hash, never at HEAD.
+- **Bring-your-own-prompts**: prompt content and vendor set are `workflow_call` inputs, so
+  external consumers take the Apache machinery with their own prompts and inherit Share-Alike
+  only if they build on ours.
+
+Milestone 1 is the minimal two-seat harness reviewing real TAP PRs; the ToB-adapted prompt
+phases below are iteration 2. The workflow file names in 2b above describe the shim/reusable
+split's *behavior*; exact file naming settles at build and the committed files then supersede
+this prose.
 ### 2c. Validation-map row
 
 Adding a CI job means adding its row to `spec-dev-validation.md`'s Validation Map in the same change
@@ -377,9 +392,11 @@ analysis with a `SONAR_TOKEN` — a `/manage-secret` conversation, and not part 
 ## Trail of Bits methodology imports — queued 2026-08-20
 
 Researched when the harness went own-built (`trailofbits/skills`, CC BY-SA 4.0 — see the spec's
-prior-art ledger for the full entry and license discipline). Four imports, mapped to our
-surfaces — **methodology only, prompts written in our own words** (Share-Alike never enters the
-Apache-2.0 tree):
+prior-art ledger for the full entry and license discipline). With the harness repo decided
+(`req-cicd-ai-review-harness-repo`), adapted ToB text MAY live in that repo's declared CC BY-SA
+directory with attribution — and enters **only as a vendored snapshot pinned at a reviewed
+commit, never fetched at build/run time**. In TAP's Apache-2.0 tree: methodology only, our own
+words. Four imports, mapped to our surfaces:
 
 1. **`fp-check`'s gated-verdict structure** → the harness prompt gains a devil's-advocate pass:
    before a finding posts, the model must argue why it might be a false positive and state what
