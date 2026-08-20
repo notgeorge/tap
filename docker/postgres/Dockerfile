@@ -28,7 +28,10 @@ ARG TAP_FIPS=1
 # Pinned tag@digest (req-cicd-base-image-lifecycle-1) — bump together with the root
 # Dockerfile's pins (procedure documented there).
 FROM cgr.dev/chainguard/wolfi-base:latest@sha256:8e8fe4b9b989b03daaa4305dba54a1b480f63716c56dc6bb074e5a6057bf3c73 AS ossl-builder
-RUN apk add --no-cache build-base perl linux-headers curl
+# Wolfi's apk repo flakes under load (observed 2026-08-16: HTTP 403s mid-install;
+# 2026-08-20: fetch error on one package) — bounded retry with backoff, failing
+# closed after 3 attempts. apk add is idempotent across retries.
+RUN for i in 1 2 3; do apk add --no-cache build-base perl linux-headers curl && break || { [ "$i" -eq 3 ] && exit 1; echo "apk repo flake — retry $i"; sleep $((i*10)); }; done
 WORKDIR /build
 RUN curl -fsSL https://github.com/openssl/openssl/releases/download/openssl-3.0.9/openssl-3.0.9.tar.gz -o o.tgz \
  && tar xf o.tgz
@@ -44,14 +47,17 @@ FROM cgr.dev/chainguard/wolfi-base:latest@sha256:8e8fe4b9b989b03daaa4305dba54a1b
 # (canonical docker-library entrypoint), gosu (privilege drop root→postgres, as the official
 # image), openssl (fipsinstall + debugging), bash (the entrypoint is bash), tzdata (zoneinfo,
 # which Wolfi's minimal base omits).
-RUN apk add --no-cache \
+RUN for i in 1 2 3; do \
+      apk add --no-cache \
     postgresql-16 \
     postgresql-16-client \
     postgresql-16-oci-entrypoint \
     gosu \
     openssl \
     bash \
-    tzdata
+    tzdata \
+      && break || { [ "$i" -eq 3 ] && exit 1; echo "apk repo flake — retry $i"; sleep $((i*10)); }; \
+    done
 
 # Recreate the docker-library/postgres runtime contract the oci-entrypoint expects.
 RUN addgroup -S postgres && adduser -S -G postgres -H -h /var/lib/postgresql postgres
