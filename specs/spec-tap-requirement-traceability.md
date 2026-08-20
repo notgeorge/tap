@@ -615,7 +615,7 @@ Generated — do not hand-edit. Regenerate with `manage.py guards --sync-evidenc
 
 <!-- BEGIN GENERATED EVIDENCE — manage.py guards --sync-evidence -->
 
-**1133** requirements · **20** standing doctrine · **0** disputed · **52** carry evidence · **1** carry both classes · **486** declared built with none.
+**1133** requirements · **20** standing doctrine · **0** disputed · **73** carry evidence · **1** carry both classes · **466** declared built with none.
 
 Separate facts, deliberately not blended into one percentage. **Doctrine** is outside the coverage question — in force now, never "completed", expecting conformance rather than an implementation. **Disputed** marks a spec-versus-implementation disagreement awaiting a human ruling — its claims are pointers to the contested code, never resolution, and the count should trend to zero. **Declared built with none** is context, not a defect list: claims are opt-in and scarce by design (`req-tap-traceability-scope`), so it measures how much of the corpus has been deliberately targeted, not how much is wrong. Collapsing these into a single coverage score is what makes such a score meaningless.
 
@@ -633,10 +633,31 @@ Separate facts, deliberately not blended into one percentage. **Doctrine** is ou
 | `req-dev-validation-smoke-gate` | Implemented | Implemented | `<module>` | — |
 | `req-docs-rid-integrity` | Implemented | Implemented | `<module>`, `<module>` | — |
 | `req-grid-edge-schema-required` | Proposed | Implemented | `validate_edge_properties` | — |
+| `req-grid-gryphon-count` | Implemented | Implemented | `_compute_rows` | — |
+| `req-grid-gryphon-multihop` | Implemented | Implemented | `_build_chain_queryset` | — |
+| `req-grid-gryphon-multihop-envelope` | Implemented | Implemented | `_build_chain_queryset` | — |
+| `req-grid-gryphon-not-exists` | Implemented | Implemented | `_apply_not_exists` | — |
+| `req-grid-gryphon-optional-match` | Implemented | Implemented | `_execute_optional_match` | — |
+| `req-grid-gryphon-order-by` | Implemented | Implemented | `_resolve_order_cols` | — |
+| `req-grid-gryphon-order-by-envelope` | Implemented | Implemented | `_apply_order_limit_typescan_envelope` | — |
+| `req-grid-gryphon-rows` | Implemented | Implemented | `_compute_rows` | — |
 | `req-grid-keystone-validation` | Implemented | Implemented | `Keystone.validate` | — |
 | `req-grid-service-pipeline-context` | Implemented | Implemented | `require_caller_context` | — |
 | `req-grid-table-classification.sec` | Implemented | Verified | `classified_models` | `req-grid-table-classification.sec-6` |
 | `req-grid-traversal-exec-row-materialization` | Implemented | Implemented | `materialize_rows` | — |
+| `req-grid-traversal-exec-sql-capture` | Implemented | Implemented | `explain_gryphon_raw` | — |
+| `req-grid-traversal-lang-bare-match` | Implemented | Implemented | `_execute_bare_type_scan` | — |
+| `req-grid-traversal-lang-combinators` | Implemented | Implemented | `_apply_predicate_to_qs` | — |
+| `req-grid-traversal-lang-envelope-paths` | In Development | Implemented | `_resolve_orm_path` | — |
+| `req-grid-traversal-lang-filters` | Implemented | Implemented | `_apply_predicate_to_qs` | — |
+| `req-grid-traversal-lang-in` | Implemented | Implemented | `InComparison` | — |
+| `req-grid-traversal-lang-is-null` | Implemented | Implemented | `IsNullComparison` | — |
+| `req-grid-traversal-lang-observation` | Implemented | Implemented | `ObservationComparison` | — |
+| `req-grid-traversal-lang-params` | Implemented | Implemented | `GryphonAST.required_params` | — |
+| `req-grid-traversal-lang-patterns` | Implemented | Implemented | `_execute_type_scan` | — |
+| `req-grid-traversal-lang-regex` | Implemented | Implemented | `_comparison_to_q` | — |
+| `req-grid-traversal-lang-returns` | Implemented | Implemented | `_is_graph_envelope_return` | — |
+| `req-grid-traversal-lang-string-match` | Implemented | Implemented | `_comparison_to_q` | — |
 | `req-grift-envelope-validation` | In Development | Implemented | `parse_envelope_for_write` | — |
 | `req-service-boundary-guard` | Proposed | Implemented | `<module>` | — |
 | `req-tap-auth-passkey-dev-bootstrap` | Implemented | Tested | — | `req-tap-auth-passkey-dev-bootstrap-1`, `req-tap-auth-passkey-dev-bootstrap-10`, `req-tap-auth-passkey-dev-bootstrap-11`, `req-tap-auth-passkey-dev-bootstrap-13`, `req-tap-auth-passkey-dev-bootstrap-14`, `req-tap-auth-passkey-dev-bootstrap-15`, `req-tap-auth-passkey-dev-bootstrap-3`, `req-tap-auth-passkey-dev-bootstrap-4`, `req-tap-auth-passkey-dev-bootstrap-6`, `req-tap-auth-passkey-dev-bootstrap-7`, `req-tap-auth-passkey-dev-bootstrap-8`, `req-tap-auth-passkey-dev-bootstrap-9` |
@@ -684,6 +705,7 @@ None.
 | --- | --- | --- |
 | `req-boot-bootstrap-pointer-grammar` | Proposed | Implemented |
 | `req-grid-edge-schema-required` | Proposed | Implemented |
+| `req-grid-traversal-lang-envelope-paths` | In Development | Implemented |
 | `req-grift-envelope-validation` | In Development | Implemented |
 | `req-service-boundary-guard` | Proposed | Implemented |
 | `req-tap-auth-passkey-enrollment` | Proposed | Tested |
@@ -705,13 +727,12 @@ Generated — do not hand-edit. Regenerate with `manage.py guards --sync-account
 
 <!-- BEGIN GENERATED ACCOUNTING — manage.py guards --sync-accounting -->
 
-**1133** requirements · **52** mapped · **20** excluded (external 1, non-python 17, process 2) · **20** doctrine · **0** disputed · **558** unbuilt · **16** retired · **467 Unaccounted**.
+**1133** requirements · **73** mapped · **20** excluded (external 1, non-python 17, process 2) · **20** doctrine · **0** disputed · **557** unbuilt · **16** retired · **447 Unaccounted**.
 
 The Unaccounted count is the Definition of Done's progress bar: it only moves down (the committed baseline grandfathers existing debt; a new requirement without a disposition fails immediately). A grandfathered entry is debt, not license — every Unaccounted requirement still needs a mapping or a documented exclusion. **Unbuilt** and **retired** derive from status — a requirement declaring itself future work or withdrawn has, by its own account, nothing to map; the moment one flips to `Implemented` without evidence or an exclusion it becomes a NEW Unaccounted entry and the ratchet fails, so claiming done is where the Definition of Done is enforced.
 
 | Spec | Reqs | Mapped | Excluded | Doctrine | Disputed | Unbuilt | Retired | Unaccounted |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `tap_grid/specs/spec-grid-traversal-language.md` | 20 | 0 | 0 | 0 | 0 | 2 | 0 | 18 |
 | `tap_plugins/specs/spec-tap-plugin-validation.md` | 17 | 0 | 0 | 0 | 0 | 1 | 0 | 16 |
 | `specs/spec-tap-boot-v0.md` | 22 | 0 | 0 | 0 | 0 | 8 | 0 | 14 |
 | `tap_cares/specs/spec-tap-cares-secrets.md` | 21 | 4 | 0 | 0 | 0 | 3 | 0 | 14 |
@@ -721,7 +742,6 @@ The Unaccounted count is the Definition of Done's progress bar: it only moves do
 | `tap_cares/specs/spec-tap-cares-administrivia.md` | 13 | 0 | 0 | 0 | 0 | 2 | 0 | 11 |
 | `tap_cares/specs/spec-tap-cares-scheduler.md` | 12 | 0 | 0 | 0 | 0 | 1 | 0 | 11 |
 | `tap_cares/specs/spec-tap-cares-task-backend.md` | 11 | 0 | 0 | 0 | 0 | 1 | 0 | 10 |
-| `tap_grid/specs/spec-grid-gryphon-multihop-aggregation.md` | 11 | 0 | 0 | 0 | 0 | 1 | 0 | 10 |
 | `tap_grid/specs/spec-grid-service-batch.md` | 11 | 0 | 0 | 0 | 0 | 1 | 0 | 10 |
 | `tap_plugins/specs/spec-tap-plugin-manifest-v0.md` | 12 | 0 | 0 | 0 | 0 | 2 | 0 | 10 |
 | `tap_web/specs/spec-web-navigation.md` | 13 | 0 | 0 | 0 | 0 | 2 | 1 | 10 |
@@ -738,6 +758,7 @@ The Unaccounted count is the Definition of Done's progress bar: it only moves do
 | `specs/spec-fips.md` | 7 | 0 | 0 | 0 | 0 | 0 | 0 | 7 |
 | `tap_grid/specs/spec-grid-edge.md` | 9 | 1 | 0 | 0 | 0 | 1 | 0 | 7 |
 | `tap_grid/specs/spec-grid-search.md` | 9 | 0 | 0 | 0 | 0 | 2 | 0 | 7 |
+| `tap_grid/specs/spec-grid-traversal-language.md` | 20 | 12 | 0 | 0 | 0 | 1 | 0 | 7 |
 | `tap_grid/specs/spec-grift-subgraph.md` | 7 | 0 | 0 | 0 | 0 | 0 | 0 | 7 |
 | `tap_viz/specs/spec-viz-align-distribute.md` | 7 | 0 | 0 | 0 | 0 | 0 | 0 | 7 |
 | `tap_web/specs/spec-web-batch-viewer-v0.md` | 8 | 0 | 0 | 0 | 0 | 1 | 0 | 7 |
@@ -751,7 +772,6 @@ The Unaccounted count is the Definition of Done's progress bar: it only moves do
 | `tap_grid/specs/spec-grid-flip.md` | 6 | 0 | 0 | 0 | 0 | 1 | 0 | 5 |
 | `tap_grid/specs/spec-grid-hotlink.md` | 6 | 0 | 0 | 0 | 0 | 1 | 0 | 5 |
 | `tap_grid/specs/spec-grid-keystone.md` | 7 | 1 | 0 | 0 | 0 | 1 | 0 | 5 |
-| `tap_grid/specs/spec-grid-traversal-execution.md` | 10 | 1 | 0 | 0 | 0 | 4 | 0 | 5 |
 | `tap_viz/specs/spec-viz-badges.md` | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 5 |
 | `tap_viz/specs/spec-viz-elevation.md` | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 5 |
 | `tap_viz/specs/spec-viz-panel.md` | 14 | 0 | 0 | 1 | 0 | 6 | 2 | 5 |
@@ -762,6 +782,7 @@ The Unaccounted count is the Definition of Done's progress bar: it only moves do
 | `specs/spec-tap-boot-observability.md` | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 4 |
 | `tap_grid/specs/spec-grid-icon.md` | 5 | 0 | 0 | 0 | 0 | 1 | 0 | 4 |
 | `tap_grid/specs/spec-grid-node.md` | 5 | 0 | 0 | 0 | 0 | 1 | 0 | 4 |
+| `tap_grid/specs/spec-grid-traversal-execution.md` | 10 | 2 | 0 | 0 | 0 | 4 | 0 | 4 |
 | `tap_web/specs/spec-web-panels-chart.md` | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 4 |
 | `specs/spec-dev-playwright-refresh.md` | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 3 |
 | `specs/spec-dev-plugin-workspace.md` | 7 | 0 | 0 | 0 | 0 | 4 | 0 | 3 |
@@ -777,6 +798,7 @@ The Unaccounted count is the Definition of Done's progress bar: it only moves do
 | `specs/spec-rampart-demo-anwar.md` | 9 | 0 | 0 | 0 | 0 | 7 | 0 | 2 |
 | `specs/spec-tap-json-files.md` | 7 | 4 | 0 | 0 | 0 | 1 | 0 | 2 |
 | `specs/spec-tap-testing.md` | 9 | 0 | 0 | 0 | 0 | 7 | 0 | 2 |
+| `tap_grid/specs/spec-grid-gryphon-multihop-aggregation.md` | 11 | 8 | 0 | 0 | 0 | 1 | 0 | 2 |
 | `tap_grid/specs/spec-grid-security.md` | 7 | 1 | 0 | 0 | 0 | 4 | 0 | 2 |
 | `specs/spec-cicd-hardening.md` | 13 | 2 | 6 | 0 | 0 | 4 | 0 | 1 |
 | `specs/spec-dev-multisession.md` | 15 | 0 | 10 | 0 | 0 | 4 | 0 | 1 |

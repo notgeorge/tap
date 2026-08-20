@@ -92,6 +92,17 @@ registries are pointers not targets; ACID-scoped rids don't own the parent; hedg
 partial slices; two guards on one rid → claim the primary. Remaining drift-status rows
 (`Partially Implemented`, `Partial`) left deliberately — status normalization is its own pass.
 
+**Batch 4 (2026-08-20): the gryphon claim batch, 467 → 447.** Unblocked by the ledger row 2
+ruling; the stripped `:implements:` mapping (commit `5068ce89`'s diff) was the shortlist, and
+the block authors' "canonical review anchor" placements held up under verification — 21 claims
+minted across `ast_nodes.py` (4 AST comparison nodes + `required_params`) and `executor.py`
+(13 scopes, several carrying two claims: multihop+envelope, filters+combinators, count+rows,
+string-match+regex). Judgment calls: `order-by-envelope` anchored on the type-scan-envelope
+applier (its body describes exactly that lane), `exec-sql-capture` is a `surface` role (the
+body calls it a developer seam), and **`req-grid-gryphon-limit` skipped** — the shortlist
+grouped it with order-by resolution, but `_resolve_order_cols` doesn't derive LIMIT and
+claiming it there would be a stretch. 70 claims live.
+
 **Batch 3 (2026-08-20): status normalization, 495 → 467.** Two discoveries: `Refactoring` and
 `Deprecating` were canonical template vocabulary all along — the bucket model, not the specs,
 was behind (`Refactoring` now derives unbuilt: "being re-worked" is in-flight by its own words);

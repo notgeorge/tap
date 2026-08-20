@@ -237,6 +237,9 @@ def explain_gryphon_raw(
 ) -> dict[str, Any]:
     """Execute a raw gryphon query and return both the envelope and the SQL it ran.
 
+    TAP-IMPLEMENTS: req-grid-traversal-exec-sql-capture@6f701679bd50/5dd1f41684bd (surface) — the
+        read-only seam that records issued SQL; snapshot tests and `gryphon explain` read it.
+
     Returns ``{"envelope": <canonical envelope>, "sql": <SqlCapture>}``. The
     ``sql`` value is the ordered, stage-labelled sequence of SELECT statements
     the executor issued — the basis of the Gridkin expected-SQL snapshot (the
@@ -586,6 +589,9 @@ def _execute_type_scan(
 ) -> dict[str, Any]:
     """Execute a node-only MATCH pattern — scan all entities of the given type.
 
+    TAP-IMPLEMENTS: req-grid-traversal-lang-patterns@f42025b24a48/cdd96a437a62 (derivation) — the
+        labelled node/edge pattern shape executes here.
+
     Applies a global WHERE clause filtered to predicates that reference the
     type-scan's bound variable (per ``_filter_predicate_for_bindings``).
     Predicates referencing other variables (from other MATCH clauses in a
@@ -784,6 +790,9 @@ def _apply_order_limit_typescan_envelope(
     var: str,
 ):
     """Apply ORDER BY / LIMIT to a type-scan queryset in graph-envelope mode.
+
+    TAP-IMPLEMENTS: req-grid-gryphon-order-by-envelope@26c6977be171/17bd2b7a441d (derivation) —
+        ORDER BY / LIMIT on a type-scan graph envelope is applied here.
 
     Envelope mode has no RETURN aliases, so ORDER BY terms must carry a full
     field path rooted at the bound variable (e.g. `n.data.fetched_at`). Each
@@ -1141,6 +1150,9 @@ def _execute_bare_type_scan(
     layer: SubgraphLayer,
 ) -> dict[str, Any]:
     """Execute a labelless ``MATCH (n)`` — scan every registered node type, union.
+
+    TAP-IMPLEMENTS: req-grid-traversal-lang-bare-match@aa1e2046457a/b3caafe6ca37 (derivation) —
+        the labelless MATCH (n) all-types union scan executes here.
 
     A labelless node pattern is a wildcard over node entity types: it returns
     the entities of every registered type, so one labelless clause plus a WHERE
@@ -1660,6 +1672,9 @@ def _orm_path_for_envelope_path(binding: dict[str, Any], steps: list[Any]) -> st
 def _resolve_orm_path(binding: dict[str, Any], field_path: FieldPath) -> str:
     """Single entry point: translate a Gryphon FieldPath to an ORM path.
 
+    TAP-IMPLEMENTS: req-grid-traversal-lang-envelope-paths@2188517c4ca3/f88ad9d8b179 (derivation)
+        — envelope-shape field-path literals resolve to ORM paths here.
+
     Dispatches to :func:`_orm_path_for_field` for single-step spine paths
     or :func:`_orm_path_for_envelope_path` for multi-step envelope-lane
     paths. Per spec-grid-traversal-language § Envelope-Aware Field Paths.
@@ -1703,6 +1718,12 @@ def _build_chain_queryset(
     bindings: dict[str, dict[str, Any]] | None = None,
 ):
     """Build an Edge queryset that joins all hops of a (potentially multi-hop) pattern.
+
+    TAP-IMPLEMENTS: req-grid-gryphon-multihop@71eb89405815/eb75eb5eca25 (derivation) — the
+        multi-hop chain join is built here.
+
+    TAP-IMPLEMENTS: req-grid-gryphon-multihop-envelope@4f3ae2b1e7d6/eb75eb5eca25 (derivation) —
+        the multi-hop graph-envelope return rides the same chain build.
 
     The queryset is rooted at hop 0's Edge and each subsequent hop is reached
     via the shared-node reverse-FK relation (``edges_out`` / ``edges_in``). Edge
@@ -1935,6 +1956,12 @@ def _apply_predicate_to_qs(
 ):
     """Apply a WHERE predicate tree to an already-built chain queryset.
 
+    TAP-IMPLEMENTS: req-grid-traversal-lang-filters@d6c08fa3c3ac/7b84984d6834 (derivation) —
+        WHERE field filtering lowers to the queryset here.
+
+    TAP-IMPLEMENTS: req-grid-traversal-lang-combinators@0e5170677022/7b84984d6834 (derivation) —
+        AND / OR / NOT predicate combination lowers here.
+
     Thin wrapper over :func:`_chain_predicate_q` used where the predicate cannot
     be folded into the structural filter — the ``NOT EXISTS`` inner queryset
     (which the outer correlation is layered onto separately). The multi-hop /
@@ -2028,6 +2055,9 @@ def _apply_not_exists(
     db_alias: str,
 ):
     """Apply a NOT EXISTS clause to the outer queryset via a correlated Exists subquery.
+
+    TAP-IMPLEMENTS: req-grid-gryphon-not-exists@3b83b2e9236b/68b3daf8df2a (derivation) — the
+        correlated NOT EXISTS anti-join is applied here.
 
     .. tap:capability:: Gryphon NOT EXISTS anti-join
        :id: cap-grid-gryphon-not-exists
@@ -2124,6 +2154,9 @@ def _is_typescan_envelope_query(ast: GryphonAST) -> bool:
 
 def _is_graph_envelope_return(return_clause: ReturnClause) -> bool:
     """True when the RETURN clause requests a graph envelope rather than row projection.
+
+    TAP-IMPLEMENTS: req-grid-traversal-lang-returns@37d212f27bc0/8aab3409a23d (derivation) — the
+        envelope-vs-rows default-packaging decision for RETURN is made here.
 
     Graph envelope is requested when:
     - RETURN is omitted (items is None) — return all bound variables, or
@@ -2430,6 +2463,9 @@ def _resolve_order_cols(
 ) -> list[str]:
     """Translate an ORDER BY clause into Django `.order_by()` column args.
 
+    TAP-IMPLEMENTS: req-grid-gryphon-order-by@52cc61a175d1/85313af36f80 (derivation) — ORDER BY
+        columns (including aggregated ones) resolve here.
+
     Each ORDER BY term names a RETURN output by key; it is mapped to that
     output's internal annotation alias, with a `-` prefix for `DESC`. Any
     group-by columns the user did not name are appended as ascending
@@ -2605,6 +2641,12 @@ def _compute_rows(
     limit: Any = None,
 ) -> list[dict[str, Any]]:
     """Execute the queryset and produce row dicts honoring RETURN aliases and aggregates.
+
+    TAP-IMPLEMENTS: req-grid-gryphon-count@ca056f66dee5/7c97eada462b (derivation) — COUNT
+        aggregation and its implicit GROUP BY key set compute here.
+
+    TAP-IMPLEMENTS: req-grid-gryphon-rows@577171676b4f/7c97eada462b (derivation) — the envelope's
+        rows field is populated here.
 
     All RETURN columns are first annotated as F-aliases on the queryset, then
     referenced by alias in ``.values()`` / ``Count(...)``. This forces Django to
@@ -2911,6 +2953,12 @@ def _comparison_to_q(
 ):
     """Translate a single comparison leaf into a Django ``Q`` over ``orm_path``.
 
+    TAP-IMPLEMENTS: req-grid-traversal-lang-string-match@252cba1f51eb/a58650d98495 (derivation) —
+        STARTS_WITH / ENDS_WITH / CONTAINS lower to Q objects here.
+
+    TAP-IMPLEMENTS: req-grid-traversal-lang-regex@27b99acd119d/a58650d98495 (derivation) — the =~
+        regex predicate lowers to a Q object here.
+
     The shared leaf compiler for every WHERE path: :func:`_predicate_to_q` calls
     it for each `Comparison` / `InComparison`, and ``_execute_optional_match``
     folds WHERE predicates on the optional variables into the
@@ -3026,6 +3074,9 @@ def _execute_optional_match(
     layer: SubgraphLayer,
 ) -> dict[str, Any]:
     """Execute a MATCH + OPTIONAL MATCH query — left-outer-join semantics.
+
+    TAP-IMPLEMENTS: req-grid-gryphon-optional-match@15c86aacbfad/09a3dba9dd29 (derivation) —
+        OPTIONAL MATCH left-join semantics execute here.
 
     v0 scope: exactly one node-only mandatory MATCH (a labelled type scan
     binding ``v``), exactly one single-hop OPTIONAL MATCH anchored on ``v``, and

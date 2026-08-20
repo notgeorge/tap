@@ -137,6 +137,9 @@ class Comparison:
 class InComparison:
     """A membership predicate: `n.kind IN ['neighbor', 'island']`.
 
+    TAP-IMPLEMENTS: req-grid-traversal-lang-in@807260dd21df/defb9da4fcab (derivation) — the IN
+        list-membership predicate's semantics live on this node.
+
     True when the field value equals one of `values`. `values` may mix literals
     and `ParamRef`s. An empty `values` matches nothing; a `None` element never
     matches (NULL has no defined equality).
@@ -165,6 +168,9 @@ class InComparison:
 @dataclass(frozen=True)
 class IsNullComparison:
     """A null-existence predicate: `field IS NULL` or `field IS NOT NULL`.
+
+    TAP-IMPLEMENTS: req-grid-traversal-lang-is-null@82030a287c51/db6d0fb35312 (derivation) — the
+        IS [NOT] NULL predicate's semantics live on this node.
 
     True when the field value is NULL (`negated=False`) or non-NULL
     (`negated=True`). Lowers to Django's ``__isnull=True``/``=False`` lookup
@@ -196,6 +202,9 @@ class IsNullComparison:
 @dataclass(frozen=True)
 class ObservationComparison:
     """An observation-semantic predicate: `field IS KNOWN` or `field IS UNKNOWN`.
+
+    TAP-IMPLEMENTS: req-grid-traversal-lang-observation@716135c5bc48/a5db8f2b48b3 (derivation) —
+        the IS KNOWN / IS UNKNOWN observation-axis predicate lives on this node.
 
     The convention's null axis (spec-grid-node.md req-grid-node-observation)
     surfaced as intent-revealing keywords: `IS UNKNOWN` tests for unobserved
@@ -413,6 +422,9 @@ class GryphonAST:
 
     def required_params(self) -> frozenset[str]:
         """Return the set of $var names referenced anywhere in this AST.
+
+        TAP-IMPLEMENTS: req-grid-traversal-lang-params@c0bba69be7b8/e700411dfc3d (derivation) — the
+        one derivation of which $var parameters a query requires.
 
         .. tap:capability:: Gryphon query parameters
            :id: cap-grid-gryphon-parameters
