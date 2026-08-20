@@ -54,11 +54,18 @@ on:
 # release commit (publish-release-tags.yml promotes its sha manifest to the
 # versioned tag; cancelling it is exactly the v0.1.2 gap) and explicit ref
 # backfills. Those get an isolated group so later main pushes cannot cancel
-# them. Transient: a slow release build finishing after a newer tip build
-# leaves :latest one release behind until the next push — harmless, and the
-# alternative (cancelling the release build) broke versioned tags for real.
+# them. Detection is contains(), NOT startsWith(): release PRs land as MERGE
+# COMMITS whose message begins "Merge pull request #NN…" with the
+# "chore(main): release" title in the BODY — a startsWith predicate never
+# matches in practice, which is how v0.1.3's build got cancelled by the very
+# race this guard exists to stop (2026-08-20). A stray commit merely
+# MENTIONING the phrase gets a harmless uncancellable build — cheap, safe
+# failure direction. Transient: a slow release build finishing after a newer
+# tip build leaves :latest one release behind until the next push — harmless,
+# and the alternative (cancelling the release build) broke versioned tags
+# twice for real.
 concurrency:
-  group: "publish-images-${{ ((github.event_name == 'workflow_dispatch' && inputs.ref != '') || startsWith(github.event.head_commit.message, 'chore(main): release')) && github.run_id || 'main' }}"
+  group: "publish-images-${{ ((github.event_name == 'workflow_dispatch' && inputs.ref != '') || contains(github.event.head_commit.message, 'chore(main): release')) && github.run_id || 'main' }}"
   cancel-in-progress: true
 
 permissions:
