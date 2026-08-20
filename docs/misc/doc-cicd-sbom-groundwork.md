@@ -70,8 +70,10 @@ invisible without a build-time SBOM. That is the gap the spec closes.
 ## 3. Empirical findings: what scanners actually see in our images
 
 Agent-verified 2026-08-20 against `tap-web:latest` (syft v1.51.0 standalone;
-buildkit-syft-scanner stable-1 embedding syft v1.42.3). Raw data preserved in the session
-scratchpad at time of writing; the numbers below are the durable summary.
+buildkit-syft-scanner stable-1 embedding syft v1.42.3). The numbers below ARE the durable
+record — the raw scan JSONs (~14MB) were ephemeral working artifacts, deliberately not
+committed; re-derive them by re-running the scans described here against any published
+image digest.
 
 ### 3.1 BuildKit `sbom: true` is a dead end for these images
 
