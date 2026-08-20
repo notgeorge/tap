@@ -10,14 +10,22 @@
 #
 # Architecture: one native build per arch (amd64 on ubuntu-latest, arm64 on the
 # free-for-public-repos arm runners — QEMU would crawl through the OpenSSL FIPS
-# + cryptography compiles), pushed as :staging-<sha>-<arch>, then merged into
+# + cryptography compiles), pushed BY DIGEST (no staging tag), then merged into
 # the multi-arch :sha-<short> (+ :latest for tip builds) manifests and attested
 # (SLSA provenance via the Sigstore public-good instance; verify with
 #   gh attestation verify oci://ghcr.io/unified-systems-com/tap-web:latest --owner unified-systems-com).
-# Staging tags are per-commit ON PURPOSE: isolated runs (below) mean two
-# publishes can overlap, and a shared staging tag would let the merge step pair
-# mismatched arches. They accumulate in the registry; do NOT delete them — the
-# multi-arch index references those manifests by digest.
+#
+# DIGEST THREADING (req-cicd-supply-chain-provenance-1): every hop between jobs
+# is content-addressed. Tags are the only mutable thing in a registry — a
+# tag-based hop hands anyone with packages:write a TOCTOU window to swap
+# content between jobs, and the attestation step would then SIGN the tampered
+# bytes (an honest signature laundering a dishonest artifact). So: build jobs
+# push by digest and ship those digests to the manifest job as workflow
+# artifacts (integrity-held by the same GitHub infra that signs the
+# attestation — no new trust root); the merge consumes ref@digest; and after
+# tagging, the merge re-reads the index ONCE and fails closed unless its
+# children are EXACTLY the two built digests. Only that verified digest is
+# attested. Side effect: no staging tags = no registry litter.
 #
 # Backfill (workflow_dispatch `ref`): builds that commit and publishes ONLY its
 # :sha-<short> manifest, never moving :latest. This is the recovery path for a
@@ -107,18 +115,43 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push (${{ matrix.arch }})
+      - name: Build and push by digest (${{ matrix.arch }})
+        id: build
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: .
           file: ${{ matrix.dockerfile }}
           platforms: linux/${{ matrix.arch }}
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.image }}:staging-${{ env.BUILD_SHA }}-${{ matrix.arch }}
+          # push-by-digest: no tag is ever written by the build legs — the digest
+          # is the ONLY name this artifact has until the manifest job tags the
+          # verified merged index (req-cicd-supply-chain-provenance-1).
+          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.image }},push-by-digest=true,name-canonical=true,push=true
+          # Provenance lane is GitHub attestations (attest-build-provenance, below);
+          # BuildKit's embedded provenance is disabled so the pushed object is a bare
+          # single-platform manifest and the merge step can verify the index children
+          # are EXACTLY the built digests — an attached attestation manifest would
+          # make that strict equality impossible.
+          provenance: false
           build-args: |
             TAP_FIPS=1
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.image }}:buildcache-${{ matrix.arch }}
           cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.image }}:buildcache-${{ matrix.arch }},mode=max
+      - name: Record built digest
+        run: |
+          mkdir -p "${RUNNER_TEMP}/digest"
+          case "${{ steps.build.outputs.digest }}" in
+            sha256:*) ;;
+            *) echo "::error::build produced no valid digest"; exit 1 ;;
+          esac
+          printf '%s' "${{ steps.build.outputs.digest }}" \
+            > "${RUNNER_TEMP}/digest/${{ matrix.image }}-${{ matrix.arch }}"
+      - name: Ship digest to the manifest job
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: digest-${{ matrix.image }}-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digest/*
+          if-no-files-found: error
+          retention-days: 1
 
   manifest:
     name: manifest + attest ${{ matrix.image }}
@@ -141,18 +174,40 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Merge per-arch images into multi-arch tags
+      - name: Receive built digests
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: digest-${{ matrix.image }}-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/digest
+      - name: Merge per-arch digests into multi-arch tags (verified)
         id: merge
         run: |
           ref="${REGISTRY}/${OWNER}/${{ matrix.image }}"
           short="${BUILD_SHA:0:7}"
+          amd="$(cat "${RUNNER_TEMP}/digest/${{ matrix.image }}-amd64")"
+          arm="$(cat "${RUNNER_TEMP}/digest/${{ matrix.image }}-arm64")"
+          case "$amd" in sha256:*) ;; *) echo "::error::bad amd64 digest: ${amd}"; exit 1 ;; esac
+          case "$arm" in sha256:*) ;; *) echo "::error::bad arm64 digest: ${arm}"; exit 1 ;; esac
           tags=(-t "${ref}:sha-${short}")
           if [ "$TAG_LATEST" = "true" ]; then
             tags+=(-t "${ref}:latest")
           fi
-          docker buildx imagetools create "${tags[@]}" \
-            "${ref}:staging-${BUILD_SHA}-amd64" "${ref}:staging-${BUILD_SHA}-arm64"
-          digest="$(docker buildx imagetools inspect "${ref}:sha-${short}" --format '{{json .Manifest}}' | jq -r .digest)"
+          # Content-addressed sources: ref@digest can only resolve to the bytes
+          # the build legs produced, or fail. No tag is consumed anywhere here.
+          docker buildx imagetools create "${tags[@]}" "${ref}@${amd}" "${ref}@${arm}"
+          # Fail-closed post-create verification: read the just-tagged index ONCE
+          # and require its children to be EXACTLY the two built digests. A swap
+          # of the tag between create and attest — or anything unexpected riding
+          # in the index — refuses attestation instead of signing it.
+          manifest_json="$(docker buildx imagetools inspect "${ref}:sha-${short}" --format '{{json .Manifest}}')"
+          children="$(printf '%s' "$manifest_json" | jq -r '[.manifests[].digest] | sort | join(",")')"
+          expected="$(printf '%s\n%s\n' "$amd" "$arm" | sort | paste -sd, -)"
+          if [ "$children" != "$expected" ]; then
+            echo "::error::index children (${children}) != built digests (${expected}) — refusing to attest (req-cicd-supply-chain-provenance-1)"
+            exit 1
+          fi
+          digest="$(printf '%s' "$manifest_json" | jq -r .digest)"
           echo "digest=${digest}" >> "$GITHUB_OUTPUT"
       - name: Attest build provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
