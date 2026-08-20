@@ -108,10 +108,17 @@ def verify(tree: Path, manifest_path: Path) -> dict[str, object]:
         return report()
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        declared: dict[str, str] = manifest["files"]
+        declared = manifest["files"]
         fmt = manifest["format"]
     except (json.JSONDecodeError, KeyError, TypeError) as exc:
         failures.append(f"manifest unreadable: {exc}")
+        return report()
+    if not isinstance(declared, dict) or not all(
+        isinstance(k, str) and isinstance(v, str) for k, v in declared.items()
+    ):
+        # Valid JSON, wrong shape (e.g. files as a list) — a clean structural
+        # failure, never a traceback from the set operations below.
+        failures.append("manifest malformed: 'files' must be an object of {relative-path: sha256}")
         return report()
     if fmt != MANIFEST_FORMAT:
         failures.append(f"manifest format {fmt!r} != expected {MANIFEST_FORMAT!r}")

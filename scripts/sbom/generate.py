@@ -170,8 +170,14 @@ def check_minimum_elements(doc: dict) -> list[str]:
     meta = doc.get("metadata", {})
     if not meta.get("timestamp"):
         problems.append("missing metadata.timestamp (generation context)")
-    tools = meta.get("tools") or {}
-    if not (tools.get("components") or tools.get("services") or isinstance(tools, list) and tools):
+    tools = meta.get("tools")
+    # CycloneDX serializes tools as either an object ({components/services}) or a
+    # legacy array — handle both without assuming a shape (a list has no .get).
+    if isinstance(tools, dict):
+        has_tools = bool(tools.get("components") or tools.get("services"))
+    else:
+        has_tools = isinstance(tools, list) and len(tools) > 0
+    if not has_tools:
         problems.append("missing metadata.tools (generating tool name/version)")
     if not any(p.get("name") == "tap:coverage" for p in meta.get("properties", [])):
         problems.append("missing tap:coverage statement (what the document does/does not cover)")

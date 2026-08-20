@@ -195,3 +195,11 @@ def test_forbidden_location_is_a_red() -> None:
     smuggled["evidence"] = {"occurrences": [{"location": "/opt/uv-cache-seed/archive-v0/x/METADATA"}]}
     doc = gen.inject_cdx(_minimal_cdx(_web_base_components() + [smuggled]), supplemental, FAKE_HASHES, coverage="x")
     assert any("forbidden /opt/uv-cache-seed" in p for p in gen.check_canaries(doc, "tap-web", supplemental))
+
+
+def test_minimum_elements_accepts_legacy_tools_array() -> None:
+    """CycloneDX also serializes metadata.tools as a legacy array — no AttributeError."""
+    supplemental = gen.load_supplemental(WEB_SUPPLEMENTAL)
+    doc = gen.inject_cdx(_minimal_cdx(_web_base_components()), supplemental, FAKE_HASHES, coverage="x")
+    doc["metadata"]["tools"] = [{"name": "syft", "version": "1.51.0"}]
+    assert not any("metadata.tools" in p for p in gen.check_minimum_elements(doc))

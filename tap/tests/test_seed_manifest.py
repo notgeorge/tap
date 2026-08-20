@@ -147,3 +147,11 @@ def test_cli_diagnostic_sample_cap(seed_tree: Path, tmp_path: Path, capsys: pyte
     err = capsys.readouterr().err
     assert "EXTRA unmanifested: 14 file(s)" in err
     assert "… and 4 more" in err
+
+
+def test_malformed_files_shape_is_clean_failure(seed_tree: Path, tmp_path: Path) -> None:
+    """Valid JSON with 'files' as a list must fail cleanly, never traceback."""
+    bad = tmp_path / "shape.json"
+    bad.write_text(json.dumps({"format": seed_manifest.MANIFEST_FORMAT, "files": ["a", "b"]}))
+    failures = seed_manifest.verify(seed_tree, bad)["failures"]
+    assert failures and "malformed" in failures[0]
