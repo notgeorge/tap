@@ -38,8 +38,8 @@ after the roster was rebuilt from scratch on permission evidence — see
 | Seat | What it is | Job | Cost | Status |
 | --- | --- | --- | --- | --- |
 | **Copilot code review** | First-party GitHub | Daily-life hygiene on maintainer/bot PRs — **cannot cover fork PRs** (author-pays rule, structural) | Copilot Business seat | **UNPARKED 2026-08-20** (org ruleset live) |
-| **Codex (GPT)** — two-stage harness | Runs in our CI, permissions we write, direct OpenAI API call | The independence leg + the malicious-change lens, **every PR incl. forks** | API usage (trivial at ~44 PRs/mo) | To build (Step 2) |
-| **Grok (xAI)** — same harness | Same two-stage harness, separate `XAI_API_KEY` | Second independent non-Anthropic vendor, **every PR incl. forks** | API usage (~$2/$6 per M tok, grok-4.6) | To build (Step 2) |
+| **Codex (GPT)** — two-stage harness | Runs in our CI, permissions we write, direct OpenAI API call | The independence leg + the malicious-change lens, **every PR incl. forks** | API usage (trivial at ~44 PRs/mo) | **BUILT 2026-08-20** — shims on tap; first-PR verification pending |
+| **Grok (xAI)** — same harness | Same two-stage harness, separate `XAI_API_KEY` | Second independent non-Anthropic vendor, **every PR incl. forks** | API usage (~$2/$6 per M tok, grok-4.6) | **BUILT 2026-08-20** — shims on tap; first-PR verification pending |
 | **Codacy** | Third-party App, `contents: read` | Security observability — SAST, SCA, secrets, duplication | Free, unlimited public repos | To install |
 | **SonarQube Cloud** | Third-party App, `contents: read` | Security observability — rules, vulnerabilities, quality gate | Free, all open source | To install |
 

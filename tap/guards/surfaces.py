@@ -248,4 +248,11 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
         status="CI-guarded",
         enforced_by="`tap_plugins/tests/test_report.py` (schema validation)",
     ),
+    DeclaredSurface(
+        surface="AI review (Unified AI Review harness)",
+        rid="req-cicd-ai-review-ensemble",
+        cadence="Per-PR (advisory comment on every PR incl. forks)",
+        status="Advisory (non-blocking by design — Phase 1 of req-cicd-ai-review-graduation)",
+        enforced_by="`.github/workflows/ai-review-capture.yml` + `ai-review.yml` shims → SHA-pinned `unified-ai-review` reusable workflows",
+    ),
 )
