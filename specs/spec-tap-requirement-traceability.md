@@ -36,6 +36,24 @@ Three properties follow from that diagnosis, and they shape every requirement be
   consumer that broke or omitted when the tag was wrong. Inert tags rot. The consumer here is
   derived status (`spec-dev-validation.md`'s generated-Map discipline, pointed at the spec corpus).
 
+## Definition of Done
+
+**Every requirement in the tap + plugins corpus is either bi-directionally mapped or documented
+excluded.** Mapped means it carries evidence — an implementation claim and/or a test-cited
+acceptance criterion. Excluded means it carries a machine-readable disposition from a closed
+vocabulary saying *why* no code mapping exists (`req-tap-traceability-disposition`). Everything
+else is **Unaccounted** — a counted, ratcheting-to-zero gap (`req-tap-traceability-accounting`),
+and that count is the project's progress bar.
+
+This is a total *accounting* program, deliberately not a total *claims* program, and the two
+principles compose rather than conflict: scarcity (`req-tap-traceability-scope`) governs **which
+bucket** a requirement lands in — not everything deserves a claim, and most requirements will
+resolve to a test citation or a documented exclusion — while the Definition of Done demands only
+that every requirement **lands in exactly one bucket**. The field's evidence says the uncited
+fraction of a requirements corpus is uninterpretable until the legitimately-code-free
+requirements are marked (Doorstop `derived: true`, OpenFastTrace `Needs:`, clang's `na`); this
+section is that marker's mandate.
+
 ## Goals
 
 |   |   |   |
@@ -93,7 +111,9 @@ directly — see `req-tap-traceability-uniqueness`.
 | req-tap-traceability-staleness | [Claims Detect Requirement Change](#claims-detect-requirement-change) | Implemented | Content hash of the requirement; a changed requirement orphans its claims |
 | req-tap-traceability-code-staleness | [Claims Detect Code Change](#claims-detect-code-change) | Implemented | Content hash of the claimed scope's AST; a semantically edited scope orphans its claims — the code end of the link, fingerprinted like the spec end |
 | req-tap-traceability-minting | [Minted, Not Typed](#minted-not-typed) | Implemented | `scripts/implements-tag` emits the complete pre-hashed line |
-| req-tap-traceability-scope | [Scarce And Targeted](#scarce-and-targeted) | Implemented | Claims are opt-in per requirement; absence is never a defect |
+| req-tap-traceability-scope | [Scarce And Targeted](#scarce-and-targeted) | Implemented | Claims are opt-in per requirement; a missing claim is never, by itself, a defect — the disposition system accounts for the rest |
+| req-tap-traceability-disposition | [Coverage Disposition](#coverage-disposition) | Proposed | A `Trace:` line beside `Status:` for requirements that legitimately map to no code — closed vocabulary, excluded from the content hash, contradicted by evidence |
+| req-tap-traceability-accounting | [Full-Corpus Accounting](#full-corpus-accounting) | Proposed | Every requirement in exactly one bucket — mapped, excluded, doctrine, disputed, or Unaccounted; Unaccounted is baselined and ratchets to zero, fail-closed for new requirements |
 | req-tap-traceability-status | [Status Follows Evidence](#status-follows-evidence) | Implemented | A generated evidence report; `Verified` requires two independent evidence classes |
 | req-tap-traceability-disputed | [The Disputed Status](#the-disputed-status) | Implemented | A fourth status bucket for spec-versus-implementation disagreement — claims are pointers, never resolution; every entry pairs with a review-ledger row |
 
@@ -367,16 +387,118 @@ deliberately not a coverage program.
   thin layer is a worse position than a deep one where it matters. The regulated-traceability
   literature agrees from the other direction: mandated broad tracing is the thing that decays into
   ceremony, and assessors explicitly discourage tracing below the unit level.
-- **What is deliberately not built:** a "needs no code" marker (`derived: true` in Doorstop terms).
-  It becomes necessary only when coverage is *reported as a fraction*, which is the derived-status
-  work; until a denominator exists there is nothing for it to correct.
+- **The "needs no code" marker was deliberately deferred here** ("until a denominator exists there
+  is nothing for it to correct") — and the deferral expired on 2026-08-20, when the Definition of
+  Done declared the denominator to be the whole corpus. The marker is now specified as
+  `req-tap-traceability-disposition`, and the denominator's accounting as
+  `req-tap-traceability-accounting`. Scarcity survives the pivot intact: what those add is total
+  *accounting*, never total *claiming* — a claim remains one valid disposition among several, and
+  faulting a requirement for lacking one specifically remains wrong (`req-tap-traceability-scope-1`
+  is unchanged). What becomes a defect, ratcheted rather than absolute, is a requirement with *no*
+  disposition at all.
 
 #### Acceptance Criteria
 
 | ACID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-tap-traceability-scope-1 | Absence is not a defect | Implemented | No guard fails because a requirement lacks a claim. | Opt-in by construction. |
+| req-tap-traceability-scope-1 | Absence is not a defect | Implemented | No guard fails because a requirement lacks a claim. | Opt-in by construction; the accounting ratchet faults a missing *disposition*, never a missing claim specifically. |
 | req-tap-traceability-scope-2 | Seed set is the proven collapses | Implemented | The first claims are placed on the single-source functions the duplication audit created. | Locks in already-shipped fixes. |
+
+---
+
+### Coverage Disposition
+----
+RID: `req-tap-traceability-disposition`
+Status: `Proposed`
+
+A requirement that legitimately maps to no code carries a **`Trace:` line beside `Status:`** in
+its requirement block — directly under the `Status:` line, e.g.
+``Trace: `non-python` — docker/entrypoint.sh``.
+
+Grammar: ``Trace: `<category>` — <target/reason>``. This is the field's "needs no code" marker
+(Doorstop `derived: true`, OpenFastTrace per-item `Needs:`, clang's `na` / `na lib`), placed
+spec-side so it travels with the requirement and is read by the one corpus parser.
+
+#### The vocabulary
+
+| Category | Means | Payload |
+| --- | --- | --- |
+| `process` | Governance or process — conformed to by humans and workflow, not code (DCO policy, release procedure, review rules). | Optional reason. |
+| `narrative` | Goal-level or umbrella statement — the checkable substance lives in its ACIDs or child requirements, which carry their own dispositions. | Optional reason. |
+| `non-python` | Implemented in a surface the claim scanner cannot read — shell, workflows, Dockerfiles, templates, GRIFT seed data. | **Mandatory**: the implementing file's repo-relative path. |
+| `external` | Implemented outside this repo — an evicted plugin, org configuration, GitHub settings. | **Mandatory**: the repo, plugin slug, or system name. |
+
+Four buckets are **derived, never hand-marked** — a `Trace:` line on any of them is a defect:
+doctrine (`Status: In Force`), disputed (`Status: Disputed`), archival location, and **mapped**
+(evidence exists). Marking what the system already knows would create two sources for one fact.
+
+#### Implementation
+
+- **The closed vocabulary fails closed** — an unknown category, or a missing mandatory payload, is
+  a parse failure, not free text (the `TAP-CRED-BIND` provenance model, same as claim roles). A
+  near-miss line (`Trace :`, `Traced:`) must fail loudly, not be skipped — the claim-shape lesson
+  applies verbatim.
+- **The `Trace:` line is excluded from the requirement content hash**, exactly as the `Status:`
+  line is and for the same reason: it is metadata *about* the requirement on its own lifecycle.
+  **Sequencing constraint, load-bearing:** this exclusion must land in the parser *before* any
+  bulk marker application — otherwise adding dispositions across the corpus churns every existing
+  claim's spec hash.
+- **An excluded requirement cannot carry evidence.** A claim or test-cited ACID on a
+  `Trace:`-marked requirement is a contradiction and fails — the `claimed_doctrine` lesson: a flag
+  that only ever removes a check is a flag nobody maintains, so marking a requirement excluded
+  must cost the ability to claim it. Resolving the contradiction means removing whichever side is
+  wrong, and both edits are review-visible.
+- **The payload discipline is LOBSTER's**: where the category names a thing (the implementing
+  file, the external system), naming it is mandatory — an exclusion whose target cannot be pointed
+  at is an assertion nothing can check. `non-python` payloads are candidate promotion targets: if
+  their count grows large, extending the claim grammar to `#`-comment surfaces is the follow-on
+  (measured first, built only on demand).
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-traceability-disposition-1 | Closed vocabulary, fail-closed | Proposed | A `Trace:` category outside the vocabulary, a near-miss spelling, or a missing mandatory payload fails the parse. | |
+| req-tap-traceability-disposition-2 | Hash-neutral | Proposed | Adding, editing or removing a `Trace:` line leaves the requirement's content hash unchanged. | Must precede bulk triage. |
+| req-tap-traceability-disposition-3 | Exclusion contradicts evidence | Proposed | A requirement carrying both a `Trace:` line and any evidence (claim or test-cited ACID) fails. | Marking excluded costs the ability to claim. |
+| req-tap-traceability-disposition-4 | Derived buckets reject markers | Proposed | A `Trace:` line on a doctrine, disputed, or archival requirement fails. | One source per fact. |
+
+---
+
+### Full-Corpus Accounting
+----
+RID: `req-tap-traceability-accounting`
+Status: `Proposed`
+
+A generated accounting places **every requirement in the corpus in exactly one bucket** — mapped,
+excluded (by category), doctrine, disputed, or **Unaccounted** — and the Unaccounted count is a
+baselined ratchet that trends to zero.
+
+This is the Definition of Done made mechanical. The evidence report
+(`req-tap-traceability-status`) deliberately lists only requirements that carry evidence; this
+accounting is the complement, with a denominator. The two stay separate surfaces: one is read for
+contradictions, the other for progress.
+
+#### Implementation
+
+- **The buckets are disjoint and total** by construction — the disposition rules
+  (`req-tap-traceability-disposition`) already make evidence, exclusion, doctrine and disputed
+  mutually exclusive, so bucketing is a derivation, never a judgment call.
+- **Unaccounted ratchets, fail-closed for new requirements**: the existing debt is grandfathered
+  in a committed baseline (the referenced-RID pattern — 92→16 by batches), but a requirement
+  *added* without a disposition fails immediately. The gap drains; it never grows.
+- The headline is the Unaccounted count, per-spec sub-counts drive the triage batching, and the
+  report says in as many words that a grandfathered entry is debt, not license.
+- Plugins corpus: the same machinery ships in the core wheel and each plugin repo drains its own
+  count against its own specs (the two-mains model). Sequenced after core proves the model.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-tap-traceability-accounting-1 | Every requirement, one bucket | Proposed | The accounting assigns each corpus requirement exactly one of: mapped, excluded, doctrine, disputed, Unaccounted. | Disjoint and total, derived not judged. |
+| req-tap-traceability-accounting-2 | Unaccounted ratchets to zero | Proposed | The Unaccounted set is baselined; an entry leaving the set cannot return, and a new requirement without a disposition fails. | Fail-closed for new, grandfathered for old. |
+| req-tap-traceability-accounting-3 | Progress is visible | Proposed | The accounting is generated, committed, and drift-tested, with per-spec sub-counts. | The consumer that keeps triage honest. |
 
 ---
 
@@ -475,7 +597,7 @@ Generated — do not hand-edit. Regenerate with `manage.py guards --sync-evidenc
 
 <!-- BEGIN GENERATED EVIDENCE — manage.py guards --sync-evidence -->
 
-**1130** requirements · **19** standing doctrine · **1** disputed · **30** carry evidence · **1** carry both classes · **498** declared built with none.
+**1132** requirements · **19** standing doctrine · **1** disputed · **30** carry evidence · **1** carry both classes · **498** declared built with none.
 
 Separate facts, deliberately not blended into one percentage. **Doctrine** is outside the coverage question — in force now, never "completed", expecting conformance rather than an implementation. **Disputed** marks a spec-versus-implementation disagreement awaiting a human ruling — its claims are pointers to the contested code, never resolution, and the count should trend to zero. **Declared built with none** is context, not a defect list: claims are opt-in and scarce by design (`req-tap-traceability-scope`), so it measures how much of the corpus has been deliberately targeted, not how much is wrong. Collapsing these into a single coverage score is what makes such a score meaningless.
 
