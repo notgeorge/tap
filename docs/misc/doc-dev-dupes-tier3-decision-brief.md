@@ -148,7 +148,7 @@ downstream consumers listed in the scout record).
 
 | # | Decision | Recommendation | Ruling |
 | :---: | --- | --- | --- |
-| F1 | Helper home | New stdlib leaf `tap/boot_naming.py` (Option B) | — |
+| F1 | Helper home | New stdlib leaf `tap/boot_naming.py` (Option B) | **Ruled: Option B (George, 2026-08-20); landed** |
 | F2 | Divergent default | Schema in `profile_install_slugs` + flip `:160` to False + KNOWN-DUPE tag | — |
 | F3 | Recognizer collapse | Shared vocab in `tap/source_scan.py`; add `update_or_create`/`aupdate_or_create` both sides; set-diff | — |
 | F4a | `tap_secrets` gap | Fix now, one line, scoped to `scan_json_files` | — |

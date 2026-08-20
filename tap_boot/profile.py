@@ -19,6 +19,7 @@ from typing import Any
 
 from django.conf import settings
 
+from tap.boot_naming import profile_path
 from tap.jsonfiles import JsonFileError, discover_json_files, instance_id, load_json_file
 
 # Declared public surface. tap_boot.profile is the boot-profile *contract* (the
@@ -155,7 +156,7 @@ def profile_install_slugs(profile_id: str) -> frozenset[str]:
     *population* steps, not *install* steps). This is the atom of install-awareness:
     a profile only resolves/boots in a stack that already has all these plugins.
     """
-    raw = load_json_file(boot_dir() / f"{profile_id}.boot.json")
+    raw = load_json_file(profile_path(boot_dir(), profile_id))
     plugins = raw.get("install", {}).get("plugins", [])
     return frozenset(p["slug"] for p in plugins if p.get("enabled", True))
 
@@ -183,7 +184,7 @@ def load_profile(profile_id: str) -> BootProfile:
     Raises `BootProfileError` (loud, machine-readable) on a missing file, unreadable
     JSON, or schema-validation failure — never returns a malformed profile.
     """
-    path = boot_dir() / f"{profile_id}.boot.json"
+    path = profile_path(boot_dir(), profile_id)
     if not path.is_file():
         available = ", ".join(profile_ids()) or "(none)"
         raise BootProfileError(f"Boot profile '{profile_id}' not found at {path}. Available: {available}.")

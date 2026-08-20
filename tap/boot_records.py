@@ -32,6 +32,8 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
+from tap.boot_naming import RECORD_SUFFIX
+
 __all__ = [
     "REPO_ROOT",
     "RECORD_SUFFIX",
@@ -46,7 +48,8 @@ __all__ = [
 # tap/boot_records.py -> repo root is two parents up (holds plugins/, tap/).
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-RECORD_SUFFIX = ".boot.json"
+# RECORD_SUFFIX is imported above from its home, the stdlib-only naming leaf
+# (tap/boot_naming.py), and re-exported here for existing consumers.
 
 # Globs for a plugin package's in-package boot dir, one per supported layout:
 #   plugins/<dir>/tap_plugin/<slug>/boot/       — monorepo-era in-tree plugins

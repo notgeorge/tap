@@ -48,7 +48,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
-from tap.boot_records import RECORD_SUFFIX, canonical_digest_bytes
+from tap.boot_naming import RECORD_SUFFIX
+from tap.boot_records import canonical_digest_bytes
 from tap.git_invocation import DEFAULT_HOST, DEFAULT_USERNAME, GITHUB_PAT_KIND, askpass_env, run_git
 from tap.secret_naming import SECRET_SUFFIX
 from tap.secrets_root import resolve as resolve_secrets_root

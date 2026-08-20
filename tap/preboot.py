@@ -38,6 +38,7 @@ from typing import Any
 from urllib.parse import unquote, urlparse
 
 from tap import plugin_deps
+from tap.boot_naming import profile_path
 from tap.logging import abort
 from tap.plugin_identity import NAMESPACE_PACKAGE as NAMESPACE_PACKAGE
 from tap.plugin_identity import TAP_PLUGINS_ENTRY_POINT_GROUP as TAP_PLUGINS_ENTRY_POINT_GROUP
@@ -173,7 +174,7 @@ def _read_profile(profile_id: str) -> dict[str, Any]:
     before settings exist, not by a ``req-boot-sections`` handler (`req-boot-install-section-2`).
     Schema validation is the Django-side ``tap_boot.profile`` reader's job at boot.
     """
-    path = _boot_dir() / f"{profile_id}.boot.json"
+    path = profile_path(_boot_dir(), profile_id)
     if not path.is_file():
         raise PrebootError(f"boot profile '{profile_id}' not found at {path}")
     try:

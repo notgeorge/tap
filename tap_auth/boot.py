@@ -28,6 +28,7 @@ from typing import Any
 
 from django.conf import settings
 
+from tap.boot_naming import profile_path
 from tap.jsonfiles import JsonFileError, load_json_file, validate_json
 
 logger = logging.getLogger(__name__)
@@ -54,7 +55,7 @@ def _profile_path(profile_id: str) -> Path:
     # This also keeps the module a clean settings-time dependency with no reach
     # into tap_boot.
     repo_root = Path(__file__).resolve().parent.parent
-    return repo_root / "boot" / f"{profile_id}.boot.json"
+    return profile_path(repo_root / "boot", profile_id)
 
 
 def read_auth_section(profile_id: str) -> dict[str, Any]:

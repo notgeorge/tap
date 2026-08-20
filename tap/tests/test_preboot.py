@@ -17,8 +17,10 @@ import subprocess
 import pytest
 
 from tap import preboot
+from tap.boot_naming import RECORD_SUFFIX
+from tap.jsonfiles import instance_id
 
-_SHIPPED_PROFILE_IDS = sorted(p.stem.replace(".boot", "") for p in preboot._boot_dir().glob("*.boot.json"))
+_SHIPPED_PROFILE_IDS = sorted(instance_id(p, role="boot") for p in preboot._boot_dir().glob(f"*{RECORD_SUFFIX}"))
 
 
 def _tracked_boot_ids() -> set[str] | None:
