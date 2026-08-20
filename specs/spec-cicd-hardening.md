@@ -415,8 +415,10 @@ RID: `req-cicd-supply-chain-provenance`
 **First slice implemented (2026-08-09):** the published `tap-web`/`tap-db` images carry
 SLSA Build L2 provenance via `actions/attest-build-provenance` (Sigstore public-good
 instance; verify: `gh attestation verify oci://ghcr.io/unified-systems-com/tap-web:latest
---owner unified-systems-com`). Still open: plugin-wheel attestations, cosign-style
-signatures, and SBOM emission.
+--owner unified-systems-com`). Still open: plugin-wheel attestations and cosign-style
+signatures. SBOM emission has graduated to its own specification —
+[spec-cicd-sbom.md](spec-cicd-sbom.md) (Proposed 2026-08-20; groundwork record in
+[doc-cicd-sbom-groundwork](../docs/misc/doc-cicd-sbom-groundwork.md)).
 
 Beyond that slice: no other artifact signing (Sigstore/cosign — notable given a
 `sigstore_core` plugin exists), no SBOM (CycloneDX/SPDX). TAP's **boot-record-as-BOM** is conceptually
