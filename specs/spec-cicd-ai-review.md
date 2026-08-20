@@ -545,6 +545,17 @@ non-Apache licenses live.
 - **Bring-your-own-prompts is the interface.** Any consumer points their shim at their OWN
   prompts repo and ref; the machinery's contract is the standard layout, not our content.
   External consumers inherit Share-Alike only if they build on our CC BY-SA prompt files.
+- **Harness credentials (`/manage-secret` reviewed: OpenAI and xAI, both 2026-08-20).**
+  `OPENAI_API_KEY` and `XAI_API_KEY` are **GitHub Actions repository secrets** on consuming
+  repos — deliberately OUTSIDE the tap-cares envelope system: they never enter the container,
+  `~/tap-secrets`, or any boot profile, so no TAP scope/kind/health-probe exists for them.
+  Consumer: the privileged stage's model jobs only. Least-privilege shape: a dedicated project
+  (OpenAI) / team (xAI) at the vendor, a HARD spend cap, restricted to model inference; minted
+  and set by George (`gh secret set`), the value never passing through an agent session.
+  Rotation: re-mint at the vendor and re-set the repo secret — nothing else ever holds the
+  value. Detectability: both shapes are pattern-covered in `tap/credential_patterns.py`
+  (`openai-api-key`: `sk-(proj|svcacct|admin)-` + 40-char floor; `xai-api-key`: `xai-` + 40-char
+  alphanumeric floor), with detected/near-miss tests in `tap/tests/test_credential_patterns.py`.
 - **Sequencing (center-of-gravity discipline):** milestone 1 is the minimal two-seat harness plus
   a minimal prompts repo reviewing real TAP PRs; the Trail-of-Bits-adapted prompt phases (run
   sheet import queue) are iteration 2, not a precondition.
