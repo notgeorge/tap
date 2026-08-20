@@ -10,10 +10,19 @@
 #
 # Architecture: one native build per arch (amd64 on ubuntu-latest, arm64 on the
 # free-for-public-repos arm runners — QEMU would crawl through the OpenSSL FIPS
-# + cryptography compiles), pushed as :latest-<arch>, then merged into the
-# multi-arch :latest + :sha-<short> manifests and attested (SLSA provenance via
-# the Sigstore public-good instance; verify with
+# + cryptography compiles), pushed as :staging-<sha>-<arch>, then merged into
+# the multi-arch :sha-<short> (+ :latest for tip builds) manifests and attested
+# (SLSA provenance via the Sigstore public-good instance; verify with
 #   gh attestation verify oci://ghcr.io/unified-systems-com/tap-web:latest --owner unified-systems-com).
+# Staging tags are per-commit ON PURPOSE: isolated runs (below) mean two
+# publishes can overlap, and a shared staging tag would let the merge step pair
+# mismatched arches. They accumulate in the registry; do NOT delete them — the
+# multi-arch index references those manifests by digest.
+#
+# Backfill (workflow_dispatch `ref`): builds that commit and publishes ONLY its
+# :sha-<short> manifest, never moving :latest. This is the recovery path for a
+# release commit whose main-push build was superseded before publishing — see
+# publish-release-tags.yml.
 #
 # Runs OFF the promote critical path: promote pushes main and moves on; this
 # fires behind it. Only TAP_FIPS=1 (the published posture) is built.
@@ -22,11 +31,26 @@ name: publish-images
 on:
   push:
     branches: [main]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: >-
+          Backfill: full 40-hex commit SHA (on main) to build. Publishes
+          :sha-<short> only — :latest does not move. Leave empty to build
+          main's tip and move :latest (the normal recovery dispatch).
+        required: false
+        default: ""
 
-# Superseded publishes just waste runners — newest main wins.
+# Superseded publishes just waste runners — newest main wins — EXCEPT for runs
+# whose :sha-<short> manifest is a release contract surface: a release-please
+# release commit (publish-release-tags.yml promotes its sha manifest to the
+# versioned tag; cancelling it is exactly the v0.1.2 gap) and explicit ref
+# backfills. Those get an isolated group so later main pushes cannot cancel
+# them. Transient: a slow release build finishing after a newer tip build
+# leaves :latest one release behind until the next push — harmless, and the
+# alternative (cancelling the release build) broke versioned tags for real.
 concurrency:
-  group: publish-images
+  group: "publish-images-${{ ((github.event_name == 'workflow_dispatch' && inputs.ref != '') || startsWith(github.event.head_commit.message, 'chore(main): release')) && github.run_id || 'main' }}"
   cancel-in-progress: true
 
 permissions:
@@ -35,6 +59,11 @@ permissions:
 env:
   REGISTRY: ghcr.io
   OWNER: unified-systems-com
+  # The commit being built. For push events and empty-ref dispatches this is
+  # the triggering sha; for backfills it is the operator-supplied commit.
+  BUILD_SHA: ${{ inputs.ref || github.sha }}
+  # Tip builds move :latest; ref backfills never do.
+  TAG_LATEST: ${{ inputs.ref == '' }}
 
 jobs:
   build:
@@ -59,8 +88,16 @@ jobs:
           - arch: arm64
             runner: ubuntu-24.04-arm
     steps:
+      - name: Validate backfill ref
+        if: inputs.ref != ''
+        run: |
+          if ! [[ "$BUILD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::ref input must be a full 40-hex commit SHA (got: ${BUILD_SHA})"
+            exit 1
+          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          ref: ${{ env.BUILD_SHA }}
           persist-credentials: false  # build needs the tree, not a token in .git config
       # guard-allow: req-cicd-runner-least-privilege — the docker/* steps ARE the write this
       # job exists for (verified-creator tier); nothing else shares the job's packages:write.
@@ -77,7 +114,7 @@ jobs:
           file: ${{ matrix.dockerfile }}
           platforms: linux/${{ matrix.arch }}
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.image }}:latest-${{ matrix.arch }}
+          tags: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.image }}:staging-${{ env.BUILD_SHA }}-${{ matrix.arch }}
           build-args: |
             TAP_FIPS=1
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.image }}:buildcache-${{ matrix.arch }}
@@ -108,11 +145,14 @@ jobs:
         id: merge
         run: |
           ref="${REGISTRY}/${OWNER}/${{ matrix.image }}"
-          docker buildx imagetools create \
-            -t "${ref}:latest" \
-            -t "${ref}:sha-${GITHUB_SHA::7}" \
-            "${ref}:latest-amd64" "${ref}:latest-arm64"
-          digest="$(docker buildx imagetools inspect "${ref}:latest" --format '{{json .Manifest}}' | jq -r .digest)"
+          short="${BUILD_SHA:0:7}"
+          tags=(-t "${ref}:sha-${short}")
+          if [ "$TAG_LATEST" = "true" ]; then
+            tags+=(-t "${ref}:latest")
+          fi
+          docker buildx imagetools create "${tags[@]}" \
+            "${ref}:staging-${BUILD_SHA}-amd64" "${ref}:staging-${BUILD_SHA}-arm64"
+          digest="$(docker buildx imagetools inspect "${ref}:sha-${short}" --format '{{json .Manifest}}' | jq -r .digest)"
           echo "digest=${digest}" >> "$GITHUB_OUTPUT"
       - name: Attest build provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
@@ -131,6 +171,8 @@ jobs:
   # sweep of :latest lives in trivy-nightly.yml (new CVEs land against images
   # that haven't changed). One scan covers OS packages AND the Python closure —
   # the deps-warm wheel cache means the scanned artifact carries both.
+  # Scans :sha-<short> (the manifest this run just published) rather than
+  # :latest, which a backfill run does not move.
   scan:
     name: trivy scan ${{ matrix.image }}
     needs: manifest
@@ -146,13 +188,17 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7   # for .trivyignore
         with:
+          ref: ${{ env.BUILD_SHA }}
           persist-credentials: false  # never leave the job token readable in .git config
+      - name: Resolve published tag
+        id: meta
+        run: echo "short=${BUILD_SHA:0:7}" >> "$GITHUB_OUTPUT"
       # guard-allow: req-cicd-runner-least-privilege — scanner needs no token; this job's
       # only write scope is security-events, consumed by the first-party SARIF upload step.
       - name: Scan published image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.image }}:latest
+          image-ref: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.image }}:sha-${{ steps.meta.outputs.short }}
           format: sarif
           output: trivy-${{ matrix.image }}.sarif
           exit-code: "0"   # report-only — the gate flip changes this pre-push, not here
