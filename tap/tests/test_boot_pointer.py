@@ -202,7 +202,16 @@ def test_stage0_credential_machinery_is_stdlib_only() -> None:
     import sys
 
     repo_root = Path(__file__).resolve().parents[2]
-    host_modules = ["tap/git_invocation.py", "tap/secrets_root.py", "tap/boot_pointer.py", "tap/dev_workspace.py"]
+    # docker/seed_manifest.py is container-side, not host-side, but shares the exact
+    # constraint: it runs under bare python3 BEFORE `uv sync` creates the venv
+    # (req-cicd-supply-chain-provenance-2), so it rides the same stdlib-only walk.
+    host_modules = [
+        "tap/git_invocation.py",
+        "tap/secrets_root.py",
+        "tap/boot_pointer.py",
+        "tap/dev_workspace.py",
+        "docker/seed_manifest.py",
+    ]
     seen: set[str] = set()
     non_stdlib: dict[str, list[str]] = {}
 

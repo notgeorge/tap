@@ -59,26 +59,29 @@ remain the boot record's territory. The two compose; neither substitutes for the
 
 | RID | Name | Status | Notes |
 | --- | --- | :---: | --- |
-| req-cicd-sbom-1 | [Curated Standalone Generation](#curated-standalone-generation) | Proposed | Pinned standalone Syft against verified per-arch digests; BuildKit `sbom: true` is FORBIDDEN for these images |
-| req-cicd-sbom-2 | [Closure Accuracy](#closure-accuracy) | Proposed | Locked Python closure IN (uv.lock cataloger); wheel-cache + uv-binary phantoms OUT (path excludes) |
-| req-cicd-sbom-3 | [Out-of-Band Components Declared](#out-of-band-components-declared) | Proposed | Anything entering the image outside a package manager gets a hand-authored entry — first: `fips.so` (OpenSSL 3.0.9, CMVP #4282) |
-| req-cicd-sbom-4 | [Signed Digest-Bound Home](#signed-digest-bound-home) | Proposed | `attest-sbom` per arch digest, GitHub attestation store; digest-threading law applies end to end; registry copy (if ever) must be a signed attestation, never an attachment |
-| req-cicd-sbom-5 | [Per-Arch Standalone SBOMs](#per-arch-standalone-sboms) | Proposed | One SBOM per platform digest; no merged index-level SBOM exists |
-| req-cicd-sbom-6 | [Single Derivation, Format as Serialization](#single-derivation-format-as-serialization) | Proposed | One Syft scan per digest is canonical; CycloneDX JSON + SPDX JSON BOTH emitted from that same scan on day one; CycloneDX primary |
-| req-cicd-sbom-7 | [Canary Guard](#canary-guard) | Proposed | Fail-closed publish check: expected components present, known phantoms absent — else no attestation |
-| req-cicd-sbom-8 | [Release SBOM Diffs](#release-sbom-diffs) | Deferred | Human-readable package delta per release, feeding the customer upgrade-diff contract; consumer of 1–7, not a blocker |
+| req-cicd-sbom-1 | [Curated Standalone Generation](#curated-standalone-generation) | Implemented | Pinned standalone Syft against verified per-arch digests; BuildKit `sbom: true` is FORBIDDEN for these images |
+| req-cicd-sbom-2 | [Closure Accuracy](#closure-accuracy) | Implemented | Locked Python closure IN (uv.lock cataloger); wheel-cache + uv-binary phantoms OUT (path excludes) |
+| req-cicd-sbom-3 | [Out-of-Band Components Declared](#out-of-band-components-declared) | Implemented | Anything entering the image outside a package manager gets a hand-authored entry — first: `fips.so` (OpenSSL 3.0.9, CMVP #4282) |
+| req-cicd-sbom-4 | [Signed Digest-Bound Home](#signed-digest-bound-home) | Implemented | `actions/attest` (sbom-path) per arch digest, GitHub attestation store; digest-threading law applies end to end; registry copy (if ever) must be a signed attestation, never an attachment |
+| req-cicd-sbom-5 | [Per-Arch Standalone SBOMs](#per-arch-standalone-sboms) | Implemented | One SBOM per platform digest; no merged index-level SBOM exists |
+| req-cicd-sbom-6 | [Single Derivation, Format as Serialization](#single-derivation-format-as-serialization) | Implemented | One Syft scan per digest is canonical; CycloneDX JSON + SPDX JSON BOTH emitted from that same scan on day one; CycloneDX primary |
+| req-cicd-sbom-7 | [Canary Guard](#canary-guard) | Implemented | Fail-closed publish check: expected components present, known phantoms absent — else no attestation |
+| req-cicd-sbom-8 | [Release SBOM Diffs](#release-sbom-diffs) | Backlog | Human-readable package delta per release, feeding the customer upgrade-diff contract; consumer of 1–7, not a blocker |
 | req-cicd-sbom-9 | [Flavored Ready-Made Images](#flavored-ready-made-images) | Proposed | Design constraint now, implementation with the appliance-image work: an image baking a boot profile's plugins ships an SBOM covering core + baked plugin closure, from the same declared-manifest principle |
-| req-cicd-sbom-10 | [Plugin-Declared SBOMs](#plugin-declared-sboms) | Proposed | Declare-vs-decide: plugin release CI declares an attested per-release SBOM; the system verifies and composes, never re-derives blindly; bake-time combined lock is the single derivation for flavored images |
-| req-cicd-sbom-11 | [Standards Conformance Validation](#standards-conformance-validation) | Proposed | Schema-validate the CycloneDX document + fail-closed minimum-elements field checks (CISA/NSA 2026); canaries catch TAP-specific lies, this catches malformed valid-looking SBOMs |
+| req-cicd-sbom-10 | [Plugin-Declared SBOMs](#plugin-declared-sboms) | Implemented | Declare-vs-decide: plugin release CI declares an attested per-release SBOM; the system verifies and composes, never re-derives blindly; bake-time combined lock is the single derivation for flavored images |
+| req-cicd-sbom-11 | [Standards Conformance Validation](#standards-conformance-validation) | Implemented | Schema-validate the CycloneDX document + fail-closed minimum-elements field checks (CISA/NSA 2026); canaries catch TAP-specific lies, this catches malformed valid-looking SBOMs |
 | req-cicd-sbom-12 | [Out-of-Band Detection Gate](#out-of-band-detection-gate) | Proposed | Declaration is DETECTED, never remembered: Dockerfile-derived out-of-band inventory + image-level unknowns budget both reconcile against declarations, fail-closed |
 | req-cicd-sbom-13 | [Ecosystem Coverage](#ecosystem-coverage) | Proposed | Every package ecosystem in an artifact has a lockfile-grade declared manifest its SBOM slice derives from; vendored JS is the named existing gap; new ecosystems are caught by the -12 gate |
+| req-cicd-sbom-14 | [Consumer Verification Docs](#consumer-verification-docs) | Proposed | The req-cicd-sbom-5 resolve-and-verify flow carried verbatim in the release/consumer documentation, once that surface exists |
+| req-cicd-sbom-15 | [Plugin SBOM Composition](#plugin-sbom-composition) | Proposed | The composition half of -10: bake-time single derivation reconciled against plugin-declared SBOMs; boot records reference release SBOMs by digest — rides the appliance arc with -9 |
 
 ---
 
 ### Curated Standalone Generation
 ----
 RID: `req-cicd-sbom-1`
-Status: `Proposed`
+Status: `Implemented`
+Trace: `non-python` — scripts/sbom/generate.py
 
 SBOMs for the published images MUST be generated by a **pinned standalone Syft**
 invocation running as a publish-pipeline step, scanning each **verified per-arch digest**
@@ -97,7 +100,8 @@ bumps ride PRs, never floats.
 ### Closure Accuracy
 ----
 RID: `req-cicd-sbom-2`
-Status: `Proposed`
+Status: `Implemented`
+Trace: `non-python` — scripts/sbom/generate.py
 
 The web image's SBOM MUST contain the **locked Python closure** — the packages `uv.lock`
 resolves, which are byte-for-byte what runtime `uv sync` installs — sourced via Syft's
@@ -120,7 +124,7 @@ never be load-bearing on an accident.
 ### Out-of-Band Components Declared
 ----
 RID: `req-cicd-sbom-3`
-Status: `Proposed`
+Status: `Implemented`
 
 Any component that enters a published image **outside a package manager** — compiled from
 source in a build stage, copied from a builder, vendored by hand — MUST be declared in
@@ -156,16 +160,26 @@ prove the merged entries survived into the output; the detection gate (req-cicd-
 proves the manifest matches what the Dockerfiles actually introduce. A schema-invalid
 manifest fails the publish exactly like a failed canary.
 
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-cicd-sbom-3-1 | Committed manifests validate | Implemented | Both images' committed supplemental manifests load and validate against the committed JSON Schema. | |
+| req-cicd-sbom-3-2 | Schema failure is loud | Implemented | A manifest missing a required field fails the loader with a validation error, never a silent skip. | |
+| req-cicd-sbom-3-3 | Injection carries the fields | Implemented | Injected components survive CycloneDX and SPDX schema validation carrying artifact-computed hashes, sources, and the coverage statement. | |
+
 This requirement is the general rule; the guard for it is req-cicd-sbom-7's canary check
 (a missing declared component fails the publish).
 
 ### Signed Digest-Bound Home
 ----
 RID: `req-cicd-sbom-4`
-Status: `Proposed`
+Status: `Implemented`
+Trace: `non-python` — .github/workflows/publish-images.yml
 
 SBOMs are published as **signed attestations in the GitHub attestation store**
-(`actions/attest-sbom`), subject = the verified per-arch image digest — the same home,
+(`actions/attest` with `sbom-path` — the boring-current action; `actions/attest-sbom`
+is deprecated in its favor), subject = the verified per-arch image digest — the same home,
 identity root, and `gh attestation verify` story as the existing SLSA provenance. No new
 trust roots.
 
@@ -175,15 +189,18 @@ mutable name. The scan targets `ref@digest`; the attestation subject is that sam
 the document travels within one job (or via integrity-held workflow artifacts, never via
 registry round-trip).
 
-A registry-side copy (OCI referrers, for mirrored/air-gapped consumers) is a named
-deferral — if ever added it MUST be a signed attestation (`cosign attest`), never an
-unsigned attachment: the ecosystem deprecated `cosign attach sbom` for exactly the
-trust gap TAP's posture forbids.
+The registry-side copy landed WITH the GitHub home rather than as a deferral:
+`actions/attest`'s `push-to-registry: true` pushes the identical Sigstore-signed
+bundle to GHCR as an OCI referrer (matching the provenance step's existing behavior)
+— the signed form, satisfying the mirrored/air-gapped consumer without any second
+signing mechanism. An unsigned attachment remains forbidden: the ecosystem
+deprecated `cosign attach sbom` for exactly the trust gap TAP's posture forbids.
 
 ### Per-Arch Standalone SBOMs
 ----
 RID: `req-cicd-sbom-5`
-Status: `Proposed`
+Status: `Implemented`
+Trace: `non-python` — .github/workflows/publish-images.yml
 
 Each platform variant (amd64, arm64) carries its **own standalone SBOM**, attested
 against its own digest. No merged index-level SBOM is produced. Rationale (prior-art
@@ -193,8 +210,9 @@ apk packages). The multi-arch answer is "ask for the platform you run," not a sy
 union document.
 
 A consumer starting from a version tag MUST have a written, exact resolve-and-verify
-path — the two-step flow below is canonical, and the release/consumer documentation
-MUST carry it verbatim (a per-arch design without it just relocates the confusion):
+path — the two-step flow below is canonical. (Carrying it verbatim in the
+release/consumer documentation is req-cicd-sbom-14 — a docs surface that does not
+exist yet; a per-arch design without the written path just relocates the confusion.)
 
 ```bash
 # 1. Resolve the version tag to YOUR platform's digest (the SBOM subject):
@@ -208,7 +226,9 @@ docker buildx imagetools inspect ghcr.io/unified-systems-com/tap-web:X.Y.Z \
 gh attestation verify oci://ghcr.io/unified-systems-com/tap-web@sha256:<digest> \
   --owner unified-systems-com \
   --predicate-type https://cyclonedx.org/bom          # primary (CycloneDX)
-#   --predicate-type https://spdx.dev/Document        # the SPDX serialization
+#   --predicate-type https://spdx.dev/Document/v2.3   # the SPDX serialization
+# (Use the EXACT predicate URI the attestation was emitted with — for SPDX 2.3
+#  that is the versioned https://spdx.dev/Document/v2.3, not the bare form.)
 ```
 
 (The plain provenance verify, no `--predicate-type`, continues to work unchanged for
@@ -218,7 +238,8 @@ questions, two predicates.)
 ### Single Derivation, Format as Serialization
 ----
 RID: `req-cicd-sbom-6`
-Status: `Proposed`
+Status: `Implemented`
+Trace: `non-python` — scripts/sbom/generate.py
 
 One Syft scan per digest is the **single derivation**; formats are serializations of it.
 BOTH standard formats are emitted from that same scan, immediately: **CycloneDX JSON as
@@ -235,7 +256,7 @@ serializations, zero disagreement by construction.
 ### Canary Guard
 ----
 RID: `req-cicd-sbom-7`
-Status: `Proposed`
+Status: `Implemented`
 
 Before attesting, the pipeline MUST verify each generated SBOM **fail-closed** against a
 canary list, refusing to publish on any miss:
@@ -255,10 +276,19 @@ structural well-formedness is req-cicd-sbom-11's job — the two validate differ
 failure classes at the same gate point. At implementation time this check is a validation
 surface and gets its Validation Map row (spec-dev-validation.md) in the same change.
 
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-cicd-sbom-7-1 | Honest document passes | Implemented | A document carrying the required canaries and every declared out-of-band component passes. | |
+| req-cicd-sbom-7-2 | Dropped declaration is a red | Implemented | Omitting any declared out-of-band component (fips.so, uv, uvx) fails the guard. | |
+| req-cicd-sbom-7-3 | Missing tap itself is a red | Implemented | A plausible SBOM missing the `tap` component fails. | |
+| req-cicd-sbom-7-4 | Phantoms are a red | Implemented | A known phantom name or a component located under the wheel-cache path fails. | |
+
 ### Release SBOM Diffs
 ----
 RID: `req-cicd-sbom-8`
-Status: `Deferred`
+Status: `Backlog`
 
 A human-readable package delta between consecutive release SBOMs (added / removed /
 version-changed, OS layer and Python closure), attached to the release. This is the
@@ -302,7 +332,20 @@ design time and expensive to retrofit (the security-posture asymmetry).
 ### Plugin-Declared SBOMs
 ----
 RID: `req-cicd-sbom-10`
-Status: `Proposed`
+Status: `Implemented`
+
+**Declaration half BUILT and live-proven 2026-08-20**: the reusable release lane
+(`.github/workflows/plugin-release-sbom.yml` + `scripts/sbom/plugin_release.py`) is
+wired as a tag-triggered thin caller in ALL 12 plugin repos; pilot release
+tap-plugin-aws-core v0.4.2 carries verified wheel provenance + both SBOM attestation
+predicates (`gh attestation verify <wheel> --owner unified-systems-com [--predicate-type …]`). A wheel SBOM covers the plugin at its exact version plus
+DECLARED dependency requirements — resolution deliberately absent (coverage statement
+says where resolution truth lives). This requirement is scoped to the
+DECLARATION half; the composition half (flavored-image bake-time derivation + boot
+records referencing release SBOMs by digest) is req-cicd-sbom-15, riding the appliance
+arc with req-cicd-sbom-9. Named gap: `tap-plugin-aws-secrets-source` (no CI caller —
+the secret-source dist releases outside the plugin lane). Original requirement text
+follows.
 
 Plugins declare their own SBOMs, on the **declare-vs-decide** pattern the manifest
 `[fips]` table established: the author's pipeline DECLARES, the system VERIFIES and
@@ -328,19 +371,32 @@ COMPOSES — it never re-derives blindly and never trusts blindly.
   (req-cicd-sbom-7), never a silent preference for either side — disagreement between
   declaration and derivation is precisely the signal worth stopping for.
 * **Trust rides the signing wave.** Plugin SBOM attestations inherit the org-rooted
-  identity `req-plugin-extdev-signing` lands (spec-plugin-external-development.md);
-  no new trust machinery is invented here, and nothing blocks on it — unsigned-but-
-  attested-by-CI is the interim posture, upgraded when that wave ships.
+  identity `req-plugin-extdev-signing` lands
+  (`tap_plugins/specs/spec-plugin-external-development.md`); no new trust machinery
+  is invented here, and nothing blocks on it — GitHub-attested by CI is the interim
+  posture; org-rooted plugin publisher identity hardening lands with
+  `req-plugin-extdev-signing`.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-cicd-sbom-10-1 | Identity matches or fails | Implemented | The SBOM's plugin component must match the expected dist name at the exact tag version; a mismatch (e.g. a shallow checkout building 0.0.0) fails. | |
+| req-cicd-sbom-10-2 | Absent component fails | Implemented | A wheel SBOM without the plugin's own component fails the identity gate. | |
+| req-cicd-sbom-10-3 | Wheel exemption is scoped | Implemented | Minimum-elements-lite exempts only the dependency graph; structural failures still fail closed. | |
 
 ### Standards Conformance Validation
 ----
 RID: `req-cicd-sbom-11`
-Status: `Proposed`
+Status: `Implemented`
 
 Before attesting, each generated SBOM MUST pass, fail-closed at the same gate point as
 the canary guard:
 
-* **Schema validation** of the CycloneDX document against its declared spec version.
+* **Schema validation of BOTH emitted documents** against their declared spec
+  versions — CycloneDX against the bom schema, SPDX against the SPDX JSON schema
+  (vendored, pinned copies: a conformance gate that fetches its schemas from the
+  network at publish time would be its own supply-chain hole).
 * **Minimum-elements field checks** (CISA/NSA 2026 minimum elements): format name +
   version, SBOM/document version, generating tool name + version, generation
   timestamp/context, author, per-component **identifiers** (purl/CPE where they exist)
@@ -359,6 +415,14 @@ Division of labor with req-cicd-sbom-7: canaries catch TAP-specific lies (a plau
 SBOM missing `tap` itself); conformance catches malformed valid-looking documents (a
 structurally hollow SBOM full of unidentifiable components). Both are validation
 surfaces → Validation Map rows at implementation.
+
+#### Acceptance Criteria
+
+| ACID | Title | Status | Description | Notes |
+| --- | --- | :---: | --- | --- |
+| req-cicd-sbom-11-1 | Minimum elements pass and fail closed | Implemented | A conformant document passes; dropping serialNumber, timestamp, the dependency graph, the coverage statement, or a component's version each fails. | |
+| req-cicd-sbom-11-2 | Identifier-coverage flood detected | Implemented | More than the tolerated handful of purl/CPE-less components fails with the offenders named. | |
+| req-cicd-sbom-11-3 | Legacy tools array accepted | Implemented | CycloneDX's legacy tools-as-array serialization passes the tools check without error. | |
 
 ### Out-of-Band Detection Gate
 ----
@@ -424,6 +488,31 @@ Current inventory, honestly stated:
 
 New ecosystems need no spec amendment to be caught: an unmanifested binary trips -12 on
 arrival, and this requirement names the duty its author then owes.
+
+### Consumer Verification Docs
+----
+RID: `req-cicd-sbom-14`
+Status: `Proposed`
+
+The canonical resolve-and-verify flow (req-cicd-sbom-5) MUST be carried verbatim in the
+release/consumer documentation. Blocked on that surface existing — TAP has no
+consumer-facing release docs home yet; when one lands (the Sam-facing adopter docs are
+the likely vehicle), this requirement names the obligation that the flow lives there,
+not only in this spec.
+
+### Plugin SBOM Composition
+----
+RID: `req-cicd-sbom-15`
+Status: `Proposed`
+
+The composition half of req-cicd-sbom-10, split out so the declaration half's status can
+be honest: a flavored ready-made image's SBOM derives ONCE from the bake-time combined
+lock and MUST reconcile against each baked plugin's declared release SBOM
+(declared-vs-derived disagreement is a canary red, req-cicd-sbom-7); a running
+instance's boot record references plugin release SBOMs by digest/purl rather than
+restating them — instance BOM = image-SBOM reference + per-plugin SBOM references +
+runtime deltas. Rides the appliance arc with req-cicd-sbom-9; the fleet-wide plugin
+release SBOMs (2026-08-20) are the ready inputs.
 
 ## Non-Goals and Named Residuals
 

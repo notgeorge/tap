@@ -38,7 +38,7 @@ ARG TAP_FIPS=1
 # nothing COPYs from it in the fips-0 path). We run the frozen validated 3.0.9 module against
 # the base's MODERN libcrypto at runtime — OpenSSL guarantees a certified fips.so is
 # binary-compatible with any LATER libcrypto, so OpenSSL 3.0's LTS-EOL is irrelevant (D4).
-FROM cgr.dev/chainguard/wolfi-base:latest@sha256:8e8fe4b9b989b03daaa4305dba54a1b480f63716c56dc6bb074e5a6057bf3c73 AS ossl-builder
+FROM cgr.dev/chainguard/wolfi-base:latest@sha256:fdcd31a2db35958c251ea22e80cda72a8222228114e736ec7dd9c94452a2dc51 AS ossl-builder
 # Wolfi's apk repo flakes under load (observed 2026-08-16: HTTP 403s mid-install;
 # 2026-08-20: fetch error on one package) — bounded retry with backoff, failing
 # closed after 3 attempts. apk add is idempotent across retries.
@@ -53,7 +53,7 @@ RUN ./Configure enable-fips && make -j"$(nproc)" && make install_fips
 # ============================================================================
 # base — the common runtime (identical for both FIPS modes)
 # ============================================================================
-FROM cgr.dev/chainguard/wolfi-base:latest@sha256:8e8fe4b9b989b03daaa4305dba54a1b480f63716c56dc6bb074e5a6057bf3c73 AS base
+FROM cgr.dev/chainguard/wolfi-base:latest@sha256:fdcd31a2db35958c251ea22e80cda72a8222228114e736ec7dd9c94452a2dc51 AS base
 
 # Prevents Python from writing .pyc bytecode files to disk (waste + stale-cache risk).
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -134,6 +134,12 @@ COPY pyproject.toml uv.lock* ./
 # clean layer whenever the lock changes.
 FROM base AS deps-warm
 RUN uv sync --frozen --all-packages
+# Hash manifest of the freshly-built cache, generated INSIDE this attested build
+# (req-cicd-supply-chain-provenance-2). Relative paths; written OUTSIDE the tree so
+# it never lists itself. COPY'd after the sync RUN so lock-keyed layer caching of
+# the expensive sync survives verifier-script edits.
+COPY docker/seed_manifest.py /seed_manifest.py
+RUN python3 /seed_manifest.py generate /root/.cache/uv /root/uv-cache-seed.manifest.json
 
 # ============================================================================
 # app — source + entrypoint on top of base; carries the wheel-cache seed
@@ -148,6 +154,12 @@ COPY . .
 # creates the venv from cached wheels — no compile. Explicit entrypoint copy
 # from /opt on purpose: avoids depending on Docker volume-init semantics.
 COPY --from=deps-warm /root/.cache/uv /opt/uv-cache-seed
+# The seed's build-time manifest + the stdlib verifier, baked at a bind-mount-proof
+# path (the /app copy is shadowed by the dev bind mount, like entrypoint.sh).
+# The entrypoint verifies seed-vs-manifest BEFORE seeding an empty cache volume;
+# present-but-invalid aborts, absent degrades (req-cicd-supply-chain-provenance-2).
+COPY --from=deps-warm /root/uv-cache-seed.manifest.json /opt/uv-cache-seed.manifest.json
+COPY docker/seed_manifest.py /usr/local/lib/tap/seed_manifest.py
 
 # Note on tailwindcss: the image does NOT carry the binary. The /tailwind-rebuild skill
 # installs it on demand into the tailwind_bin volume; the committed
