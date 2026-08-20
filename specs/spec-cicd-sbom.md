@@ -192,6 +192,29 @@ stand alone; and the per-arch closures genuinely differ (compiled wheels, arch-s
 apk packages). The multi-arch answer is "ask for the platform you run," not a synthetic
 union document.
 
+A consumer starting from a version tag MUST have a written, exact resolve-and-verify
+path — the two-step flow below is canonical, and the release/consumer documentation
+MUST carry it verbatim (a per-arch design without it just relocates the confusion):
+
+```bash
+# 1. Resolve the version tag to YOUR platform's digest (the SBOM subject):
+docker buildx imagetools inspect ghcr.io/unified-systems-com/tap-web:X.Y.Z \
+  --format '{{json .Manifest}}' \
+  | jq -r '.manifests[] | select(.platform.os=="linux" and .platform.architecture=="arm64") | .digest'
+
+# 2. Verify the SBOM attestation FOR THAT DIGEST. The --predicate-type flag is
+#    REQUIRED: `gh attestation verify` defaults to SLSA provenance and will not
+#    find an SBOM attestation without it.
+gh attestation verify oci://ghcr.io/unified-systems-com/tap-web@sha256:<digest> \
+  --owner unified-systems-com \
+  --predicate-type https://cyclonedx.org/bom          # primary (CycloneDX)
+#   --predicate-type https://spdx.dev/Document        # the SPDX serialization
+```
+
+(The plain provenance verify, no `--predicate-type`, continues to work unchanged for
+"who built this"; the SBOM predicate answers "what is inside it." Same digest, two
+questions, two predicates.)
+
 ### Single Derivation, Format as Serialization
 ----
 RID: `req-cicd-sbom-6`
