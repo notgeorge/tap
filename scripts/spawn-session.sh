@@ -844,7 +844,11 @@ fi
 PULL_OK=1
 run_quiet "Pulling published images (GHCR)" scripts/dc pull web db || PULL_OK=0
 if [[ "$PULL_OK" -eq 0 ]]; then
-  warn "Pull failed — compose will build locally (the slow path)."
+  # The base compose file is pull-only (docker-compose.build.yml); `up` no
+  # longer falls back to building on its own, so the offline/unpublished
+  # path builds EXPLICITLY here — still loud, still the slow path.
+  warn "Pull failed — building images locally (the slow path)."
+  run_quiet "Building images locally (pull-fallback)" scripts/dc build web db
 fi
 run_quiet "Starting containers" scripts/dc up -d
 

@@ -106,7 +106,7 @@ jobs:
             -e DJANGO_SUPERUSER_PASSWORD="$PW" \
             -e DJANGO_SUPERUSER_EMAIL=admin@ci-fuzz.tap.localhost \
             web sh -c 'cd /app && uv run python manage.py boot --profile core_dev'
-      - uses: astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d # v10.0.0
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
       - name: Schemathesis — unauthenticated surface
         run: |
           base="http://localhost:${WEB_PORT:-8000}"
@@ -128,7 +128,12 @@ jobs:
           # (deterministic gate); empty => schemathesis draws a random seed (exploration).
           seed_args=(); [ -n "$FUZZ_SEED" ] && seed_args=(--seed "$FUZZ_SEED")
           set +e
-          uvx schemathesis@4.24.3 run "$schema" \
+          # --with pins schemathesis's floating validation engine: jsonschema-rs
+          # 0.50.0 (released 2026-08-20 17:27Z) changed generated-data validation
+          # under the SAME pinned tool + seed and turned this deterministic gate
+          # red with zero repo changes (PR #91). A pinned tool with floating
+          # transitives is not pinned — the Chainguard-float lesson, pip edition.
+          uvx --with jsonschema-rs==0.49.9 schemathesis@4.24.3 run "$schema" \
             --checks not_a_server_error,response_schema_conformance \
             --max-examples "$FUZZ_MAX_EXAMPLES" --workers 2 "${seed_args[@]}" 2>&1 | tee schemathesis.log
           rc=${PIPESTATUS[0]}
@@ -159,7 +164,7 @@ jobs:
           fi
           seed_args=(); [ -n "$FUZZ_SEED" ] && seed_args=(--seed "$FUZZ_SEED")
           set +e
-          uvx schemathesis@4.24.3 run "$schema" \
+          uvx --with jsonschema-rs==0.49.9 schemathesis@4.24.3 run "$schema" \
             --checks not_a_server_error,response_schema_conformance \
             --max-examples "$FUZZ_MAX_EXAMPLES" --workers 2 "${seed_args[@]}" \
             -H "Cookie: sessionid=$key; csrftoken=$tok" \

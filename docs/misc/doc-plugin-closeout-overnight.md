@@ -48,7 +48,7 @@ Do **not** start until ALL of:
 
 1. Confirm last-standing (registry + `git branch -r` / sibling worktrees).
 2. Merge fresh `origin/main` into `session/plugins`; resolve conflicts.
-3. Rebuild + reset: `scripts/dc up -d --build web`, drop stale `test_*` DBs, `scripts/dc exec web uv sync`.
+3. Rebuild + reset: `scripts/dc build web && scripts/dc up -d web` (base compose is pull-only; `dc build` stacks the docker-compose.build.yml overlay), drop stale `test_*` DBs, `scripts/dc exec web uv sync`.
 4. **Merge gotchas — main now carries the validation session's dev-validation harness.** Expect and handle:
    - **mypy ratchet trips on merge.** Merging the (un-mypy-gated) `main` history into the gated tree
      reliably flags this session's new files (test-fixture / skill / doc-adjacent noise). Confirm the

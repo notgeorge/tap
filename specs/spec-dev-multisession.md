@@ -196,7 +196,7 @@ Trace: `non-python` — scripts/spawn-session.sh
 4. **Step 1.5 — Refresh local main.** `git -C ~/tap-sessions/main pull --ff-only origin main`, so the new session branches from current code (see [Session → Main Push Workflow](#session-→-main-push-workflow)). The layout seatbelt in Step 0.1 guarantees the main worktree location.
 5. **Step 2 — Worktree.** Creates the worktree at `~/tap-sessions/<name>` (or `$WORKTREE_BASE/<name>` for throwaway consumers) on a new branch `session/<name>` from `main`. Aborts if the worktree path already exists. Initializes the captured standup transcript at `logs/spawn.log` (`req-boot-obs-spawn-presentation`).
 6. **Step 3 / 3.5 / 3.6 — `.env.local`, secrets mount, skills.** Generates a fresh `TAP_GRID_ID`; writes `COMPOSE_PROJECT_NAME`, `WEB_PORT`, `POSTGRES_PORT`, `TAP_GRID_ID`, `TAP_SESSION_LABEL`, `TAP_BOOT_PROFILE`; provisions the `tap_secrets/` bind-mount target (shared `~/tap-secrets` symlink when present); wires `.claude/skills/` via `scripts/wire-skills.sh`.
-7. **Step 4 — Pull + start.** Pull-first: `scripts/dc pull web db` fetches the published GHCR images (toolchain + FIPS OpenSSL + pre-compiled wheel cache baked in; `spec-cicd-hardening.md` build-once artifact), falling back loudly to a local compose build when the pull fails (offline/unpublished — the 10–20-minute from-source path); then `scripts/dc up -d`. Both quiet-captured with a live elapsed counter.
+7. **Step 4 — Pull + start.** Pull-first: `scripts/dc pull web db` fetches the published GHCR images (toolchain + FIPS OpenSSL + pre-compiled wheel cache baked in; `spec-cicd-hardening.md` build-once artifact), falling back loudly to an EXPLICIT local build when the pull fails (`scripts/dc build web db` via the docker-compose.build.yml overlay; offline/unpublished — the 10–20-minute from-source path); then `scripts/dc up -d`. The base compose file itself is pull-only: `up` hard-fails on a missing pinned tag rather than silently building (see `req-cicd-product-releases-3`). Both quiet-captured with a live elapsed counter.
 8. **Step 5 — Entrypoint wait.** Polls readiness; fast-fails on the `TAP-ABORT` signal or a dead container (`req-boot-abort-signal`). Hang detection is **stall-aware**: the primary trigger is no-new-web-log-output for 120s (a healthy entrypoint streams continuously; wall-clock cannot distinguish slow from stuck), with a path-conditional wall-clock ceiling as the outer bound (600s after a successful image pull, 900s on the local-build fallback).
 9. **Step 6 / 6.4 / 6.5 — Boot, passkey, health.** Resolves the admin password ([req-dev-multisession-admin-bootstrap](#admin-user-bootstrap)), writes `.dev-credentials`, runs `manage.py boot --profile <id>` (`req-boot-spawn-bridge`; boot's own observability is `spec-tap-boot-observability.md`), bootstraps the dev passkey, then gates on `manage.py health --set readiness`.
 10. **Done.** Appends the registry row and prints labeled URL, direct URL, admin URL, admin credentials, credentials-file path, transcript location, and how to attach Claude Code. With the `cli` launch target, the access block is additionally persisted to `logs/session-info.txt` and — on a real terminal only (`[[ -t 0 ]]`; scripted invocations can never hang here) — the script pauses for Enter before `exec claude` takes over the terminal, so the info doesn't scroll away unrecoverably; the pause message points at `/launch-ui` (the skill that reopens the web UI from inside the session).
@@ -272,6 +272,17 @@ Status: `Implemented`
 Trace: `process` — the branch-and-promote discipline developers follow; scripts automate steps, the rule is the requirement
 
 Multi-worktree development needs an unambiguous rule for how changes leave a session and become part of `main`. Without it, parallel sessions race each other on `origin/main`, new session spawns start from stale code, and the discipline becomes "whatever the current developer remembers." This requirement codifies the rule so every session — human or agent — follows the same four-step pattern.
+
+**AI-review triage (2026-08-20).** The `copilot-review-floor` org ruleset auto-reviews every
+PR ~1–3 minutes after it opens (re-reviewing on each push, Comment-state only) — but a
+fast-lane PR auto-merges on gate-green ~10 minutes later with nobody having read the
+feedback. So: **whoever opens a PR reads its reviewer feedback before calling the work
+done** — `scripts/pr-review-triage <pr> [--wait]` prints the review bodies (INCLUDING the
+suppressed findings Copilot collapses into a `<details>` block — real catches hide there)
+plus all inline comments. Fix-worthy findings are pushed onto the PR branch (re-arming
+auto-merge against the new commit); noise is dismissed consciously, never silently. This is
+advisory triage, not a gate — the blocking lever (require-conversation-resolution) is
+deliberately held until the reviewer's precision is proven (see the ensemble spec/plan).
 
 #### The discipline
 
