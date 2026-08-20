@@ -143,8 +143,12 @@ def verify(tree: Path, manifest_path: Path) -> dict[str, object]:
 
 
 def _as_str_list(value: object) -> list[str]:
-    """Narrow a report field back to its concrete type (dict[str, object] boundary)."""
-    assert isinstance(value, list)
+    """Narrow a report field back to its concrete type (dict[str, object] boundary).
+
+    Deterministic raise, not assert: this is boot-gate code and asserts strip
+    under python -O."""
+    if not isinstance(value, list):
+        raise TypeError(f"report field is {type(value).__name__}, expected list")
     return value
 
 

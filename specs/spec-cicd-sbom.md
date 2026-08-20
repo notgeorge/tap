@@ -313,8 +313,7 @@ Status: `Partial`
 (`.github/workflows/plugin-release-sbom.yml` + `scripts/sbom/plugin_release.py`) is
 wired as a tag-triggered thin caller in ALL 12 plugin repos; pilot release
 tap-plugin-aws-core v0.4.2 carries verified wheel provenance + both SBOM attestation
-predicates (`gh attestation verify <wheel> --owner unified-systems-com
-[--predicate-type …]`). A wheel SBOM covers the plugin at its exact version plus
+predicates (`gh attestation verify <wheel> --owner unified-systems-com [--predicate-type …]`). A wheel SBOM covers the plugin at its exact version plus
 DECLARED dependency requirements — resolution deliberately absent (coverage statement
 says where resolution truth lives). Remaining for Full: the composition half
 (flavored-image bake-time derivation + boot records referencing release SBOMs by

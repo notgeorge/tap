@@ -58,7 +58,8 @@ def check_plugin_identity(doc: dict[str, object], slug: str, expected_version: s
     problems: list[str] = []
     dist = dist_name_for(slug)
     components_obj = doc.get("components", [])
-    assert isinstance(components_obj, list)
+    if not isinstance(components_obj, list):
+        raise TypeError(f"CycloneDX components is {type(components_obj).__name__}, expected list")
     components = components_obj
     matches = [c for c in components if c.get("name") == dist]
     if not matches:
@@ -86,9 +87,11 @@ def check_minimum_elements_wheel(doc: dict[str, object]) -> list[str]:
 
 def inject_coverage(doc: dict[str, object], coverage: str) -> dict[str, object]:
     meta = doc.setdefault("metadata", {})
-    assert isinstance(meta, dict)
+    if not isinstance(meta, dict):
+        raise TypeError(f"CycloneDX metadata is {type(meta).__name__}, expected object")
     props = meta.setdefault("properties", [])
-    assert isinstance(props, list)
+    if not isinstance(props, list):
+        raise TypeError(f"CycloneDX metadata.properties is {type(props).__name__}, expected list")
     props.append({"name": "tap:coverage", "value": coverage})
     return doc
 
@@ -114,6 +117,13 @@ def syft_scan_wheel(wheel: Path, out_cdx: Path, out_spdx: Path) -> None:
         unpacked = Path(td) / "wheel"
         unpacked.mkdir()
         with zipfile.ZipFile(wheel) as zf:
+            # Belt on top of stdlib sanitization (zip-slip): this runs in the
+            # privileged release job (OIDC + attestations), and the wheel —
+            # though built seconds earlier in this same job — is cheap to
+            # validate explicitly rather than reason about.
+            for name in zf.namelist():
+                if name.startswith(("/", "\\")) or ".." in Path(name).parts:
+                    raise ValueError(f"wheel member escapes extraction root: {name!r}")
             zf.extractall(unpacked)
         out = Path(td) / "out"
         out.mkdir()
@@ -166,8 +176,8 @@ def main(argv: list[str] | None = None) -> int:
         f"(flavored-image SBOM, req-cicd-sbom-9/-10). Generated at "
         f"{datetime.now(UTC).isoformat()}; document id {uuid.uuid4()}."
     )
-    cdx = inject_coverage(json.loads(out_cdx.read_text()), coverage)
-    spdx = json.loads(out_spdx.read_text())
+    cdx = inject_coverage(json.loads(out_cdx.read_text(encoding="utf-8")), coverage)
+    spdx = json.loads(out_spdx.read_text(encoding="utf-8"))
 
     _gen.validate_schema(cdx, "cyclonedx")
     _gen.validate_schema(spdx, "spdx")
@@ -181,7 +191,8 @@ def main(argv: list[str] | None = None) -> int:
     out_cdx.write_text(json.dumps(cdx, indent=1) + "\n", encoding="utf-8")
     out_spdx.write_text(json.dumps(spdx, indent=1) + "\n", encoding="utf-8")
     components_out = cdx.get("components") or []
-    assert isinstance(components_out, list)
+    if not isinstance(components_out, list):
+        raise TypeError("CycloneDX components is not a list")
     n_components = len(components_out)
     print(f"plugin-sbom: OK {out_cdx.name} ({n_components} components) + {out_spdx.name}")
     return 0
