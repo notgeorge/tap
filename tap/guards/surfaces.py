@@ -281,6 +281,6 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
         rid="req-cicd-ai-review-ensemble",
         cadence="Per-PR (advisory comment on every PR incl. forks)",
         status="Advisory (non-blocking by design — Phase 1 of req-cicd-ai-review-graduation)",
-        enforced_by="`.github/workflows/ai-review-capture.yml` + `ai-review.yml` shims → SHA-pinned `unified-ai-review` reusable workflows",
+        enforced_by="`.github/workflows/ai-review-capture.yml` + `.github/workflows/ai-review.yml` shims → SHA-pinned `unified-ai-review` reusable workflows",
     ),
 )
