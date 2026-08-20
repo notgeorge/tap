@@ -414,8 +414,12 @@ RID: `req-cicd-supply-chain-provenance`
 
 **First slice implemented (2026-08-09):** the published `tap-web`/`tap-db` images carry
 SLSA Build L2 provenance via `actions/attest-build-provenance` (Sigstore public-good
-instance; verify: `gh attestation verify oci://ghcr.io/unified-systems-com/tap-web:latest
---owner unified-systems-com`). Still open: plugin-wheel attestations and cosign-style
+instance; verify against a content-addressed ref — resolve your tag to a digest first
+(`docker buildx imagetools inspect <ref>:<tag>`), then
+`gh attestation verify oci://ghcr.io/unified-systems-com/tap-web@sha256:<digest>
+--owner unified-systems-com`; a tag-form verify answers "what this tag points at RIGHT
+NOW", not "the artifact I resolved" — teach the digest form, per
+req-cicd-supply-chain-provenance-1). Still open: plugin-wheel attestations and cosign-style
 signatures. SBOM emission has graduated to its own specification —
 [spec-cicd-sbom.md](spec-cicd-sbom.md) (Proposed 2026-08-20; groundwork record in
 [doc-cicd-sbom-groundwork](../docs/misc/doc-cicd-sbom-groundwork.md)).

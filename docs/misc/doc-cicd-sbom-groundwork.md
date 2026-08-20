@@ -69,7 +69,10 @@ invisible without a build-time SBOM. That is the gap the spec closes.
 
 ## 3. Empirical findings: what scanners actually see in our images
 
-Agent-verified 2026-08-20 against `tap-web:latest` (syft v1.51.0 standalone;
+Agent-verified 2026-08-20 against `tap-web:latest`, which on the scanning host resolved
+to the immutable subject `ghcr.io/unified-systems-com/tap-web@sha256:be971fab5bb6f9b24be182b1b5cc9b51b62eea8458bd87247f59636ed74d53c2`
+(record the digest, not the tag — the req-cicd-sbom-5 discipline, applied retroactively
+to this doc's own evidence). Scanners: (syft v1.51.0 standalone;
 buildkit-syft-scanner stable-1 embedding syft v1.42.3). The numbers below ARE the durable
 record — the raw scan JSONs (~14MB) were ephemeral working artifacts, deliberately not
 committed; re-derive them by re-running the scans described here against any published
