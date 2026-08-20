@@ -153,6 +153,21 @@ ever ran: syft's CycloneDX serialization emits every file as a name-only compone
 masquerading as package claims, and the minimum-elements check correctly refused it.
 The fix lives at the derivation, not the checks. Second trap, caught by the PR #86 lean-boot gate: the compose dev stack runs the ENTRYPOINT from the bind-mounted tree while the image lags — so new-verifier-plus-legacy-image (seed, no manifest) is a normal designed state, and the original abort-on-absent-manifest semantics bricked it. Amended three-way: valid → seed; invalid manifest → abort; NO manifest → never seed unverified bytes, warn, degrade to the lock-hash-verified slow path (manifest-stripping is not a distinct attack — whoever could strip it could modify the seed).
 
+### 3.6 Plugin lane pilot findings (2026-08-20)
+
+Built and proven on the production path: aws-core v0.4.2 (a real CI-only patch release)
+→ tag push → thin caller → reusable lane → wheel provenance + both SBOM predicates
+verified on the downloaded wheel. Traps banked: (a) syft `file:` does NOT unpack
+archives — a raw .whl scan yields ZERO components; extract and dir-scan (the unpacked
+dist-info is the cache-phantom mechanism used deliberately); (b) the file-metadata
+flood repeats on dir scans — `SYFT_FILE_METADATA_SELECTION=none` everywhere;
+(c) `actions/attest` `sbom-path` does not expand globs (`subject-path` does) — concrete
+paths via step outputs; (d) `workflow_dispatch` runs the workflow file FROM THE
+REQUESTED REF — dispatch at a pre-caller tag 422s, and hatch-vcs makes any non-tag ref
+build a `.dev` version the identity gate correctly rejects, so retroactive attestation
+of old tags is structurally closed: attestations flow forward from the first
+caller-carrying tag.
+
 ## 4. Prior art — the five patterns in the wild
 
 1. **Generate-and-attest, GitHub-native** (anchore/sbom-action → actions/attest-sbom):
