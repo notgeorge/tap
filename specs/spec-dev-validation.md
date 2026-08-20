@@ -354,7 +354,7 @@ Status: `Implemented`
 ### Suite Tiering & Performance
 ----
 RID: `req-dev-validation-suite-tiers`
-Status: `Partially Implemented`
+Status: `Proposed`
 
 > **Forward note, not a build (jotted 2026-07-01).** Seeded for the
 > validation-focused session. The corpus has grown fast (the Gryphon suites alone
@@ -487,7 +487,7 @@ This is the second half of `req-boot-minimal-baseline-5` (spec-tap-boot-v0.md): 
 ### Live-API Property Fuzz
 
 RID: `req-dev-validation-api-fuzz`
-Status: `Partial`
+Status: `In Development`
 
 The CI boot gates stand up a REAL, healthy, HTTP-serving instance and — before this
 requirement — health-checked it and threw it away. The standup is the expensive part;

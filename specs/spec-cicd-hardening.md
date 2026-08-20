@@ -155,6 +155,7 @@ layer when air-gap/attestation demand arrives.
 ### Self-Host Base-Image Currency + Minimization
 
 RID: `req-cicd-base-image-lifecycle`
+Status: `In Development`
 
 Sourcing base images off a rate-limit-free mirror (`req-cicd-base-image-sourcing`) fixes
 *availability*; it does nothing for *attack surface* or *CVE currency*. The market answer is a
@@ -450,6 +451,7 @@ precedents for both faces — one signing story, two layers (image artifact + pl
 ### Product Releases
 
 RID: `req-cicd-product-releases`
+Status: `Disputed`
 
 TAP core has **no product-level releases**: plugins version and release
 (`release-plugin.sh`, semver tags, in-package boot records), but the platform itself ships
@@ -555,3 +557,25 @@ load-bearing once there is a delivery cadence to improve.
 - [spec-security-posture.md](spec-security-posture.md) is the parent doctrine: the first
   three requirements here are its cheap-foundational-edges applied to the pipeline.
 - [plan/road-rampart.md](../plan/road-rampart.md) sequences the deploy half toward launch.
+
+## Requirement Review Needed
+
+Open questions where the spec and the tree disagree. Recorded, not decided. Indexed across all
+specs in [doc-tap-requirement-review-ledger.md](../docs/misc/doc-tap-requirement-review-ledger.md).
+
+### Product releases exist while the requirement says they must not yet
+
+`req-cicd-product-releases` states TAP core has **no product-level releases** and names that the
+right pre-launch posture — yet the tree ships them: `release-please.yml` cuts tagged releases
+(v0.1.x), `publish-release-tags.yml` builds uncancellable release images, `.env` `TAP_VERSION`
+pins consumers to a released version, and the samsite adopter runs a pinned release today. The
+prose predates the 2026-08 release wave and was never revisited.
+
+Decisions required:
+
+1. Is the release machinery the *implementation* of this requirement (rewrite the body to
+   describe what shipped, status `Implemented`) or did the requirement's "not yet" posture get
+   overtaken without a ruling (rewrite the posture, then map)?
+2. The requirement's supported-versions obligation (`req-cicd-product-releases-2`, cited by
+   SECURITY.md) — met by the current release stream or still pending?
+3. Until ruled: status stays `Disputed`; no claims, no exclusion.

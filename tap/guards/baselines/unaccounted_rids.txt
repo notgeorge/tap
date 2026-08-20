@@ -22,8 +22,6 @@ req-boot-search-role
 req-boot-secrets
 req-boot-spawn-bridge
 req-boot-trust
-req-cicd-base-image-lifecycle
-req-cicd-product-releases
 req-cicd-security-scanning
 req-demo-anwar-global-ksi
 req-demo-anwar-landing
@@ -39,8 +37,6 @@ req-dev-multisession-teardown-script
 req-dev-playwright-refresh-restart
 req-dev-playwright-refresh-scope
 req-dev-playwright-refresh-script
-req-dev-validation-api-fuzz
-req-dev-validation-suite-tiers
 req-dev-workspace-model
 req-dev-workspace-release
 req-dev-workspace-spawn
@@ -112,7 +108,6 @@ req-grid-import-grift-scope
 req-grid-import-grift-sweep-purge
 req-grid-import-grift-time
 req-grid-keystone-discovery
-req-grid-keystone-edges
 req-grid-keystone-model
 req-grid-keystone-multiplicity
 req-grid-keystone-self-describing
@@ -145,7 +140,6 @@ req-grid-service-batch-precommit-consistency
 req-grid-service-batch-signals
 req-grid-service-batch-tx
 req-grid-service-delete-baseline
-req-grid-service-delete-future
 req-grid-service-delete-occ
 req-grid-service-delete-scope
 req-grid-service-delete-tombstone
@@ -227,16 +221,10 @@ req-tap-cares-administrivia-run-observability
 req-tap-cares-administrivia-schedule-detail
 req-tap-cares-administrivia-schedule-table
 req-tap-cares-collector-config
-req-tap-cares-collector-grift-import
 req-tap-cares-collector-job-edge
 req-tap-cares-collector-job-lifecycle
-req-tap-cares-collector-job-model
-req-tap-cares-collector-model
 req-tap-cares-collector-module-class
-req-tap-cares-collector-packaging
-req-tap-cares-collector-read-boundary
 req-tap-cares-collector-registry
-req-tap-cares-collector-task-execution
 req-tap-cares-scheduler-concurrency
 req-tap-cares-scheduler-cron
 req-tap-cares-scheduler-dedupe
@@ -275,14 +263,8 @@ req-tap-cares-task-backend-transactional-integrity
 req-tap-cares-v0-secrets
 req-tap-json-adoption
 req-tap-json-schema-explicit
-req-tap-logging-abort-signal
-req-tap-logging-concern-signal
 req-tap-logging-domain-tags
-req-tap-logging-reserved-signals
-req-tap-plugin-arch-dependencies
-req-tap-plugin-arch-dev-deps
 req-tap-plugin-arch-django
-req-tap-plugin-arch-identity
 req-tap-plugin-arch-iterative-dev
 req-tap-plugin-arch-layout
 req-tap-plugin-arch-manifest
@@ -294,11 +276,6 @@ req-tap-plugin-arch-skills
 req-tap-plugin-arch-slug-register
 req-tap-plugin-arch-surfaces
 req-tap-plugin-arch-tests
-req-tap-plugin-arch-versioning
-req-tap-plugin-depres-registry-flaws
-req-tap-plugin-extdev-protocol
-req-tap-plugin-extdev-signing
-req-tap-plugin-lifecycle-v1-departure
 req-tap-plugin-load-v0-ready-readonly
 req-tap-plugin-manifest-v0-edge-file
 req-tap-plugin-manifest-v0-edges
@@ -331,8 +308,6 @@ req-tap-plugin-validate-schema
 req-tap-plugin-validate-scope
 req-tap-plugin-validate-strict
 req-tap-plugin-validation-distributed-guards
-req-tap-plugin-validation-install-aware-ratchets
-req-tap-plugin-validation-no-central-slugs
 req-tap-test-accompaniment
 req-tap-test-discovery
 req-tap-traceability-scope
@@ -387,8 +362,6 @@ req-viz-nested-projection-no-leaf-compression
 req-viz-nested-projection-runtime-api
 req-viz-nested-projection-two-pass
 req-viz-panel-click-semantics
-req-viz-panel-failure-handling
-req-viz-panel-hosting
 req-viz-panel-landing-default
 req-viz-panel-readonly
 req-viz-panel-runtime-nav
@@ -443,7 +416,6 @@ req-web-page-plink
 req-web-page-sanitize.sec
 req-web-page-slug-sanitize.sec
 req-web-page-synthetic
-req-web-panel-edit
 req-web-panel-edit-form.sec
 req-web-panel-entity-resolution-config
 req-web-panel-entity-resolution-empty-state

@@ -92,6 +92,17 @@ registries are pointers not targets; ACID-scoped rids don't own the parent; hedg
 partial slices; two guards on one rid → claim the primary. Remaining drift-status rows
 (`Partially Implemented`, `Partial`) left deliberately — status normalization is its own pass.
 
+**Batch 3 (2026-08-20): status normalization, 495 → 467.** Two discoveries: `Refactoring` and
+`Deprecating` were canonical template vocabulary all along — the bucket model, not the specs,
+was behind (`Refactoring` now derives unbuilt: "being re-worked" is in-flight by its own words);
+and two "missing" statuses were parse casualties — `Status: `Proposed (Deferred)`` defeats the
+status regex, so decorated statuses read as None. All 18 off-vocabulary rows normalized to
+canon (`Partially Implemented`→`In Development` mostly, `Open`/`Deferred`→`Backlog`,
+forward-note rows→`Proposed`), the two parenthetical statuses stripped to `Proposed`, and
+`req-cicd-product-releases` marked **Disputed** with the full pairing (ledger row 5 + the
+Requirement Review Needed section in spec-cicd-hardening) — the stale-prose lead from batch 1,
+now a recorded dispute instead of a silent contradiction.
+
 Spec-by-spec lanes, priority order: security-posture / FIPS / service-boundary → `tap_auth` /
 `tap_boot` → remaining apps → the tail. For each requirement: claim it, test-cite it, or mark
 its `Trace:` disposition. Candidate generation via commit co-occurrence (the RID's authoring

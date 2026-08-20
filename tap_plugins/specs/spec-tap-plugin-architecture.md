@@ -481,7 +481,7 @@ logging path, which anchors on the module path *because* it is an internal-only 
 ### Plugin Identity & Naming
 ----
 RID: `req-tap-plugin-arch-identity`
-Status: `Partially Implemented`
+Status: `In Development`
 
 The identifiers a plugin carries are deliberately distinct concepts, and keeping
 them distinct is what lets a plugin move between a standalone repo and a monorepo,
@@ -777,7 +777,7 @@ platform package-security policy, and the effective relaxation is reported.
 ### Version Naming & Integrity
 ----
 RID: `req-tap-plugin-arch-versioning`
-Status: `Partially Implemented`
+Status: `In Development`
 
 Plugin versions are **VCS-derived, self-contained, and PEP 440-native**, chosen
 2026-07-01 after surveying Go pseudo-versions, Cargo, npm, uv, Terraform, and Nix
@@ -827,7 +827,7 @@ porting Go's exact string format or a hand-maintained `go.sum`.
 ### Plugin Dependencies
 ----
 RID: `req-tap-plugin-arch-dependencies`
-Status: `Partially Implemented`
+Status: `In Development`
 
 Plugin dependency management is deliberately small: **lean on uv for the hard
 80%, declare the TAP-specific 20% now, defer the resolver.** Design locked
@@ -1126,7 +1126,7 @@ The load-bearing insight: **the reason plugins cannot be workspace members does 
 ### Developer Mode Dependencies
 ----
 RID: `req-tap-plugin-arch-dev-deps`
-Status: `Partially Implemented`
+Status: `In Development`
 
 A plugin's **develop/test** dependency closure (test framework, factories, linters) is a
 separate axis from its runtime closure (`req-tap-plugin-arch-python-deps`, Tier 0). This

@@ -63,7 +63,7 @@ The remaining requirements extend this same discovery model to the two central a
 ### No Central Plugin Slugs
 ----
 RID: `req-tap-plugin-validation-no-central-slugs`
-Status: `Partially Implemented`
+Status: `In Development`
 
 No file under the central authority may hardcode a specific plugin slug or path. A guard or ratchet that needs to reason about plugins does so generically — iterating the *discovered* plugins (filesystem/entry-point) or the *installed* set (`tap.plugin_testing.installed_plugin_slugs()`), never a literal.
 
@@ -79,7 +79,7 @@ Done: the `plugins/genericom` literal in `tap/guards/_collection_scan.py` `_IGNO
 ### Install-Aware Ratchets
 ----
 RID: `req-tap-plugin-validation-install-aware-ratchets`
-Status: `Partially Implemented`
+Status: `In Development`
 
 A ceiling ratchet whose measured surface spans plugin code (the mypy ratchet is the canonical case: `mypy .` + the django-stubs plugin introspect `INSTALLED_APPS`) produces a *different* measured set on a focused stack than on the full-install one — so a frozen full-install baseline false-reds on rows for plugins that simply are not here.
 

@@ -488,8 +488,9 @@ contradictions, the other for progress.
   (`req-tap-traceability-disposition`) already make evidence, exclusion, doctrine and disputed
   mutually exclusive, so bucketing is a derivation, never a judgment call.
 - **Unbuilt and retired derive from status**, never from a marker: a requirement declaring itself
-  future work (`Proposed`, `Backlog`, `In Development`, `Approved for Development`) or withdrawn
-  (`Deprecated`, `Deprecating`, `Retired`) has, by its own account, nothing to map — the status IS
+  future or in-flight work (`Proposed`, `Backlog`, `In Development`, `Approved for Development`,
+  `Refactoring`) or withdrawn (`Deprecated`, `Deprecating`, `Retired`) has, by its own account,
+  nothing settled to map — the status IS
   the documented disposition, and hand-marking it would create two sources for one fact. A
   `Trace:` marker on an unbuilt requirement stays legal (a process requirement carries its
   exclusion from birth, so its later status flip needs no triage); doctrine and disputed still
@@ -614,7 +615,7 @@ Generated — do not hand-edit. Regenerate with `manage.py guards --sync-evidenc
 
 <!-- BEGIN GENERATED EVIDENCE — manage.py guards --sync-evidence -->
 
-**1132** requirements · **19** standing doctrine · **1** disputed · **52** carry evidence · **1** carry both classes · **484** declared built with none.
+**1132** requirements · **19** standing doctrine · **2** disputed · **52** carry evidence · **1** carry both classes · **484** declared built with none.
 
 Separate facts, deliberately not blended into one percentage. **Doctrine** is outside the coverage question — in force now, never "completed", expecting conformance rather than an implementation. **Disputed** marks a spec-versus-implementation disagreement awaiting a human ruling — its claims are pointers to the contested code, never resolution, and the count should trend to zero. **Declared built with none** is context, not a defect list: claims are opt-in and scarce by design (`req-tap-traceability-scope`), so it measures how much of the corpus has been deliberately targeted, not how much is wrong. Collapsing these into a single coverage score is what makes such a score meaningless.
 
@@ -677,6 +678,7 @@ Separate facts, deliberately not blended into one percentage. **Doctrine** is ou
 
 | Requirement | Contested code (claims) | Verified by |
 | --- | --- | --- |
+| `req-cicd-product-releases` | — | — |
 | `req-sphinx-docs-capability-blocks` | — | — |
 
 **Declared unbuilt, but evidence exists** — reported, never failed; a requirement can be partly built, and a doctrine requirement is cited as guidance:
@@ -706,21 +708,20 @@ Generated — do not hand-edit. Regenerate with `manage.py guards --sync-account
 
 <!-- BEGIN GENERATED ACCOUNTING — manage.py guards --sync-accounting -->
 
-**1132** requirements · **52** mapped · **18** excluded (external 1, non-python 16, process 1) · **19** doctrine · **1** disputed · **531** unbuilt · **16** retired · **495 Unaccounted**.
+**1132** requirements · **52** mapped · **18** excluded (external 1, non-python 16, process 1) · **19** doctrine · **2** disputed · **558** unbuilt · **16** retired · **467 Unaccounted**.
 
 The Unaccounted count is the Definition of Done's progress bar: it only moves down (the committed baseline grandfathers existing debt; a new requirement without a disposition fails immediately). A grandfathered entry is debt, not license — every Unaccounted requirement still needs a mapping or a documented exclusion. **Unbuilt** and **retired** derive from status — a requirement declaring itself future work or withdrawn has, by its own account, nothing to map; the moment one flips to `Implemented` without evidence or an exclusion it becomes a NEW Unaccounted entry and the ratchet fails, so claiming done is where the Definition of Done is enforced.
 
 | Spec | Reqs | Mapped | Excluded | Doctrine | Disputed | Unbuilt | Retired | Unaccounted |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | `tap_grid/specs/spec-grid-traversal-language.md` | 20 | 0 | 0 | 0 | 0 | 2 | 0 | 18 |
-| `tap_plugins/specs/spec-tap-plugin-architecture.md` | 27 | 1 | 0 | 0 | 0 | 10 | 0 | 16 |
 | `tap_plugins/specs/spec-tap-plugin-validation.md` | 17 | 0 | 0 | 0 | 0 | 1 | 0 | 16 |
 | `specs/spec-tap-boot-v0.md` | 22 | 0 | 0 | 0 | 0 | 8 | 0 | 14 |
 | `tap_cares/specs/spec-tap-cares-secrets.md` | 21 | 4 | 0 | 0 | 0 | 3 | 0 | 14 |
 | `tap_grid/specs/spec-grid-import-grift.md` | 17 | 0 | 0 | 0 | 0 | 3 | 0 | 14 |
+| `tap_plugins/specs/spec-tap-plugin-architecture.md` | 27 | 1 | 0 | 0 | 0 | 14 | 0 | 12 |
 | `tap_viz/specs/spec-viz-stack.md` | 14 | 0 | 0 | 0 | 0 | 2 | 0 | 12 |
 | `tap_cares/specs/spec-tap-cares-administrivia.md` | 13 | 0 | 0 | 0 | 0 | 2 | 0 | 11 |
-| `tap_cares/specs/spec-tap-cares-collector.md` | 20 | 0 | 0 | 0 | 0 | 9 | 0 | 11 |
 | `tap_cares/specs/spec-tap-cares-scheduler.md` | 12 | 0 | 0 | 0 | 0 | 1 | 0 | 11 |
 | `tap_cares/specs/spec-tap-cares-task-backend.md` | 11 | 0 | 0 | 0 | 0 | 1 | 0 | 10 |
 | `tap_grid/specs/spec-grid-gryphon-multihop-aggregation.md` | 11 | 0 | 0 | 0 | 0 | 1 | 0 | 10 |
@@ -740,57 +741,54 @@ The Unaccounted count is the Definition of Done's progress bar: it only moves do
 | `specs/spec-fips.md` | 7 | 0 | 0 | 0 | 0 | 0 | 0 | 7 |
 | `tap_grid/specs/spec-grid-edge.md` | 9 | 1 | 0 | 0 | 0 | 1 | 0 | 7 |
 | `tap_grid/specs/spec-grid-search.md` | 9 | 0 | 0 | 0 | 0 | 2 | 0 | 7 |
-| `tap_grid/specs/spec-grid-service-delete.md` | 7 | 0 | 0 | 0 | 0 | 0 | 0 | 7 |
 | `tap_grid/specs/spec-grift-subgraph.md` | 7 | 0 | 0 | 0 | 0 | 0 | 0 | 7 |
 | `tap_viz/specs/spec-viz-align-distribute.md` | 7 | 0 | 0 | 0 | 0 | 0 | 0 | 7 |
-| `tap_viz/specs/spec-viz-panel.md` | 13 | 0 | 0 | 0 | 0 | 4 | 2 | 7 |
 | `tap_web/specs/spec-web-batch-viewer-v0.md` | 8 | 0 | 0 | 0 | 0 | 1 | 0 | 7 |
 | `tap_web/specs/spec-web-page.md` | 12 | 1 | 0 | 0 | 0 | 4 | 0 | 7 |
 | `tap_web/specs/spec-web-viewer.md` | 8 | 0 | 0 | 0 | 0 | 1 | 0 | 7 |
 | `specs/spec-dev-multisession-diagnose.md` | 7 | 0 | 0 | 0 | 0 | 1 | 0 | 6 |
-| `tap_grid/specs/spec-grid-keystone.md` | 7 | 1 | 0 | 0 | 0 | 0 | 0 | 6 |
 | `tap_grid/specs/spec-grid-registry.md` | 6 | 0 | 0 | 0 | 0 | 0 | 0 | 6 |
+| `tap_grid/specs/spec-grid-service-delete.md` | 7 | 0 | 0 | 0 | 0 | 1 | 0 | 6 |
 | `tap_viz/specs/spec-viz-status-badge-info.md` | 7 | 0 | 0 | 0 | 0 | 1 | 0 | 6 |
+| `tap_cares/specs/spec-tap-cares-collector.md` | 20 | 0 | 0 | 0 | 0 | 15 | 0 | 5 |
 | `tap_grid/specs/spec-grid-flip.md` | 6 | 0 | 0 | 0 | 0 | 1 | 0 | 5 |
 | `tap_grid/specs/spec-grid-hotlink.md` | 6 | 0 | 0 | 0 | 0 | 1 | 0 | 5 |
+| `tap_grid/specs/spec-grid-keystone.md` | 7 | 1 | 0 | 0 | 0 | 1 | 0 | 5 |
 | `tap_grid/specs/spec-grid-traversal-execution.md` | 10 | 1 | 0 | 0 | 0 | 4 | 0 | 5 |
 | `tap_viz/specs/spec-viz-badges.md` | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 5 |
 | `tap_viz/specs/spec-viz-elevation.md` | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 5 |
+| `tap_viz/specs/spec-viz-panel.md` | 13 | 0 | 0 | 0 | 0 | 6 | 2 | 5 |
 | `tap_web/specs/spec-web-editor.md` | 9 | 0 | 0 | 0 | 0 | 4 | 0 | 5 |
 | `tap_web/specs/spec-web-panel-sequence-navigation-v0.md` | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 5 |
 | `tap_web/specs/spec-web-tailwind-pipeline.md` | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 5 |
 | `tap_web/specs/spec-web-time-display.md` | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 5 |
 | `specs/spec-tap-boot-observability.md` | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 4 |
-| `specs/spec-tap-logging.md` | 18 | 1 | 0 | 0 | 0 | 13 | 0 | 4 |
 | `tap_grid/specs/spec-grid-icon.md` | 5 | 0 | 0 | 0 | 0 | 1 | 0 | 4 |
 | `tap_grid/specs/spec-grid-node.md` | 5 | 0 | 0 | 0 | 0 | 1 | 0 | 4 |
-| `tap_web/specs/spec-web-panel.md` | 6 | 0 | 0 | 0 | 0 | 2 | 0 | 4 |
 | `tap_web/specs/spec-web-panels-chart.md` | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 4 |
-| `specs/spec-cicd-hardening.md` | 13 | 2 | 5 | 0 | 0 | 3 | 0 | 3 |
 | `specs/spec-dev-playwright-refresh.md` | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 3 |
 | `specs/spec-dev-plugin-workspace.md` | 7 | 0 | 0 | 0 | 0 | 4 | 0 | 3 |
-| `specs/spec-tap-plugin-validation-distribution.md` | 6 | 0 | 0 | 0 | 0 | 3 | 0 | 3 |
 | `tap_grid/specs/spec-grid-dimension.md` | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 3 |
 | `tap_grid/specs/spec-grid-service-errors.md` | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 3 |
 | `tap_grid/specs/spec-grid-service-read.md` | 4 | 0 | 0 | 0 | 0 | 1 | 0 | 3 |
 | `tap_grid/specs/spec-grid-service.md` | 9 | 1 | 0 | 0 | 0 | 5 | 0 | 3 |
 | `tap_plugins/specs/spec-tap-plugin-type-ownership-v0.md` | 10 | 0 | 0 | 0 | 0 | 7 | 0 | 3 |
 | `tap_web/specs/spec-web-panel-security.md` | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 3 |
+| `tap_web/specs/spec-web-panel.md` | 6 | 0 | 0 | 0 | 0 | 3 | 0 | 3 |
 | `tap_web/specs/spec-web-panels-standard.md` | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 3 |
 | `specs/spec-dev-multisession-teardown.md` | 3 | 0 | 0 | 0 | 0 | 1 | 0 | 2 |
-| `specs/spec-dev-validation.md` | 15 | 7 | 2 | 0 | 0 | 4 | 0 | 2 |
 | `specs/spec-rampart-demo-anwar.md` | 9 | 0 | 0 | 0 | 0 | 7 | 0 | 2 |
 | `specs/spec-tap-json-files.md` | 7 | 4 | 0 | 0 | 0 | 1 | 0 | 2 |
 | `specs/spec-tap-testing.md` | 9 | 0 | 0 | 0 | 0 | 7 | 0 | 2 |
 | `tap_grid/specs/spec-grid-security.md` | 7 | 1 | 0 | 0 | 0 | 4 | 0 | 2 |
-| `tap_plugins/specs/spec-tap-plugin-external-development.md` | 5 | 0 | 0 | 0 | 0 | 3 | 0 | 2 |
+| `specs/spec-cicd-hardening.md` | 13 | 2 | 5 | 0 | 1 | 4 | 0 | 1 |
 | `specs/spec-dev-multisession.md` | 15 | 0 | 10 | 0 | 0 | 4 | 0 | 1 |
 | `specs/spec-tap-boot-bootstrap.md` | 10 | 1 | 0 | 0 | 0 | 8 | 0 | 1 |
-| `specs/spec-tap-plugin-dependency-resolution.md` | 12 | 0 | 0 | 0 | 0 | 11 | 0 | 1 |
+| `specs/spec-tap-logging.md` | 18 | 1 | 0 | 0 | 0 | 16 | 0 | 1 |
+| `specs/spec-tap-plugin-validation-distribution.md` | 6 | 0 | 0 | 0 | 0 | 5 | 0 | 1 |
 | `specs/spec-tap-requirement-traceability.md` | 11 | 9 | 1 | 0 | 0 | 0 | 0 | 1 |
 | `tap_cares/specs/spec-tap-cares-v0.md` | 14 | 0 | 0 | 0 | 0 | 13 | 0 | 1 |
 | `tap_grid/specs/spec-grid-history.md` | 5 | 0 | 0 | 0 | 0 | 4 | 0 | 1 |
-| `tap_plugins/specs/spec-tap-plugin-lifecycle-v1.md` | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
 | `tap_plugins/specs/spec-tap-plugin-load-lifecycle-v0.md` | 10 | 1 | 0 | 0 | 0 | 8 | 0 | 1 |
 | `tap_plugins/specs/spec-tap-plugin-testing.md` | 5 | 0 | 0 | 0 | 0 | 4 | 0 | 1 |
 | `tap_web/specs/spec-web-panels-standard-table.md` | 8 | 0 | 0 | 0 | 0 | 7 | 0 | 1 |
@@ -801,6 +799,7 @@ The Unaccounted count is the Definition of Done's progress bar: it only moves do
 | `specs/spec-dev-multisession-onboarding-doc.md` | 4 | 0 | 0 | 0 | 0 | 4 | 0 | 0 |
 | `specs/spec-dev-multisession-smoketest.md` | 4 | 0 | 0 | 0 | 0 | 4 | 0 | 0 |
 | `specs/spec-dev-playwright-refresh-doc.md` | 4 | 0 | 0 | 0 | 0 | 4 | 0 | 0 |
+| `specs/spec-dev-validation.md` | 15 | 7 | 2 | 0 | 0 | 6 | 0 | 0 |
 | `specs/spec-docs.md` | 11 | 1 | 0 | 0 | 0 | 10 | 0 | 0 |
 | `specs/spec-req-template.md` | 2 | 0 | 0 | 0 | 0 | 2 | 0 | 0 |
 | `specs/spec-roadmap.md` | 10 | 0 | 0 | 10 | 0 | 0 | 0 | 0 |
@@ -813,6 +812,7 @@ The Unaccounted count is the Definition of Done's progress bar: it only moves do
 | `specs/spec-tap-health-v0.md` | 10 | 6 | 0 | 0 | 0 | 2 | 2 | 0 |
 | `specs/spec-tap-known-dupes.md` | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `specs/spec-tap-package-security-v0-BACKLOG.md` | 12 | 0 | 0 | 0 | 0 | 12 | 0 | 0 |
+| `specs/spec-tap-plugin-dependency-resolution.md` | 12 | 0 | 0 | 0 | 0 | 12 | 0 | 0 |
 | `specs/spec-tap-settings.md` | 1 | 0 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `specs/spec-tap-static-assets.md` | 3 | 0 | 0 | 0 | 0 | 3 | 0 | 0 |
 | `specs/spec-tap-tree-scanner.md` | 4 | 1 | 0 | 0 | 0 | 3 | 0 | 0 |
@@ -832,6 +832,8 @@ The Unaccounted count is the Definition of Done's progress bar: it only moves do
 | `tap_grid/specs/spec-grift-envelope.md` | 9 | 1 | 0 | 0 | 0 | 8 | 0 | 0 |
 | `tap_grid/specs/spec-grift-seed-ids-real-uuid7.md` | 3 | 0 | 0 | 0 | 0 | 3 | 0 | 0 |
 | `tap_plugins/specs/spec-disclosure-flags-v0.md` | 7 | 0 | 0 | 0 | 0 | 7 | 0 | 0 |
+| `tap_plugins/specs/spec-tap-plugin-external-development.md` | 5 | 0 | 0 | 0 | 0 | 5 | 0 | 0 |
+| `tap_plugins/specs/spec-tap-plugin-lifecycle-v1.md` | 1 | 0 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `tap_viz/specs/spec-viz-label-sizing-BACKLOG.md` | 6 | 0 | 0 | 0 | 0 | 6 | 0 | 0 |
 | `tap_viz/specs/spec-viz-nesting.md` | 8 | 0 | 0 | 0 | 0 | 5 | 3 | 0 |
 | `tap_viz/specs/spec-viz-shadows.md` | 7 | 0 | 0 | 0 | 0 | 7 | 0 | 0 |

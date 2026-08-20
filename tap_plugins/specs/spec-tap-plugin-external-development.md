@@ -197,7 +197,7 @@ generic runners — the same validation entrypoint that runs locally.
 ### Grid-Plugin Protocol Version
 ----
 RID: `req-tap-plugin-extdev-protocol`
-Status: `Proposed (Deferred)`
+Status: `Proposed`
 
 **Deferred — pinned to the GitHub-org refactor under CI/CD hardening.**
 
@@ -230,7 +230,7 @@ named deferral, not an omission: the org refactor is the trigger to build it.
 ### Signed Release Artifacts
 ----
 RID: `req-tap-plugin-extdev-signing`
-Status: `Proposed (Deferred)`
+Status: `Proposed`
 
 **Deferred — pinned to the GitHub-org refactor under CI/CD hardening. Signing
 identity is org-rooted; building it before the org exists means rebuilding it.**

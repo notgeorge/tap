@@ -1,6 +1,6 @@
 """Structured specification model + RID citation scanner.
 
-TAP-IMPLEMENTS: req-docs-rid-integrity@9633efb7b6ee/159bfb6ee3b7 (derivation) — the one
+TAP-IMPLEMENTS: req-docs-rid-integrity@9633efb7b6ee/cbfbf76ed628 (derivation) — the one
     parser of the spec corpus; every RID definition and citation fact derives here.
 
 The **one** parser of TAP's specification corpus (`req-docs-rid-integrity`). Three layers:
@@ -655,11 +655,12 @@ def duplicate_claim_groups(repo_root: Path) -> dict[tuple[str, str], list[Claim]
 #: Declared statuses that assert the requirement is built. A claim of `Verified` is the
 #: only one this module gates on, because it is the only one that asserts *verification*.
 _BUILT_STATUSES = frozenset({"Implemented", "Verified"})
-#: Statuses that assert the requirement is NOT yet built — evidence contradicts them.
-#: "In Development" and "Approved for Development" are corpus-observed drift variants of
-#: the same claim ("this is future or in-flight work, not done"); recognizing them here
-#: keeps the accounting honest without blessing them as preferred vocabulary.
-_UNBUILT_STATUSES = frozenset({"Proposed", "Backlog", "In Development", "Approved for Development"})
+#: Statuses that assert the requirement is NOT settled — future or in-flight work whose
+#: mapping falls due when it lands as `Implemented`. All template-canonical except
+#: `Backlog` (corpus-established). `Refactoring` belongs here: "in the process of being
+#: re-worked" is in-flight by its own words, and its evidence (which may exist mid-rework)
+#: is reported, never failed.
+_UNBUILT_STATUSES = frozenset({"Proposed", "Backlog", "In Development", "Approved for Development", "Refactoring"})
 #: Statuses that assert the requirement has been WITHDRAWN — no mapping is ever expected,
 #: and its history is the record. (A withdrawal the implementation appears to contradict
 #: is a `Disputed` case, not a retired one — see the sphinx capability-blocks dispute.)
@@ -849,7 +850,7 @@ def contradicted_dispositions(repo_root: Path, evidence: dict[str, Evidence] | N
 def bucket_of(requirement: Requirement, evidence: Evidence) -> str:
     """The one accounting bucket this requirement lands in — disjoint and total.
 
-    TAP-IMPLEMENTS: req-tap-traceability-accounting@49d9ea52a167/87dd8028e43c (derivation) — the
+    TAP-IMPLEMENTS: req-tap-traceability-accounting@aa39264f56c6/87dd8028e43c (derivation) — the
         one derivation of the bucket; the ratchet's measure and the report both call this.
 
     A derivation, never a judgment call: doctrine and disputed derive from status, mapped
@@ -893,7 +894,7 @@ ACCOUNTING_END = "<!-- END GENERATED ACCOUNTING -->"
 def render_accounting_markdown(repo_root: Path) -> str:
     """The full-corpus accounting — every requirement in one bucket, with a denominator.
 
-    TAP-IMPLEMENTS: req-tap-traceability-accounting@49d9ea52a167/439d52dc82ee (surface) — the
+    TAP-IMPLEMENTS: req-tap-traceability-accounting@aa39264f56c6/439d52dc82ee (surface) — the
         committed, drift-tested progress bar the Definition of Done is read from.
 
     The complement of the evidence report: that one is read for contradictions, this one

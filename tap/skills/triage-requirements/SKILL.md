@@ -27,8 +27,20 @@ Work spec-by-spec. For each Unaccounted requirement, in this order:
 1. **Fix the status first.** The bucket derivation reads `Status:`; a missing or drifted status
    line blocks everything else. The prose usually states it plainly ("Implemented 2026-08-09…",
    "the entire deploy half is unbuilt" → `Backlog`). Unbuilt statuses (`Proposed`, `Backlog`,
-   `In Development`, `Approved for Development`) and retired ones (`Deprecated`, `Deprecating`,
-   `Retired`) drain the requirement **by status alone** — no marker needed, done.
+   `In Development`, `Approved for Development`, `Refactoring`) and retired ones (`Deprecated`,
+   `Deprecating`, `Retired`) drain the requirement **by status alone** — no marker needed, done.
+   Normalization rules, earned in the batch-3 pass:
+   - **Check the template before inventing** — `Refactoring` and `Deprecating` looked like
+     drift and were canonical all along (`specs/spec-req-template.md` §Status Vocabulary is
+     the authority); the fix belonged in the bucket model, not the specs.
+   - **Decorated statuses parse as None** — `Status: `Proposed (Deferred)`` defeats the
+     status regex. Strip to the canonical value; the deferral note lives in the prose.
+   - Off-vocabulary values are illegal *everywhere* they appear, so per-file global replaces
+     are safe: `Partially Implemented` → usually `In Development` (read first — a
+     "forward note, not a build" row is `Proposed`); `Open`/`Deferred` → `Backlog`.
+   - **A body contradicting the tree is a dispute, not a status call** — mark `Disputed` only
+     with the full pairing (ledger row + Requirement Review Needed section in the owning
+     spec), never as a drive-by.
 2. **Is there an obvious enforcement claim?** Check the guard registry: a `Guard` subclass whose
    `rid` names this requirement is a pre-verified claim candidate — the guard→requirement edge
    was already authored and machine-checked. Mint `(enforcement)` on the guard module.

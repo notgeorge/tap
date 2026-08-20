@@ -272,7 +272,7 @@ Distributing secret sources to plugins opens a surface: a malicious plugin could
 ### Scoped-Registry FLAW Integration
 ----
 RID: `req-tap-plugin-depres-registry-flaws`
-Status: `Open`
+Status: `Backlog`
 
 **Deferred to a separate design discussion** (George, 2026-07-07). The registries this spec introduces — the secret-source provider registry and the index/routing registry — are `ScopedRegistry` instances, and in a *credential-routing* context a silent collision or a blocked overwrite is a security event, not a benign no-op: two providers claiming `aws_secrets_manager`, or an attempt to overwrite an index→secret binding, must be logged **loudly and proudly** with the appropriate FLAW category, tags, and severity — never swallowed.
 
