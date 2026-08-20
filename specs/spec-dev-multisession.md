@@ -267,6 +267,17 @@ Status: `Implemented`
 
 Multi-worktree development needs an unambiguous rule for how changes leave a session and become part of `main`. Without it, parallel sessions race each other on `origin/main`, new session spawns start from stale code, and the discipline becomes "whatever the current developer remembers." This requirement codifies the rule so every session — human or agent — follows the same four-step pattern.
 
+**AI-review triage (2026-08-20).** The `copilot-review-floor` org ruleset auto-reviews every
+PR ~1–3 minutes after it opens (re-reviewing on each push, Comment-state only) — but a
+fast-lane PR auto-merges on gate-green ~10 minutes later with nobody having read the
+feedback. So: **whoever opens a PR reads its reviewer feedback before calling the work
+done** — `scripts/pr-review-triage <pr> [--wait]` prints the review bodies (INCLUDING the
+suppressed findings Copilot collapses into a `<details>` block — real catches hide there)
+plus all inline comments. Fix-worthy findings are pushed onto the PR branch (re-arming
+auto-merge against the new commit); noise is dismissed consciously, never silently. This is
+advisory triage, not a gate — the blocking lever (require-conversation-resolution) is
+deliberately held until the reviewer's precision is proven (see the ensemble spec/plan).
+
 #### The discipline
 
 1. **Never edit `main` directly.** All work happens on a `session/<name>` branch inside a session worktree under `~/tap-sessions/<name>/`. The primary worktree at `~/tap-sessions/main/` is a passive reflection of `origin/main`; its working tree should never have uncommitted changes. Following this rule alone makes everything below succeed by default.

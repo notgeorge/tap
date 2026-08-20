@@ -225,6 +225,10 @@ Multi-session worktrees
         scripts/promote-all-sessions.sh   — run promote-to-main.sh across every session in the registry
     When the user says "consolidate sessions", "ship the sessions", or otherwise asks to advance
     origin/main from session branches, run the promote scripts rather than retyping the git steps.
+    AI-REVIEW TRIAGE: every PR gets an automatic Copilot review ~2 min after open; whoever opens a
+    PR runs scripts/pr-review-triage <pr> [--wait] and reads the feedback (INCLUDING suppressed
+    findings) before calling the work done — fix-worthy findings push onto the PR branch, noise is
+    dismissed consciously (req-dev-multisession-push-workflow).
     SECOND ROAD (since the main-required-checks ruleset): a change whose only consumer is a
     pending gated PR (Renovate bounds/config, dep baselines) should be pushed onto THAT PR's
     branch — one gate pass instead of three serialized ones. See "The second road" in

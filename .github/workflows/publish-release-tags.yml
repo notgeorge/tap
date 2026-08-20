@@ -11,9 +11,11 @@
 #
 # The poll loop exists because the tag usually arrives while publish-images is
 # still building that same commit (~30 min worst case). Release-commit builds
-# run in an isolated concurrency group (publish-images.yml) precisely so a
+# run in an isolated concurrency group (publish-images.yml, matched by
+# contains() on the merge-commit BODY — see the comment there) precisely so a
 # later main push cannot cancel them out from under this promotion (the
-# v0.1.2 gap). If the loop still times out, backfill: dispatch publish-images
+# v0.1.2 gap; recurred as v0.1.3 when the match was startsWith).
+# If the loop still times out, backfill: dispatch publish-images
 # with ref=<the tagged commit's full SHA> — it builds THAT commit and
 # publishes its :sha-<short> without moving :latest — then re-run this
 # workflow.
