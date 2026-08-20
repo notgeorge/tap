@@ -615,7 +615,7 @@ Generated — do not hand-edit. Regenerate with `manage.py guards --sync-evidenc
 
 <!-- BEGIN GENERATED EVIDENCE — manage.py guards --sync-evidence -->
 
-**1133** requirements · **20** standing doctrine · **0** disputed · **85** carry evidence · **1** carry both classes · **455** declared built with none.
+**1149** requirements · **20** standing doctrine · **0** disputed · **89** carry evidence · **1** carry both classes · **460** declared built with none.
 
 Separate facts, deliberately not blended into one percentage. **Doctrine** is outside the coverage question — in force now, never "completed", expecting conformance rather than an implementation. **Disputed** marks a spec-versus-implementation disagreement awaiting a human ruling — its claims are pointers to the contested code, never resolution, and the count should trend to zero. **Declared built with none** is context, not a defect list: claims are opt-in and scarce by design (`req-tap-traceability-scope`), so it measures how much of the corpus has been deliberately targeted, not how much is wrong. Collapsing these into a single coverage score is what makes such a score meaningless.
 
@@ -630,6 +630,10 @@ Separate facts, deliberately not blended into one percentage. **Doctrine** is ou
 | `req-boot-search-role` | Implemented | Implemented | `<module>` | — |
 | `req-cicd-dco-signoff` | — | Tested | — | `req-cicd-dco-signoff-2`, `req-cicd-dco-signoff-3`, `req-cicd-dco-signoff-4` |
 | `req-cicd-runner-least-privilege` | Implemented | Implemented | `<module>` | — |
+| `req-cicd-sbom-10` | Implemented | Tested | — | `req-cicd-sbom-10-1`, `req-cicd-sbom-10-2`, `req-cicd-sbom-10-3` |
+| `req-cicd-sbom-11` | Implemented | Tested | — | `req-cicd-sbom-11-1`, `req-cicd-sbom-11-2`, `req-cicd-sbom-11-3` |
+| `req-cicd-sbom-3` | Implemented | Tested | — | `req-cicd-sbom-3-1`, `req-cicd-sbom-3-2`, `req-cicd-sbom-3-3` |
+| `req-cicd-sbom-7` | Implemented | Tested | — | `req-cicd-sbom-7-1`, `req-cicd-sbom-7-2`, `req-cicd-sbom-7-3`, `req-cicd-sbom-7-4` |
 | `req-dev-validation-collection-complete` | Implemented | Implemented | `<module>` | — |
 | `req-dev-validation-known-broken` | Implemented | Implemented | `<module>` | — |
 | `req-dev-validation-map` | Implemented | Implemented | `<module>` | — |
@@ -740,7 +744,7 @@ Generated — do not hand-edit. Regenerate with `manage.py guards --sync-account
 
 <!-- BEGIN GENERATED ACCOUNTING — manage.py guards --sync-accounting -->
 
-**1133** requirements · **85** mapped · **22** excluded (external 1, non-python 19, process 2) · **20** doctrine · **0** disputed · **556** unbuilt · **16** retired · **434 Unaccounted**.
+**1149** requirements · **89** mapped · **27** excluded (external 1, non-python 24, process 2) · **20** doctrine · **0** disputed · **563** unbuilt · **16** retired · **434 Unaccounted**.
 
 The Unaccounted count is the Definition of Done's progress bar: it only moves down (the committed baseline grandfathers existing debt; a new requirement without a disposition fails immediately). A grandfathered entry is debt, not license — every Unaccounted requirement still needs a mapping or a documented exclusion. **Unbuilt** and **retired** derive from status — a requirement declaring itself future work or withdrawn has, by its own account, nothing to map; the moment one flips to `Implemented` without evidence or an exclusion it becomes a NEW Unaccounted entry and the ratchet fails, so claiming done is where the Definition of Done is enforced.
 
@@ -825,8 +829,9 @@ The Unaccounted count is the Definition of Done's progress bar: it only moves do
 | `tap_plugins/specs/spec-tap-plugin-testing.md` | 5 | 0 | 0 | 0 | 0 | 4 | 0 | 1 |
 | `tap_web/specs/spec-web-panels-standard-table.md` | 8 | 0 | 0 | 0 | 0 | 7 | 0 | 1 |
 | `specs/spec-ai-integration.md` | 9 | 0 | 0 | 5 | 0 | 4 | 0 | 0 |
-| `specs/spec-cicd-ai-review.md` | 8 | 0 | 0 | 0 | 0 | 8 | 0 | 0 |
+| `specs/spec-cicd-ai-review.md` | 9 | 0 | 0 | 0 | 0 | 9 | 0 | 0 |
 | `specs/spec-cicd-root-of-trust.md` | 9 | 0 | 0 | 0 | 0 | 9 | 0 | 0 |
+| `specs/spec-cicd-sbom.md` | 15 | 4 | 5 | 0 | 0 | 6 | 0 | 0 |
 | `specs/spec-dev-boot-collectors.md` | 7 | 0 | 0 | 0 | 0 | 7 | 0 | 0 |
 | `specs/spec-dev-multisession-onboarding-doc.md` | 4 | 0 | 0 | 0 | 0 | 4 | 0 | 0 |
 | `specs/spec-dev-multisession-smoketest.md` | 4 | 0 | 0 | 0 | 0 | 4 | 0 | 0 |
