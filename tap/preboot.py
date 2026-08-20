@@ -38,7 +38,7 @@ from typing import Any
 from urllib.parse import unquote, urlparse
 
 from tap import plugin_deps
-from tap.boot_naming import profile_path
+from tap.boot_naming import profile_path, step_enabled
 from tap.logging import abort
 from tap.plugin_identity import NAMESPACE_PACKAGE as NAMESPACE_PACKAGE
 from tap.plugin_identity import TAP_PLUGINS_ENTRY_POINT_GROUP as TAP_PLUGINS_ENTRY_POINT_GROUP
@@ -188,7 +188,7 @@ def _read_profile(profile_id: str) -> dict[str, Any]:
 def _install_plugin_specs(profile: dict[str, Any]) -> list[dict[str, Any]]:
     """Return the enabled plugin entries from the ``install`` section (order preserved)."""
     install = profile.get("install") or {}
-    return [p for p in install.get("plugins", []) if p.get("enabled", False)]
+    return [p for p in install.get("plugins", []) if step_enabled(p)]
 
 
 def _population_seed_slugs(profile: dict[str, Any]) -> list[str]:
@@ -197,7 +197,7 @@ def _population_seed_slugs(profile: dict[str, Any]) -> list[str]:
     return [
         step["plugin"]
         for step in population.get("steps", [])
-        if step.get("type") == "seed-plugin" and step.get("enabled", False)
+        if step.get("type") == "seed-plugin" and step_enabled(step)
     ]
 
 

@@ -1,4 +1,7 @@
-"""Boot-profile file naming — the one spelling of ``<profile_id>.boot.json``.
+"""Boot-profile file naming + settings-free profile-reading facts.
+
+The one spelling of ``<profile_id>.boot.json``, and the one home of profile facts
+every runtime floor's raw reader must agree on (``step_enabled``).
 
 Stdlib-only leaf (the ``tap/secret_naming.py`` shape): the path grammar for boot
 profiles is derived here once and consumed on every runtime floor — the
@@ -19,7 +22,7 @@ stdlib-only boot tools slice with ``RECORD_SUFFIX`` since they cannot import
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Final
+from typing import Any, Final
 
 # The boot-record / boot-profile filename suffix (role "boot" in the JSON-files
 # naming convention, req-tap-json-naming).
@@ -29,6 +32,20 @@ RECORD_SUFFIX: Final[str] = ".boot.json"
 def profile_filename(profile_id: str) -> str:
     """The basename of a boot profile file: ``<profile_id>.boot.json``."""
     return f"{profile_id}{RECORD_SUFFIX}"
+
+
+def step_enabled(entry: dict[str, Any]) -> bool:
+    """Whether a profile install/population entry is enabled — **absent = disabled**.
+
+    The schema requires ``enabled`` on every entry and the validated loader is
+    strict, but two raw readers legitimately bypass the schema (pre-Django
+    ``tap.preboot`` by design; ``tap_boot.profile_install_slugs`` over discovered
+    profiles). They historically defaulted in OPPOSITE directions (install-nothing
+    vs count-as-present) — a divergence a spawn-supplied unvalidated profile could
+    hit. Fail-closed is the only safe default for a security-load-bearing install
+    set: an entry that doesn't say ``enabled: true`` installs nothing.
+    """
+    return bool(entry.get("enabled", False))
 
 
 def profile_path(boot_dir: Path, profile_id: str) -> Path:

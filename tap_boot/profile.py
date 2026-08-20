@@ -19,7 +19,7 @@ from typing import Any
 
 from django.conf import settings
 
-from tap.boot_naming import profile_path
+from tap.boot_naming import profile_path, step_enabled
 from tap.jsonfiles import JsonFileError, discover_json_files, instance_id, load_json_file
 
 # Declared public surface. tap_boot.profile is the boot-profile *contract* (the
@@ -152,13 +152,14 @@ def profile_ids() -> list[str]:
 def profile_install_slugs(profile_id: str) -> frozenset[str]:
     """The enabled ``install.plugins[].slug`` set a profile brings into the stack.
 
-    Read from the raw ``boot/<id>.boot.json`` (the parsed ``BootProfile`` models
-    *population* steps, not *install* steps). This is the atom of install-awareness:
+    Read from ``boot/<id>.boot.json`` schema-validated (the parsed ``BootProfile``
+    models *population* steps, not *install* steps; validating here too closes the
+    raw-read divergence a spawn-supplied unvalidated profile could hit). This is the atom of install-awareness:
     a profile only resolves/boots in a stack that already has all these plugins.
     """
-    raw = load_json_file(profile_path(boot_dir(), profile_id))
+    raw = load_json_file(profile_path(boot_dir(), profile_id), schema=_SCHEMA_PATH)
     plugins = raw.get("install", {}).get("plugins", [])
-    return frozenset(p["slug"] for p in plugins if p.get("enabled", True))
+    return frozenset(p["slug"] for p in plugins if step_enabled(p))
 
 
 def installable_profile_ids(installed: Collection[str]) -> list[str]:
