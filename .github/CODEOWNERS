@@ -42,6 +42,14 @@
 # every guards/ package — core, per-app, and per-plugin
 **/guards/                               @notgeorge
 
+# ---- build/exec plumbing (req-cicd-ai-review-least-privilege-5): the surfaces where a
+#      single change defeats every other control. Inbound "improvements" here get the
+#      heaviest scrutiny; reviewer prompts flag these diffs as findings in their own right. ----
+/Dockerfile*                             @notgeorge
+/docker/                                 @notgeorge
+/docker-compose*.yml                     @notgeorge
+/.githooks/                              @notgeorge
+
 # ---- policy data carved back out (NO owner): ratchet baselines shrink freely; the
 #      ratchet's stale-entry tooth already forbids fabricated growth. Must stay last so
 #      last-match-wins removes ownership for these paths. ----
