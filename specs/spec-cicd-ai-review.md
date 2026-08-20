@@ -737,6 +737,11 @@ merge-without-verdict a visible anomaly.
 - v0 is cheap: the verdicts already live on the PR (comments, check runs, action artifacts);
   the requirement is that structured verdict JSON (reviewer, model, severity, findings, PR SHA) is
   emitted and retained (action artifacts / check-run output), not just prose comments.
+- **The record shape is the confidence-calibration seam** (radar item, 2026-08-20): each finding
+  carries a stable id plus seat, model, severity, and PR SHA — the join keys that let a future
+  contributor compute per-seat, per-severity precision against maintainer accept/dismiss
+  dispositions as pure analysis over retained records. Costs nothing now; enables the seam
+  without machinery redesign later.
 - **Named AI consumer** (`req-ai-name-the-consumer`): the internal security AI — the same consumer
   as the `CONCERN` stream — monitors verdict records for trends: rising severity, verdictless
   merges, reviewer-disable events. George is the human consumer of the same record at review time.
@@ -897,8 +902,12 @@ built; each names its watch trigger:
   track per-seat, per-severity precision against George's accept/dismiss decisions during the
   observation window (`req-cicd-ai-review-graduation`) and report *measured* precision ("this
   seat's high-severity findings have been right 7 of 9 times") instead of model-claimed
-  confidence. Watch trigger: vendors exposing calibrated verdict scores with published
-  calibration data.
+  confidence. **Recorded as a future SEAM, deliberately left open for someone clever to pick
+  up** (an outside contributor included — the harness repos are public and reusable): the
+  verdict ledger carries the join keys from day one
+  (`req-cicd-ai-review-verdict-ledger-1`) so calibration can be built later as pure analysis
+  over existing records, no machinery redesign. Watch trigger: vendors exposing calibrated
+  verdict scores with published calibration data — or anyone showing up with a calibration PR.
 
 ## Relationship To Other Specs
 
