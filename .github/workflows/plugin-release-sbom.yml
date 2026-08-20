@@ -79,6 +79,7 @@ jobs:
           python3 -m build --wheel
           ls dist/
       - name: Generate + gate the plugin SBOM
+        id: sbom
         run: |
           python3 -m pip install --quiet jsonschema==4.23.0
           wheel="$(ls dist/*.whl)"
@@ -87,6 +88,14 @@ jobs:
             --wheel "$wheel" \
             --expected-version "${{ steps.ver.outputs.version }}" \
             --out-dir dist/sbom
+          # Concrete paths for the attest steps: actions/attest's sbom-path does
+          # NOT expand globs (subject-path does) — 'SBOM file not found' on the
+          # pilot run proved it.
+          {
+            echo "wheel=${wheel}"
+            echo "cdx=$(ls dist/sbom/*.cdx.json)"
+            echo "spdx=$(ls dist/sbom/*.spdx.json)"
+          } >> "$GITHUB_OUTPUT"
       - name: Attest wheel build provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
         with:
@@ -94,13 +103,13 @@ jobs:
       - name: Attest SBOM (CycloneDX)
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
-          subject-path: dist/*.whl
-          sbom-path: dist/sbom/*.cdx.json
+          subject-path: ${{ steps.sbom.outputs.wheel }}
+          sbom-path: ${{ steps.sbom.outputs.cdx }}
       - name: Attest SBOM (SPDX)
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
-          subject-path: dist/*.whl
-          sbom-path: dist/sbom/*.spdx.json
+          subject-path: ${{ steps.sbom.outputs.wheel }}
+          sbom-path: ${{ steps.sbom.outputs.spdx }}
       # The release record: wheel + both SBOMs as a run artifact (the attestation
       # store is the verification surface; this is the convenience copy).
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
