@@ -34,6 +34,18 @@ Standing infrastructure that came out of it: `req-tap-known-dupes` + the `known-
 `req-grid-table-classification.sec`; `req-tap-cares-secrets-root-resolution`; the
 host-runnable stdlib-only boundary test.
 
+**Closed (2026-08-18, Tier 2 batch):** all seven findings below, with three corrections to the
+proposed collapses — the `search_readonly` collapse could NOT import from the executor in the
+settings direction (new stdlib-only leaf `tap/db_aliases.py` instead); `write_guard`'s frozenset
+could NOT import `tap_auth.capabilities` at module scope (cycle through `tap_auth.enforcement` —
+tagged `TAP-KNOWN-DUPE(write-scope-caps)` instead, and `grid.discover` was a 4th uncovered
+literal); and the seven `_write_secret` test helpers turned out to be seven DIFFERENT helpers
+sharing only the `.secret.json` suffix fact (collapsed to `SECRET_SUFFIX` imports; the helpers
+deliberately kept). `tap_admin` gained `TAP-KNOWN-DUPE(admin-role)` for boot.py's settings-time
+copy. Test families landed in `tap/pytest_harness.py` (`batch_ctx`, `make_admin_user`/
+`make_admin_client`, `isolated_registry`) + `tap_cares/tests/conftest.py`; the collapse retired
+4 baselined mypy `union-attr` debts carried by the old copies.
+
 ## Tier 1 — one-liners, no design needed
 
 | Finding | Sites | Collapse |
@@ -42,7 +54,7 @@ host-runnable stdlib-only boundary test.
 | `"cytoscape:cose"` default placement | `tap_viz/panels/graph_panel/__init__.py:208,396`; `tap_web/synthetic.py:197,206,235,239`; `tap_web/views.py:485,493` | `DEFAULT_PLACEMENT` in tap_viz |
 | `SECRET_SUFFIX = ".secret.json"` | `tap/boot_pointer.py:65`; `tap/runtime_secrets.py:46` | **Trap:** boot_pointer is stdlib-only, runtime_secrets reaches jsonschema. Needs a stdlib leaf **or** a `TAP-KNOWN-DUPE(secret-suffix)` tag — not a plain import |
 
-## Tier 2 — small, a few files
+## Tier 2 — small, a few files (CLOSED 2026-08-18 — see Status)
 
 | Finding | Sites | Collapse |
 | --- | --- | --- |
@@ -54,6 +66,13 @@ host-runnable stdlib-only boundary test.
 | Test-helper families | `_write_secret` ×7 files; `_batch_ctx` ×5 (AST-identical); `_admin_client` ×4; registry-isolation ×8+4 | Per-app conftest fixtures |
 
 ## Tier 3 — needs a decision before editing
+
+> **2026-08-20 evidence pass:** every row below re-verified read-only; several are wrong in
+> load-bearing details (the uuid5 site, the digest-parse risk, the raw-reader count). The
+> corrected evidence + per-row recommendations live in
+> [doc-dev-dupes-tier3-decision-brief.md](doc-dev-dupes-tier3-decision-brief.md) — rule there,
+> then edit. `TAP_LOCAL_PASSWORD_ENABLED` (last row) is **CLOSED by verification**: both halves
+> read bare `settings.TAP_LOCAL_PASSWORD_ENABLED` (views_login.py:64); the 08-13 fix was complete.
 
 | Finding | Sites | The decision |
 | --- | --- | --- |
@@ -68,7 +87,7 @@ host-runnable stdlib-only boundary test.
 
 ## Tier 4 — real refactor
 
-- **GRIFT serialization across the three read engines.** Canonical `tap_grid/grift/subgraph.py:405-470`; re-rolled at `gryphon/executor.py:1263,1294,2725` and `orm_compiler.py:208,238` (executor/orm_compiler pairs are **AST-identical**). Against the one-grid-read-path north star. Export `serialize_node_list`/`serialize_edge_list` and have all three call them; validate with the Gridkin SQL snapshots. **Unverified and worth checking first:** whether the three differ in *which fields they expose* — if so this is a data-exposure difference between engines, not hygiene.
+- **GRIFT serialization across the three read engines.** Canonical `tap_grid/grift/subgraph.py:405-470`; re-rolled at `gryphon/executor.py:1263,1294,2725` and `orm_compiler.py:208,238` (executor/orm_compiler pairs are **AST-identical**). Against the one-grid-read-path north star. Export `serialize_node_list`/`serialize_edge_list` and have all three call them; validate with the Gridkin SQL snapshots. **Verified 2026-08-20: they do NOT differ** — all three call the same six leaf serializers from `subgraph.py`; only dispatch wrappers are duplicated (executor/orm_compiler pairs still byte-identical). Downgraded to hygiene; collapse = THREE exports (`serialize_node_list`, `serialize_typed_node_list`, `serialize_edge_list`) because executor's `_serialize_typed_nodes` has its own input contract. Gridkin snapshots are out-of-repo (gryphon_playground); validate in-tree with test_grift_subgraph.py + test_grift_envelope.py. Detail: [doc-dev-dupes-tier3-decision-brief.md](doc-dev-dupes-tier3-decision-brief.md).
 - **3+ `tap-plugin.toml` parsers.** `tap/plugin_deps.py` + `tap/preboot.py` deliberately shadow `tap_plugins/manifest.py` (pre-Django boundary). Likely a `TAP-KNOWN-DUPE(manifest-parse)` tag rather than a collapse — but fix the real divergence: `DeclaredDep` drops the `note` field `DependencyEntry` keeps.
 - **Entity types in-code vs DB catalog.** `list_entity_types()` vs `EntityType.objects.all()`. Conceptual (desired vs observed state), not a collapse.
 

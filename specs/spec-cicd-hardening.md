@@ -60,7 +60,7 @@ regressed while closing the gaps:
 - **Least-privilege, per-lane IAM** — each CI lane grants only what it tests
   (`req-dev-validation-product-line-lanes-4`).
 - **Secrets discipline** — none in the repo, a pluggable Secrets-Manager seam, health-probe
-  validation (`req-plugin-depres-sources`, [spec-tap-cares-secrets](../tap_cares/specs/spec-tap-cares-secrets.md)).
+  validation (`req-tap-plugin-depres-sources`, [spec-tap-cares-secrets](../tap_cares/specs/spec-tap-cares-secrets.md)).
 - **Dependency pinning** — `uv.lock`.
 - **Environment parity** — one Docker image across dev and CI.
 - **Testing depth ahead of the field** — the gryphon correctness ladder (differential
@@ -118,6 +118,8 @@ cheap-edge doctrine; the rest are the larger deploy-half build, rightly deferred
 ### Source Base Images Off Anonymous Docker Hub
 
 RID: `req-cicd-base-image-sourcing`
+Status: `Implemented`
+Trace: `non-python` — docker/postgres/Dockerfile
 
 The promote gate's cloud CI (`product-lines.yml`, the `test_all` lane gating **every** promote
 to `origin/main`) builds the web image on a GitHub Actions runner, and that build pulled its
@@ -153,6 +155,7 @@ layer when air-gap/attestation demand arrives.
 ### Self-Host Base-Image Currency + Minimization
 
 RID: `req-cicd-base-image-lifecycle`
+Status: `In Development`
 
 Sourcing base images off a rate-limit-free mirror (`req-cicd-base-image-sourcing`) fixes
 *availability*; it does nothing for *attack surface* or *CVE currency*. The market answer is a
@@ -238,6 +241,8 @@ which indexes `-5`/`-6` in its FIPS Requirement Map.
 ### Enforce The Gate Server-Side
 
 RID: `req-cicd-branch-protection`
+Status: `Implemented`
+Trace: `external` — GitHub repository rulesets (protect-default-branches, main-required-checks)
 
 **Implemented 2026-08-09 as two layered repository rulesets** on the default branch:
 `protect-default-branches` (pre-existing: deletion + force-push blocked for **everyone**,
@@ -292,6 +297,7 @@ rework; it rides naturally with the mandatory-PR flip and the `-3` code-owner-re
 ### Runner Least Privilege
 
 RID: `req-cicd-runner-least-privilege`
+Status: `Implemented`
 
 **The job is the token boundary.** Every GitHub Actions job receives its own short-lived
 `GITHUB_TOKEN`; per-job `permissions:` blocks are therefore a real, enforced isolation
@@ -373,6 +379,8 @@ the [security posture](spec-security-posture.md).
 ### Automate Dependency Updates
 
 RID: `req-cicd-dep-automation`
+Status: `Implemented`
+Trace: `non-python` — renovate.json5
 
 TAP pins (`uv.lock`) but pinned dependencies rot — security patches do not land until
 someone notices. **Implemented 2026-08-09 (PR-only)**: self-hosted Renovate (see
@@ -386,6 +394,8 @@ it), and the update PRs flow through the `pull_request` product-lines gate, whic
 ### Build Once, Promote The Artifact
 
 RID: `req-cicd-build-once-artifact`
+Status: `Implemented`
+Trace: `non-python` — .github/workflows/publish-images.yml
 
 **Implemented for the dev/CI artifact (2026-08-09).** `.github/workflows/publish-images.yml`
 builds `tap-web` + `tap-db` (TAP_FIPS=1, multi-arch amd64+arm64 on native runners) on every
@@ -411,6 +421,8 @@ app, not just plugins).
 ### Sign Artifacts, Emit SBOM
 
 RID: `req-cicd-supply-chain-provenance`
+Status: `Implemented`
+Trace: `non-python` — .github/workflows/publish-images.yml
 
 **First slice implemented (2026-08-09):** the published `tap-web`/`tap-db` images carry
 SLSA Build L2 provenance via `actions/attest-build-provenance` (Sigstore public-good
@@ -431,8 +443,8 @@ standard formats and signing the ecosystem consumes. Grafana signing every plugi
 nearest-neighbor precedent. Sequenced after `req-cicd-build-once-artifact` (you sign and
 attest the artifact you publish).
 
-**Plugin release signing lands here.** `req-plugin-extdev-signing`
-(`spec-plugin-external-development.md`) — signed plugin release tags / boot-record digests
+**Plugin release signing lands here.** `req-tap-plugin-extdev-signing`
+(`spec-tap-plugin-external-development.md`) — signed plugin release tags / boot-record digests
 verified at install, closing the moved-tag / compromised-repo gap — is the plugin-artifact
 face of this same signing capability. It is **pinned to the GitHub-org refactor** because the
 publisher/signing identity is org-rooted: building it before the org exists means rebuilding
@@ -450,15 +462,19 @@ precedents for both faces — one signing story, two layers (image artifact + pl
 ### Product Releases
 
 RID: `req-cicd-product-releases`
+Status: `Implemented`
+Trace: `non-python` — .github/workflows/release-please.yml
 
-TAP core has **no product-level releases**: plugins version and release
-(`release-plugin.sh`, semver tags, in-package boot records), but the platform itself ships
-as `main` plus the `latest`/`sha-<short>` GHCR images. That is the right pre-launch posture
-(release versioning is already named as an open tail under `req-cicd-build-once-artifact`),
-but the moment adopters pin versions, releases become a contract surface: what a version
-means, what it contains, and what is supported. The root `SECURITY.md` is a consumer of that
-contract — its supported-versions statement currently says "latest `main` only" *because*
-there are no releases, and it silently rots the day that stops being true.
+TAP core ships **product-level releases** (resolved 2026-08-20 — this body previously said
+"no product releases, the right pre-launch posture"; the 2026-08 release wave overtook that
+and George ruled the machinery IS the implementation). A release is a contract surface: what
+a version means, what it contains, and what is supported. The shipped shape: release-please
+computes the version from conventional commits and cuts semver tag + GitHub Release with
+notes when a maintainer merges the gated release PR; `publish-release-tags.yml` promotes the
+already-attested `:sha-<short>` image manifest to `:X.Y.Z` — same bytes, same digest,
+attestation intact; consumers pin `TAP_VERSION` (`-3`); and the root `SECURITY.md`
+supported-versions statement names the latest tagged release line as the supported tier —
+the consumer of the contract, updated when releases became real (`-2`).
 
 **Update 2026-08-13 — the consumer half now exists.** Releases and the machinery below are
 built; what was missing was any way for a consumer to *choose* one. `docker-compose.yml`
@@ -472,13 +488,14 @@ main's tip is the deliberate choice.
 
 | RID | Title | Status | Description | Notes |
 | --- | --- | :---: | --- | --- |
-| req-cicd-product-releases-1 | Semver product releases with release notes | Proposed | Product-level releases MUST use semantic versioning — semver git tags published as GitHub Releases, each carrying human-readable release notes that summarize major changes and name any fixed vulnerabilities. | OpenSSF Best Practices `release_notes` criterion; legitimately N/A until the first release exists. **When the first release is cut, update the project's OpenSSF Best Practices entry**: refresh the `version_unique` answer (unique versions then = the semver tags, not just SHA identifiers), confirm `version_semver`/`version_tags`, and flip `release_notes`/`release_notes_vulns` off N/A. **Machinery (2026-08-10):** the release-please PR lane (`release-please.yml` + manifest config; pre-1.0 mapping breaking→minor, feat/fix→patch — the "0.1.x warns, 0.2.0 enforces" contract language) computes the version from conventional commits and cuts tag+Release only when a maintainer merges the gated release PR; `publish-release-tags.yml` then promotes the already-attested `:sha-<short>` manifest to `:X.Y.Z` — same bytes, same digest, attestation intact. Writes ride the org-owned `tap-release-please` GitHub App (Renovate's trust model; app-token PRs trigger the required checks, default-token PRs never do and would sit unmergeable; both workflow jobs keep read-scoped tokens per req-cicd-runner-least-privilege). The release PR carries a bot `uv lock` refresh — the lock records core's own version and a version-only bump invalidates it (verified). **Retag race closed (2026-08-19):** `publish-images.yml`'s newest-main-wins cancellation (`cancel-in-progress`) cancelled the v0.1.2 release commit's build when the next merge landed 13s behind it, so `:sha-<short>` never published and the tag promotion timed out — release-commit pushes (`chore(main): release` prefix) and `ref`-input backfill dispatches now run in isolated concurrency groups that later pushes cannot cancel; per-arch results are pushed by digest and merged content-addressed end to end (`req-cicd-supply-chain-provenance-1`, which supersedes the brief per-commit staging tags) so overlapping runs cannot pair mismatched arches; a backfill dispatch builds a named commit and publishes only its `:sha-<short>`, never moving `:latest`. |
-| req-cicd-product-releases-2 | SECURITY.md tracks the release model | Proposed | Cutting the first product release MUST update the root `SECURITY.md` supported-versions statement (today: latest `main` + latest published images, no backports) to name which releases receive security fixes. | The tripwire that keeps the published policy honest once a release cadence exists. |
+| req-cicd-product-releases-1 | Semver product releases with release notes | Implemented | Product-level releases MUST use semantic versioning — semver git tags published as GitHub Releases, each carrying human-readable release notes that summarize major changes and name any fixed vulnerabilities. | OpenSSF Best Practices `release_notes` criterion; legitimately N/A until the first release exists. **When the first release is cut, update the project's OpenSSF Best Practices entry**: refresh the `version_unique` answer (unique versions then = the semver tags, not just SHA identifiers), confirm `version_semver`/`version_tags`, and flip `release_notes`/`release_notes_vulns` off N/A. **Machinery (2026-08-10):** the release-please PR lane (`release-please.yml` + manifest config; pre-1.0 mapping breaking→minor, feat/fix→patch — the "0.1.x warns, 0.2.0 enforces" contract language) computes the version from conventional commits and cuts tag+Release only when a maintainer merges the gated release PR; `publish-release-tags.yml` then promotes the already-attested `:sha-<short>` manifest to `:X.Y.Z` — same bytes, same digest, attestation intact. Writes ride the org-owned `tap-release-please` GitHub App (Renovate's trust model; app-token PRs trigger the required checks, default-token PRs never do and would sit unmergeable; both workflow jobs keep read-scoped tokens per req-cicd-runner-least-privilege). The release PR carries a bot `uv lock` refresh — the lock records core's own version and a version-only bump invalidates it (verified). **Retag race closed (2026-08-19):** `publish-images.yml`'s newest-main-wins cancellation (`cancel-in-progress`) cancelled the v0.1.2 release commit's build when the next merge landed 13s behind it, so `:sha-<short>` never published and the tag promotion timed out — release-commit pushes (`chore(main): release` prefix) and `ref`-input backfill dispatches now run in isolated concurrency groups that later pushes cannot cancel; per-arch results are pushed by digest and merged content-addressed end to end (`req-cicd-supply-chain-provenance-1`, which supersedes the brief per-commit staging tags) so overlapping runs cannot pair mismatched arches; a backfill dispatch builds a named commit and publishes only its `:sha-<short>`, never moving `:latest`. |
+| req-cicd-product-releases-2 | SECURITY.md tracks the release model | Implemented | Cutting the first product release MUST update the root `SECURITY.md` supported-versions statement (today: latest `main` + latest published images, no backports) to name which releases receive security fixes. | The tripwire that keeps the published policy honest once a release cadence exists. |
 | req-cicd-product-releases-3 | Consumers Pin A Version, Not A Moving Tag | Implemented | The shipped `.env` pins `tap-web` and `tap-db` to the SAME `TAP_VERSION` (one literal; both images are artifacts of one gated commit, so a mixed pair is never valid). release-please bumps that pin on release (`extra-files`), so it cannot go stale. `docker-compose.yml` REQUIRES the image vars (`:?`) rather than falling back to `:latest` — an unset var fails loudly instead of silently shipping main's tip. Development opts out explicitly: `spawn-session.sh` writes the `:latest` pair into the session's `.env.local`. **Pull-only base (2026-08-19):** the `build:` stanzas moved out of `docker-compose.yml` into the opt-in `docker-compose.build.yml` overlay (`scripts/dc build` stacks it automatically; spawn's pull-fallback invokes it explicitly) — so a missing pinned tag now hard-fails `up` instead of silently substituting an unattested from-source build, which is how the v0.1.2 publish gap ran undetected for four days. CI is the named exception: `docker-compose.ci.yml` pins the db to `:latest` because the version pin is a consumer contract, not a CI contract — a release PR bumps `TAP_VERSION` to a version whose images only exist after the merge, so gating the pin on the release branch is structurally unsatisfiable (the 0.1.3 release PR proved it). | **Gotcha, verified against Compose v2:** an override MUST set both image refs, NOT `TAP_VERSION` — `.env` interpolates its refs before `.env.local` is read, so overriding the version there silently does nothing. Both the `.env` comment and the spawn heredoc say so at the point of use. |
 
 ### Continuous Delivery
 
 RID: `req-cicd-continuous-delivery`
+Status: `Backlog`
 
 The entire deploy half is unbuilt: no staging/prod **environments**, no deploy automation,
 no **progressive delivery** (canary/blue-green), no **rollback** path, no product-level
@@ -490,6 +507,7 @@ not a blind spot. TAP has **CI, not CI/CD**: "promote to main" is *integration*,
 ### Live Instances In CI For Operational Testing
 
 RID: `req-cicd-live-instance-testing`
+Status: `Backlog`
 
 Stand up **running TAP instances as part of the CI process** and operate them as test
 targets — the class of validation that only exists against a live product, not a test
@@ -521,6 +539,7 @@ the OpenSSF Scorecard fuzzing check (Schemathesis/Hypothesis are recognized engi
 ### Measure The Pipeline
 
 RID: `req-cicd-pipeline-observability`
+Status: `Backlog`
 
 No measurement of the four **DORA metrics** (deployment frequency, lead time for changes,
 change-failure rate, MTTR) and no systematic **flaky-test tracking** (flakes are fixed
@@ -552,3 +571,17 @@ load-bearing once there is a delivery cadence to improve.
 - [spec-security-posture.md](spec-security-posture.md) is the parent doctrine: the first
   three requirements here are its cheap-foundational-edges applied to the pipeline.
 - [plan/road-rampart.md](../plan/road-rampart.md) sequences the deploy half toward launch.
+
+## Requirement Review Needed
+
+Open questions where the spec and the tree disagree. Recorded, not decided. Indexed across all
+specs in [doc-tap-requirement-review-ledger.md](../docs/misc/doc-tap-requirement-review-ledger.md).
+
+### Product releases exist while the requirement says they must not yet — RESOLVED 2026-08-20 (George)
+
+**Ruling: the release machinery is the implementation.** Body rewritten to describe what
+shipped; status `Implemented`, mapped `non-python` to `release-please.yml` (the primary of the
+release lane). The supported-versions obligation (`-2`) was found already met — the root
+`SECURITY.md` names the latest tagged release line as the supported tier — so the tripwire had
+fired and been honored; the ACID is flipped to match. `-1`'s note about refreshing the OpenSSF
+Best Practices release answers stays as the one possibly-outstanding external click.

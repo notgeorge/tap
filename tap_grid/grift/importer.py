@@ -2471,8 +2471,9 @@ def _execute_grift_batch(
                 # semantics", open decision #3).
                 if removal_plan.executable_deletes:
                     from tap_auth import policy
+                    from tap_auth.capabilities import DELETE_CAPABILITY
 
-                    policy.authorize(ctx, "grid.delete", operation="grift_import_delete")
+                    policy.authorize(ctx, DELETE_CAPABILITY, operation="grift_import_delete")
 
                 # Append delete WriteOperations to the same write_batch call.
                 # Per-target entity_expected_version (req-grift-concurrency-version)
@@ -2977,8 +2978,9 @@ def _apply_sweep_tombstone(
         # UnguardedOperation instead of a clean denial. Symmetric with the imperative-removal path.
         # The marker exempts the write_batch call (the scanner can't see a bare authorize).
         from tap_auth import policy
+        from tap_auth.capabilities import DELETE_CAPABILITY
 
-        policy.authorize(caller_ctx, "grid.delete", operation="grift_sweep_tombstone")
+        policy.authorize(caller_ctx, DELETE_CAPABILITY, operation="grift_sweep_tombstone")
         write_batch(ops, caller_context=caller_ctx)  # TAP-AUTHZ-COV: explicit grid.delete authorize above
 
     return [
@@ -3141,6 +3143,7 @@ def grift_import(
     the import command passes `tap_bootloader`. Delegates to `_grift_import_impl`.
     """
     from tap_auth import policy
+    from tap_auth.capabilities import IMPORT_GRIFT_CAPABILITY, PURGE_CAPABILITY
     from tap_auth.enforcement import authorized
     from tap_grid.caller_context import CallerContext, get_caller_context
 
@@ -3148,9 +3151,9 @@ def grift_import(
         _active = get_caller_context()
         actor = _active.user if _active is not None else None
     _auth_ctx = CallerContext(user=actor)
-    with authorized(_auth_ctx, "grid.import_grift", operation="grift_import"):
+    with authorized(_auth_ctx, IMPORT_GRIFT_CAPABILITY, operation="grift_import"):
         if purge:
-            policy.authorize(_auth_ctx, "grid.purge", operation="grift_import_purge")
+            policy.authorize(_auth_ctx, PURGE_CAPABILITY, operation="grift_import_purge")
         return _grift_import_impl(
             document,
             dangling_edge_mode=dangling_edge_mode,

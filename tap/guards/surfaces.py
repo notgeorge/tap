@@ -114,7 +114,7 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
     ),
     DeclaredSurface(
         surface="Plugin compatibility floor (requires_tap)",
-        rid="req-plugin-extdev-compat-floor",
+        rid="req-tap-plugin-extdev-compat-floor",
         cadence="Pre-boot (`python -m tap.preboot`) + author-time (`validate_plugin`)",
         status="CI-guarded",
         enforced_by=(
@@ -125,7 +125,7 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
     ),
     DeclaredSurface(
         surface="Per-plugin repo CI (reusable workflow)",
-        rid="req-plugin-extdev-repo-ci",
+        rid="req-tap-plugin-extdev-repo-ci",
         cadence="Per-PR in external plugin repos (`workflow_call`)",
         status="In development — conformance job is the solid core; boot-and-test is the dial-in surface for Aug-1",
         enforced_by=(
@@ -264,14 +264,14 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
     ),
     DeclaredSurface(
         surface="Read-only search write detection",
-        rid="req-grid-search-readonly",
+        rid="req-grid-search-readonly.sec-6",
         cadence="Per-commit (`pytest`)",
         status="CI-guarded",
         enforced_by="`tap_grid/tests/test_search_readonly_guard.py`",
     ),
     DeclaredSurface(
         surface="Plugin report contract",
-        rid="req-plugin-arch-install-registry-3",
+        rid="req-tap-plugin-arch-install-registry-3",
         cadence="Per-commit (`pytest`) + on every report build",
         status="CI-guarded",
         enforced_by="`tap_plugins/tests/test_report.py` (schema validation)",
@@ -281,6 +281,6 @@ DECLARED_SURFACES: tuple[DeclaredSurface, ...] = (
         rid="req-cicd-ai-review-ensemble",
         cadence="Per-PR (advisory comment on every PR incl. forks)",
         status="Advisory (non-blocking by design — Phase 1 of req-cicd-ai-review-graduation)",
-        enforced_by="`.github/workflows/ai-review-capture.yml` + `ai-review.yml` shims → SHA-pinned `unified-ai-review` reusable workflows",
+        enforced_by="`.github/workflows/ai-review-capture.yml` + `.github/workflows/ai-review.yml` shims → SHA-pinned `unified-ai-review` reusable workflows",
     ),
 )
