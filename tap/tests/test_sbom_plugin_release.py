@@ -52,21 +52,31 @@ def test_slug_to_dist_convention() -> None:
 @pytest.mark.spec("req-cicd-sbom-10-1")
 def test_identity_gate_passes_on_matching_wheel() -> None:
     doc = _wheel_cdx("tap-plugin-aws-core", "0.4.1")
-    assert plug.check_plugin_identity(doc, "aws_core", "0.4.1") == []
+    assert plug.check_dist_identity(doc, "tap-plugin-aws-core", "0.4.1") == []
 
 
 @pytest.mark.spec("req-cicd-sbom-10-1")
 def test_identity_gate_catches_version_mismatch() -> None:
     """Tag says 0.4.2, wheel built 0.4.1 (e.g. shallow checkout broke hatch-vcs)."""
     doc = _wheel_cdx("tap-plugin-aws-core", "0.4.1")
-    problems = plug.check_plugin_identity(doc, "aws_core", "0.4.2")
+    problems = plug.check_dist_identity(doc, "tap-plugin-aws-core", "0.4.2")
+    assert any("version mismatch" in p for p in problems)
+
+
+@pytest.mark.spec("req-cicd-sbom-10-1")
+def test_identity_gate_serves_non_plugin_dists() -> None:
+    """The same gate keys on a bare dist name (req-cicd-release-artifacts-2):
+    non-plugin dists ride the lane via --dist-name instead of a slug."""
+    doc = _wheel_cdx("aws-secrets-source", "0.2.0")
+    assert plug.check_dist_identity(doc, "aws-secrets-source", "0.2.0") == []
+    problems = plug.check_dist_identity(doc, "aws-secrets-source", "0.3.0")
     assert any("version mismatch" in p for p in problems)
 
 
 @pytest.mark.spec("req-cicd-sbom-10-2")
 def test_identity_gate_catches_absent_plugin_component() -> None:
     doc = _wheel_cdx("something-else", "1.0")
-    problems = plug.check_plugin_identity(doc, "aws_core", "0.4.1")
+    problems = plug.check_dist_identity(doc, "tap-plugin-aws-core", "0.4.1")
     assert any("ABSENT" in p for p in problems)
 
 
@@ -76,7 +86,7 @@ def test_identity_gate_catches_phantoms() -> None:
     components = doc["components"]
     assert isinstance(components, list)
     components.append({"type": "library", "bom-ref": "x", "name": "my-test-package", "version": "1.0"})
-    problems = plug.check_plugin_identity(doc, "aws_core", "0.4.1")
+    problems = plug.check_dist_identity(doc, "tap-plugin-aws-core", "0.4.1")
     assert any("phantom" in p for p in problems)
 
 

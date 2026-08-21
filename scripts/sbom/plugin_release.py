@@ -23,6 +23,10 @@ against the freshly built wheel:
 
 Shares core's vendored schemas and validators (loaded by path from generate.py —
 one derivation of that logic, not a copy).
+
+Not only plugins: the same lane releases every non-plugin Python dist in the org
+(req-cicd-release-artifacts-2) — identity arrives as --dist-name instead of --slug,
+and the gate keys on (dist name, exact version) exactly the same way.
 """
 
 from __future__ import annotations
@@ -53,10 +57,9 @@ def dist_name_for(slug: str) -> str:
     return "tap-plugin-" + slug.replace("_", "-")
 
 
-def check_plugin_identity(doc: dict[str, object], slug: str, expected_version: str) -> list[str]:
+def check_dist_identity(doc: dict[str, object], dist: str, expected_version: str) -> list[str]:
     """The identity gate: dist name at the exact expected version, phantoms absent."""
     problems: list[str] = []
-    dist = dist_name_for(slug)
     components_obj = doc.get("components", [])
     if not isinstance(components_obj, list):
         raise TypeError(f"CycloneDX components is {type(components_obj).__name__}, expected list")
@@ -64,11 +67,11 @@ def check_plugin_identity(doc: dict[str, object], slug: str, expected_version: s
     matches = [c for c in components if c.get("name") == dist]
     if not matches:
         problems.append(
-            f"plugin component ABSENT: {dist} (found: {sorted(c.get('name', '?') for c in components)[:10]})"
+            f"distribution component ABSENT: {dist} (found: {sorted(c.get('name', '?') for c in components)[:10]})"
         )
     elif not any(c.get("version") == expected_version for c in matches):
         problems.append(
-            f"plugin version mismatch: {dist} is {[c.get('version') for c in matches]}, expected {expected_version} "
+            f"distribution version mismatch: {dist} is {[c.get('version') for c in matches]}, expected {expected_version} "
             "(tag == wheel == SBOM is the boot-record join key)"
         )
     names = {c.get("name") for c in components}
@@ -155,21 +158,30 @@ def syft_scan_wheel(wheel: Path, out_cdx: Path, out_spdx: Path) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--slug", required=True)
+    # Identity: exactly one. --slug for grid plugins (dist derived as tap-plugin-<slug>);
+    # --dist-name for any other released Python dist (req-cicd-release-artifacts-2, e.g.
+    # aws-secrets-source in tap-build-dependencies).
+    ident = ap.add_mutually_exclusive_group(required=True)
+    ident.add_argument("--slug")
+    ident.add_argument("--dist-name")
     ap.add_argument("--wheel", required=True, type=Path)
-    ap.add_argument("--expected-version", required=True, help="from the release tag (vX.Y.Z -> X.Y.Z)")
+    ap.add_argument("--expected-version", required=True, help="from the release tag ([<dist>-]vX.Y.Z -> X.Y.Z)")
     ap.add_argument("--out-dir", required=True, type=Path)
     args = ap.parse_args(argv)
+    # Empty string is present-but-useless (easy via --dist-name= or an empty
+    # workflow input): fail closed with a clean usage error, never a fallthrough.
+    if args.slug == "" or args.dist_name == "":
+        ap.error("--slug/--dist-name must be non-empty")
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
-    dist = dist_name_for(args.slug)
+    dist = args.dist_name if args.dist_name is not None else dist_name_for(args.slug)
     out_cdx = args.out_dir / f"{dist}-{args.expected_version}.cdx.json"
     out_spdx = args.out_dir / f"{dist}-{args.expected_version}.spdx.json"
 
     syft_scan_wheel(args.wheel, out_cdx, out_spdx)
 
     coverage = (
-        f"Describes the released wheel {args.wheel.name}: the plugin package "
+        f"Describes the released wheel {args.wheel.name}: the distribution "
         f"{dist}@{args.expected_version} and its DECLARED dependency requirements "
         f"(dist METADATA). Dependency resolution deliberately absent — the resolved "
         f"closure is instance-level truth (boot record) or bake-level truth "
@@ -184,7 +196,7 @@ def main(argv: list[str] | None = None) -> int:
     problems = check_minimum_elements_wheel(cdx)
     if problems:
         _gen.fail(problems, "conformance")
-    problems = check_plugin_identity(cdx, args.slug, args.expected_version)
+    problems = check_dist_identity(cdx, dist, args.expected_version)
     if problems:
         _gen.fail(problems, "identity")
 
