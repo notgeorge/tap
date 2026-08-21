@@ -167,6 +167,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      # tap/spec_trace + tap/source_scan are py3.14 code (PEP 758 bare multi-except —
+      # black's py314 target actively rewrites the parenthesized form back, so
+      # down-leveling the source is not an option). The runner's system python is
+      # older; give this stdlib-only scan the interpreter the codebase is written for.
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.14"
       - name: Check referenced RIDs resolve
         run: scripts/check-rids
 
