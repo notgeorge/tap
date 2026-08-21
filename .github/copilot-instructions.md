@@ -1,9 +1,10 @@
 # Copilot review instructions — TAP
 
-> **Dormant as of 2026-08-14.** No Copilot seat is active on `unified-systems-com`: code review on
-> org-owned repositories needs Copilot Business, and GitHub paused self-serve Copilot Business for
-> Team organizations on 2026-04-22. This file is kept because it costs nothing and applies the
-> moment a seat exists. The lens below is live on the Codex seat, which is the one actually running.
+> **Live as of 2026-08-20.** The Copilot seat was unparked (org ruleset auto-requests review;
+> Copilot billing reports `plan_type: business`) after being dormant since 2026-08-14. Known
+> structural limit: automatic review fires only when the PR author has Copilot access, so
+> contributor/fork PRs are covered by the Unified AI Review harness seats, not this one. The same
+> lens also runs on those harness seats from a location a PR cannot edit.
 
 Spec: `specs/spec-cicd-ai-review.md`. Copilot is TAP's intended **daily-life reviewer seat** — summaries,
 correctness, hygiene — running alongside a Codex seat that carries the same lens from a location a
