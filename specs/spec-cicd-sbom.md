@@ -71,7 +71,7 @@ remain the boot record's territory. The two compose; neither substitutes for the
 | req-cicd-sbom-10 | [Plugin-Declared SBOMs](#plugin-declared-sboms) | Implemented | Declare-vs-decide: plugin release CI declares an attested per-release SBOM; the system verifies and composes, never re-derives blindly; bake-time combined lock is the single derivation for flavored images |
 | req-cicd-sbom-11 | [Standards Conformance Validation](#standards-conformance-validation) | Implemented | Schema-validate the CycloneDX document + fail-closed minimum-elements field checks (CISA/NSA 2026); canaries catch TAP-specific lies, this catches malformed valid-looking SBOMs |
 | req-cicd-sbom-12 | [Out-of-Band Detection Gate](#out-of-band-detection-gate) | Proposed | Declaration is DETECTED, never remembered: Dockerfile-derived out-of-band inventory + image-level unknowns budget both reconcile against declarations, fail-closed |
-| req-cicd-sbom-13 | [Ecosystem Coverage](#ecosystem-coverage) | Proposed | Every package ecosystem in an artifact has a lockfile-grade declared manifest its SBOM slice derives from; vendored JS is the named existing gap; new ecosystems are caught by the -12 gate |
+| req-cicd-sbom-13 | [Ecosystem Coverage](#ecosystem-coverage) | Proposed | Doctrine: adopt each ecosystem's OWN distribution system (registry + lockfile + integrity) and merge at the lockfile seam — never roll our own; hand-authored manifests are last-resort named debt; vendored JS is the named gap and first test |
 | req-cicd-sbom-14 | [Consumer Verification Docs](#consumer-verification-docs) | Proposed | The req-cicd-sbom-5 resolve-and-verify flow carried verbatim in the release/consumer documentation, once that surface exists |
 | req-cicd-sbom-15 | [Plugin SBOM Composition](#plugin-sbom-composition) | Proposed | The composition half of -10: bake-time single derivation reconciled against plugin-declared SBOMs; boot records reference release SBOMs by digest — rides the appliance arc with -9 |
 
@@ -343,9 +343,13 @@ DECLARED dependency requirements — resolution deliberately absent (coverage st
 says where resolution truth lives). This requirement is scoped to the
 DECLARATION half; the composition half (flavored-image bake-time derivation + boot
 records referencing release SBOMs by digest) is req-cicd-sbom-15, riding the appliance
-arc with req-cicd-sbom-9. Named gap: `tap-plugin-aws-secrets-source` (no CI caller —
-the secret-source dist releases outside the plugin lane). Original requirement text
-follows.
+arc with req-cicd-sbom-9. Named gap, corrected 2026-08-20 after scouting: the secret-source
+dist was RE-HOMED 2026-08-09 to `tap-build-dependencies` (old repo archived; core's
+in-tree copy evicted; doc-github-org-migration-plan records it) — the gap belongs to
+THAT repo: it has CI but no release tags (consumers pin SHAs) and no release-SBOM
+lane, and its projects live in subdirectories, so serving it means generalizing this
+lane with `dist_name` + `project_dir` inputs plus a multi-project tag convention
+(`<dist>-vX.Y.Z`). Original requirement text follows.
 
 Plugins declare their own SBOMs, on the **declare-vs-decide** pattern the manifest
 `[fips]` table established: the author's pipeline DECLARES, the system VERIFIES and
@@ -460,34 +464,57 @@ derivable, so derive it:
 RID: `req-cicd-sbom-13`
 Status: `Proposed`
 
-Every package ecosystem present in a published artifact MUST have a **lockfile-grade
-declared manifest** — pinned versions plus content hashes — from which its SBOM slice
-derives (the req-cicd-sbom-2 principle, generalized beyond Python). An ecosystem with no
-such manifest is not "not covered"; it is a gap the req-cicd-sbom-12 unknowns budget and
-this requirement make loud.
+**Doctrine (George, 2026-08-20): adopt the ecosystem's own distribution system — never
+roll our own.** Every package ecosystem present in a published artifact is consumed
+through that ecosystem's native registry + lockfile + integrity format, and merged into
+the SBOM approach at the LOCKFILE seam (the req-cicd-sbom-2 principle: derive from
+declared, hash-verified manifests). The payoff is structural: the scanning, updating,
+and advisory machinery of every ecosystem is built around its lockfile — Renovate,
+Dependabot, Syft, and OSV all speak it natively — so adopting the standard buys the
+SBOM slice, the update lane, and the vulnerability feed for free, while a parallel
+hand-rolled distribution mechanism must rebuild all three and then maintain the
+imitation forever. TAP's custom surface per ecosystem is deliberately confined to
+**acquisition wiring** (fetch-verify-place inside the attested build) and the
+fail-closed gates.
 
-Current inventory, honestly stated:
+Per-ecosystem application:
 
-* **Python** — covered: `uv.lock`, hash-verified, the -2 derivation.
-* **Vendored JavaScript — the NAMED EXISTING GAP.** Third-party JS ships as vendored
-  minified files (`tap_web/static/tap_web/js/lib/tabulator.min.js`, `echarts.min.js`,
-  peers in tap_viz and plugins) with **no manifest at all** — versions live in spec
-  prose at best, invisible to any scanner and any diff. Closing it requires a declared
-  vendored-assets manifest (per file: name, version, upstream source URL, sha256,
-  license) that doubles as the SBOM input and is guard-reconciled against the actual
-  `static/**/lib/` contents, both directions — the -12 pattern applied to a directory
-  the unknowns budget cannot see (minified JS is not executable-format content).
-  Plugins vendoring JS inherit the same manifest duty via req-cicd-sbom-10.
-* **Rust (first-party, future)** — the mechanism inverts the `uv` noise story: for a
-  binary TAP builds, `cargo-auditable`'s embedded metadata IS the lockfile-grade
-  manifest, and its crate closure is INCLUDED (the -2 exclusion applies only to
-  third-party tool binaries whose closure is not ours).
-* **TypeScript (future)** — compiles into the JS story; its manifest is the npm-family
-  lockfile (`package-lock.json`/`pnpm-lock.yaml`) the moment one exists, at which
-  point the vendored-assets manifest for its outputs derives from it.
+* **Python** — covered: PyPI + `uv.lock`, hash-verified at acquisition, the -2
+  derivation. The reference implementation of this requirement.
+* **JavaScript — the NAMED EXISTING GAP, and the doctrine's first test.** Third-party
+  JS currently ships as hand-vendored minified files (`tabulator.min.js`,
+  `echarts.min.js`, `htmx.min.js`, `cytoscape.min.js` + tabulator css) — three of the
+  five version-anonymous, invisible to every scanner and updater. The fix shape:
+  `package.json` + `package-lock.json` in-repo as the declaration, acquisition by
+  **`npm ci --ignore-scripts` in a digest-pinned node BUILDER stage** — the
+  ecosystem's own acquisition tool, used the standard way, per this requirement's
+  doctrine (a lock-parsing curl fetcher was considered and REJECTED as rolling our
+  own npm client: npm versions the lock format, and `npm ci` is the reference
+  implementation of its semantics). Same builder-stage boundary as `ossl-builder`
+  and `deps-warm`: node never ships in the runtime image or touches the dev loop;
+  `--ignore-scripts` closes the install-script vector, safe by construction since
+  the stage extracts static assets and executes nothing. Only the dist files are
+  copied out, to an image path outside the dev bind mount (`STATICFILES_DIRS`),
+  bytes leaving git. Renovate maintains the lock natively; the lockfile in-repo feeds the
+  dependency graph and Dependabot automatically; Syft's npm-lockfile cataloger joins
+  the -1 derivation exactly as uv.lock does. First step regardless of shape: identify
+  the four anonymous files' exact versions by hash-matching upstream release
+  artifacts (any file matching NO release hash is an undeclared fork and must be
+  surfaced, never silently re-pinned).
+* **Rust (first-party, future)** — crates.io + `Cargo.lock`; `cargo-auditable`'s
+  embedded metadata rides in the binary (the -2 exclusion applies only to third-party
+  tool binaries whose closure is not ours; a first-party binary's closure is INCLUDED).
+* **Go (future)** — module proxy + `go.sum`.
+* **Hand-authored vendored-asset manifests (the Chromium `README.chromium` /
+  `moz.yaml` pattern) are the LAST RESORT**, reserved for artifacts with no registry
+  standard at all — which is the niche those conventions were actually built for
+  (C/C++ vendoring). Each such manifest is a named debt carried in this requirement,
+  never a pattern to extend. None exist today.
 
-New ecosystems need no spec amendment to be caught: an unmanifested binary trips -12 on
-arrival, and this requirement names the duty its author then owes.
+New ecosystems need no spec amendment to be caught: an unmanifested binary trips the
+req-cicd-sbom-12 budget on arrival, and this requirement names the duty its author
+then owes — adopt the ecosystem's standard, wire acquisition into the attested build,
+select its lockfile cataloger into the derivation.
 
 ### Consumer Verification Docs
 ----

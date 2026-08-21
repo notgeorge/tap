@@ -1,7 +1,7 @@
 # Plugin release SBOM + attestations — the reusable half (req-cicd-sbom-10 +
 # the plugin-wheel-attestation open item of req-cicd-supply-chain-provenance).
 #
-# Thin-caller pattern (req-plugin-extdev-repo-ci, like plugin-ci.yml): every plugin
+# Thin-caller pattern (req-tap-plugin-extdev-repo-ci, like plugin-ci.yml): every plugin
 # repo triggers this on its release tag push, so the release artifact story is ONE
 # implementation improved in one place. For each vX.Y.Z tag it:
 #   1. builds the wheel at the tag (hatch-vcs derives the version FROM the tag —
@@ -18,7 +18,7 @@
 #
 # Identity note: attestations are signed by the CALLING plugin repo's workflow
 # identity — GitHub-attested-by-CI is the interim posture; org-rooted publisher
-# identity hardening lands with req-plugin-extdev-signing.
+# identity hardening lands with req-tap-plugin-extdev-signing.
 name: plugin-release-sbom
 
 on:
