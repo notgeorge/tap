@@ -1,6 +1,6 @@
 """Structured specification model + RID citation scanner.
 
-TAP-IMPLEMENTS: req-docs-rid-integrity@9633efb7b6ee/cf421829d681 (derivation) — the one
+TAP-IMPLEMENTS: req-docs-rid-integrity@9633efb7b6ee/f14909390c50 (derivation) — the one
     parser of the spec corpus; every RID definition and citation fact derives here.
 
 The **one** parser of TAP's specification corpus (`req-docs-rid-integrity`). Three layers:
@@ -371,15 +371,23 @@ def spec_files(repo_root: Path) -> list[Path]:
     return files
 
 
-def _normalize(body: str) -> str:
-    """Whitespace-collapsed requirement text, with the `Status:` and `Trace:` lines removed.
+# A generated block inside a requirement body (`<!-- BEGIN GENERATED … --> … <!-- END
+# GENERATED … -->`) is machine-written by a sync command, so hashing it would drift a claim
+# on every regeneration — the recurring ceremonial resync ai-guards hit on the Map block
+# (2026-08-21). Same exclusion class as `Status:` and `Trace:`.
+_GENERATED_BLOCK = re.compile(r"<!-- BEGIN GENERATED .*?<!-- END GENERATED [^>]*-->", re.DOTALL)
 
-    Both are excluded deliberately: they are metadata *about* the requirement, moving on
-    their own lifecycles — status is derived from evidence, and the disposition marker is
-    applied in bulk during triage (`req-tap-traceability-disposition-2`). Hashing either
-    would churn every claim's spec hash for a change with no requirement-meaning in it.
+
+def _normalize(body: str) -> str:
+    """Whitespace-collapsed requirement text — `Status:`/`Trace:` lines and generated blocks removed.
+
+    All three are excluded deliberately: they are machine-moved metadata on their own
+    lifecycles — status is derived from evidence, the disposition marker is applied in bulk
+    during triage (`req-tap-traceability-disposition-2`), and a generated block is rewritten
+    by its sync command whenever ANY surface changes. Hashing any of them would churn claims
+    for changes with no requirement-meaning in them.
     """
-    return " ".join(_TRACE_LINE.sub("", _STATUS_LINE.sub("", body)).split())
+    return " ".join(_TRACE_LINE.sub("", _STATUS_LINE.sub("", _GENERATED_BLOCK.sub("", body))).split())
 
 
 def _parse_disposition(
@@ -600,7 +608,7 @@ def invalid_claims(repo_root: Path) -> list[tuple[Claim, str]]:
 def stale_claims(repo_root: Path) -> list[tuple[Claim, str]]:
     """Claims whose recorded hash no longer matches their requirement (`Outdated`).
 
-    TAP-IMPLEMENTS: req-tap-traceability-staleness@79b27e46feb7/ba798e2267c4 (derivation) — the
+    TAP-IMPLEMENTS: req-tap-traceability-staleness@1f23dca53252/ba798e2267c4 (derivation) — the
         one comparison of a claim's recorded spec hash against the requirement's current one.
 
     Returns `(claim, expected_hash)`. A claim on a requirement that does not resolve is

@@ -252,8 +252,11 @@ re-verified against the new text, then re-stamped.
 #### Implementation
 
 - The hash is `semantic_hash` (SHA-256, 12 hex) over the requirement's normalized body:
-  whitespace-collapsed, with the `Status:` line **excluded** — status moves on its own lifecycle and
-  is machine-derived, so including it would make every claim self-churn the moment a status advanced.
+  whitespace-collapsed, with the `Status:` line, the `Trace:` line, and any **generated block**
+  (`BEGIN/END GENERATED` markers) **excluded** — all three are machine-moved metadata on their own
+  lifecycles, and hashing any of them would churn claims for changes with no requirement-meaning
+  (status advances, bulk triage, and every `--sync-*` regeneration respectively; the last was
+  found live 2026-08-21, when a sibling session's Map sync ceremonially drifted the Map claim).
 - **SHA-256, never MD5.** SQLite's scheme uses MD5; TAP runs FIPS-mode default-ON, where
   `hashlib.md5()` raises `UnsupportedDigestmodError`. The house digest already exists and is
   FIPS-clean.
