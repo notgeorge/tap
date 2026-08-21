@@ -5,6 +5,7 @@ from django.apps import apps
 from django.core.exceptions import ImproperlyConfigured
 from tap_plugin.grid_fixtures.models import ConstrainedSource, ConstrainedTarget
 
+from tap.pytest_harness import isolated_registry
 from tap_grid.constraints import (
     _edge_property_schema_registry,
     register_edge_property_schema,
@@ -256,10 +257,8 @@ class TestEdgePropertyValidation:
 
     @pytest.fixture(autouse=True)
     def isolate_registry(self) -> None:
-        saved = _edge_property_schema_registry.all()
-        _edge_property_schema_registry._reset_for_testing()
-        yield
-        _edge_property_schema_registry._reset_for_testing(saved)
+        with isolated_registry(_edge_property_schema_registry):
+            yield
 
     def test_valid_properties_on_create_pass(self):
         """Edge creation succeeds when properties match the registered schema (properties-4)."""

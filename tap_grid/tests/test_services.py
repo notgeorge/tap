@@ -5,6 +5,7 @@ import uuid
 import pytest
 from tap_plugin.grid_fixtures.models import ConstrainedSource
 
+from tap.pytest_harness import isolated_registry
 from tap_grid.caller_context import CallerContext
 from tap_grid.constraints import (
     _edge_property_schema_registry,
@@ -180,10 +181,8 @@ class TestUpdateEdgeProperties:
 
     @pytest.fixture(autouse=True)
     def isolate_registry(self) -> None:
-        saved = _edge_property_schema_registry.all()
-        _edge_property_schema_registry._reset_for_testing()
-        yield
-        _edge_property_schema_registry._reset_for_testing(saved)
+        with isolated_registry(_edge_property_schema_registry):
+            yield
 
     def test_updates_properties_and_persists(self):
         """update_edge_properties() saves the new payload to the database (properties-5)."""

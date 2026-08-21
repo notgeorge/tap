@@ -13,14 +13,22 @@
 #
 # Usage:
 #   scripts/pr-review-triage <pr-number>            # print what's there now
-#   scripts/pr-review-triage <pr-number> --wait     # poll up to 180s for the
-#                                                   # first review to arrive
+#   scripts/pr-review-triage <pr-number> --wait     # poll up to 180s until at
+#                                                   # least one REVIEW exists
+#                                                   # (inline comments alone
+#                                                   # don't stop the wait)
 #   scripts/pr-review-triage <pr-number> --wait 300 # custom poll ceiling (s)
 #
 # Exit codes: 0 = printed at least one review or comment; 1 = nothing arrived
 # (within the wait window, if any); 2 = usage error.
 
 set -euo pipefail
+
+# Fail fast with clear messages, like the other workflow scripts.
+for tool in gh jq; do
+  command -v "$tool" >/dev/null 2>&1 || { echo "$(basename "$0"): required tool '$tool' not found" >&2; exit 2; }
+done
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "$(basename "$0"): run from inside the repo worktree (gh resolves {owner}/{repo} from it)" >&2; exit 2; }
 
 PR="${1:-}"
 [[ -n "$PR" && "$PR" =~ ^[0-9]+$ ]] || { echo "usage: $(basename "$0") <pr-number> [--wait [seconds]]" >&2; exit 2; }
@@ -33,20 +41,22 @@ if [[ "${1:-}" == "--wait" ]]; then
 fi
 
 fetch_counts() {
-  REVIEWS_JSON="$(gh api "repos/{owner}/{repo}/pulls/${PR}/reviews")"
-  COMMENTS_JSON="$(gh api "repos/{owner}/{repo}/pulls/${PR}/comments")"
+  # --paginate + jq -s 'add': a PR with >30 reviews/comments spans pages, and
+  # missing page 2 would silently contradict "every AI-reviewer signal".
+  REVIEWS_JSON="$(gh api --paginate "repos/{owner}/{repo}/pulls/${PR}/reviews" | jq -s 'add')"
+  COMMENTS_JSON="$(gh api --paginate "repos/{owner}/{repo}/pulls/${PR}/comments" | jq -s 'add')"
   N_REVIEWS="$(jq 'length' <<<"$REVIEWS_JSON")"
   N_COMMENTS="$(jq 'length' <<<"$COMMENTS_JSON")"
 }
 
 fetch_counts
-if [[ "$N_REVIEWS" -eq 0 && "$N_COMMENTS" -eq 0 && "$WAIT" -gt 0 ]]; then
+if [[ "$N_REVIEWS" -eq 0 && "$WAIT" -gt 0 ]]; then
   echo "No reviews yet on #${PR} — polling up to ${WAIT}s ..."
   deadline=$(( $(date +%s) + WAIT ))
   while [[ $(date +%s) -lt $deadline ]]; do
     sleep 15
     fetch_counts
-    [[ "$N_REVIEWS" -gt 0 || "$N_COMMENTS" -gt 0 ]] && break
+    [[ "$N_REVIEWS" -gt 0 ]] && break
   done
 fi
 
