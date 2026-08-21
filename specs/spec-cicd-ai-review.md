@@ -466,11 +466,19 @@ the reviewer class, plus the trust-delta doctrine applied to third-party reviewe
     on it. That is the trade this roster makes deliberately.
 - Reviewers never hold or mint credentials beyond their own vendor key; reviewer workflows carry no
   other repo secrets.
-- **Critical plumbing is code-owned** (2026-08-20). The CODEOWNERS mechanism (contract:
-  `spec-dev-validation.md` § guard-system meta-integrity) extends across the reviewer surface:
-  `.github/**`, build/exec plumbing (`Dockerfile*`, `docker/`, `docker-compose*.yml`,
-  `.githooks/`), the gate/promote scripts, and BOTH harness repos carry CODEOWNERS so any change
-  on those paths requires the owner's explicit review. Standing posture: inbound suggestions to
+- **Critical plumbing is code-owned** (2026-08-20; **made real 2026-08-21**). The CODEOWNERS
+  mechanism (contract: `spec-dev-validation.md` § guard-system meta-integrity) extends across the
+  reviewer surface: `.github/**`, build/exec plumbing (`Dockerfile*`, `docker/`,
+  `docker-compose*.yml`, `.githooks/`), the gate/promote scripts, and BOTH harness repos carry
+  CODEOWNERS. **A CODEOWNERS file binds nothing by itself** — PR #99 (2026-08-21) proved it: a
+  PR editing reviewer configuration auto-merged with zero human review while all three AI
+  reviewers flagged it, because no ruleset required code-owner review. The enforcement is
+  **two-account review**: `@criticalsec` (George's second account, write access, approvals-only,
+  NEVER authenticated on the dev laptop) is co-owner on every owned path, and the ruleset
+  requires code-owner review with required-approvals 0 — ordinary PRs auto-merge untouched;
+  owned-path PRs block until the second account approves, since the authoring account cannot
+  approve its own PRs. The approvals-0 + code-owner-review interplay is verified empirically
+  (a blocked owned-path PR and an auto-merged clean PR), never assumed. Standing posture: inbound suggestions to
   "improve" build plumbing get the heaviest scrutiny in the review — plumbing is where one change
   defeats every other control, and reviewer prompts already flag such diffs as findings
   (`req-cicd-ai-review-untrusted-content-5`).
@@ -478,8 +486,9 @@ the reviewer class, plus the trust-delta doctrine applied to third-party reviewe
   repository (org-wide defaults: SECURITY.md, PVR config) and every repo's `.github/**` change
   rarely, and only from maintainer sessions — nobody issues PRs against them as standard
   operating procedure. GitHub cannot prevent a PR from being *opened*, so the gate is layered:
-  CODEOWNERS makes merge impossible without George's explicit review, reviewer prompts flag the
-  diff as a finding in its own right (`req-cicd-ai-review-untrusted-content-5`), and an
+  two-account code-owner review blocks the merge until the second account approves (see the
+  code-owned bullet above — a CODEOWNERS file without the ruleset is a no-op), reviewer prompts
+  flag the diff as a finding in its own right (`req-cicd-ai-review-untrusted-content-5`), and an
   unsolicited third-party PR touching plumbing is treated as a probe — reviewed under that
   assumption and escalated out-of-band (`req-cicd-ai-review-untrusted-content-7`).
 
@@ -491,7 +500,7 @@ the reviewer class, plus the trust-delta doctrine applied to third-party reviewe
 | req-cicd-ai-review-least-privilege-2 | Org-Wide Install Floor | Proposed | Reviewer apps are installed across ALL repositories in `unified-systems-com` so every repo inherits the same floor; grants recorded at install, trust-delta named. | The org is single-purpose (all TAP, all public, one protection level). A per-repo allowlist would generate silent drift below the floor. Homogeneity is the invariant: differing protection needs go in a different org. |
 | req-cicd-ai-review-least-privilege-3 | No Privileged Execution Of PR Content | Proposed | Reviewer workflows never combine `pull_request_target`/`workflow_run` with untrusted checkout — a privileged (secret-holding) stage never checks out, builds, or executes anything the PR controls; PR content crosses into privileged context only as data (a size-capped diff artifact, API-fetched metadata). | GitHub pwn-request class. Clarified 2026-08-20: the two-stage design (`req-cicd-ai-review-ensemble-5`) complies — the trigger was never the hazard; privileged execution of PR content is. |
 | req-cicd-ai-review-least-privilege-4 | Verify The Grant Before Installing | Proposed | Every GitHub App is checked with `gh api /apps/<slug> --jq '.permissions'` before install, the consent screen is read at install, and the observed grant is recorded. An App requesting write access to code is rejected outright. | Generalizes past reviewers: this is now the rule for ANY App on `unified-systems-com`. The command is what caught every problem in the 2026-08-13 rebuild. |
-| req-cicd-ai-review-least-privilege-5 | Plumbing Is Code-Owned | Proposed | CODEOWNERS covers CI/build plumbing (`.github/**`, Dockerfiles, compose files, `.githooks/`, gate/promote scripts) in every org repo including both harness repos, with code-owner review enforced in branch protection; policy-data carve-outs (ratchet baselines) stay per `spec-dev-validation.md`. | A no-op without the platform settings it presumes — see the CODEOWNERS file's own header. |
+| req-cicd-ai-review-least-privilege-5 | Plumbing Is Code-Owned (Two-Account Review) | Proposed | CODEOWNERS covers CI/build plumbing (`.github/**`, Dockerfiles, compose files, `.githooks/`, gate/promote scripts) in every org repo including both harness repos, with `@criticalsec` as second-account co-owner and code-owner review REQUIRED in the ruleset (approvals 0, so unowned paths keep auto-merging); the second account never authenticates on the dev laptop; policy-data carve-outs (ratchet baselines) stay per `spec-dev-validation.md`. | A no-op without the ruleset — demonstrated live by PR #99 (2026-08-21), which auto-merged reviewer-config edits unwitnessed. Enforcement pending the ruleset flip + empirical verification pair. |
 
 ---
 
@@ -824,6 +833,16 @@ defined:
   screen, CODEOWNERS on plumbing, actionlint/zizmor when landed — read no prompts and cannot be
   injected. The honest statement: against a sufficiently clever injection, the AI seats degrade
   to zero added detection, and the system falls back to exactly the controls TAP had before them.
+- **Advisory findings gate nothing — demonstrated on ourselves.** PR #99 (2026-08-21) modified
+  reviewer configuration (the shim's model selection, the Copilot instructions) and auto-merged
+  with zero human review while Copilot, the Codex seat, and the Grok seat each independently
+  flagged "this PR edits its own review path." Detection worked; nothing consumed it. This is
+  the worst-case shape the spec exists to prevent, executed benignly by our own pipeline. The
+  response is two-account code-owner review on plumbing paths
+  (`req-cicd-ai-review-least-privilege-5`), which converts those merges into a deliberate
+  second-account human act; the ai-review gate's Phase-2 graduation remains the general answer.
+  Residual even then: a hostile change subtle enough to survive the human's actual read, and
+  compromise of the admin account itself (below).
 - **Admin-account compromise trumps the gate.** A compromised machine holding admin credentials can
   alter rulesets or ride the bypass until the bypass list is emptied — and even then GitHub admins
   can bypass. The gate makes malicious merges *loud and evidence-bearing*, not impossible; the root
