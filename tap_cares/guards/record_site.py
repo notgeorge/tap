@@ -62,7 +62,7 @@ class RecordSiteUniquenessGuard(Guard):
                 continue
             try:
                 text = path.read_text()
-            except OSError, UnicodeDecodeError:
+            except (OSError, UnicodeDecodeError):
                 continue
 
             seen: dict[str, list[int]] = defaultdict(list)

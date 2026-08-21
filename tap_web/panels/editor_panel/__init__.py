@@ -78,7 +78,7 @@ class EditorPanelType:
         try:
             model_cls = get_model_class(entity_type)
             obj = model_cls.objects.select_related("entity").get(entity__pk=entity_id)
-        except KeyError, Exception:
+        except (KeyError, Exception):
             return render(
                 request,
                 cls.view,

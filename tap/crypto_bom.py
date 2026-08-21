@@ -376,7 +376,7 @@ def _source_findings(roots: Iterable[Path]) -> list[Finding]:
             spath = str(path)
             try:
                 tree = ast.parse(path.read_bytes())
-            except OSError, SyntaxError, ValueError:
+            except (OSError, SyntaxError, ValueError):
                 continue  # unparseable (e.g. a py2 file); the ELF/dist layers still cover its package
             for node in ast.walk(tree):
                 if isinstance(node, ast.Import):

@@ -75,6 +75,6 @@ class TapCoreConfig(AppConfig):
                     "kind": EntityTypeKind.NODE,
                 },
             )
-        except OperationalError, ProgrammingError:
+        except (OperationalError, ProgrammingError):
             # DB not ready yet (e.g. during initial migrate).
             pass

@@ -57,7 +57,7 @@ def _read_all(tree: ast.Module) -> set[str] | None:
             continue
         try:
             value: object = ast.literal_eval(node.value)
-        except ValueError, SyntaxError, TypeError:
+        except (ValueError, SyntaxError, TypeError):
             return None
         if isinstance(value, (list, tuple)):
             return {str(item) for item in value}

@@ -321,7 +321,7 @@ def _exempt_comment_lines(source: str) -> set[int]:
         for tok in tokenize.generate_tokens(io.StringIO(source).readline):
             if tok.type == tokenize.COMMENT and _EXEMPT_TOKEN in tok.string:
                 lines.add(tok.start[0])
-    except tokenize.TokenError, IndentationError, SyntaxError, ValueError:
+    except (tokenize.TokenError, IndentationError, SyntaxError, ValueError):
         pass
     return lines
 

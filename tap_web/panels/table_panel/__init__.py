@@ -371,7 +371,7 @@ class TablePanelType:
         if search_uuid_str:
             try:
                 search_entity = resolve_entity(search_uuid_str)
-            except ServiceNotFoundError, ServiceValidationError:
+            except (ServiceNotFoundError, ServiceValidationError):
                 logger.warning(
                     "[6d10] Table panel editor: search entity %s not found; USES_SEARCH edge not created.",
                     search_uuid_str,
@@ -436,5 +436,5 @@ def _safe_int(value: Any, default: int) -> int:
     try:
         result = int(value)
         return result if result >= 0 else default
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return default

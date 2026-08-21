@@ -42,7 +42,7 @@ def _tracked_boot_ids() -> set[str] | None:
             text=True,
             timeout=10,
         )
-    except OSError, subprocess.TimeoutExpired:
+    except (OSError, subprocess.TimeoutExpired):
         return None
     if result.returncode != 0:
         return None
