@@ -57,7 +57,7 @@ def dist_name_for(slug: str) -> str:
     return "tap-plugin-" + slug.replace("_", "-")
 
 
-def check_plugin_identity(doc: dict[str, object], dist: str, expected_version: str) -> list[str]:
+def check_dist_identity(doc: dict[str, object], dist: str, expected_version: str) -> list[str]:
     """The identity gate: dist name at the exact expected version, phantoms absent."""
     problems: list[str] = []
     components_obj = doc.get("components", [])
@@ -67,11 +67,11 @@ def check_plugin_identity(doc: dict[str, object], dist: str, expected_version: s
     matches = [c for c in components if c.get("name") == dist]
     if not matches:
         problems.append(
-            f"plugin component ABSENT: {dist} (found: {sorted(c.get('name', '?') for c in components)[:10]})"
+            f"distribution component ABSENT: {dist} (found: {sorted(c.get('name', '?') for c in components)[:10]})"
         )
     elif not any(c.get("version") == expected_version for c in matches):
         problems.append(
-            f"plugin version mismatch: {dist} is {[c.get('version') for c in matches]}, expected {expected_version} "
+            f"distribution version mismatch: {dist} is {[c.get('version') for c in matches]}, expected {expected_version} "
             "(tag == wheel == SBOM is the boot-record join key)"
         )
     names = {c.get("name") for c in components}
@@ -168,9 +168,13 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--expected-version", required=True, help="from the release tag ([<dist>-]vX.Y.Z -> X.Y.Z)")
     ap.add_argument("--out-dir", required=True, type=Path)
     args = ap.parse_args(argv)
+    # Empty string is present-but-useless (easy via --dist-name= or an empty
+    # workflow input): fail closed with a clean usage error, never a fallthrough.
+    if args.slug == "" or args.dist_name == "":
+        ap.error("--slug/--dist-name must be non-empty")
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
-    dist = args.dist_name if args.dist_name else dist_name_for(args.slug)
+    dist = args.dist_name if args.dist_name is not None else dist_name_for(args.slug)
     out_cdx = args.out_dir / f"{dist}-{args.expected_version}.cdx.json"
     out_spdx = args.out_dir / f"{dist}-{args.expected_version}.spdx.json"
 
@@ -192,7 +196,7 @@ def main(argv: list[str] | None = None) -> int:
     problems = check_minimum_elements_wheel(cdx)
     if problems:
         _gen.fail(problems, "conformance")
-    problems = check_plugin_identity(cdx, dist, args.expected_version)
+    problems = check_dist_identity(cdx, dist, args.expected_version)
     if problems:
         _gen.fail(problems, "identity")
 
