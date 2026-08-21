@@ -152,6 +152,26 @@ def test_adding_a_marker_does_not_change_the_content_hash(tmp_path: Path) -> Non
     assert bare == marked
 
 
+def test_generated_block_content_does_not_change_the_content_hash(tmp_path: Path) -> None:
+    """A generated block is machine-moved metadata: regenerating it (any session, any sync)
+    must never drift a claim on the enclosing requirement — the Map-block lesson."""
+    tree = _tree(tmp_path)
+    spec = tree / "specs" / "spec-example.md"
+    block = "\n<!-- BEGIN GENERATED MAP — manage.py guards --sync-map -->\n| row one |\n<!-- END GENERATED MAP -->\n"
+    base = spec.read_text(encoding="utf-8").replace(
+        "Alpha derives a fact exactly once.", "Alpha derives a fact exactly once.\n" + block
+    )
+    spec.write_text(base, encoding="utf-8")
+    with_one_row = load_corpus(tree).requirements["req-example-alpha"].content_hash
+
+    spec.write_text(base.replace("| row one |", "| row one |\n| row two |"), encoding="utf-8")
+    with_two_rows = load_corpus(tree).requirements["req-example-alpha"].content_hash
+    assert with_one_row == with_two_rows
+
+    bare = load_corpus(_tree(tmp_path)).requirements["req-example-alpha"].content_hash
+    assert with_one_row == bare  # the whole block is outside the hash, not merely stable
+
+
 def test_adding_a_marker_does_not_stale_claims(tmp_path: Path) -> None:
     tree = _tree(tmp_path)
     (tree / "tap" / "mod.py").write_text(_claim_module(tree), encoding="utf-8")
