@@ -371,11 +371,11 @@ COMPOSES — it never re-derives blindly and never trusts blindly.
   (req-cicd-sbom-7), never a silent preference for either side — disagreement between
   declaration and derivation is precisely the signal worth stopping for.
 * **Trust rides the signing wave.** Plugin SBOM attestations inherit the org-rooted
-  identity `req-plugin-extdev-signing` lands
+  identity `req-tap-plugin-extdev-signing` lands
   (`tap_plugins/specs/spec-plugin-external-development.md`); no new trust machinery
   is invented here, and nothing blocks on it — GitHub-attested by CI is the interim
   posture; org-rooted plugin publisher identity hardening lands with
-  `req-plugin-extdev-signing`.
+  `req-tap-plugin-extdev-signing`.
 
 #### Acceptance Criteria
 
