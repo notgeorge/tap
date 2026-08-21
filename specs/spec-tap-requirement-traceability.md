@@ -618,7 +618,7 @@ Generated — do not hand-edit. Regenerate with `manage.py guards --sync-evidenc
 
 <!-- BEGIN GENERATED EVIDENCE — manage.py guards --sync-evidence -->
 
-**1149** requirements · **20** standing doctrine · **0** disputed · **89** carry evidence · **1** carry both classes · **460** declared built with none.
+**1150** requirements · **20** standing doctrine · **0** disputed · **89** carry evidence · **1** carry both classes · **461** declared built with none.
 
 Separate facts, deliberately not blended into one percentage. **Doctrine** is outside the coverage question — in force now, never "completed", expecting conformance rather than an implementation. **Disputed** marks a spec-versus-implementation disagreement awaiting a human ruling — its claims are pointers to the contested code, never resolution, and the count should trend to zero. **Declared built with none** is context, not a defect list: claims are opt-in and scarce by design (`req-tap-traceability-scope`), so it measures how much of the corpus has been deliberately targeted, not how much is wrong. Collapsing these into a single coverage score is what makes such a score meaningless.
 
