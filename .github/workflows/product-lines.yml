@@ -173,7 +173,10 @@ jobs:
       # older; give this stdlib-only scan the interpreter the codebase is written for.
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
-          python-version: "3.14"
+          # Derived, never authored twice: resolve the interpreter from the same
+          # requires-python that governs the container build (pyproject.toml), so the
+          # runner can never drift from the container again.
+          python-version-file: "pyproject.toml"
       - name: Check referenced RIDs resolve
         run: scripts/check-rids
 
