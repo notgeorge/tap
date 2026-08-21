@@ -954,7 +954,7 @@ def _validate_removal_section(
             raw_eid = target["entity_id"]
             try:
                 normalized_eid = str(uuid.UUID(str(raw_eid)))
-            except (ValueError, AttributeError, TypeError):
+            except ValueError, AttributeError, TypeError:
                 issues.append(
                     _issue(
                         "schema_validation_failed",
@@ -1717,7 +1717,7 @@ def _run_preflight(
                 if endpoint_id not in file_node_ids:
                     try:
                         exists = Entity.objects.filter(pk=uuid.UUID(endpoint_id)).exists()
-                    except (ValueError, TypeError):
+                    except ValueError, TypeError:
                         exists = False
 
                     if not exists:
@@ -1761,7 +1761,7 @@ def _run_preflight(
                         f"{batch_path_s}.nodes[{node_idx_s}].entity.entity_type",
                         batch_eid_s,
                     )
-                except (ValueError, AttributeError):
+                except ValueError, AttributeError:
                     pass
         for edge_idx_s, edge_obj_s in enumerate(batch_container_s.get("edges", [])):
             raw_eid = edge_obj_s.get("entity", {}).get("entity_id")
@@ -1772,7 +1772,7 @@ def _run_preflight(
                         f"{batch_path_s}.edges[{edge_idx_s}].entity.entity_type",
                         batch_eid_s,
                     )
-                except (ValueError, AttributeError):
+                except ValueError, AttributeError:
                     pass
 
     if grift_types:

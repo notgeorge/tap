@@ -50,11 +50,11 @@ def _check_is_trivial(guard_cls: type[Guard]) -> bool:
     ratchet that inherits `CeilingRatchet.check` is measured on that (non-trivial) body."""
     try:
         source = textwrap.dedent(inspect.getsource(guard_cls.check))
-    except (OSError, TypeError):
+    except OSError, TypeError:
         return False  # cannot read source — do not flag (these are first-party files)
     try:
         func = ast.parse(source).body[0]
-    except (SyntaxError, IndexError):
+    except SyntaxError, IndexError:
         return False
     if not isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef)):
         return False

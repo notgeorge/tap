@@ -70,7 +70,7 @@ def _literal(node: ast.expr) -> object | None:
     """
     try:
         value: object = ast.literal_eval(node)
-    except (ValueError, SyntaxError, TypeError):
+    except ValueError, SyntaxError, TypeError:
         return None
     return value
 

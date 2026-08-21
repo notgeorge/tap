@@ -226,7 +226,7 @@ def _peek_context(path: Path) -> tuple[str | None, bool]:
     """
     try:
         payload = load_json_file(path)
-    except (JsonFileError, OSError):
+    except JsonFileError, OSError:
         return None, False
     if not isinstance(payload, dict):
         return None, False

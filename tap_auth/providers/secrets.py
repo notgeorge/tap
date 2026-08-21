@@ -87,6 +87,6 @@ def secret_exists(key: str, *, scope: str = "auth") -> bool:
     """True if a resolvable secret file exists for ``scope:key`` (no validation)."""
     try:
         find_secret_file(_secrets_root(), scope, key)
-    except (RuntimeSecretError, ProviderError):
+    except RuntimeSecretError, ProviderError:
         return False
     return True

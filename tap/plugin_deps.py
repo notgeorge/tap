@@ -96,7 +96,7 @@ def read_declared_depends_on(package_dir: Path) -> list[DeclaredDep]:
     try:
         with open(manifest, "rb") as fh:
             raw = tomllib.load(fh)
-    except (tomllib.TOMLDecodeError, OSError):
+    except tomllib.TOMLDecodeError, OSError:
         return []
     deps: list[DeclaredDep] = []
     for item in raw.get("depends_on", []) or []:
@@ -120,7 +120,7 @@ def read_manifest_slug(package_dir: Path) -> str | None:
     try:
         with open(manifest, "rb") as fh:
             raw = tomllib.load(fh)
-    except (tomllib.TOMLDecodeError, OSError):
+    except tomllib.TOMLDecodeError, OSError:
         return None
     slug = raw.get("slug")
     return slug if isinstance(slug, str) and slug else None

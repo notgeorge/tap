@@ -66,7 +66,7 @@ def get_flip_context_for_entity(entity_id: str) -> dict[str, Any]:
     except (ServiceNotFoundError, ServiceConstraintError, ServiceValidationError) as exc:
         try:
             flip_subject = services.resolve_entity(entity_id)
-        except (ServiceNotFoundError, ServiceValidationError):
+        except ServiceNotFoundError, ServiceValidationError:
             return {
                 "flip_subject": None,
                 "flip_rows": [],

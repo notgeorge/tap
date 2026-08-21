@@ -25,6 +25,6 @@ def read_json(request: HttpRequest) -> dict[str, Any]:
     """
     try:
         data = json.loads(request.body or b"{}")
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return {}
     return data if isinstance(data, dict) else {}

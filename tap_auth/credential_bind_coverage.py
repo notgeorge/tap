@@ -162,7 +162,7 @@ def _tag_lines(source: str) -> dict[int, str]:
                 match = _TAG_RE.search(tok.string)
                 if match:
                     tags[tok.start[0]] = match.group(1)
-    except (tokenize.TokenError, IndentationError, SyntaxError, ValueError):
+    except tokenize.TokenError, IndentationError, SyntaxError, ValueError:
         pass
     return tags
 

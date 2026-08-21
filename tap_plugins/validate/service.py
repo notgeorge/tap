@@ -272,7 +272,7 @@ def _declared_dependency_names(plugin_root: Path) -> list[str]:
     try:
         with pyproject.open("rb") as fh:
             data = tomllib.load(fh)
-    except (OSError, tomllib.TOMLDecodeError):
+    except OSError, tomllib.TOMLDecodeError:
         return []
     deps = data.get("project", {}).get("dependencies", []) or []
     names: list[str] = []
