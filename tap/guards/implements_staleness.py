@@ -1,6 +1,6 @@
 """Implementation-claim staleness guard — `req-tap-traceability-staleness`.
 
-TAP-IMPLEMENTS: req-tap-traceability-staleness@79b27e46feb7/a8d60a460163 (enforcement) —
+TAP-IMPLEMENTS: req-tap-traceability-staleness@1f23dca53252/a8d60a460163 (enforcement) —
     the guard that fails Outdated claims until re-verified and re-stamped.
 
 A claim carries a content hash of the requirement it claims. When the requirement's text
