@@ -481,11 +481,17 @@ Per-ecosystem application:
   JS currently ships as hand-vendored minified files (`tabulator.min.js`,
   `echarts.min.js`, `htmx.min.js`, `cytoscape.min.js` + tabulator css) — three of the
   five version-anonymous, invisible to every scanner and updater. The fix shape:
-  `package.json` + `package-lock.json` in-repo as the declaration (npm's registry +
-  integrity format — NOT an npm toolchain: the lock's resolved-URL + sha512 fields
-  make acquisition a curl-verify-extract build stage, no `node` anywhere), files
-  placed at an image path outside the dev bind mount (`STATICFILES_DIRS`), bytes
-  leaving git. Renovate maintains the lock natively; the lockfile in-repo feeds the
+  `package.json` + `package-lock.json` in-repo as the declaration, acquisition by
+  **`npm ci --ignore-scripts` in a digest-pinned node BUILDER stage** — the
+  ecosystem's own acquisition tool, used the standard way, per this requirement's
+  doctrine (a lock-parsing curl fetcher was considered and REJECTED as rolling our
+  own npm client: npm versions the lock format, and `npm ci` is the reference
+  implementation of its semantics). Same builder-stage boundary as `ossl-builder`
+  and `deps-warm`: node never ships in the runtime image or touches the dev loop;
+  `--ignore-scripts` closes the install-script vector, safe by construction since
+  the stage extracts static assets and executes nothing. Only the dist files are
+  copied out, to an image path outside the dev bind mount (`STATICFILES_DIRS`),
+  bytes leaving git. Renovate maintains the lock natively; the lockfile in-repo feeds the
   dependency graph and Dependabot automatically; Syft's npm-lockfile cataloger joins
   the -1 derivation exactly as uv.lock does. First step regardless of shape: identify
   the four anonymous files' exact versions by hash-matching upstream release
