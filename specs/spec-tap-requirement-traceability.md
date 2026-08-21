@@ -747,7 +747,7 @@ Generated — do not hand-edit. Regenerate with `manage.py guards --sync-account
 
 <!-- BEGIN GENERATED ACCOUNTING — manage.py guards --sync-accounting -->
 
-**1149** requirements · **89** mapped · **27** excluded (external 1, non-python 24, process 2) · **20** doctrine · **0** disputed · **563** unbuilt · **16** retired · **434 Unaccounted**.
+**1150** requirements · **89** mapped · **28** excluded (external 1, non-python 24, process 3) · **20** doctrine · **0** disputed · **563** unbuilt · **16** retired · **434 Unaccounted**.
 
 The Unaccounted count is the Definition of Done's progress bar: it only moves down (the committed baseline grandfathers existing debt; a new requirement without a disposition fails immediately). A grandfathered entry is debt, not license — every Unaccounted requirement still needs a mapping or a documented exclusion. **Unbuilt** and **retired** derive from status — a requirement declaring itself future work or withdrawn has, by its own account, nothing to map; the moment one flips to `Implemented` without evidence or an exclusion it becomes a NEW Unaccounted entry and the ratchet fails, so claiming done is where the Definition of Done is enforced.
 
@@ -820,7 +820,7 @@ The Unaccounted count is the Definition of Done's progress bar: it only moves do
 | `tap_grid/specs/spec-grid-gryphon-multihop-aggregation.md` | 11 | 8 | 0 | 0 | 0 | 1 | 0 | 2 |
 | `tap_grid/specs/spec-grid-security.md` | 7 | 1 | 0 | 0 | 0 | 4 | 0 | 2 |
 | `tap_web/specs/spec-web-panel.md` | 6 | 1 | 0 | 0 | 0 | 3 | 0 | 2 |
-| `specs/spec-cicd-hardening.md` | 13 | 2 | 6 | 0 | 0 | 4 | 0 | 1 |
+| `specs/spec-cicd-hardening.md` | 14 | 2 | 7 | 0 | 0 | 4 | 0 | 1 |
 | `specs/spec-dev-multisession.md` | 15 | 0 | 10 | 0 | 0 | 4 | 0 | 1 |
 | `specs/spec-tap-boot-bootstrap.md` | 10 | 2 | 0 | 0 | 0 | 7 | 0 | 1 |
 | `specs/spec-tap-logging.md` | 18 | 1 | 0 | 0 | 0 | 16 | 0 | 1 |
